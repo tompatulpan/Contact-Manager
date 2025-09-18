@@ -1900,11 +1900,26 @@ export class ContactUIController {
      */
     async archiveSharedContact(contactId) {
         try {
-            await this.contactManager.archiveContact(contactId);
-            console.log('✅ Shared contact archived successfully:', contactId);
+            const result = await this.contactManager.archiveContact(contactId);
+            if (result.success) {
+                console.log('✅ Shared contact archived successfully:', contactId);
+                this.showToast({ 
+                    message: 'Contact archived successfully', 
+                    type: 'success' 
+                });
+            } else {
+                console.error('❌ Failed to archive shared contact:', result.error);
+                this.showToast({ 
+                    message: `Failed to archive contact: ${result.error}`, 
+                    type: 'error' 
+                });
+            }
         } catch (error) {
             console.error('❌ Failed to archive shared contact:', error);
-            alert('Failed to archive contact. Please try again.');
+            this.showToast({ 
+                message: 'Failed to archive contact. Please try again.', 
+                type: 'error' 
+            });
         }
     }
 }/* Cache bust: tor 18 sep 2025 08:55:36 CEST */

@@ -10,7 +10,8 @@ export class ContactDatabase {
         this.databases = {
             contacts: 'contacts',
             settings: 'user-settings',
-            activity: 'activity-log'
+            activity: 'activity-log',
+            sharedContactMeta: 'shared-contact-metadata'  // Store user's metadata for shared contacts
         };
         this.changeHandlers = new Map();
         this.lastKnownSharedCount = 0;
@@ -350,6 +351,139 @@ export class ContactDatabase {
         } catch (error) {
             console.error('Update contact failed:', error);
             this.eventBus.emit('database:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    // ========== SHARED CONTACT METADATA METHODS ==========
+
+    /**
+     * Save or update shared contact metadata (user-specific states like archive, access tracking)
+     * @param {string} sharedContactId - The shared contact ID
+     * @param {Object} metadata - Metadata to store
+     * @returns {Promise<Object>} Save result
+     */
+    async saveSharedContactMetadata(sharedContactId, metadata) {
+        try {
+            const metadataItem = {
+                sharedContactId,
+                ...metadata,
+                lastUpdated: new Date().toISOString()
+            };
+
+            await userbase.insertItem({
+                databaseName: this.databases.sharedContactMeta,
+                item: metadataItem,
+                itemId: sharedContactId // Use shared contact ID as the item ID
+            });
+
+            console.log('✅ Shared contact metadata saved:', sharedContactId);
+            return { success: true, metadata: metadataItem };
+        } catch (error) {
+            console.error('❌ Save shared contact metadata failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Update shared contact metadata
+     * @param {string} sharedContactId - The shared contact ID
+     * @param {Object} metadata - Metadata to update
+     * @returns {Promise<Object>} Update result
+     */
+    async updateSharedContactMetadata(sharedContactId, metadata) {
+        try {
+            const metadataItem = {
+                sharedContactId,
+                ...metadata,
+                lastUpdated: new Date().toISOString()
+            };
+
+            await userbase.updateItem({
+                databaseName: this.databases.sharedContactMeta,
+                itemId: sharedContactId,
+                item: metadataItem
+            });
+
+            console.log('✅ Shared contact metadata updated:', sharedContactId);
+            return { success: true, metadata: metadataItem };
+        } catch (error) {
+            // If item doesn't exist, create it
+            if (error.name === 'ItemDoesNotExist') {
+                console.log('📝 Metadata doesn\'t exist, creating new:', sharedContactId);
+                return await this.saveSharedContactMetadata(sharedContactId, metadata);
+            }
+            console.error('❌ Update shared contact metadata failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get shared contact metadata
+     * @param {string} sharedContactId - The shared contact ID
+     * @returns {Promise<Object>} Metadata or null
+     */
+    async getSharedContactMetadata(sharedContactId) {
+        try {
+            // We need to open the database and find the item
+            // Since we can't query directly, we'll get all and filter
+            const items = await new Promise((resolve, reject) => {
+                userbase.openDatabase({
+                    databaseName: this.databases.sharedContactMeta,
+                    changeHandler: (items) => resolve(items),
+                }).catch(reject);
+            });
+
+            const metadataItem = items.find(item => item.itemId === sharedContactId);
+            return metadataItem ? metadataItem.item : null;
+        } catch (error) {
+            console.error('❌ Get shared contact metadata failed:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get all shared contact metadata for the current user
+     * @returns {Promise<Map>} Map of sharedContactId -> metadata
+     */
+    async getAllSharedContactMetadata() {
+        try {
+            return new Promise((resolve, reject) => {
+                userbase.openDatabase({
+                    databaseName: this.databases.sharedContactMeta,
+                    changeHandler: (items) => {
+                        const metadataMap = new Map();
+                        items.forEach(item => {
+                            if (item.item && item.item.sharedContactId) {
+                                metadataMap.set(item.item.sharedContactId, item.item);
+                            }
+                        });
+                        resolve(metadataMap);
+                    },
+                }).catch(reject);
+            });
+        } catch (error) {
+            console.error('❌ Get all shared contact metadata failed:', error);
+            return new Map();
+        }
+    }
+
+    /**
+     * Delete shared contact metadata
+     * @param {string} sharedContactId - The shared contact ID
+     * @returns {Promise<Object>} Delete result
+     */
+    async deleteSharedContactMetadata(sharedContactId) {
+        try {
+            await userbase.deleteItem({
+                databaseName: this.databases.sharedContactMeta,
+                itemId: sharedContactId
+            });
+
+            console.log('✅ Shared contact metadata deleted:', sharedContactId);
+            return { success: true };
+        } catch (error) {
+            console.error('❌ Delete shared contact metadata failed:', error);
             return { success: false, error: error.message };
         }
     }

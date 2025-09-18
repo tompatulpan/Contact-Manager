@@ -384,6 +384,13 @@ export class ContactManager {
                 return { success: false, error: 'Contact not found' };
             }
 
+            // Check if this is a shared contact (starts with 'shared_')
+            if (contactId.startsWith('shared_')) {
+                console.log('📦 Archiving shared contact locally:', contactId);
+                return await this.archiveSharedContactLocally(contactId, reason);
+            }
+
+            // For owned contacts, update in database
             const archivedContact = {
                 ...contact,
                 metadata: {
@@ -415,6 +422,83 @@ export class ContactManager {
 
         } catch (error) {
             console.error('Archive contact failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Archive shared contact locally (doesn't update original database)
+     * @param {string} contactId - Shared contact ID
+     * @param {string} reason - Archive reason
+     * @returns {Promise<Object>} Archive result
+     */
+    async archiveSharedContactLocally(contactId, reason = null) {
+        try {
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                return { success: false, error: 'Shared contact not found' };
+            }
+
+            console.log('📦 Archiving shared contact in user metadata:', {
+                contactId,
+                cardName: contact.cardName,
+                sharedBy: contact.metadata.sharedBy
+            });
+
+            // Store archive state in user's shared contact metadata database
+            const metadataResult = await this.database.updateSharedContactMetadata(contactId, {
+                isArchived: true,
+                archivedAt: new Date().toISOString(),
+                archivedBy: this.database.currentUser?.userId,
+                archiveReason: reason,
+                originalContactId: contact.metadata.originalContactId,
+                sharedBy: contact.metadata.sharedBy
+            });
+
+            if (!metadataResult.success) {
+                return { success: false, error: 'Failed to save archive state to metadata' };
+            }
+
+            // Update local cache with archive state
+            const archivedContact = {
+                ...contact,
+                metadata: {
+                    ...contact.metadata,
+                    isArchived: true,
+                    archivedAt: new Date().toISOString(),
+                    archivedBy: this.database.currentUser?.userId,
+                    archiveReason: reason,
+                    lastUpdated: new Date().toISOString()
+                }
+            };
+
+            this.contacts.set(contactId, archivedContact);
+            this.clearSearchCache();
+
+            // Log locally only
+            await this.database.logActivity({
+                action: 'shared_contact_archived',
+                contactId,
+                details: { 
+                    reason,
+                    sharedBy: contact.metadata.sharedBy,
+                    originalContactId: contact.metadata.originalContactId
+                }
+            });
+
+            // Emit events for UI updates
+            this.eventBus.emit('contact:archived', { contact: archivedContact });
+            this.eventBus.emit('contactManager:contactsUpdated', { 
+                contactCount: this.contacts.size,
+                action: 'shared_contact_archived'
+            });
+
+            console.log('✅ Shared contact archived in user metadata:', contactId);
+            return { success: true, contact: archivedContact };
+
+        } catch (error) {
+            console.error('❌ Archive shared contact locally failed:', error);
+            this.eventBus.emit('contact:error', { error: error.message });
             return { success: false, error: error.message };
         }
     }
@@ -701,9 +785,27 @@ export class ContactManager {
                 }
             };
 
-            // Update database and cache
-            await this.database.updateContact(updatedContact);
-            this.contacts.set(contactId, updatedContact);
+            // For shared contacts, store usage in user's metadata database
+            if (contactId.startsWith('shared_')) {
+                console.log('📊 Tracking access for shared contact in user metadata:', contactId);
+                
+                // Get existing metadata or create new
+                const existingMetadata = await this.database.getSharedContactMetadata(contactId) || {};
+                
+                // Update metadata with usage tracking
+                await this.database.updateSharedContactMetadata(contactId, {
+                    ...existingMetadata,
+                    usage: updatedContact.metadata.usage,
+                    lastAccessedAt: now
+                });
+                
+                // Update local cache
+                this.contacts.set(contactId, updatedContact);
+            } else {
+                // For owned contacts, update both database and cache
+                await this.database.updateContact(updatedContact);
+                this.contacts.set(contactId, updatedContact);
+            }
 
         } catch (error) {
             console.error('Track contact access failed:', error);
@@ -780,7 +882,7 @@ export class ContactManager {
      * Handle contacts changed event from database
      * @param {Object} data - Event data with contacts and metadata
      */
-    handleContactsChanged(data) {
+    async handleContactsChanged(data) {
         // Handle both old format (array) and new format (object)
         if (Array.isArray(data)) {
             // Old format - just contacts array
@@ -850,7 +952,8 @@ export class ContactManager {
                     ...contact.metadata,
                     isOwned: false,
                     sharedBy: sharedBy,
-                    databaseId: databaseId
+                    databaseId: databaseId,
+                    originalContactId: contact.contactId  // Store original ID for reference
                 };
                 
                 // Create unique ID for shared contacts to avoid conflicts
@@ -861,6 +964,9 @@ export class ContactManager {
                 console.log('📋 Adding shared contact to cache:', sharedContactId, contact.cardName || 'Unnamed', `(from ${sharedBy}, original: ${originalId})`);
                 this.contacts.set(sharedContactId, contact);
             });
+            
+            // Load and merge user's metadata for shared contacts
+            await this.loadAndMergeSharedContactMetadata();
             
             console.log('📨 Final contact count after adding shared:', this.contacts.size);
         }
@@ -1023,6 +1129,56 @@ export class ContactManager {
             console.error('❌ Update contact metadata failed:', error);
             this.eventBus.emit('contact:error', { error: error.message });
             return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Load shared contact metadata from user's metadata database and merge with contacts
+     */
+    async loadAndMergeSharedContactMetadata() {
+        try {
+            console.log('📊 Loading shared contact metadata from user database...');
+            
+            const metadataMap = await this.database.getAllSharedContactMetadata();
+            console.log('📊 Found metadata for', metadataMap.size, 'shared contacts');
+            
+            // Merge metadata with shared contacts in cache
+            for (const [sharedContactId, contact] of this.contacts.entries()) {
+                if (sharedContactId.startsWith('shared_') && metadataMap.has(sharedContactId)) {
+                    const userMetadata = metadataMap.get(sharedContactId);
+                    
+                    console.log('📊 Merging metadata for shared contact:', sharedContactId, {
+                        isArchived: userMetadata.isArchived,
+                        accessCount: userMetadata.usage?.accessCount || 0
+                    });
+                    
+                    // Merge user-specific metadata with contact
+                    const updatedContact = {
+                        ...contact,
+                        metadata: {
+                            ...contact.metadata,
+                            // User-specific states
+                            isArchived: userMetadata.isArchived || false,
+                            archivedAt: userMetadata.archivedAt,
+                            archivedBy: userMetadata.archivedBy,
+                            archiveReason: userMetadata.archiveReason,
+                            // User-specific usage tracking
+                            usage: {
+                                ...contact.metadata.usage,
+                                ...(userMetadata.usage || {})
+                            },
+                            lastAccessedAt: userMetadata.lastAccessedAt || contact.metadata.lastAccessedAt
+                        }
+                    };
+                    
+                    this.contacts.set(sharedContactId, updatedContact);
+                }
+            }
+            
+            console.log('✅ Shared contact metadata merged successfully');
+            
+        } catch (error) {
+            console.error('❌ Failed to load shared contact metadata:', error);
         }
     }
 }
