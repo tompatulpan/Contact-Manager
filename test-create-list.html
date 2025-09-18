@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Create List Button</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-container { max-width: 600px; margin: 0 auto; }
+        .button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .toast { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Create List Button Test</h1>
+        
+        <p>Click the button below to test the Create List functionality:</p>
+        
+        <button id="create-list-btn" class="button">
+            <i class="fas fa-plus"></i>
+            Create List
+        </button>
+        
+        <div id="test-output" style="margin-top: 20px;"></div>
+        
+        <!-- Toast Elements (copied from main HTML) -->
+        <div id="error-toast" class="toast hidden">
+            <span id="error-message"></span>
+        </div>
+        
+        <div id="success-toast" class="toast hidden">
+            <span id="success-message"></span>
+        </div>
+    </div>
+
+    <script>
+        // Simple test to verify the Create List button functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const createListBtn = document.getElementById('create-list-btn');
+            const output = document.getElementById('test-output');
+            
+            if (createListBtn) {
+                output.innerHTML += '<p>✅ Create List button found</p>';
+                
+                createListBtn.addEventListener('click', function() {
+                    output.innerHTML += '<p>📋 Create List button clicked!</p>';
+                    
+                    // Simulate the toast functionality
+                    showToast({ message: 'Creating distribution lists will be available in Phase 2', type: 'info' });
+                });
+            } else {
+                output.innerHTML += '<p>❌ Create List button NOT found</p>';
+            }
+        });
+        
+        function showToast(data) {
+            const { message, type = 'info' } = data;
+            const output = document.getElementById('test-output');
+            
+            // Use existing toast elements from HTML
+            let toastElement, messageElement;
+            
+            if (type === 'error') {
+                toastElement = document.getElementById('error-toast');
+                messageElement = document.getElementById('error-message');
+            } else {
+                // Use success toast for info, success, and other types
+                toastElement = document.getElementById('success-toast');
+                messageElement = document.getElementById('success-message');
+            }
+            
+            if (!toastElement || !messageElement) {
+                output.innerHTML += '<p>❌ Toast elements not found</p>';
+                return;
+            }
+            
+            // Set the message
+            messageElement.textContent = message;
+            
+            // Show the toast
+            toastElement.classList.remove('hidden');
+            output.innerHTML += '<p>✅ Toast displayed: "' + message + '"</p>';
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                toastElement.classList.add('hidden');
+                output.innerHTML += '<p>⏰ Toast hidden after 3 seconds</p>';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

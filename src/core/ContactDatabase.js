@@ -16,6 +16,15 @@ export class ContactDatabase {
         this.changeHandlers = new Map();
         this.lastKnownSharedCount = 0;
         this.sharedDatabaseMonitor = null;
+        this.settingsItems = []; // Initialize settings items array
+    }
+
+    /**
+     * Get current authenticated user
+     * @returns {Object|null} Current user object
+     */
+    getCurrentUser() {
+        return this.currentUser;
     }
 
     /**
@@ -176,6 +185,7 @@ export class ContactDatabase {
 
             // Setup settings database
             await this.openDatabase('user-settings', (items) => {
+                this.settingsItems = items; // Store settings locally
                 this.eventBus.emit('settings:changed', { settings: items });
             });
 
@@ -800,5 +810,82 @@ export class ContactDatabase {
         } catch (error) {
             console.error('🔄 Error checking for new shared databases:', error);
         }
+    }
+
+    /**
+     * Get user settings including distribution lists
+     * @returns {Promise<Object>} User settings object
+     */
+    async getSettings() {
+        try {
+            // Try to get existing settings
+            if (this.settingsItems && this.settingsItems.length > 0) {
+                return this.settingsItems[0] || this.getDefaultSettings();
+            }
+            
+            return this.getDefaultSettings();
+            
+        } catch (error) {
+            console.error('💾 Error getting settings:', error);
+            return this.getDefaultSettings();
+        }
+    }
+
+    /**
+     * Update user settings
+     * @param {Object} settings - Settings object to save
+     * @returns {Promise<boolean>} Success status
+     */
+    async updateSettings(settings) {
+        try {
+            const settingsToSave = {
+                ...this.getDefaultSettings(),
+                ...settings,
+                lastUpdated: new Date().toISOString()
+            };
+
+            if (this.settingsItems && this.settingsItems.length > 0 && this.settingsItems[0]) {
+                // Update existing settings
+                await userbase.updateItem({
+                    databaseName: 'user-settings',
+                    itemId: this.settingsItems[0].itemId,
+                    item: settingsToSave
+                });
+                
+                // Update local cache
+                this.settingsItems[0] = { ...this.settingsItems[0], ...settingsToSave };
+            } else {
+                // Create new settings
+                const result = await userbase.insertItem({
+                    databaseName: 'user-settings',
+                    item: settingsToSave
+                });
+                
+                // Update local cache
+                this.settingsItems = [{ itemId: result.itemId, ...settingsToSave }];
+            }
+
+            console.log('💾 Settings updated successfully');
+            return true;
+            
+        } catch (error) {
+            console.error('💾 Error updating settings:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get default settings structure
+     * @returns {Object} Default settings
+     */
+    getDefaultSettings() {
+        return {
+            distributionLists: {},
+            theme: 'light',
+            defaultSort: 'name',
+            defaultViewMode: 'card',
+            createdAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString()
+        };
     }
 }

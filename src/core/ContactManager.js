@@ -1186,4 +1186,147 @@ export class ContactManager {
             console.error('❌ Failed to load shared contact metadata:', error);
         }
     }
+
+    /**
+     * Create a new distribution list
+     * @param {Object} listData - Distribution list data
+     * @returns {Promise<Object>} Creation result
+     */
+    async createDistributionList(listData) {
+        try {
+            console.log('📋 Creating distribution list:', listData);
+            
+            // Validate list data
+            if (!listData.name || typeof listData.name !== 'string') {
+                return { success: false, error: 'List name is required' };
+            }
+            
+            const listName = listData.name.trim();
+            if (listName.length === 0) {
+                return { success: false, error: 'List name cannot be empty' };
+            }
+            
+            // Check if list already exists
+            const existingLists = this.getDistributionListCounts();
+            const existingList = existingLists.find(list => 
+                list.name.toLowerCase() === listName.toLowerCase());
+            
+            if (existingList) {
+                return { success: false, error: 'A list with this name already exists' };
+            }
+            
+            // Create the list metadata
+            const listMetadata = {
+                name: listName,
+                description: listData.description || '',
+                color: listData.color || '#007bff',
+                createdAt: new Date().toISOString(),
+                createdBy: this.database.getCurrentUser()?.username || 'unknown',
+                contactCount: 0
+            };
+            
+            // Save to settings/preferences (this could be expanded to use a dedicated lists database)
+            const currentSettings = await this.database.getSettings() || {};
+            const distributionLists = currentSettings.distributionLists || {};
+            
+            distributionLists[listName] = listMetadata;
+            
+            const updateResult = await this.database.updateSettings({
+                ...currentSettings,
+                distributionLists
+            });
+            
+            if (updateResult) {
+                console.log('✅ Distribution list created successfully:', listMetadata);
+                
+                // Emit event for UI updates
+                this.eventBus.emit('distributionList:created', { list: listMetadata });
+                
+                return { success: true, list: listMetadata };
+            } else {
+                return { success: false, error: 'Failed to save distribution list' };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error creating distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get all distribution lists with metadata
+     * @returns {Promise<Array>} Array of distribution list objects
+     */
+    async getDistributionLists() {
+        try {
+            const settings = await this.database.getSettings() || {};
+            const distributionLists = settings.distributionLists || {};
+            
+            // Convert to array and add current contact counts
+            const lists = Object.values(distributionLists).map(list => {
+                const currentCounts = this.getDistributionListCounts();
+                const currentCount = currentCounts.find(c => c.name === list.name);
+                
+                return {
+                    ...list,
+                    contactCount: currentCount ? currentCount.count : 0
+                };
+            });
+            
+            return lists.sort((a, b) => a.name.localeCompare(b.name));
+            
+        } catch (error) {
+            console.error('❌ Error getting distribution lists:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Delete a distribution list
+     * @param {string} listName - Name of the list to delete
+     * @returns {Promise<Object>} Deletion result
+     */
+    async deleteDistributionList(listName) {
+        try {
+            console.log('🗑️ Deleting distribution list:', listName);
+            
+            // Remove from settings
+            const currentSettings = await this.database.getSettings() || {};
+            const distributionLists = currentSettings.distributionLists || {};
+            
+            if (!distributionLists[listName]) {
+                return { success: false, error: 'Distribution list not found' };
+            }
+            
+            delete distributionLists[listName];
+            
+            const updateResult = await this.database.updateSettings({
+                ...currentSettings,
+                distributionLists
+            });
+            
+            if (updateResult.success) {
+                // Remove the list from all contacts
+                for (const contact of this.contacts.values()) {
+                    if (contact.metadata.distributionLists?.includes(listName)) {
+                        const updatedLists = contact.metadata.distributionLists.filter(l => l !== listName);
+                        await this.updateContact(contact.contactId, {
+                            distributionLists: updatedLists
+                        });
+                    }
+                }
+                
+                console.log('✅ Distribution list deleted successfully');
+                this.eventBus.emit('distributionList:deleted', { listName });
+                
+                return { success: true };
+            } else {
+                return { success: false, error: 'Failed to delete distribution list' };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error deleting distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
 }

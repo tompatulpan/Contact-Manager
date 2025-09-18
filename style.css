@@ -842,6 +842,47 @@ body {
     color: white;
 }
 
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+.loading-indicator.hidden {
+    display: none;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-secondary);
+}
+
+.empty-state.hidden {
+    display: none;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
 /* Animations */
 @keyframes spin {
     0% { transform: rotate(0deg); }

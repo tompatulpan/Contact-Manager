@@ -115,6 +115,10 @@ export class ContactUIController {
             shareSuccess: document.getElementById('share-success'),
             sharedWithUser: document.getElementById('shared-with-user'),
             
+            // Create List Modal elements
+            createListModal: document.getElementById('create-list-modal'),
+            createListForm: document.getElementById('create-list-form'),
+            
             // UI controls
             newContactBtn: document.getElementById('new-contact-btn'),
             userMenuBtn: document.getElementById('user-menu-btn'),
@@ -216,7 +220,10 @@ export class ContactUIController {
         
         // Distribution list events
         if (this.elements.createListBtn) {
+            console.log('📋 Create List button found, adding event listener');
             this.elements.createListBtn.addEventListener('click', this.showCreateListModal.bind(this));
+        } else {
+            console.log('⚠️ Create List button not found');
         }
         
         // Navigation
@@ -245,6 +252,11 @@ export class ContactUIController {
         // Share form
         if (this.elements.shareForm) {
             this.elements.shareForm.addEventListener('submit', this.handleShareSubmit.bind(this));
+        }
+        
+        // Create list form
+        if (this.elements.createListForm) {
+            this.elements.createListForm.addEventListener('submit', this.handleCreateListSubmit.bind(this));
         }
         
         // Modal close buttons
@@ -656,7 +668,9 @@ export class ContactUIController {
      * Show create list modal (placeholder for Phase 2)
      */
     showCreateListModal() {
-        this.showToast('Creating distribution lists will be available in Phase 2', 'info');
+        console.log('📋 Create List button clicked');
+        this.showModal({ modalId: 'create-list-modal' });
+        this.resetCreateListForm();
     }
 
     /**
@@ -736,14 +750,30 @@ export class ContactUIController {
             return;
         }
         
+        // Hide loading indicator
+        const loadingElement = document.getElementById('loading-indicator');
+        if (loadingElement) {
+            loadingElement.classList.add('hidden');
+        }
+        
         // Clear existing contacts
         container.innerHTML = '';
         console.log('🎨 Container cleared');
         
         if (contacts.length === 0) {
             console.log('🎨 No contacts to display, showing empty state');
-            this.showEmptyState();
+            // Show the existing empty state element from HTML
+            const emptyStateElement = document.getElementById('empty-state');
+            if (emptyStateElement) {
+                emptyStateElement.classList.remove('hidden');
+            }
             return;
+        } else {
+            // Hide empty state when we have contacts
+            const emptyStateElement = document.getElementById('empty-state');
+            if (emptyStateElement) {
+                emptyStateElement.classList.add('hidden');
+            }
         }
         
         console.log('🎨 Creating', contacts.length, 'contact cards...');
@@ -1197,31 +1227,42 @@ export class ContactUIController {
      */
     showToast(data) {
         const { message, type = 'info' } = data;
-        const container = this.elements.toastContainer;
-        if (!container) return;
         
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.innerHTML = `
-            <div class="toast-content">
-                <span class="toast-message">${this.escapeHtml(message)}</span>
-                <button class="toast-close" aria-label="Close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
+        // Use existing toast elements from HTML
+        let toastElement, messageElement, dismissBtn;
         
-        container.appendChild(toast);
+        if (type === 'error') {
+            toastElement = document.getElementById('error-toast');
+            messageElement = document.getElementById('error-message');
+            dismissBtn = document.getElementById('dismiss-error');
+        } else {
+            // Use success toast for info, success, and other types
+            toastElement = document.getElementById('success-toast');
+            messageElement = document.getElementById('success-message');
+            dismissBtn = document.getElementById('dismiss-success');
+        }
         
-        // Auto-remove after 5 seconds
+        if (!toastElement || !messageElement) return;
+        
+        // Set the message
+        messageElement.textContent = message;
+        
+        // Show the toast
+        toastElement.classList.remove('hidden');
+        
+        // Auto-hide after 5 seconds
         setTimeout(() => {
-            this.removeToast(toast);
+            toastElement.classList.add('hidden');
         }, 5000);
         
-        // Add close button listener
-        toast.querySelector('.toast-close').addEventListener('click', () => {
-            this.removeToast(toast);
-        });
+        // Handle dismiss button if it exists
+        if (dismissBtn) {
+            const dismissHandler = () => {
+                toastElement.classList.add('hidden');
+                dismissBtn.removeEventListener('click', dismissHandler);
+            };
+            dismissBtn.addEventListener('click', dismissHandler);
+        }
     }
 
     /**
@@ -1292,18 +1333,16 @@ export class ContactUIController {
     }
 
     showEmptyState() {
-        const container = this.elements.contactCards;
-        if (container) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-address-book"></i>
-                    <h3>No contacts found</h3>
-                    <p>Get started by adding your first contact</p>
-                    <button class="btn btn-primary" onclick="document.getElementById('new-contact-btn').click()">
-                        <i class="fas fa-plus"></i> Add Contact
-                    </button>
-                </div>
-            `;
+        // Use the existing empty state element from HTML
+        const emptyStateElement = document.getElementById('empty-state');
+        if (emptyStateElement) {
+            emptyStateElement.classList.remove('hidden');
+        }
+        
+        // Hide loading indicator if visible
+        const loadingElement = document.getElementById('loading-indicator');
+        if (loadingElement) {
+            loadingElement.classList.add('hidden');
         }
     }
 
@@ -1661,6 +1700,150 @@ export class ContactUIController {
             
             console.log('✅ Contact form reset');
         }
+    }
+
+    /**
+     * Reset create list form
+     */
+    resetCreateListForm() {
+        const form = document.getElementById('create-list-form');
+        if (form) {
+            form.reset();
+            
+            // Set default color
+            const colorInput = document.getElementById('list-color');
+            if (colorInput) {
+                colorInput.value = '#007bff';
+            }
+            
+            // Clear any error messages
+            const errorElements = form.querySelectorAll('.field-error');
+            errorElements.forEach(el => {
+                el.style.display = 'none';
+                el.textContent = '';
+            });
+            
+            // Remove error classes from form fields
+            const fieldElements = form.querySelectorAll('.field-error-highlight');
+            fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
+            
+            console.log('✅ Create list form reset');
+        }
+    }
+
+    /**
+     * Handle create list form submission
+     */
+    async handleCreateListSubmit(event) {
+        event.preventDefault();
+        console.log('📋 Create list form submitted');
+        
+        const formData = new FormData(event.target);
+        const listData = {
+            name: formData.get('listName')?.trim(),
+            description: formData.get('description')?.trim() || '',
+            color: formData.get('color') || '#007bff'
+        };
+        
+        console.log('📋 Creating list with data:', listData);
+        
+        // Validate form data
+        const validation = this.validateCreateListForm(listData);
+        if (!validation.isValid) {
+            this.displayCreateListErrors(validation.errors);
+            return;
+        }
+        
+        try {
+            // Create the distribution list
+            const result = await this.contactManager.createDistributionList(listData);
+            
+            if (result.success) {
+                console.log('✅ Distribution list created successfully:', result.list);
+                this.hideModal({ modalId: 'create-list-modal' });
+                this.showToast({ 
+                    message: `Distribution list "${listData.name}" created successfully!`, 
+                    type: 'success' 
+                });
+                
+                // Refresh the distribution lists display
+                this.renderDistributionLists();
+            } else {
+                console.error('❌ Failed to create distribution list:', result.error);
+                this.showToast({ 
+                    message: result.error || 'Failed to create distribution list', 
+                    type: 'error' 
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error creating distribution list:', error);
+            this.showToast({ 
+                message: 'An error occurred while creating the list', 
+                type: 'error' 
+            });
+        }
+    }
+
+    /**
+     * Validate create list form data
+     */
+    validateCreateListForm(listData) {
+        const errors = {};
+        
+        // Validate name
+        if (!listData.name || listData.name.length === 0) {
+            errors.listName = 'List name is required';
+        } else if (listData.name.length > 50) {
+            errors.listName = 'List name must be 50 characters or less';
+        } else if (!/^[a-zA-Z0-9\s\-_]+$/.test(listData.name)) {
+            errors.listName = 'List name can only contain letters, numbers, spaces, hyphens, and underscores';
+        }
+        
+        // Validate description
+        if (listData.description && listData.description.length > 200) {
+            errors.description = 'Description must be 200 characters or less';
+        }
+        
+        // Validate color
+        if (!listData.color || !/^#[0-9A-Fa-f]{6}$/.test(listData.color)) {
+            errors.color = 'Please select a valid color';
+        }
+        
+        return {
+            isValid: Object.keys(errors).length === 0,
+            errors
+        };
+    }
+
+    /**
+     * Display create list form errors
+     */
+    displayCreateListErrors(errors) {
+        // Clear previous errors
+        const errorElements = document.querySelectorAll('#create-list-form .field-error');
+        errorElements.forEach(el => {
+            el.style.display = 'none';
+            el.textContent = '';
+        });
+        
+        // Remove error highlighting
+        const fieldElements = document.querySelectorAll('#create-list-form .field-error-highlight');
+        fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
+        
+        // Display new errors
+        Object.entries(errors).forEach(([field, message]) => {
+            const errorElement = document.getElementById(`${field}-error`);
+            const inputElement = document.getElementById(field === 'listName' ? 'list-name' : field);
+            
+            if (errorElement) {
+                errorElement.textContent = message;
+                errorElement.style.display = 'block';
+            }
+            
+            if (inputElement) {
+                inputElement.classList.add('field-error-highlight');
+            }
+        });
     }
 
     populateContactForm(contact) {
