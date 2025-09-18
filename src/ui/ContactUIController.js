@@ -14,9 +14,6 @@ export class ContactUIController {
         this.searchQuery = '';
         this.activeFilters = {};
         
-        // Throttling for display updates
-        this.displayUpdateTimeout = null;
-        
         // DOM elements cache
         this.elements = {};
         
@@ -82,8 +79,8 @@ export class ContactUIController {
             app: document.getElementById('app'),
             header: document.querySelector('.header'),
             sidebar: document.querySelector('.sidebar'),
-            contactList: document.querySelector('.contact-list'),
-            contactDetail: document.querySelector('.contact-detail'),
+            contactList: document.getElementById('contact-list'), // Use the correct ID from HTML
+            contactDetail: document.getElementById('contact-detail-content'), // Use the correct ID from HTML
             
             // Navigation elements
             navItems: document.querySelectorAll('.nav-item'),
@@ -95,7 +92,7 @@ export class ContactUIController {
             sortSelect: document.getElementById('sort-select'),
             
             // Contact elements
-            contactCards: document.getElementById('contact-list'), // Fixed: use correct element ID
+            contactCards: document.getElementById('contact-list'), // Use the correct ID from HTML
             contactForm: document.getElementById('contact-form'),
             contactModal: document.getElementById('contact-modal'),
             
@@ -372,8 +369,15 @@ export class ContactUIController {
      * Perform contact search
      */
     performSearch() {
+        console.log('🔍 UI: Performing search with query:', this.searchQuery, 'filters:', this.activeFilters);
+        console.log('🔍 UI: Contact manager has', this.contactManager?.contacts?.size || 0, 'total contacts');
+        
         const results = this.contactManager.searchContacts(this.searchQuery, this.activeFilters);
+        console.log('🔍 UI: Search results:', results.length, 'contacts');
+        
         const sortedResults = this.contactManager.sortContacts(results, this.getCurrentSort());
+        console.log('🔍 UI: Sorted results:', sortedResults.length, 'contacts');
+        
         this.displayContactList(sortedResults);
         this.updateStats();
     }
@@ -434,16 +438,9 @@ export class ContactUIController {
      * Handle contact list updates
      */
     handleContactsUpdated(data) {
-        // Throttle rapid consecutive updates during authentication
-        if (this.displayUpdateTimeout) {
-            clearTimeout(this.displayUpdateTimeout);
-        }
-        
-        this.displayUpdateTimeout = setTimeout(() => {
-            this.performSearch();
-            this.updateStats();
-            this.displayUpdateTimeout = null;
-        }, 100); // 100ms delay to batch rapid updates
+        console.log('🎨 UI: Received contactsUpdated event with', data?.contactCount || 0, 'contacts');
+        this.performSearch();
+        this.updateStats();
     }
 
     /**
@@ -538,28 +535,37 @@ export class ContactUIController {
      * Display contact list
      */
     displayContactList(contacts) {
+        console.log('🎨 DisplayContactList called with', contacts.length, 'contacts');
         const container = this.elements.contactCards;
+        console.log('🎨 Container element:', container);
+        
         if (!container) {
-            console.error('❌ Contact list container not found!');
+            console.error('❌ Contact cards container not found!');
             return;
         }
         
         // Clear existing contacts
         container.innerHTML = '';
+        console.log('🎨 Container cleared');
         
         if (contacts.length === 0) {
+            console.log('🎨 No contacts to display, showing empty state');
             this.showEmptyState();
             return;
         }
         
+        console.log('🎨 Creating', contacts.length, 'contact cards...');
         // Create contact cards
-        contacts.forEach(contact => {
+        contacts.forEach((contact, index) => {
+            console.log(`🎨 Creating card ${index + 1}:`, contact.cardName);
             const contactCard = this.createContactCard(contact);
             container.appendChild(contactCard);
         });
         
+        console.log('🎨 Contact cards created and appended');
         // Update contact count
         this.updateContactCount(contacts.length);
+        console.log('✅ DisplayContactList completed');
     }
 
     /**
@@ -1042,27 +1048,182 @@ export class ContactUIController {
 
     populateContactForm(contact) {
         console.log('Populate contact form:', contact);
+        
+        const form = document.getElementById('contact-form');
+        if (!form) {
+            console.error('Contact form not found');
+            return;
+        }
+
+        // Set form mode to edit
+        form.dataset.mode = 'edit';
+        form.dataset.contactId = contact.contactId;
+
+        try {
+            // Extract display data from vCard
+            const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+            
+            // Populate basic fields
+            this.setFormFieldValue('fullName', displayData.fullName);
+            this.setFormFieldValue('cardName', contact.cardName);
+            this.setFormFieldValue('organization', displayData.organization);
+            this.setFormFieldValue('title', displayData.title);
+
+            // Populate first phone number (simplified for now)
+            if (displayData.phones.length > 0) {
+                this.setFormFieldValue('phone', displayData.phones[0].value);
+            } else {
+                this.setFormFieldValue('phone', '');
+            }
+
+            // Populate first email (simplified for now)
+            if (displayData.emails.length > 0) {
+                this.setFormFieldValue('email', displayData.emails[0].value);
+            } else {
+                this.setFormFieldValue('email', '');
+            }
+
+            // Clear any previous errors
+            this.clearFormErrors(form);
+            
+            console.log('✅ Contact form populated successfully');
+
+        } catch (error) {
+            console.error('Failed to populate contact form:', error);
+            this.showFormError('Failed to load contact data');
+        }
+    }
+
+    /**
+     * Set form field value safely
+     * @param {string} fieldName - Field name
+     * @param {string} value - Field value
+     */
+    setFormFieldValue(fieldName, value) {
+        const field = document.getElementById(fieldName);
+        if (field) {
+            field.value = value || '';
+        } else {
+            console.warn(`Form field not found: ${fieldName}`);
+        }
+    }
+
+    /**
+     * Clear form errors
+     * @param {HTMLFormElement} form - Form element
+     */
+    clearFormErrors(form) {
+        const errorElements = form.querySelectorAll('.field-error');
+        errorElements.forEach(el => {
+            el.style.display = 'none';
+            el.textContent = '';
+        });
+        
+        const fieldElements = form.querySelectorAll('.field-error-highlight');
+        fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
     }
 
     formDataToContactData(formData) {
-        // Convert form data to contact data format
-        // This would be implemented based on the actual form structure
-        return {
-            fn: formData.get('fullName'),
-            cardName: formData.get('cardName'),
-            // ... other fields
+        // Convert form data to contact data format expected by ContactManager
+        const contactData = {
+            fn: formData.get('fullName') || '',
+            cardName: formData.get('cardName') || formData.get('fullName') || 'Unnamed Contact'
         };
+
+        // Handle organization
+        const organization = formData.get('organization');
+        if (organization && organization.trim()) {
+            contactData.organization = organization.trim();
+        }
+
+        // Handle title
+        const title = formData.get('title');
+        if (title && title.trim()) {
+            contactData.title = title.trim();
+        }
+
+        // Handle phone numbers (simplified - single phone for now)
+        const phone = formData.get('phone');
+        if (phone && phone.trim()) {
+            contactData.phones = [{
+                value: phone.trim(),
+                type: 'other',
+                primary: true
+            }];
+        } else {
+            contactData.phones = [];
+        }
+
+        // Handle email addresses (simplified - single email for now)
+        const email = formData.get('email');
+        if (email && email.trim()) {
+            contactData.emails = [{
+                value: email.trim(),
+                type: 'other',
+                primary: true
+            }];
+        } else {
+            contactData.emails = [];
+        }
+
+        // Initialize empty arrays for other fields
+        contactData.urls = [];
+        contactData.notes = [];
+
+        return contactData;
     }
 
     showFormLoading(show) {
+        const form = document.getElementById('contact-form');
+        const submitButton = form?.querySelector('button[type="submit"]');
+        const cancelButton = form?.querySelector('button[data-dismiss="modal"]');
+        
+        if (submitButton) {
+            submitButton.disabled = show;
+            submitButton.innerHTML = show 
+                ? '<i class="fas fa-spinner fa-spin"></i> Saving...' 
+                : 'Save Contact';
+        }
+        
+        if (cancelButton) {
+            cancelButton.disabled = show;
+        }
+        
         console.log('Show form loading:', show);
     }
 
     showFormError(error) {
+        // Show error in a toast or form error area
+        this.showToast({ message: error, type: 'error' });
         console.log('Show form error:', error);
     }
 
     highlightFormErrors(errors) {
+        if (!errors || !Array.isArray(errors)) return;
+        
+        const form = document.getElementById('contact-form');
+        if (!form) return;
+        
+        // Clear previous error highlights
+        this.clearFormErrors(form);
+        
+        // Highlight fields with errors
+        errors.forEach(error => {
+            if (error.field) {
+                const field = form.querySelector(`[name="${error.field}"]`);
+                const errorElement = form.querySelector(`#${error.field}-error`);
+                
+                if (field) {
+                    field.classList.add('field-error-highlight');
+                }
+                
+                if (errorElement) {
+                    errorElement.textContent = error.message;
+                    errorElement.style.display = 'block';
+                }
+            }
+        });
+        
         console.log('Highlight form errors:', errors);
     }
 
