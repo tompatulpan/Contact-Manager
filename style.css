@@ -888,3 +888,128 @@ body {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Distribution List Management */
+.distribution-lists-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.distribution-list-tag {
+    display: inline-block;
+    background: #007bff;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    margin-right: 4px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.distribution-list-tag:hover {
+    background: #0056b3;
+}
+
+.no-lists {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.9em;
+}
+
+.distribution-list-manager {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.distribution-list-manager h4 {
+    margin: 0 0 15px 0;
+    color: #495057;
+    font-size: 1em;
+}
+
+.list-assignment {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.distribution-list-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background: white;
+    font-size: 0.9em;
+}
+
+.distribution-list-select:disabled {
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.add-to-list-btn {
+    padding: 8px 12px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background-color 0.2s;
+}
+
+.add-to-list-btn:hover {
+    background: #218838;
+}
+
+.add-to-list-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
+/* Distribution List Sidebar */
+.distribution-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.distribution-list-item:hover {
+    background: #f8f9fa;
+}
+
+.distribution-list-item.active {
+    background: #007bff;
+    color: white;
+}
+
+.distribution-list-name {
+    font-weight: 500;
+}
+
+.distribution-list-count {
+    background: rgba(0, 0, 0, 0.1);
+    color: inherit;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    min-width: 20px;
+    text-align: center;
+}
+
+.distribution-list-item.active .distribution-list-count {
+    background: rgba(255, 255, 255, 0.2);
+}

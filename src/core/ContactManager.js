@@ -1262,14 +1262,22 @@ export class ContactManager {
             const settings = await this.database.getSettings() || {};
             const distributionLists = settings.distributionLists || {};
             
-            // Convert to array and add current contact counts
+            // Convert to array with contact counts calculated directly
             const lists = Object.values(distributionLists).map(list => {
-                const currentCounts = this.getDistributionListCounts();
-                const currentCount = currentCounts.find(c => c.name === list.name);
+                // Count contacts assigned to this list
+                let contactCount = 0;
+                for (const contact of this.contacts.values()) {
+                    if (!contact.isDeleted && 
+                        contact.metadata && 
+                        contact.metadata.distributionLists && 
+                        contact.metadata.distributionLists.includes(list.name)) {
+                        contactCount++;
+                    }
+                }
                 
                 return {
                     ...list,
-                    contactCount: currentCount ? currentCount.count : 0
+                    contactCount: contactCount
                 };
             });
             
@@ -1278,6 +1286,105 @@ export class ContactManager {
         } catch (error) {
             console.error('❌ Error getting distribution lists:', error);
             return [];
+        }
+    }
+
+    /**
+     * Add a contact to a distribution list
+     * @param {string} contactId - ID of the contact to add
+     * @param {string} listName - Name of the distribution list
+     * @returns {Promise<Object>} Addition result
+     */
+    async addContactToDistributionList(contactId, listName) {
+        try {
+            console.log('📝 Adding contact to distribution list:', contactId, listName);
+            
+            // Get the contact
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                return { success: false, error: 'Contact not found' };
+            }
+            
+            // Verify the distribution list exists
+            const settings = await this.database.getSettings() || {};
+            const distributionLists = settings.distributionLists || {};
+            if (!distributionLists[listName]) {
+                return { success: false, error: 'Distribution list not found' };
+            }
+            
+            // Initialize distributionLists array if it doesn't exist
+            if (!contact.metadata.distributionLists) {
+                contact.metadata.distributionLists = [];
+            }
+            
+            // Add to list if not already there
+            if (!contact.metadata.distributionLists.includes(listName)) {
+                contact.metadata.distributionLists.push(listName);
+                contact.metadata.lastUpdated = new Date().toISOString();
+                
+                // Update the contact (not save as new)
+                await this.database.updateContact(contact);
+                
+                // Update local cache
+                this.contacts.set(contactId, contact);
+                
+                console.log('✅ Contact added to distribution list successfully');
+                this.eventBus.emit('contact:updated', { contact });
+                this.eventBus.emit('distributionList:contactAdded', { contactId, listName });
+                
+                return { success: true };
+            } else {
+                return { success: false, error: 'Contact already in this distribution list' };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error adding contact to distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Remove a contact from a distribution list
+     * @param {string} contactId - ID of the contact to remove
+     * @param {string} listName - Name of the distribution list
+     * @returns {Promise<Object>} Removal result
+     */
+    async removeContactFromDistributionList(contactId, listName) {
+        try {
+            console.log('📝 Removing contact from distribution list:', contactId, listName);
+            
+            // Get the contact
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                return { success: false, error: 'Contact not found' };
+            }
+            
+            // Remove from list if present
+            if (contact.metadata.distributionLists && 
+                contact.metadata.distributionLists.includes(listName)) {
+                
+                contact.metadata.distributionLists = contact.metadata.distributionLists
+                    .filter(list => list !== listName);
+                contact.metadata.lastUpdated = new Date().toISOString();
+                
+                // Update the contact (not save as new)
+                await this.database.updateContact(contact);
+                
+                // Update local cache
+                this.contacts.set(contactId, contact);
+                
+                console.log('✅ Contact removed from distribution list successfully');
+                this.eventBus.emit('contact:updated', { contact });
+                this.eventBus.emit('distributionList:contactRemoved', { contactId, listName });
+                
+                return { success: true };
+            } else {
+                return { success: false, error: 'Contact not in this distribution list' };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error removing contact from distribution list:', error);
+            return { success: false, error: error.message };
         }
     }
 
@@ -1328,5 +1435,44 @@ export class ContactManager {
             console.error('❌ Error deleting distribution list:', error);
             return { success: false, error: error.message };
         }
+    }
+
+    /**
+     * Get contacts in a specific distribution list
+     * @param {string} listName - Name of the distribution list
+     * @returns {Array} Array of contacts in the list
+     */
+    getContactsByDistributionList(listName) {
+        const contacts = [];
+        
+        for (const contact of this.contacts.values()) {
+            if (!contact.isDeleted && 
+                contact.metadata && 
+                contact.metadata.distributionLists && 
+                contact.metadata.distributionLists.includes(listName)) {
+                contacts.push(contact);
+            }
+        }
+        
+        return contacts;
+    }
+
+    /**
+     * Get all contacts assigned to distribution lists with list info
+     * @returns {Array} Array of contacts with their distribution list assignments
+     */
+    getContactsWithDistributionLists() {
+        const contacts = [];
+        
+        for (const contact of this.contacts.values()) {
+            if (!contact.isDeleted) {
+                contacts.push({
+                    ...contact,
+                    assignedLists: contact.metadata?.distributionLists || []
+                });
+            }
+        }
+        
+        return contacts;
     }
 }

@@ -285,6 +285,9 @@ export class ContactUIController {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', this.handleKeyboardShortcuts.bind(this));
+        
+        // Distribution list management (event delegation)
+        document.addEventListener('click', this.handleDistributionListActions.bind(this));
     }
 
     /**
@@ -599,9 +602,9 @@ export class ContactUIController {
         if (!this.elements.distributionListsContainer) return;
 
         try {
-            const listStats = await this.contactManager.getDistributionListCounts();
+            const distributionLists = await this.contactManager.getDistributionLists();
             
-            if (listStats.length === 0) {
+            if (distributionLists.length === 0) {
                 this.elements.distributionListsContainer.innerHTML = `
                     <div class="no-lists-message">
                         <p>No distribution lists yet</p>
@@ -610,10 +613,10 @@ export class ContactUIController {
                 return;
             }
 
-            const listItems = listStats.map(list => `
+            const listItems = distributionLists.map(list => `
                 <div class="distribution-list-item" data-list-name="${list.name}">
-                    <span class="distribution-list-name">${list.name}</span>
-                    <span class="distribution-list-count">${list.count}</span>
+                    <span class="distribution-list-name" style="color: ${list.color || '#007bff'}">${list.name}</span>
+                    <span class="distribution-list-count">${list.contactCount || 0}</span>
                 </div>
             `).join('');
 
@@ -1057,6 +1060,9 @@ export class ContactUIController {
         
         // Add event listeners for detail actions
         this.setupContactDetailListeners(container, contact.contactId);
+        
+        // Populate distribution list selects
+        setTimeout(() => this.populateDistributionListSelects(), 100);
     }
 
     /**
@@ -1158,6 +1164,47 @@ export class ContactUIController {
                             <span class="metadata-value">${metadata.usage.accessCount}</span>
                         </div>
                     ` : ''}
+                    <div class="metadata-item distribution-lists-section">
+                        <span class="metadata-label">Lists:</span>
+                        <div class="metadata-value">
+                            ${this.renderContactDistributionLists(contact)}
+                        </div>
+                    </div>
+                </div>
+                ${this.renderDistributionListManager(contact)}
+            </div>
+        `;
+    }
+
+    /**
+     * Render contact's distribution lists
+     */
+    renderContactDistributionLists(contact) {
+        const lists = contact.metadata?.distributionLists || [];
+        
+        if (lists.length === 0) {
+            return '<span class="no-lists">Not assigned to any lists</span>';
+        }
+        
+        return lists.map(listName => 
+            `<span class="distribution-list-tag" data-list="${listName}">${listName}</span>`
+        ).join('');
+    }
+
+    /**
+     * Render distribution list management interface
+     */
+    renderDistributionListManager(contact) {
+        return `
+            <div class="distribution-list-manager">
+                <h4><i class="fas fa-tags"></i> Manage Lists</h4>
+                <div class="list-assignment">
+                    <select class="distribution-list-select" data-contact-id="${contact.contactId}">
+                        <option value="">Choose a list...</option>
+                    </select>
+                    <button class="btn btn-small add-to-list-btn" data-contact-id="${contact.contactId}">
+                        <i class="fas fa-plus"></i> Add
+                    </button>
                 </div>
             </div>
         `;
@@ -2239,5 +2286,180 @@ export class ContactUIController {
                 type: 'error' 
             });
         }
+    }
+
+    /**
+     * Handle distribution list actions (event delegation)
+     */
+    async handleDistributionListActions(event) {
+        // Handle adding contact to distribution list
+        if (event.target.matches('.add-to-list-btn')) {
+            event.preventDefault();
+            const contactId = event.target.dataset.contactId;
+            const select = document.querySelector(`.distribution-list-select[data-contact-id="${contactId}"]`);
+            const listName = select?.value;
+            
+            if (!listName) {
+                this.showToast({ message: 'Please select a distribution list', type: 'warning' });
+                return;
+            }
+            
+            await this.addContactToList(contactId, listName);
+            return;
+        }
+        
+        // Handle removing contact from distribution list
+        if (event.target.matches('.distribution-list-tag')) {
+            event.preventDefault();
+            const listName = event.target.dataset.list;
+            const contactCard = event.target.closest('.contact-card');
+            const contactId = contactCard?.dataset.contactId;
+            
+            if (contactId && listName) {
+                await this.removeContactFromList(contactId, listName);
+            }
+            return;
+        }
+        
+        // Handle distribution list sidebar clicks
+        if (event.target.matches('.distribution-list-item, .distribution-list-item *')) {
+            const listItem = event.target.closest('.distribution-list-item');
+            const listName = listItem?.dataset.listName;
+            
+            if (listName !== undefined) {
+                this.filterByDistributionList(listName);
+            }
+            return;
+        }
+    }
+
+    /**
+     * Add contact to distribution list
+     */
+    async addContactToList(contactId, listName) {
+        try {
+            const result = await this.contactManager.addContactToDistributionList(contactId, listName);
+            
+            if (result.success) {
+                this.showToast({ 
+                    message: `Contact added to "${listName}" list`, 
+                    type: 'success' 
+                });
+                
+                // Refresh the contact display and distribution lists
+                await this.refreshContactsList();
+                await this.renderDistributionLists();
+                
+            } else {
+                this.showToast({ 
+                    message: result.error || 'Failed to add contact to list', 
+                    type: 'error' 
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error adding contact to list:', error);
+            this.showToast({ 
+                message: 'Failed to add contact to list', 
+                type: 'error' 
+            });
+        }
+    }
+
+    /**
+     * Remove contact from distribution list
+     */
+    async removeContactFromList(contactId, listName) {
+        if (!confirm(`Remove this contact from "${listName}" list?`)) {
+            return;
+        }
+        
+        try {
+            const result = await this.contactManager.removeContactFromDistributionList(contactId, listName);
+            
+            if (result.success) {
+                this.showToast({ 
+                    message: `Contact removed from "${listName}" list`, 
+                    type: 'success' 
+                });
+                
+                // Refresh the contact display and distribution lists
+                await this.refreshContactsList();
+                await this.renderDistributionLists();
+                
+            } else {
+                this.showToast({ 
+                    message: result.error || 'Failed to remove contact from list', 
+                    type: 'error' 
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error removing contact from list:', error);
+            this.showToast({ 
+                message: 'Failed to remove contact from list', 
+                type: 'error' 
+            });
+        }
+    }
+
+    /**
+     * Filter contacts by distribution list
+     */
+    filterByDistributionList(listName) {
+        // Update active filter
+        this.activeFilters.distributionList = listName || null;
+        
+        // Update UI state
+        document.querySelectorAll('.distribution-list-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        const activeItem = document.querySelector(`.distribution-list-item[data-list-name="${listName || ''}"]`);
+        if (activeItem) {
+            activeItem.classList.add('active');
+        }
+        
+        // Apply filter
+        this.refreshContactsList();
+        
+        // Show appropriate message
+        const listDisplayName = listName || 'All Contacts';
+        this.showToast({ 
+            message: `Showing: ${listDisplayName}`, 
+            type: 'info' 
+        });
+    }
+
+    /**
+     * Populate distribution list select options
+     */
+    async populateDistributionListSelects() {
+        const distributionLists = await this.contactManager.getDistributionLists();
+        const selects = document.querySelectorAll('.distribution-list-select');
+        
+        selects.forEach(select => {
+            const contactId = select.dataset.contactId;
+            const contact = this.contactManager.contacts.get(contactId);
+            const assignedLists = contact?.metadata?.distributionLists || [];
+            
+            // Clear existing options (except the first "Choose a list..." option)
+            while (select.children.length > 1) {
+                select.removeChild(select.lastChild);
+            }
+            
+            // Add available lists (exclude already assigned ones)
+            distributionLists.forEach(list => {
+                if (!assignedLists.includes(list.name)) {
+                    const option = document.createElement('option');
+                    option.value = list.name;
+                    option.textContent = list.name;
+                    select.appendChild(option);
+                }
+            });
+            
+            // Disable if no lists available
+            select.disabled = distributionLists.filter(list => 
+                !assignedLists.includes(list.name)
+            ).length === 0;
+        });
     }
 }/* Cache bust: tor 18 sep 2025 08:55:36 CEST */
