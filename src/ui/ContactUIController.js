@@ -701,6 +701,9 @@ export class ContactUIController {
                         <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
                             <i class="icon-edit"></i>
                         </button>
+                        <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive contact">
+                            <i class="icon-archive"></i>
+                        </button>
                         <button class="btn-icon delete-contact" data-contact-id="${contact.contactId}" title="Delete contact">
                             <i class="icon-trash"></i>
                         </button>
@@ -836,14 +839,14 @@ export class ContactUIController {
             });
         }
 
-        // Archive shared contact button (only for shared contacts)
+        // Archive contact button (both owned and shared contacts)
         const archiveBtn = card.querySelector('.archive-contact');
         if (archiveBtn) {
             console.log('🔗 Adding archive button listener');
             archiveBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
                 console.log('📦 Archive button clicked for:', contact.contactId);
-                this.archiveSharedContact(contact.contactId);
+                this.archiveContact(contact.contactId);
             });
         }
 
@@ -1896,26 +1899,36 @@ export class ContactUIController {
     }
 
     /**
-     * Archive shared contact
+     * Archive contact (both owned and shared) with confirmation
      */
-    async archiveSharedContact(contactId) {
+    async archiveContact(contactId) {
+        const contact = this.contactManager.getContact(contactId);
+        if (!contact) return;
+
+        // Show confirmation dialog
+        const confirmed = confirm(`Are you sure you want to archive "${contact.cardName}"?\n\nArchived contacts will be hidden from the main view but can be restored later.`);
+        if (!confirmed) {
+            console.log('📦 Archive cancelled by user for:', contactId);
+            return;
+        }
+
         try {
             const result = await this.contactManager.archiveContact(contactId);
             if (result.success) {
-                console.log('✅ Shared contact archived successfully:', contactId);
+                console.log('✅ Contact archived successfully:', contactId);
                 this.showToast({ 
                     message: 'Contact archived successfully', 
                     type: 'success' 
                 });
             } else {
-                console.error('❌ Failed to archive shared contact:', result.error);
+                console.error('❌ Failed to archive contact:', result.error);
                 this.showToast({ 
                     message: `Failed to archive contact: ${result.error}`, 
                     type: 'error' 
                 });
             }
         } catch (error) {
-            console.error('❌ Failed to archive shared contact:', error);
+            console.error('❌ Failed to archive contact:', error);
             this.showToast({ 
                 message: 'Failed to archive contact. Please try again.', 
                 type: 'error' 
