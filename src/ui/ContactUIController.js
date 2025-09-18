@@ -58,6 +58,9 @@ export class ContactUIController {
             // Initialize responsive behavior
             this.initializeResponsiveDesign();
             
+            // Clear contact detail to remove static welcome message
+            this.clearContactDetail();
+
             console.log('✅ UI Controller initialized');
             
         } catch (error) {
@@ -1222,14 +1225,7 @@ export class ContactUIController {
                             <span class="metadata-value">${metadata.usage.accessCount}</span>
                         </div>
                     ` : ''}
-                    <div class="metadata-item distribution-lists-section">
-                        <span class="metadata-label">Lists:</span>
-                        <div class="metadata-value">
-                            ${this.renderContactDistributionLists(contact)}
-                        </div>
-                    </div>
                 </div>
-                ${this.renderDistributionListManager(contact)}
             </div>
         `;
     }
@@ -1247,25 +1243,6 @@ export class ContactUIController {
         return lists.map(listName => 
             `<span class="distribution-list-tag" data-list="${listName}">${listName}</span>`
         ).join('');
-    }
-
-    /**
-     * Render distribution list management interface
-     */
-    renderDistributionListManager(contact) {
-        return `
-            <div class="distribution-list-manager">
-                <h4><i class="fas fa-tags"></i> Manage Lists</h4>
-                <div class="list-assignment">
-                    <select class="distribution-list-select" data-contact-id="${contact.contactId}">
-                        <option value="">Choose a list...</option>
-                    </select>
-                    <button class="btn btn-small add-to-list-btn" data-contact-id="${contact.contactId}">
-                        <i class="fas fa-plus"></i> Add
-                    </button>
-                </div>
-            </div>
-        `;
     }
 
     /**
