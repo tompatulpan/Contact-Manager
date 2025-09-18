@@ -13,6 +13,8 @@ export class ContactDatabase {
             activity: 'activity-log'
         };
         this.changeHandlers = new Map();
+        this.lastKnownSharedCount = 0;
+        this.sharedDatabaseMonitor = null;
     }
 
     /**
@@ -49,6 +51,9 @@ export class ContactDatabase {
                 appId,
                 timestamp: new Date().toISOString() 
             });
+
+            // Start periodic check for new shared databases
+            this.startSharedDatabaseMonitoring();
             
         } catch (error) {
             console.error('Database initialization failed:', error);
@@ -203,13 +208,45 @@ export class ContactDatabase {
 
             for (const db of contactDatabases) {
                 try {
+                    console.log(`🔄 Opening shared database from ${db.receivedFromUsername} with ID: ${db.databaseId}`);
                     await userbase.openDatabase({
-                        databaseName: db.databaseName,
-                        databaseId: db.databaseId,
+                        databaseId: db.databaseId,  // Use only databaseId for shared databases
                         changeHandler: (items) => {
                             console.log(`📨 Received shared contacts from ${db.receivedFromUsername}:`, items.length);
+                            console.log('🔍 Raw shared contact items:', items);
+                            
+                            // Log first contact structure for debugging
+                            if (items.length > 0) {
+                                console.log('🔍 First shared contact structure:', {
+                                    item: items[0].item,
+                                    itemId: items[0].itemId,
+                                    keys: Object.keys(items[0].item || {}),
+                                    hasVCard: !!(items[0].item && items[0].item.vcard),
+                                    vCardLength: items[0].item && items[0].item.vcard ? items[0].item.vcard.length : 'N/A'
+                                });
+                            }
+                            
+                            // Transform Userbase items to contact format
+                            const contacts = items.map(userbaseItem => {
+                                const item = userbaseItem.item || {};
+                                return {
+                                    contactId: item.contactId || userbaseItem.itemId,
+                                    cardName: item.cardName || 'Unnamed Contact',
+                                    vcard: item.vcard || '',
+                                    metadata: {
+                                        ...item.metadata,
+                                        isOwned: false,
+                                        sharedBy: db.receivedFromUsername,
+                                        databaseId: db.databaseId,
+                                        lastUpdated: item.metadata?.lastUpdated || new Date().toISOString()
+                                    }
+                                };
+                            });
+                            
+                            console.log('🔄 Transformed shared contacts:', contacts);
+                            
                             this.eventBus.emit('contacts:changed', { 
-                                contacts: items, 
+                                contacts: contacts, 
                                 isOwned: false,
                                 sharedBy: db.receivedFromUsername,
                                 databaseId: db.databaseId
@@ -219,6 +256,11 @@ export class ContactDatabase {
                     console.log(`✅ Opened shared contacts database from: ${db.receivedFromUsername}`);
                 } catch (error) {
                     console.error(`❌ Failed to open shared database from ${db.receivedFromUsername}:`, error);
+                    console.error('❌ Error details:', {
+                        message: error.message,
+                        name: error.name,
+                        code: error.code
+                    });
                 }
             }
         } catch (error) {
@@ -569,11 +611,60 @@ export class ContactDatabase {
      */
     async closeDatabases() {
         try {
+            // Stop monitoring
+            if (this.sharedDatabaseMonitor) {
+                clearInterval(this.sharedDatabaseMonitor);
+                this.sharedDatabaseMonitor = null;
+            }
+            
             // Userbase handles this automatically, but we can clear our handlers
             this.changeHandlers.clear();
             this.eventBus.emit('database:closed', {});
         } catch (error) {
             console.error('Close databases failed:', error);
+        }
+    }
+
+    /**
+     * Start monitoring for new shared databases
+     */
+    startSharedDatabaseMonitoring() {
+        // Check every 10 seconds for new shared databases
+        this.sharedDatabaseMonitor = setInterval(async () => {
+            try {
+                await this.checkForNewSharedDatabases();
+            } catch (error) {
+                console.error('🔄 Error checking for new shared databases:', error);
+            }
+        }, 10000); // 10 seconds
+
+        console.log('🔄 Started shared database monitoring (checking every 10 seconds)');
+    }
+
+    /**
+     * Check for new shared databases
+     */
+    async checkForNewSharedDatabases() {
+        try {
+            const allDatabases = await userbase.getDatabases();
+            const sharedDatabases = allDatabases.databases.filter(db => !db.isOwner);
+            
+            // Check if we have new shared databases
+            const currentSharedCount = this.lastKnownSharedCount || 0;
+            const newSharedCount = sharedDatabases.length;
+            
+            if (newSharedCount > currentSharedCount) {
+                console.log(`🔄 Detected ${newSharedCount - currentSharedCount} new shared database(s)!`);
+                console.log('🔄 Re-setting up shared databases...');
+                
+                // Re-setup all shared databases to include new ones
+                await this.setupSharedDatabases();
+                
+                this.lastKnownSharedCount = newSharedCount;
+            }
+            
+        } catch (error) {
+            console.error('🔄 Error checking for new shared databases:', error);
         }
     }
 }

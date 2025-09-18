@@ -153,6 +153,75 @@ body {
     text-decoration: none;
 }
 
+/* Icon Buttons */
+.btn-icon {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-icon:hover {
+    background: var(--primary-light);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.btn-icon:active {
+    transform: scale(0.95) translateY(0);
+}
+
+/* Icon Classes with better visibility */
+.icon-eye::before { 
+    content: '👁️'; 
+    font-size: 1.1em;
+}
+.icon-edit::before { 
+    content: '✏️'; 
+    font-size: 1.1em;
+}
+.icon-share::before { 
+    content: '📤'; 
+    font-size: 1.1em;
+}
+.icon-trash::before { 
+    content: '🗑️'; 
+    font-size: 1.1em;
+}
+.icon-archive::before { 
+    content: '📦'; 
+    font-size: 1.1em;
+}
+
+/* Contact Actions Override */
+.contact-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    opacity: 0.8; /* Always visible but slightly transparent */
+    transition: all 0.2s ease;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.contact-card:hover .contact-actions {
+    opacity: 1; /* Full opacity on hover */
+    background: rgba(59, 130, 246, 0.02);
+    border-radius: 6px;
+}
+
 /* Modals */
 .modal {
     position: fixed;

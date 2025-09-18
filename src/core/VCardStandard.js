@@ -19,7 +19,13 @@ export class VCardStandard {
      */
     parseVCard(vCardString) {
         if (!vCardString || typeof vCardString !== 'string') {
+            console.error('❌ Invalid vCard string provided:', vCardString);
             throw new Error('Invalid vCard string provided');
+        }
+        
+        if (vCardString.trim() === '') {
+            console.error('❌ Empty vCard string provided');
+            throw new Error('Empty vCard string provided');
         }
 
         const lines = this.unfoldLines(vCardString);

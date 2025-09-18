@@ -62,7 +62,7 @@ export class ContactManager {
     setupEventListeners() {
         // Handle real-time contact updates
         this.eventBus.on('contacts:changed', (data) => {
-            this.handleContactsChanged(data.contacts);
+            this.handleContactsChanged(data);
         });
 
         // Handle settings updates
@@ -802,8 +802,13 @@ export class ContactManager {
                 return contact.metadata.isOwned;
             });
             
+            console.log('📋 Found existing owned contacts to remove:', ownedContactIds.length);
+            console.log('📋 Existing total contacts before cleanup:', this.contacts.size);
+            
             // Remove old owned contacts
             ownedContactIds.forEach(id => this.contacts.delete(id));
+            
+            console.log('📋 Contacts after removing owned:', this.contacts.size);
             
             // Add new owned contacts
             contactsArray.forEach(contact => {
@@ -817,9 +822,12 @@ export class ContactManager {
                 console.log('📋 Adding owned contact to cache:', contact.contactId, contact.cardName || 'Unnamed');
                 this.contacts.set(contact.contactId, contact);
             });
+            
+            console.log('📋 Final contact count after adding owned:', this.contacts.size);
         } else {
             // Handle shared contacts from a specific user
-            console.log(`📨 Processing shared contacts from: ${sharedBy}`);
+            console.log(`📨 Processing shared contacts from: ${sharedBy} (databaseId: ${databaseId})`);
+            console.log('📨 Contacts before processing shared:', this.contacts.size);
             
             // Remove old shared contacts from this same sharer/database
             const oldSharedContactIds = Array.from(this.contacts.keys()).filter(id => {
@@ -829,7 +837,11 @@ export class ContactManager {
                        contact.metadata.databaseId === databaseId;
             });
             
+            console.log('📨 Found old shared contacts to remove:', oldSharedContactIds.length, oldSharedContactIds);
+            
             oldSharedContactIds.forEach(id => this.contacts.delete(id));
+            
+            console.log('📨 Contacts after removing old shared:', this.contacts.size);
             
             // Add new shared contacts
             contactsArray.forEach(contact => {
@@ -842,12 +854,15 @@ export class ContactManager {
                 };
                 
                 // Create unique ID for shared contacts to avoid conflicts
+                const originalId = contact.contactId;
                 const sharedContactId = `shared_${sharedBy}_${contact.contactId}`;
                 contact.contactId = sharedContactId;
                 
-                console.log('📋 Adding shared contact to cache:', sharedContactId, contact.cardName || 'Unnamed', `(from ${sharedBy})`);
+                console.log('📋 Adding shared contact to cache:', sharedContactId, contact.cardName || 'Unnamed', `(from ${sharedBy}, original: ${originalId})`);
                 this.contacts.set(sharedContactId, contact);
             });
+            
+            console.log('📨 Final contact count after adding shared:', this.contacts.size);
         }
 
         // Clear search cache

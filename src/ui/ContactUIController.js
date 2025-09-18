@@ -657,76 +657,205 @@ export class ContactUIController {
      * Create contact card element
      */
     createContactCard(contact) {
-        const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
-        
+        try {
+            console.log('🎨 Creating contact card for:', {
+                contactId: contact.contactId,
+                cardName: contact.cardName,
+                hasVCard: !!contact.vcard,
+                vCardLength: contact.vcard ? contact.vcard.length : 'N/A',
+                metadata: contact.metadata
+            });
+            
+            if (!contact.vcard) {
+                console.warn('⚠️ Contact has no vCard data, creating fallback card');
+                return this.createFallbackContactCard(contact);
+            }
+            
+            const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+            
+            const card = document.createElement('div');
+            card.className = 'contact-card';
+            card.dataset.contactId = contact.contactId;
+            
+            card.innerHTML = `
+                <div class="contact-avatar">
+                    <span class="avatar-initial">${displayData.fullName.charAt(0).toUpperCase()}</span>
+                </div>
+                <div class="contact-info">
+                    <h3 class="contact-name">${this.escapeHtml(displayData.fullName)}</h3>
+                    <p class="contact-organization">${this.escapeHtml(displayData.organization)}</p>
+                    <p class="contact-title">${this.escapeHtml(displayData.title)}</p>
+                    <div class="contact-meta">
+                        ${displayData.phones.length > 0 ? `<span class="contact-phone">${this.escapeHtml(displayData.phones[0].value)}</span>` : ''}
+                        ${!contact.metadata.isOwned ? `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : ''}
+                    </div>
+                </div>
+                <div class="contact-actions">
+                    <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View contact">
+                        <i class="icon-eye"></i>
+                    </button>
+                    ${contact.metadata.isOwned ? `
+                        <button class="btn-icon share-contact" data-contact-id="${contact.contactId}" title="Share contact">
+                            <i class="icon-share"></i>
+                        </button>
+                        <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
+                            <i class="icon-edit"></i>
+                        </button>
+                        <button class="btn-icon delete-contact" data-contact-id="${contact.contactId}" title="Delete contact">
+                            <i class="icon-trash"></i>
+                        </button>
+                    ` : `
+                        <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive shared contact">
+                            <i class="icon-archive"></i>
+                        </button>
+                    `}
+                </div>
+            `;
+            
+            // Attach event listeners to the card buttons
+            this.attachContactCardListeners(card, contact);
+            
+            return card;
+            
+        } catch (error) {
+            console.error('❌ Error creating contact card:', error);
+            console.error('❌ Contact data that failed:', contact);
+            return this.createFallbackContactCard(contact);
+        }
+    }
+
+    /**
+     * Create fallback contact card for contacts with invalid data
+     */
+    createFallbackContactCard(contact) {
         const card = document.createElement('div');
-        card.className = 'contact-card';
-        card.dataset.contactId = contact.contactId;
+        card.className = 'contact-card contact-card-error';
+        card.dataset.contactId = contact.contactId || 'unknown';
+        
+        const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
+        const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
+            `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : '';
         
         card.innerHTML = `
             <div class="contact-avatar">
-                <span class="avatar-initial">${displayData.fullName.charAt(0).toUpperCase()}</span>
+                <span class="avatar-initial">?</span>
             </div>
             <div class="contact-info">
-                <h3 class="contact-name">${this.escapeHtml(displayData.fullName)}</h3>
-                <p class="contact-organization">${this.escapeHtml(displayData.organization)}</p>
-                <p class="contact-title">${this.escapeHtml(displayData.title)}</p>
-                <div class="contact-meta">
-                    ${displayData.phones.length > 0 ? `<span class="contact-phone">${this.escapeHtml(displayData.phones[0].value)}</span>` : ''}
-                    ${displayData.emails.length > 0 ? `<span class="contact-email">${this.escapeHtml(displayData.emails[0].value)}</span>` : ''}
-                </div>
-                <div class="contact-tags">
-                    ${contact.metadata.distributionLists?.map(list => 
-                        `<span class="tag">${this.escapeHtml(list)}</span>`
-                    ).join('') || ''}
-                    ${!contact.metadata.isOwned ? 
-                        `<span class="tag tag-shared">Shared by ${this.escapeHtml(contact.metadata.sharedBy || 'unknown')}</span>` : ''}
-                    ${contact.metadata.isOwned && contact.metadata.sharing?.isShared ? 
-                        `<span class="tag tag-shared-out">Shared with ${contact.metadata.sharing.shareCount}</span>` : ''}
-                </div>
+                <h3 class="contact-name">${this.escapeHtml(contactName)}</h3>
+                <p class="contact-error">Invalid contact data</p>
+                ${sharedInfo}
             </div>
             <div class="contact-actions">
-                <button class="btn btn-icon edit-contact" title="Edit">
-                    <i class="fas fa-edit"></i>
-                </button>
-                ${contact.metadata.isOwned ? `
-                <button class="btn btn-icon share-contact" title="Share">
-                    <i class="fas fa-share"></i>
-                </button>
-                ` : ''}
-                <button class="btn btn-icon delete-contact" title="Delete">
-                    <i class="fas fa-trash"></i>
+                <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View raw data">
+                    <i class="icon-eye"></i>
                 </button>
             </div>
         `;
         
-        // Add event listeners
+        return card;
+    }
+
+    /**
+     * Create fallback contact card for contacts with invalid data
+     */
+    createFallbackContactCard(contact) {
+        const card = document.createElement('div');
+        card.className = 'contact-card contact-card-error';
+        card.dataset.contactId = contact.contactId || 'unknown';
+        
+        const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
+        const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
+            `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : '';
+        
+        card.innerHTML = `
+            <div class="contact-avatar">
+                <span class="avatar-initial">?</span>
+            </div>
+            <div class="contact-info">
+                <h3 class="contact-name">${this.escapeHtml(contactName)}</h3>
+                <p class="contact-error">Invalid contact data</p>
+                ${sharedInfo}
+            </div>
+            <div class="contact-actions">
+                <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View raw data">
+                    <i class="icon-eye"></i>
+                </button>
+            </div>
+        `;
+        
+        return card;
+    }
+
+    /**
+     * Attach event listeners to contact card buttons
+     */
+    attachContactCardListeners(card, contact) {
+        console.log('🔗 Attaching listeners to contact card:', contact.contactId);
+        
+        // View contact button
+        const viewBtn = card.querySelector('.view-contact');
+        if (viewBtn) {
+            console.log('🔗 Adding view button listener');
+            viewBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('👁️ View button clicked for:', contact.contactId);
+                this.selectContact(contact.contactId);
+            });
+        }
+
+        // Edit contact button (only for owned contacts)
+        const editBtn = card.querySelector('.edit-contact');
+        if (editBtn) {
+            console.log('🔗 Adding edit button listener');
+            editBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('✏️ Edit button clicked for:', contact.contactId);
+                this.showEditContactModal(contact.contactId);
+            });
+        }
+
+        // Share contact button (only for owned contacts)
+        const shareBtn = card.querySelector('.share-contact');
+        if (shareBtn) {
+            console.log('🔗 Adding share button listener');
+            shareBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('📤 Share button clicked for:', contact.contactId);
+                this.showShareContactModal(contact.contactId);
+            });
+        }
+
+        // Delete contact button (only for owned contacts)
+        const deleteBtn = card.querySelector('.delete-contact');
+        if (deleteBtn) {
+            console.log('🔗 Adding delete button listener');
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('🗑️ Delete button clicked for:', contact.contactId);
+                this.showDeleteConfirmModal(contact.contactId);
+            });
+        }
+
+        // Archive shared contact button (only for shared contacts)
+        const archiveBtn = card.querySelector('.archive-contact');
+        if (archiveBtn) {
+            console.log('🔗 Adding archive button listener');
+            archiveBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('📦 Archive button clicked for:', contact.contactId);
+                this.archiveSharedContact(contact.contactId);
+            });
+        }
+
+        // Click on card to select (but not on buttons)
         card.addEventListener('click', (event) => {
             if (!event.target.closest('.contact-actions')) {
+                console.log('🎯 Card clicked (not on button) for:', contact.contactId);
                 this.selectContact(contact.contactId);
             }
         });
         
-        card.querySelector('.edit-contact').addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.showEditContactModal(contact.contactId);
-        });
-        
-        // Add share button listener if contact is owned
-        const shareButton = card.querySelector('.share-contact');
-        if (shareButton) {
-            shareButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                this.showShareContactModal(contact.contactId);
-            });
-        }
-        
-        card.querySelector('.delete-contact').addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.confirmDeleteContact(contact.contactId);
-        });
-        
-        return card;
+        console.log('✅ All listeners attached for contact card:', contact.contactId);
     }
 
     /**
@@ -1745,5 +1874,37 @@ export class ContactUIController {
         
         document.body.classList.toggle('mobile', isMobile);
         document.body.classList.toggle('tablet', isTablet);
+    }
+
+    /**
+     * Show delete confirmation modal
+     */
+    async showDeleteConfirmModal(contactId) {
+        const contact = this.contactManager.getContact(contactId);
+        if (!contact) return;
+
+        const confirmed = confirm(`Are you sure you want to delete "${contact.cardName}"?\n\nThis action cannot be undone.`);
+        if (confirmed) {
+            try {
+                await this.contactManager.deleteContact(contactId);
+                console.log('✅ Contact deleted successfully:', contactId);
+            } catch (error) {
+                console.error('❌ Failed to delete contact:', error);
+                alert('Failed to delete contact. Please try again.');
+            }
+        }
+    }
+
+    /**
+     * Archive shared contact
+     */
+    async archiveSharedContact(contactId) {
+        try {
+            await this.contactManager.archiveContact(contactId);
+            console.log('✅ Shared contact archived successfully:', contactId);
+        } catch (error) {
+            console.error('❌ Failed to archive shared contact:', error);
+            alert('Failed to archive contact. Please try again.');
+        }
     }
 }/* Cache bust: tor 18 sep 2025 08:55:36 CEST */
