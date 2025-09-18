@@ -1,0 +1,99 @@
+# Personal and encrypted data
+.temp_age/
+.temp_key
+public_keys/
+private_keys/
+backend/app_data/
+backend/app_data/cards/
+backend/app_data/addressbooks/
+backend/app_data/index.json
+.github/copilot-instructions.md
+*.sh
+
+# Compiled backend binary
+backend/main
+frontend/test-app/
+*.key
+*.vcf
+*.age
+*.txt
+*.kate-swp
+*.followers
+*.old
+*.bup
+*.env
+*.blob
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Log files
+*.log
+logs/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# System files
+.DS_Store
+.directory
+Thumbs.db
+
+*.meta
+
+# Node.js / npm
+node_modules/
+npm-debug.log*
+.npm/
+*.tgz
+.yarn-integrity
+.pnp.*
+.pnp/
+
+# Test environment files
+.env.test
+coverage/
+test-results/
+
+# SQLite DBs
+*.db
+
+# React build output
+frontend/build/
+
+# Editor/OS backup files
+*~
+
+# Allowed
+!frontend/public/robots.txt

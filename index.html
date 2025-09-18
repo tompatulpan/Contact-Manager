@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Management System</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Main Application Container -->
+    <div id="app" class="app-container">
+        
+        <!-- Header Section -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">
+                    <i class="fas fa-address-book"></i>
+                    Contact Manager
+                </h1>
+            </div>
+            <div class="header-right">
+                <button id="new-contact-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i>
+                    New Contact
+                </button>
+                <div class="user-menu">
+                    <button id="user-menu-btn" class="btn btn-ghost">
+                        <i class="fas fa-user"></i>
+                        <span id="current-user">Guest</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div id="user-dropdown" class="dropdown-menu">
+                        <a href="#" id="share-profile-btn">
+                            <i class="fas fa-share"></i>
+                            Share My Profile
+                        </a>
+                        <a href="#" id="settings-btn">
+                            <i class="fas fa-cog"></i>
+                            Settings
+                        </a>
+                        <a href="#" id="help-btn">
+                            <i class="fas fa-question-circle"></i>
+                            Help
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" id="logout-btn">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Log Out
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- Sidebar Navigation -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Contacts</h3>
+                    <div class="search-container">
+                        <input 
+                            type="text" 
+                            id="search-input" 
+                            placeholder="Search contacts..." 
+                            class="search-input"
+                        >
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                    
+                    <div class="filter-controls">
+                        <button id="filter-btn" class="btn btn-ghost">
+                            <i class="fas fa-filter"></i>
+                            Filter
+                        </button>
+                        <div id="filter-dropdown" class="dropdown-menu">
+                            <label class="checkbox-item">
+                                <input type="checkbox" id="filter-owned" checked>
+                                <span>My Contacts</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" id="filter-shared" checked>
+                                <span>Shared with Me</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" id="filter-archived">
+                                <span>Archived</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Distribution Lists -->
+                <div class="sidebar-section">
+                    <h3>Lists</h3>
+                    <div id="distribution-lists" class="distribution-lists">
+                        <!-- Dynamic distribution lists will be inserted here -->
+                    </div>
+                    <button id="create-list-btn" class="btn btn-ghost btn-small">
+                        <i class="fas fa-plus"></i>
+                        Create List
+                    </button>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="sidebar-section">
+                    <h3>Quick Stats</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Total</span>
+                            <span id="stat-total" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Shared</span>
+                            <span id="stat-shared" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Recent</span>
+                            <span id="stat-recent" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Contact List Panel -->
+            <section class="contact-list-panel">
+                <div class="panel-header">
+                    <h2 id="contact-list-title">All Contacts</h2>
+                    <div class="view-controls">
+                        <button id="view-card" class="btn btn-ghost active">
+                            <i class="fas fa-th-large"></i>
+                        </button>
+                        <button id="view-list" class="btn btn-ghost">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button id="sort-btn" class="btn btn-ghost">
+                            <i class="fas fa-sort"></i>
+                            Name
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="contact-list" class="contact-list">
+                    <!-- Dynamic contact list will be inserted here -->
+                </div>
+                
+                <div id="loading-indicator" class="loading-indicator hidden">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading contacts...
+                </div>
+                
+                <div id="empty-state" class="empty-state hidden">
+                    <i class="fas fa-address-book"></i>
+                    <h3>No contacts found</h3>
+                    <p>Start by creating your first contact or adjust your filters.</p>
+                </div>
+            </section>
+
+            <!-- Contact Detail Panel -->
+            <section class="contact-detail-panel">
+                <div id="contact-detail-content" class="detail-content">
+                    <div class="welcome-state">
+                        <i class="fas fa-hand-wave"></i>
+                        <h3>Welcome to Contact Manager</h3>
+                        <p>Select a contact to view details, or create a new contact to get started.</p>
+                        <button id="welcome-new-contact" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Create First Contact
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loading-message">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Error Toast -->
+        <div id="error-toast" class="toast toast-error hidden">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span id="error-message"></span>
+            <button id="dismiss-error" class="toast-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Success Toast -->
+        <div id="success-toast" class="toast toast-success hidden">
+            <i class="fas fa-check-circle"></i>
+            <span id="success-message"></span>
+            <button id="dismiss-success" class="toast-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Authentication Modal -->
+    <div id="auth-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="auth-title">Sign In</h2>
+                                <button id="close-auth-modal" class="modal-close" data-dismiss="modal">
+                    &times;
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="auth-form" data-mode="signin">
+                    <div id="auth-error" class="field-error" style="display: none;"></div>
+                    <div class="form-group">
+                        <label for="auth-username">Username</label>
+                        <input type="text" id="auth-username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-password">Password</label>
+                        <input type="password" id="auth-password" name="password" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <span id="auth-submit-text">Sign In</span>
+                        </button>
+                        <button type="button" id="toggle-auth-mode" class="btn btn-ghost">
+                            <span id="auth-toggle-text">Need an account? Sign Up</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Form Modal -->
+    <div id="contact-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="contact-modal-title">New Contact</h2>
+                <button id="close-contact-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="contact-form-container">
+                    <form id="contact-form" class="contact-form">
+                        <div class="form-group">
+                            <label for="fullName">Full Name *</label>
+                            <input type="text" id="fullName" name="fullName" required>
+                            <div class="field-error" id="fullName-error"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cardName">Card Name</label>
+                            <input type="text" id="cardName" name="cardName" placeholder="e.g., Work, Personal">
+                            <div class="field-error" id="cardName-error"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="phone">Phone</label>
+                            <input type="tel" id="phone" name="phone">
+                            <div class="field-error" id="phone-error"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email">
+                            <div class="field-error" id="email-error"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="organization">Organization</label>
+                            <input type="text" id="organization" name="organization">
+                            <div class="field-error" id="organization-error"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="title">Job Title</label>
+                            <input type="text" id="title" name="title">
+                            <div class="field-error" id="title-error"></div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Contact</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="lib/userbase.js"></script>
+    <script type="module" src="src/app.js"></script>
+    
+    <!-- Development: Test Button -->
+    <script>
+        // Only show test button in development environment
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            const testButton = document.createElement('button');
+            testButton.textContent = '🧪 Run Tests';
+            testButton.title = 'Run integration tests';
+            testButton.style.cssText = `
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 10000;
+                padding: 8px 12px;
+                background: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                transition: background-color 0.2s;
+            `;
+            testButton.onmouseover = () => testButton.style.background = '#218838';
+            testButton.onmouseout = () => testButton.style.background = '#28a745';
+            testButton.onclick = () => {
+                testButton.textContent = '⏳ Running...';
+                testButton.disabled = true;
+                import('./tests/integration.test.js').then(() => {
+                    testButton.textContent = '✅ Tests Done';
+                    setTimeout(() => {
+                        testButton.textContent = '🧪 Run Tests';
+                        testButton.disabled = false;
+                    }, 3000);
+                }).catch(error => {
+                    console.error('Failed to load tests:', error);
+                    testButton.textContent = '❌ Test Failed';
+                    testButton.style.background = '#dc3545';
+                    setTimeout(() => {
+                        testButton.textContent = '🧪 Run Tests';
+                        testButton.style.background = '#28a745';
+                        testButton.disabled = false;
+                    }, 3000);
+                });
+            };
+            document.body.appendChild(testButton);
+        }
+    </script>
+</body>
+</html>
