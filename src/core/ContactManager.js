@@ -478,20 +478,36 @@ export class ContactManager {
             }
 
             let results = Array.from(this.contacts.values());
+            console.log('🔍 Starting search with', results.length, 'total contacts');
+
+            // Debug: Log contact states
+            results.forEach((contact, index) => {
+                console.log(`🔍 Contact ${index + 1}: ${contact.cardName}`, {
+                    isDeleted: contact.metadata.isDeleted,
+                    isArchived: contact.metadata.isArchived,
+                    contactId: contact.contactId
+                });
+            });
 
             // Filter out deleted contacts by default
             if (!filters.includeDeleted) {
+                const beforeCount = results.length;
                 results = results.filter(contact => !contact.metadata.isDeleted);
+                console.log('🔍 After deleted filter:', results.length, '(removed', beforeCount - results.length, 'deleted contacts)');
             }
 
             // Filter out archived contacts by default
             if (!filters.includeArchived) {
+                const beforeCount = results.length;
                 results = results.filter(contact => !contact.metadata.isArchived);
+                console.log('🔍 After archived filter:', results.length, '(removed', beforeCount - results.length, 'archived contacts)');
             }
 
             // Text search
             if (query && query.trim()) {
                 const searchTerm = query.toLowerCase().trim();
+                console.log('🔍 Applying text search for:', searchTerm);
+                const beforeCount = results.length;
                 results = results.filter(contact => {
                     // Search in card name
                     if (contact.cardName.toLowerCase().includes(searchTerm)) return true;
@@ -505,6 +521,9 @@ export class ContactManager {
                     
                     return false;
                 });
+                console.log('🔍 After text search:', results.length, '(removed', beforeCount - results.length, 'non-matching contacts)');
+            } else {
+                console.log('🔍 No text search applied (empty query)');
             }
 
             // Apply additional filters
@@ -513,6 +532,11 @@ export class ContactManager {
             // Cache results
             this.searchCache.set(cacheKey, results);
             this.lastSearchQuery = query;
+
+            console.log('🔍 Final search results:', results.length, 'contacts');
+            results.forEach((contact, index) => {
+                console.log(`🔍 Result ${index + 1}: ${contact.cardName} (${contact.contactId})`);
+            });
 
             return results;
 

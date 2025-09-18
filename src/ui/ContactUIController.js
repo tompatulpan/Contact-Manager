@@ -12,7 +12,10 @@ export class ContactUIController {
         this.selectedContactId = null;
         this.currentView = 'contacts'; // contacts, archived, shared
         this.searchQuery = '';
-        this.activeFilters = {};
+        this.activeFilters = {
+            includeArchived: false,  // Don't show archived contacts by default
+            includeDeleted: false    // Don't show deleted contacts by default
+        };
         
         // DOM elements cache
         this.elements = {};
@@ -439,8 +442,16 @@ export class ContactUIController {
      */
     handleContactsUpdated(data) {
         console.log('🎨 UI: Received contactsUpdated event with', data?.contactCount || 0, 'contacts');
-        this.performSearch();
-        this.updateStats();
+        
+        // Debounce rapid updates to prevent flickering
+        if (this.updateTimeout) {
+            clearTimeout(this.updateTimeout);
+        }
+        
+        this.updateTimeout = setTimeout(() => {
+            this.performSearch();
+            this.updateStats();
+        }, 100); // 100ms debounce
     }
 
     /**
@@ -517,15 +528,21 @@ export class ContactUIController {
             }
             
             if (!result.success) {
+                console.log('❌ Form submission failed:', result.error);
                 this.showFormError(result.error);
                 if (result.validationErrors) {
                     this.highlightFormErrors(result.validationErrors);
                 }
+                // Don't close modal on validation errors - let user fix them
+            } else {
+                console.log('✅ Form submission successful');
+                // Success is handled by event listeners which will close the modal
             }
-            // Success is handled by event listeners
             
         } catch (error) {
+            console.error('❌ Form submission error:', error);
             this.showFormError(error.message);
+            // Don't close modal on errors
         }
         
         this.showFormLoading(false);
@@ -1207,20 +1224,52 @@ export class ContactUIController {
         // Clear previous error highlights
         this.clearFormErrors(form);
         
+        console.log('🔍 Processing form errors:', errors);
+        
         // Highlight fields with errors
-        errors.forEach(error => {
-            if (error.field) {
-                const field = form.querySelector(`[name="${error.field}"]`);
-                const errorElement = form.querySelector(`#${error.field}-error`);
+        errors.forEach(errorMessage => {
+            console.log('🔍 Processing error:', errorMessage);
+            
+            // Try to map error messages to form fields
+            if (errorMessage.toLowerCase().includes('phone')) {
+                const field = form.querySelector('[name="phone"]');
+                const errorElement = form.querySelector('#phone-error');
                 
                 if (field) {
                     field.classList.add('field-error-highlight');
                 }
                 
                 if (errorElement) {
-                    errorElement.textContent = error.message;
+                    errorElement.textContent = errorMessage;
                     errorElement.style.display = 'block';
                 }
+            } else if (errorMessage.toLowerCase().includes('email')) {
+                const field = form.querySelector('[name="email"]');
+                const errorElement = form.querySelector('#email-error');
+                
+                if (field) {
+                    field.classList.add('field-error-highlight');
+                }
+                
+                if (errorElement) {
+                    errorElement.textContent = errorMessage;
+                    errorElement.style.display = 'block';
+                }
+            } else if (errorMessage.toLowerCase().includes('full name') || errorMessage.toLowerCase().includes('name')) {
+                const field = form.querySelector('[name="fullName"]');
+                const errorElement = form.querySelector('#fullName-error');
+                
+                if (field) {
+                    field.classList.add('field-error-highlight');
+                }
+                
+                if (errorElement) {
+                    errorElement.textContent = errorMessage;
+                    errorElement.style.display = 'block';
+                }
+            } else {
+                // Generic error - show in a general error area
+                console.log('🔍 Generic error message:', errorMessage);
             }
         });
         
