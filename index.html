@@ -92,15 +92,15 @@
                     </div>
                 </div>
 
-                <!-- Distribution Lists -->
+                <!-- Sharing Lists -->
                 <div class="sidebar-section">
-                    <h3>Lists</h3>
+                    <h3>Sharing Lists</h3>
                     <div id="distribution-lists" class="distribution-lists">
-                        <!-- Dynamic distribution lists will be inserted here -->
+                        <!-- Dynamic sharing lists will be inserted here -->
                     </div>
                     <button id="create-list-btn" class="btn btn-ghost btn-small">
                         <i class="fas fa-plus"></i>
-                        Create List
+                        Create Sharing List
                     </button>
                 </div>
 
@@ -305,20 +305,89 @@
             <div class="modal-body">
                 <div id="share-form-container">
                     <form id="share-form" class="share-form">
-                        <div class="contact-preview">
-                            <h3>Sharing Contact:</h3>
-                            <div id="share-contact-preview" class="contact-info">
-                                <!-- Contact preview will be populated here -->
+                        <!-- Share Type Selection -->
+                        <div class="form-group">
+                            <label>How would you like to share this contact?</label>
+                            <div class="share-type-tabs">
+                                <button type="button" class="share-type-tab active" data-type="contact">
+                                    <i class="fas fa-user"></i>
+                                    Single User
+                                </button>
+                                <button type="button" class="share-type-tab" data-type="share-with-list">
+                                    <i class="fas fa-users"></i>
+                                    Share with List
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Single Contact Sharing -->
+                        <div id="contact-share-section" class="share-section active">
+                            <div class="contact-preview">
+                                <h3>Sharing Contact:</h3>
+                                <div id="share-contact-preview" class="contact-info">
+                                    <!-- Contact preview will be populated here -->
+                                </div>
+                            </div>
+                            
+                            <div class="share-info">
+                                <div class="info-box">
+                                    <i class="fas fa-info-circle"></i>
+                                    <p>Enter a username to share this contact with one person.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="share-username">Share with Username *</label>
+                                <input type="text" id="share-username" name="username" 
+                                       placeholder="Enter username...">
+                                <div class="field-error" id="share-username-error"></div>
+                            </div>
+                        </div>
+
+                        <!-- Share with Distribution List -->
+                        <div id="share-with-list-section" class="share-section">
+                            <div class="contact-preview">
+                                <h3>Sharing Contact:</h3>
+                                <div id="share-with-list-contact-preview" class="contact-info">
+                                    <!-- Contact preview will be populated here -->
+                                </div>
+                            </div>
+                            
+                            <div class="share-info">
+                                <div class="info-box">
+                                    <i class="fas fa-info-circle"></i>
+                                    <p>Share this contact with all users in a sharing list simultaneously.</p>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="share-with-distribution-list">Select Sharing List *</label>
+                                <select id="share-with-distribution-list" name="shareWithList">
+                                    <option value="">Choose a sharing list...</option>
+                                </select>
+                                <div class="field-error" id="share-with-distribution-list-error"></div>
+                            </div>
+                            
+                            <div id="share-list-preview" class="distribution-list-preview" style="display: none;">
+                                <h4><i class="fas fa-users"></i> Users who will receive your contact:</h4>
+                                <div id="share-list-users" class="distribution-list-contacts">
+                                    <!-- Users will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Old Distribution List Sharing - REMOVE THIS -->
+                        <div id="distribution-list-share-section" class="share-section" style="display: none;">
+                            <div class="form-group">
+                                <label for="share-distribution-list">Select Distribution List *</label>
+                                <select id="share-distribution-list" name="distributionList">
+                                    <option value="">Choose a distribution list...</option>
+                                </select>
+                                <div class="field-error" id="share-distribution-list-error"></div>
                             </div>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="share-username">Share with Username *</label>
-                            <input type="text" id="share-username" name="username" required 
-                                   placeholder="Enter recipient's username">
-                            <div class="field-error" id="share-username-error"></div>
-                        </div>
-                        
+                        <!-- Sharing Options -->
                         <div class="form-group">
                             <label class="checkbox-item">
                                 <input type="checkbox" id="share-readonly" name="readonly" checked>
@@ -329,15 +398,15 @@
                         <div class="share-info">
                             <div class="info-box">
                                 <i class="fas fa-info-circle"></i>
-                                <p>The recipient will receive this contact in their "Shared with Me" section and can view all contact details. They cannot share it further with others.</p>
+                                <p id="share-info-text">The recipient will receive this contact in their "Shared with Me" section and can view all contact details. They cannot share it further with others.</p>
                             </div>
                         </div>
                         
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="share-submit-btn">
                                 <i class="fas fa-share"></i>
-                                Share Contact
+                                <span id="share-submit-text">Share Contact</span>
                             </button>
                         </div>
                     </form>
@@ -365,27 +434,31 @@
     </div>
 
     <!-- Create Distribution List Modal -->
+        <!-- Create Sharing List Modal -->
     <div id="create-list-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Create Distribution List</h2>
-                <button id="close-create-list-modal" class="modal-close" data-dismiss="modal">
-                    <i class="fas fa-times"></i>
-                </button>
+                <h2>Create Sharing List</h2>
+                <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="modal-body">
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Create a list of usernames to share your contact information with. For example, create a "Work" list with colleagues' usernames to quickly share your work contact details.</p>
+                </div>
+                
                 <form id="create-list-form" class="create-list-form">
                     <div class="form-group">
-                        <label for="list-name">List Name *</label>
+                        <label for="list-name">Sharing List Name *</label>
                         <input type="text" id="list-name" name="listName" required 
-                               placeholder="e.g., Work, Family, Clients" maxlength="50">
+                               placeholder="e.g., Work Colleagues, Family, Clients" maxlength="50">
                         <div class="field-error" id="list-name-error"></div>
                     </div>
                     
                     <div class="form-group">
                         <label for="list-description">Description (Optional)</label>
                         <textarea id="list-description" name="description" 
-                                  placeholder="Brief description of this list..." 
+                                  placeholder="Who will you share your contact info with using this list?" 
                                   maxlength="200" rows="3"></textarea>
                         <div class="field-error" id="list-description-error"></div>
                     </div>
@@ -406,6 +479,41 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Username Management Modal -->
+    <div id="username-modal" class="modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="username-modal-title">Manage Distribution List</h2>
+                    <button id="close-username-modal" class="modal-close" data-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="username-management">
+                        <div class="form-group">
+                            <label for="new-username">Add Username</label>
+                            <div class="input-group">
+                                <input type="text" id="new-username" placeholder="Enter username to add">
+                                <button type="button" id="add-username-btn" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Add
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="current-usernames">
+                            <h4>Current Users</h4>
+                            <div id="usernames-list" class="usernames-list">
+                                <!-- Usernames will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

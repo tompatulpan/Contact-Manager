@@ -642,27 +642,6 @@ export class ContactDatabase {
      * @param {Object} settings - Updated settings object
      * @returns {Promise<Object>} Update result
      */
-    async updateSettings(settings) {
-        try {
-            const itemId = 'user-settings';
-            
-            await userbase.updateItem({
-                databaseName: this.databases.settings,
-                item: {
-                    ...settings,
-                    lastUpdated: new Date().toISOString()
-                },
-                itemId
-            });
-
-            this.eventBus.emit('settings:updated', { settings });
-            return { success: true, itemId };
-        } catch (error) {
-            console.error('Update settings failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
     /**
      * Log user activity
      * @param {Object} activity - Activity object
@@ -844,7 +823,7 @@ export class ContactDatabase {
                 lastUpdated: new Date().toISOString()
             };
 
-            if (this.settingsItems && this.settingsItems.length > 0 && this.settingsItems[0]) {
+            if (this.settingsItems && this.settingsItems.length > 0 && this.settingsItems[0] && this.settingsItems[0].itemId) {
                 // Update existing settings
                 await userbase.updateItem({
                     databaseName: 'user-settings',

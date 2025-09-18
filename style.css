@@ -1013,3 +1013,429 @@ body {
 .distribution-list-item.active .distribution-list-count {
     background: rgba(255, 255, 255, 0.2);
 }
+
+/* Distribution List Item Actions */
+.list-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.list-item-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.distribution-list-item:hover .list-item-actions {
+    opacity: 1;
+}
+
+.share-list-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.share-list-btn:hover {
+    background: #0056b3;
+    transform: scale(1.05);
+}
+
+.share-list-btn i {
+    font-size: 10px;
+}
+
+/* Distribution List User Display */
+.distribution-list-users {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+.distribution-list-user-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.user-avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #007bff;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.username {
+    font-weight: 500;
+    color: #333;
+}
+
+.more-users {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 8px;
+}
+
+.empty-list-message {
+    text-align: center;
+    padding: 20px;
+    color: #6c757d;
+}
+
+.manage-list-btn {
+    background: none;
+    border: none;
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: inherit;
+}
+
+/* Username Management Modal */
+.username-management {
+    padding: 16px 0;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.input-group input {
+    flex: 1;
+}
+
+.usernames-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 8px;
+    background: #f8f9fa;
+}
+
+.username-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin: 4px 0;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.username-item .username {
+    font-weight: 500;
+}
+
+.remove-username-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.remove-username-btn:hover {
+    background: #c82333;
+}
+
+.empty-usernames {
+    text-align: center;
+    color: #6c757d;
+    padding: 20px;
+    font-style: italic;
+}
+
+/* Share Modal Enhancements */
+.share-type-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.share-type-tab {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #dee2e6;
+    background: #f8f9fa;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.share-type-tab:hover {
+    border-color: #007bff;
+    background: #e3f2fd;
+}
+
+.share-type-tab.active {
+    border-color: #007bff;
+    background: #007bff;
+    color: white;
+}
+
+.share-section {
+    display: none;
+}
+
+.share-section.active {
+    display: block;
+}
+
+.distribution-list-preview {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.distribution-list-preview h4 {
+    margin: 0 0 10px 0;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.distribution-list-contacts {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.distribution-list-contact-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.distribution-list-contact-item:last-child {
+    margin-bottom: 0;
+}
+
+.distribution-list-summary {
+    padding: 10px;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-weight: 500;
+    color: #1565c0;
+}
+
+/* Additional Share Modal Styles */
+.contact-avatar-small {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.contact-avatar-small .avatar-initial {
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.distribution-list-contact-item .contact-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.more-contacts {
+    text-align: center;
+    padding: 8px;
+    color: #6c757d;
+    font-style: italic;
+    border-top: 1px solid #e9ecef;
+    margin-top: 5px;
+}
+
+.no-contacts-message {
+    text-align: center;
+    padding: 20px;
+    color: #dc3545;
+    border: 1px solid #f5c6cb;
+    background: #f8d7da;
+    border-radius: 4px;
+}
+
+.no-contacts-message i {
+    margin-right: 8px;
+}
+
+/* Enhanced Username Management Styles */
+.username-modal .modal-content {
+    width: 500px;
+    max-width: 90vw;
+}
+
+.add-username-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.add-username-form input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.add-username-form input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.add-username-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.add-username-btn:hover {
+    background: #0056b3;
+}
+
+.add-username-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.usernames-container {
+    min-height: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.username-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.username-item:last-child {
+    margin-bottom: 0;
+}
+
+.username-item .username {
+    font-weight: 500;
+    color: #333;
+}
+
+.remove-username-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.remove-username-btn:hover {
+    background: #c82333;
+}
+
+.empty-usernames {
+    text-align: center;
+    color: #666;
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+.empty-usernames i {
+    display: block;
+    font-size: 2em;
+    margin-bottom: 10px;
+    color: #ccc;
+}
+
+/* Distribution list users display in sidebar */
+.distribution-list-users {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 4px;
+}
+
+.user-count {
+    font-weight: 500;
+}
+
+.manage-list-btn {
+    background: none;
+    border: none;
+    color: #007bff;
+    cursor: pointer;
+    font-size: 0.8em;
+    text-decoration: underline;
+    padding: 0;
+    margin-left: 8px;
+}
+
+.manage-list-btn:hover {
+    color: #0056b3;
+}

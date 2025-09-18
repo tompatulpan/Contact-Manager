@@ -1206,12 +1206,17 @@ export class ContactManager {
                 return { success: false, error: 'List name cannot be empty' };
             }
             
-            // Check if list already exists
-            const existingLists = this.getDistributionListCounts();
-            const existingList = existingLists.find(list => 
-                list.name.toLowerCase() === listName.toLowerCase());
+            // Get current settings and existing lists
+            const currentSettings = await this.database.getSettings() || {};
+            const distributionLists = currentSettings.distributionLists || {};
+            console.log('📋 Current distribution lists:', Object.keys(distributionLists));
             
-            if (existingList) {
+            // Check if list already exists (case-insensitive)
+            const existingListKey = Object.keys(distributionLists).find(key => 
+                key.toLowerCase() === listName.toLowerCase());
+            
+            if (existingListKey) {
+                console.log('📋 List already exists:', existingListKey);
                 return { success: false, error: 'A list with this name already exists' };
             }
             
@@ -1222,13 +1227,10 @@ export class ContactManager {
                 color: listData.color || '#007bff',
                 createdAt: new Date().toISOString(),
                 createdBy: this.database.getCurrentUser()?.username || 'unknown',
-                contactCount: 0
+                usernames: []  // Initialize empty usernames array
             };
             
-            // Save to settings/preferences (this could be expanded to use a dedicated lists database)
-            const currentSettings = await this.database.getSettings() || {};
-            const distributionLists = currentSettings.distributionLists || {};
-            
+            // Add to existing distribution lists
             distributionLists[listName] = listMetadata;
             
             const updateResult = await this.database.updateSettings({
@@ -1262,22 +1264,12 @@ export class ContactManager {
             const settings = await this.database.getSettings() || {};
             const distributionLists = settings.distributionLists || {};
             
-            // Convert to array with contact counts calculated directly
+            // Convert to array with user counts (not contact counts)
             const lists = Object.values(distributionLists).map(list => {
-                // Count contacts assigned to this list
-                let contactCount = 0;
-                for (const contact of this.contacts.values()) {
-                    if (!contact.isDeleted && 
-                        contact.metadata && 
-                        contact.metadata.distributionLists && 
-                        contact.metadata.distributionLists.includes(list.name)) {
-                        contactCount++;
-                    }
-                }
-                
                 return {
                     ...list,
-                    contactCount: contactCount
+                    userCount: list.usernames ? list.usernames.length : 0, // Count usernames instead of contacts
+                    contactCount: 0 // Legacy support - will be removed
                 };
             });
             
@@ -1474,5 +1466,158 @@ export class ContactManager {
         }
         
         return contacts;
+    }
+
+    /**
+     * Add username to distribution list
+     */
+    async addUsernameToDistributionList(listName, username) {
+        try {
+            const settings = await this.database.getSettings() || {};
+            const distributionLists = settings.distributionLists || {};
+            
+            if (!distributionLists[listName]) {
+                throw new Error(`Distribution list "${listName}" not found`);
+            }
+            
+            // Initialize usernames array if it doesn't exist
+            if (!distributionLists[listName].usernames) {
+                distributionLists[listName].usernames = [];
+            }
+            
+            // Add username if not already present
+            if (!distributionLists[listName].usernames.includes(username)) {
+                distributionLists[listName].usernames.push(username);
+                
+                // Update settings
+                const updatedSettings = {
+                    ...settings,
+                    distributionLists: distributionLists
+                };
+                
+                await this.database.updateSettings(updatedSettings);
+                
+                console.log(`✅ Added username "${username}" to distribution list "${listName}"`);
+                this.eventBus.emit('distributionListsUpdated');
+                
+                return { success: true };
+            } else {
+                console.log(`ℹ️ Username "${username}" already in distribution list "${listName}"`);
+                return { success: true, message: 'Username already in list' };
+            }
+            
+        } catch (error) {
+            console.error('❌ Error adding username to distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Remove username from distribution list
+     */
+    async removeUsernameFromDistributionList(listName, username) {
+        try {
+            const settings = await this.database.getSettings() || {};
+            const distributionLists = settings.distributionLists || {};
+            
+            if (!distributionLists[listName] || !distributionLists[listName].usernames) {
+                return { success: true, message: 'Username not in list' };
+            }
+            
+            // Remove username
+            const index = distributionLists[listName].usernames.indexOf(username);
+            if (index > -1) {
+                distributionLists[listName].usernames.splice(index, 1);
+                
+                // Update settings
+                const updatedSettings = {
+                    ...settings,
+                    distributionLists: distributionLists
+                };
+                
+                await this.database.updateSettings(updatedSettings);
+                
+                console.log(`✅ Removed username "${username}" from distribution list "${listName}"`);
+                this.eventBus.emit('distributionListsUpdated');
+            }
+            
+            return { success: true };
+            
+        } catch (error) {
+            console.error('❌ Error removing username from distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get usernames in a distribution list
+     */
+    async getUsernamesInDistributionList(listName) {
+        try {
+            const settings = await this.database.getSettings() || {};
+            const distributionLists = settings.distributionLists || {};
+            
+            if (!distributionLists[listName]) {
+                return [];
+            }
+            
+            return distributionLists[listName].usernames || [];
+            
+        } catch (error) {
+            console.error('❌ Error getting usernames in distribution list:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Share my profile with distribution list
+     */
+    async shareMyProfileWithDistributionList(profileContactId, listName) {
+        try {
+            // Get the profile contact
+            const profileContact = this.contacts.get(profileContactId);
+            if (!profileContact) {
+                throw new Error('Profile contact not found');
+            }
+            
+            // Get usernames in the distribution list
+            const usernames = await this.getUsernamesInDistributionList(listName);
+            if (usernames.length === 0) {
+                throw new Error('No usernames in distribution list');
+            }
+            
+            // Share the profile with each username
+            const results = [];
+            for (const username of usernames) {
+                try {
+                    const result = await this.shareContact(profileContactId, username);
+                    results.push({
+                        username,
+                        success: result.success,
+                        error: result.error || null
+                    });
+                } catch (error) {
+                    results.push({
+                        username,
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+            
+            const successCount = results.filter(r => r.success).length;
+            console.log(`✅ Shared profile with ${successCount}/${usernames.length} users in "${listName}"`);
+            
+            return {
+                success: true,
+                sharedWith: successCount,
+                total: usernames.length,
+                results: results
+            };
+            
+        } catch (error) {
+            console.error('❌ Error sharing profile with distribution list:', error);
+            return { success: false, error: error.message };
+        }
     }
 }
