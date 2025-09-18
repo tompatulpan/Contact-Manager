@@ -778,22 +778,84 @@ export class ContactManager {
 
     /**
      * Handle contacts changed event from database
-     * @param {Array} contacts - Updated contacts array
+     * @param {Object} data - Event data with contacts and metadata
      */
-    handleContactsChanged(contacts) {
-        console.log('📋 ContactManager: Received contacts changed event with', contacts.length, 'contacts:', contacts);
+    handleContactsChanged(data) {
+        // Handle both old format (array) and new format (object)
+        if (Array.isArray(data)) {
+            // Old format - just contacts array
+            data = { contacts: data, isOwned: true };
+        }
         
-        // Update local cache
-        this.contacts.clear();
-        contacts.forEach(contact => {
-            console.log('📋 Adding contact to cache:', contact.contactId, contact.cardName || 'Unnamed');
-            this.contacts.set(contact.contactId, contact);
-        });
+        const { contacts = [], isOwned = true, sharedBy = null, databaseId = null } = data;
+        
+        // Ensure contacts is an array
+        const contactsArray = Array.isArray(contacts) ? contacts : [];
+        
+        console.log(`📋 ContactManager: Received ${isOwned ? 'owned' : 'shared'} contacts changed event with`, 
+                   contactsArray.length, 'contacts:', contactsArray);
+        
+        if (isOwned) {
+            // Handle owned contacts - replace all owned contacts
+            const ownedContactIds = Array.from(this.contacts.keys()).filter(id => {
+                const contact = this.contacts.get(id);
+                return contact.metadata.isOwned;
+            });
+            
+            // Remove old owned contacts
+            ownedContactIds.forEach(id => this.contacts.delete(id));
+            
+            // Add new owned contacts
+            contactsArray.forEach(contact => {
+                // Ensure owned contacts have correct metadata
+                contact.metadata = {
+                    ...contact.metadata,
+                    isOwned: true,
+                    sharedBy: null,
+                    databaseId: null
+                };
+                console.log('📋 Adding owned contact to cache:', contact.contactId, contact.cardName || 'Unnamed');
+                this.contacts.set(contact.contactId, contact);
+            });
+        } else {
+            // Handle shared contacts from a specific user
+            console.log(`📨 Processing shared contacts from: ${sharedBy}`);
+            
+            // Remove old shared contacts from this same sharer/database
+            const oldSharedContactIds = Array.from(this.contacts.keys()).filter(id => {
+                const contact = this.contacts.get(id);
+                return !contact.metadata.isOwned && 
+                       contact.metadata.sharedBy === sharedBy &&
+                       contact.metadata.databaseId === databaseId;
+            });
+            
+            oldSharedContactIds.forEach(id => this.contacts.delete(id));
+            
+            // Add new shared contacts
+            contactsArray.forEach(contact => {
+                // Ensure shared contacts have correct metadata
+                contact.metadata = {
+                    ...contact.metadata,
+                    isOwned: false,
+                    sharedBy: sharedBy,
+                    databaseId: databaseId
+                };
+                
+                // Create unique ID for shared contacts to avoid conflicts
+                const sharedContactId = `shared_${sharedBy}_${contact.contactId}`;
+                contact.contactId = sharedContactId;
+                
+                console.log('📋 Adding shared contact to cache:', sharedContactId, contact.cardName || 'Unnamed', `(from ${sharedBy})`);
+                this.contacts.set(sharedContactId, contact);
+            });
+        }
 
         // Clear search cache
         this.clearSearchCache();
 
-        console.log('📋 ContactManager: Emitting contactsUpdated event with', this.contacts.size, 'contacts');
+        console.log('📋 ContactManager: Total contacts in cache:', this.contacts.size);
+        console.log('📋 ContactManager: Emitting contactsUpdated event');
+        
         // Emit update event
         this.eventBus.emit('contactManager:contactsUpdated', {
             contactCount: this.contacts.size,
@@ -891,6 +953,61 @@ export class ContactManager {
         if (contact.metadata.usage.interactionHistory.length > 50) {
             contact.metadata.usage.interactionHistory = 
                 contact.metadata.usage.interactionHistory.slice(-50);
+        }
+    }
+
+    /**
+     * Update contact metadata without changing vCard data
+     * @param {string} contactId - Contact ID
+     * @param {Object} updates - Metadata updates
+     * @returns {Promise<Object>} Update result
+     */
+    async updateContactMetadata(contactId, updates) {
+        try {
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                throw new Error('Contact not found');
+            }
+
+            // Update contact with new metadata
+            const updatedContact = {
+                ...contact,
+                ...updates,
+                metadata: {
+                    ...contact.metadata,
+                    ...updates.metadata,
+                    lastUpdated: new Date().toISOString(),
+                    lastUpdatedBy: this.database.currentUser?.username || 'unknown'
+                }
+            };
+
+            // Save to database
+            const saveResult = await this.database.updateContact(updatedContact);
+            if (!saveResult.success) {
+                throw new Error(saveResult.error);
+            }
+
+            // Update local cache
+            this.contacts.set(contactId, updatedContact);
+
+            // Add interaction history
+            this.addInteractionHistory(updatedContact, 'metadata_updated', {
+                fields: Object.keys(updates.metadata || {}),
+                updatedBy: this.database.currentUser?.username
+            });
+
+            this.eventBus.emit('contact:updated', { 
+                contact: updatedContact,
+                changes: Object.keys(updates.metadata || [])
+            });
+
+            console.log('✅ Contact metadata updated:', contact.cardName);
+            return { success: true, contact: updatedContact };
+
+        } catch (error) {
+            console.error('❌ Update contact metadata failed:', error);
+            this.eventBus.emit('contact:error', { error: error.message });
+            return { success: false, error: error.message };
         }
     }
 }

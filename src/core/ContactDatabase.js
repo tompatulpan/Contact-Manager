@@ -160,10 +160,13 @@ export class ContactDatabase {
      */
     async setupDatabases() {
         try {
-            // Setup contacts database with real-time updates
+            // Setup own contacts database with real-time updates
             await this.openDatabase('contacts', (items) => {
-                this.eventBus.emit('contacts:changed', { contacts: items });
+                this.eventBus.emit('contacts:changed', { contacts: items, isOwned: true });
             });
+
+            // Setup shared contact databases
+            await this.setupSharedDatabases();
 
             // Setup settings database
             await this.openDatabase('user-settings', (items) => {
@@ -178,6 +181,48 @@ export class ContactDatabase {
         } catch (error) {
             console.error('Database setup failed:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Setup shared contact databases
+     */
+    async setupSharedDatabases() {
+        try {
+            const sharedDbResult = await this.getSharedDatabases();
+            if (!sharedDbResult.success) {
+                console.log('📭 No shared databases found or error accessing them');
+                return;
+            }
+
+            const contactDatabases = sharedDbResult.databases.filter(db => 
+                db.databaseName === 'contacts'
+            );
+
+            console.log(`📬 Found ${contactDatabases.length} shared contact databases`);
+
+            for (const db of contactDatabases) {
+                try {
+                    await userbase.openDatabase({
+                        databaseName: db.databaseName,
+                        databaseId: db.databaseId,
+                        changeHandler: (items) => {
+                            console.log(`📨 Received shared contacts from ${db.receivedFromUsername}:`, items.length);
+                            this.eventBus.emit('contacts:changed', { 
+                                contacts: items, 
+                                isOwned: false,
+                                sharedBy: db.receivedFromUsername,
+                                databaseId: db.databaseId
+                            });
+                        }
+                    });
+                    console.log(`✅ Opened shared contacts database from: ${db.receivedFromUsername}`);
+                } catch (error) {
+                    console.error(`❌ Failed to open shared database from ${db.receivedFromUsername}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Setup shared databases failed:', error);
         }
     }
 
@@ -297,12 +342,26 @@ export class ContactDatabase {
      */
     async shareContacts(username, readOnly = true, resharingAllowed = false) {
         try {
+            console.log('🔄 Attempting to share database:', this.databases.contacts, 'with user:', username);
+            console.log('📊 Share params:', { readOnly, resharingAllowed });
+            
+            if (!username || username.trim() === '') {
+                throw new Error('Username is required for sharing');
+            }
+            
+            if (!this.databases.contacts) {
+                throw new Error('No contacts database found to share');
+            }
+            
             await userbase.shareDatabase({
                 databaseName: this.databases.contacts,
-                username,
+                username: username.trim(),
                 readOnly,
-                resharingAllowed
+                resharingAllowed,
+                requireVerified: false  // Allow sharing with unverified users
             });
+
+            console.log('✅ Database shared successfully with:', username);
 
             // Log the sharing activity
             await this.logActivity({
@@ -316,9 +375,21 @@ export class ContactDatabase {
             });
 
             this.eventBus.emit('contacts:shared', { username, readOnly, resharingAllowed });
+            
+            // Refresh shared databases to pick up any new shares
+            setTimeout(() => {
+                this.setupSharedDatabases();
+            }, 1000);
+            
             return { success: true };
         } catch (error) {
             console.error('Share contacts failed:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                name: error.name,
+                stack: error.stack
+            });
             this.eventBus.emit('database:error', { error: error.message });
             return { success: false, error: error.message };
         }
@@ -331,7 +402,21 @@ export class ContactDatabase {
     async getSharedDatabases() {
         try {
             const databases = await userbase.getDatabases();
-            const sharedDatabases = databases.filter(db => !db.isOwner);
+            console.log('🔍 Raw databases from getDatabases():', databases);
+            
+            // Check if databases is an object with databases property or direct array
+            let databasesArray;
+            if (Array.isArray(databases)) {
+                databasesArray = databases;
+            } else if (databases && Array.isArray(databases.databases)) {
+                databasesArray = databases.databases;
+            } else {
+                console.warn('⚠️ Unexpected databases format:', databases);
+                return { success: true, databases: [] };
+            }
+            
+            const sharedDatabases = databasesArray.filter(db => !db.isOwner);
+            console.log('📊 Found shared databases:', sharedDatabases.length);
             
             return { success: true, databases: sharedDatabases };
         } catch (error) {

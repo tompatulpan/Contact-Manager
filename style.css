@@ -322,3 +322,201 @@ body {
         gap: var(--space-4);
     }
 }
+
+/* === SHARING MODAL STYLES === */
+
+/* Share Modal */
+.share-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.contact-preview {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.contact-preview h3 {
+    margin-bottom: var(--space-2);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.contact-info .contact-name {
+    font-weight: 600;
+    font-size: 1.125rem;
+    color: var(--text-primary);
+}
+
+.contact-info .contact-detail {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.contact-info .contact-detail i {
+    width: 16px;
+    text-align: center;
+    color: var(--primary-color);
+}
+
+/* Share Info Box */
+.share-info {
+    margin: var(--space-4) 0;
+}
+
+.info-box {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--primary-light);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+}
+
+.info-box i {
+    color: var(--primary-color);
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.info-box p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* Loading and Success States */
+.loading-container,
+.success-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: var(--space-4);
+}
+
+.success-icon {
+    width: 60px;
+    height: 60px;
+    background: var(--success-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-4);
+}
+
+.success-icon i {
+    color: white;
+    font-size: 24px;
+}
+
+.success-container h3 {
+    color: var(--success-color);
+    margin-bottom: var(--space-2);
+}
+
+.success-container p {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-6);
+}
+
+/* Contact Card Share Button */
+.contact-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.contact-card:hover .contact-actions {
+    opacity: 1;
+}
+
+.contact-actions .btn {
+    padding: var(--space-1) var(--space-2);
+    font-size: 0.75rem;
+    border-radius: 4px;
+}
+
+.btn-share {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.btn-share:hover {
+    background: var(--primary-dark);
+}
+
+/* Shared Contact Indicators */
+.contact-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.share-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-1);
+    background: var(--primary-light);
+    color: var(--primary-color);
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.shared-indicator {
+    background: var(--warning-color);
+    color: white;
+}
+
+.tag-shared-out {
+    background: var(--success-color);
+    color: white;
+}
+
+.tag-shared {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Animations */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

@@ -99,6 +99,16 @@ export class ContactUIController {
             contactForm: document.getElementById('contact-form'),
             contactModal: document.getElementById('contact-modal'),
             
+            // Share modal elements
+            shareModal: document.getElementById('share-modal'),
+            shareForm: document.getElementById('share-form'),
+            shareContactPreview: document.getElementById('share-contact-preview'),
+            shareUsernameInput: document.getElementById('share-username'),
+            shareReadonlyCheckbox: document.getElementById('share-readonly'),
+            shareLoading: document.getElementById('share-loading'),
+            shareSuccess: document.getElementById('share-success'),
+            sharedWithUser: document.getElementById('shared-with-user'),
+            
             // UI controls
             newContactBtn: document.getElementById('new-contact-btn'),
             userMenuBtn: document.getElementById('user-menu-btn'),
@@ -174,6 +184,21 @@ export class ContactUIController {
             this.elements.searchInput.addEventListener('input', this.handleSearchInput);
         }
         
+        // Filter checkboxes
+        const filterOwned = document.getElementById('filter-owned');
+        const filterShared = document.getElementById('filter-shared');
+        const filterArchived = document.getElementById('filter-archived');
+        
+        if (filterOwned) {
+            filterOwned.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+        if (filterShared) {
+            filterShared.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+        if (filterArchived) {
+            filterArchived.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+        
         if (this.elements.sortSelect) {
             this.elements.sortSelect.addEventListener('change', this.handleSortChange.bind(this));
         }
@@ -199,6 +224,11 @@ export class ContactUIController {
         // Contact form
         if (this.elements.contactForm) {
             this.elements.contactForm.addEventListener('submit', this.handleContactSubmit.bind(this));
+        }
+        
+        // Share form
+        if (this.elements.shareForm) {
+            this.elements.shareForm.addEventListener('submit', this.handleShareSubmit.bind(this));
         }
         
         // Modal close buttons
@@ -369,6 +399,36 @@ export class ContactUIController {
     }
 
     /**
+     * Handle filter checkbox changes
+     */
+    handleFilterChange() {
+        const filterOwned = document.getElementById('filter-owned');
+        const filterShared = document.getElementById('filter-shared');
+        const filterArchived = document.getElementById('filter-archived');
+        
+        // Build filters based on checkbox states
+        const filters = {
+            includeArchived: filterArchived?.checked || false,
+            includeDeleted: false
+        };
+        
+        // Handle ownership filtering
+        const ownedChecked = filterOwned?.checked || false;
+        const sharedChecked = filterShared?.checked || false;
+        
+        if (ownedChecked && !sharedChecked) {
+            filters.ownership = 'owned';
+        } else if (!ownedChecked && sharedChecked) {
+            filters.ownership = 'shared';
+        }
+        // If both or neither are checked, show all (no ownership filter)
+        
+        this.activeFilters = filters;
+        console.log('🔧 Filter changed:', filters);
+        this.performSearch();
+    }
+
+    /**
      * Perform contact search
      */
     performSearch() {
@@ -383,6 +443,14 @@ export class ContactUIController {
         
         this.displayContactList(sortedResults);
         this.updateStats();
+    }
+
+    /**
+     * Refresh the contacts list by performing a new search
+     */
+    refreshContactsList() {
+        console.log('🔄 UI: Refreshing contacts list');
+        this.performSearch();
     }
 
     /**
@@ -611,13 +679,21 @@ export class ContactUIController {
                     ${contact.metadata.distributionLists?.map(list => 
                         `<span class="tag">${this.escapeHtml(list)}</span>`
                     ).join('') || ''}
-                    ${!contact.metadata.isOwned ? '<span class="tag tag-shared">Shared</span>' : ''}
+                    ${!contact.metadata.isOwned ? 
+                        `<span class="tag tag-shared">Shared by ${this.escapeHtml(contact.metadata.sharedBy || 'unknown')}</span>` : ''}
+                    ${contact.metadata.isOwned && contact.metadata.sharing?.isShared ? 
+                        `<span class="tag tag-shared-out">Shared with ${contact.metadata.sharing.shareCount}</span>` : ''}
                 </div>
             </div>
             <div class="contact-actions">
                 <button class="btn btn-icon edit-contact" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
+                ${contact.metadata.isOwned ? `
+                <button class="btn btn-icon share-contact" title="Share">
+                    <i class="fas fa-share"></i>
+                </button>
+                ` : ''}
                 <button class="btn btn-icon delete-contact" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -635,6 +711,15 @@ export class ContactUIController {
             event.stopPropagation();
             this.showEditContactModal(contact.contactId);
         });
+        
+        // Add share button listener if contact is owned
+        const shareButton = card.querySelector('.share-contact');
+        if (shareButton) {
+            shareButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.showShareContactModal(contact.contactId);
+            });
+        }
         
         card.querySelector('.delete-contact').addEventListener('click', (event) => {
             event.stopPropagation();
@@ -1044,6 +1129,281 @@ export class ContactUIController {
 
     hideContactModal() {
         this.hideModal({ modalId: 'contact-modal' });
+    }
+
+    // ========== SHARING MODAL METHODS ==========
+
+    /**
+     * Show share contact modal
+     */
+    async showShareContactModal(contactId) {
+        const contact = this.contactManager.getContact(contactId);
+        if (!contact) {
+            console.error('Contact not found:', contactId);
+            return;
+        }
+
+        if (!contact.metadata.isOwned) {
+            this.showToast('You can only share contacts you own', 'error');
+            return;
+        }
+
+        // Store current contact for sharing
+        this.currentShareContact = contact;
+        
+        // Populate contact preview
+        this.populateShareContactPreview(contact);
+        
+        // Reset form state
+        this.resetShareForm();
+        
+        // Show modal
+        this.showModal({ modalId: 'share-modal' });
+        
+        // Focus username input
+        setTimeout(() => {
+            if (this.elements.shareUsernameInput) {
+                this.elements.shareUsernameInput.focus();
+            }
+        }, 100);
+        
+        console.log('✅ Share modal opened for contact:', contact.cardName);
+    }
+
+    /**
+     * Populate contact preview in share modal
+     */
+    populateShareContactPreview(contact) {
+        if (!this.elements.shareContactPreview) return;
+        
+        const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+        
+        this.elements.shareContactPreview.innerHTML = `
+            <div class="contact-name">${this.escapeHtml(displayData.fullName)}</div>
+            ${displayData.organization ? `
+                <div class="contact-detail">
+                    <i class="fas fa-building"></i>
+                    <span>${this.escapeHtml(displayData.organization)}</span>
+                </div>
+            ` : ''}
+            ${displayData.title ? `
+                <div class="contact-detail">
+                    <i class="fas fa-briefcase"></i>
+                    <span>${this.escapeHtml(displayData.title)}</span>
+                </div>
+            ` : ''}
+            ${displayData.phones.length > 0 ? `
+                <div class="contact-detail">
+                    <i class="fas fa-phone"></i>
+                    <span>${this.escapeHtml(displayData.phones[0].value)}</span>
+                </div>
+            ` : ''}
+            ${displayData.emails.length > 0 ? `
+                <div class="contact-detail">
+                    <i class="fas fa-envelope"></i>
+                    <span>${this.escapeHtml(displayData.emails[0].value)}</span>
+                </div>
+            ` : ''}
+        `;
+    }
+
+    /**
+     * Reset share form
+     */
+    resetShareForm() {
+        if (this.elements.shareForm) {
+            this.elements.shareForm.reset();
+        }
+        
+        // Reset to form view
+        this.setShareModalState('form');
+        
+        // Clear any errors
+        this.clearShareFormErrors();
+    }
+
+    /**
+     * Set share modal state
+     */
+    setShareModalState(state) {
+        const formContainer = document.getElementById('share-form-container');
+        const loadingContainer = this.elements.shareLoading;
+        const successContainer = this.elements.shareSuccess;
+        
+        // Hide all states
+        if (formContainer) formContainer.style.display = 'none';
+        if (loadingContainer) loadingContainer.style.display = 'none';
+        if (successContainer) successContainer.style.display = 'none';
+        
+        // Show requested state
+        switch (state) {
+            case 'form':
+                if (formContainer) formContainer.style.display = 'block';
+                break;
+            case 'loading':
+                if (loadingContainer) loadingContainer.style.display = 'block';
+                break;
+            case 'success':
+                if (successContainer) successContainer.style.display = 'block';
+                break;
+        }
+    }
+
+    /**
+     * Handle share form submission
+     */
+    async handleShareSubmit(event) {
+        event.preventDefault();
+        
+        if (!this.currentShareContact) {
+            console.error('No contact selected for sharing');
+            return;
+        }
+        
+        // Get form data
+        const formData = new FormData(event.target);
+        const username = formData.get('username')?.trim();
+        const isReadOnly = formData.get('readonly') === 'on';
+        
+        // Validate input
+        if (!username) {
+            this.showShareFormError('share-username', 'Username is required');
+            return;
+        }
+        
+        // Prevent sharing with self
+        if (username === this.contactManager.database.currentUser?.username) {
+            this.showShareFormError('share-username', 'You cannot share a contact with yourself');
+            return;
+        }
+        
+        console.log('🔄 Sharing contact with:', username, 'readonly:', isReadOnly);
+        
+        // Show loading state
+        this.setShareModalState('loading');
+        
+        try {
+            // Share via ContactManager/Database
+            const result = await this.contactManager.database.shareContacts(username, isReadOnly, false);
+            
+            if (result.success) {
+                // Update contact sharing metadata
+                await this.updateContactSharingMetadata(this.currentShareContact.contactId, username, isReadOnly);
+                
+                // Show success state
+                this.setShareModalState('success');
+                if (this.elements.sharedWithUser) {
+                    this.elements.sharedWithUser.textContent = username;
+                }
+                
+                // Refresh contacts list to show sharing indicators
+                this.refreshContactsList();
+                
+                console.log('✅ Contact shared successfully with:', username);
+                
+                // Auto-close after 3 seconds
+                setTimeout(() => {
+                    this.hideModal({ modalId: 'share-modal' });
+                }, 3000);
+                
+            } else {
+                const errorMessage = result.error || 'Failed to share contact';
+                console.error('❌ Share failed with error:', errorMessage);
+                throw new Error(errorMessage);
+            }
+            
+        } catch (error) {
+            console.error('❌ Share failed:', error);
+            console.error('❌ Error details:', {
+                message: error.message,
+                name: error.name,
+                stack: error.stack
+            });
+            
+            // Return to form and show error
+            this.setShareModalState('form');
+            this.showShareFormError('share-username', error.message || 'Failed to share contact');
+        }
+    }
+
+    /**
+     * Update contact sharing metadata after successful share
+     */
+    async updateContactSharingMetadata(contactId, username, isReadOnly) {
+        try {
+            const contact = this.contactManager.getContact(contactId);
+            if (!contact) return;
+            
+            // Update sharing metadata
+            const updatedMetadata = {
+                ...contact.metadata,
+                sharing: {
+                    ...contact.metadata.sharing,
+                    isShared: true,
+                    shareCount: (contact.metadata.sharing?.shareCount || 0) + 1,
+                    sharedWithUsers: [
+                        ...(contact.metadata.sharing?.sharedWithUsers || []),
+                        username
+                    ],
+                    sharePermissions: {
+                        ...contact.metadata.sharing?.sharePermissions,
+                        [username]: {
+                            level: isReadOnly ? 'readOnly' : 'write',
+                            sharedAt: new Date().toISOString(),
+                            sharedBy: this.contactManager.database.currentUser?.username,
+                            canReshare: false,
+                            hasViewed: false
+                        }
+                    },
+                    shareHistory: [
+                        ...(contact.metadata.sharing?.shareHistory || []),
+                        {
+                            action: 'shared',
+                            targetUser: username,
+                            timestamp: new Date().toISOString(),
+                            permission: isReadOnly ? 'readOnly' : 'write',
+                            sharedBy: this.contactManager.database.currentUser?.username
+                        }
+                    ]
+                }
+            };
+            
+            // Update contact
+            await this.contactManager.updateContactMetadata(contactId, { metadata: updatedMetadata });
+            
+        } catch (error) {
+            console.error('Failed to update sharing metadata:', error);
+        }
+    }
+
+    /**
+     * Show share form error
+     */
+    showShareFormError(fieldName, message) {
+        const errorElement = document.getElementById(`${fieldName}-error`);
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+    }
+
+    /**
+     * Clear share form errors
+     */
+    clearShareFormErrors() {
+        const errorElements = this.elements.shareForm?.querySelectorAll('.field-error');
+        errorElements?.forEach(element => {
+            element.style.display = 'none';
+            element.textContent = '';
+        });
+    }
+
+    /**
+     * Hide share modal
+     */
+    hideShareModal() {
+        this.hideModal({ modalId: 'share-modal' });
+        this.currentShareContact = null;
     }
 
     resetContactForm() {
