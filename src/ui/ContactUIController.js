@@ -141,10 +141,28 @@ export class ContactUIController {
             
             // UI controls
             newContactBtn: document.getElementById('new-contact-btn'),
+            importContactsBtn: document.getElementById('import-contacts-btn'),
+            exportContactsBtn: document.getElementById('export-contacts-btn'),
             userMenuBtn: document.getElementById('user-menu-btn'),
             userDropdown: document.getElementById('user-dropdown'),
             currentUserDisplay: document.getElementById('current-user'),
             logoutBtn: document.getElementById('logout-btn'),
+            
+            // Import/Export modal elements
+            importModal: document.getElementById('import-modal'),
+            importForm: document.getElementById('import-form'),
+            importFile: document.getElementById('import-file'),
+            importCardName: document.getElementById('import-card-name'),
+            importLoading: document.getElementById('import-loading'),
+            importSuccess: document.getElementById('import-success'),
+            importResults: document.getElementById('import-results'),
+            importSuccessMessage: document.getElementById('import-success-message'),
+            
+            exportModal: document.getElementById('export-modal'),
+            exportForm: document.getElementById('export-form'),
+            exportFilename: document.getElementById('export-filename'),
+            exportPreview: document.getElementById('export-preview'),
+            exportContactCount: document.getElementById('export-contact-count'),
             
             // Toast notifications
             toastContainer: document.getElementById('toast-container'),
@@ -187,6 +205,7 @@ export class ContactUIController {
         this.eventBus.on('contact:created', this.handleContactCreated.bind(this));
         this.eventBus.on('contact:updated', this.handleContactUpdated.bind(this));
         this.eventBus.on('contact:deleted', this.handleContactDeleted.bind(this));
+        this.eventBus.on('contact:restored', this.handleContactRestored.bind(this));
         this.eventBus.on('contacts:changed', this.handleContactsUpdated.bind(this));
         
         // UI events
@@ -256,6 +275,15 @@ export class ContactUIController {
             this.elements.newContactBtn.addEventListener('click', this.showNewContactModal.bind(this));
         }
         
+        // Import/Export actions
+        if (this.elements.importContactsBtn) {
+            this.elements.importContactsBtn.addEventListener('click', this.showImportModal.bind(this));
+        }
+        
+        if (this.elements.exportContactsBtn) {
+            this.elements.exportContactsBtn.addEventListener('click', this.showExportModal.bind(this));
+        }
+        
         if (this.elements.userMenuBtn) {
             this.elements.userMenuBtn.addEventListener('click', this.toggleUserMenu.bind(this));
         }
@@ -289,6 +317,26 @@ export class ContactUIController {
         if (this.elements.createListForm) {
             this.elements.createListForm.addEventListener('submit', this.handleCreateListSubmit.bind(this));
         }
+        
+        // Import/Export forms
+        if (this.elements.importForm) {
+            this.elements.importForm.addEventListener('submit', this.handleImportSubmit.bind(this));
+        }
+        
+        if (this.elements.exportForm) {
+            this.elements.exportForm.addEventListener('submit', this.handleExportSubmit.bind(this));
+        }
+        
+        // Export form radio changes to update preview
+        if (this.elements.exportForm) {
+            const exportRadios = this.elements.exportForm.querySelectorAll('input[name="exportType"]');
+            exportRadios.forEach(radio => {
+                radio.addEventListener('change', this.updateExportPreview.bind(this));
+            });
+        }
+        
+        // Multi-field component listeners
+        this.setupMultiFieldListeners();
         
         // Modal close buttons
         const modalCloseButtons = document.querySelectorAll('[data-dismiss="modal"]');
@@ -652,6 +700,16 @@ export class ContactUIController {
     }
 
     /**
+     * Handle contact restoration
+     */
+    handleContactRestored(data) {
+        this.performSearch();
+        if (this.selectedContactId === data.contact.contactId) {
+            this.displayContactDetail(data.contact);
+        }
+    }
+
+    /**
      * Render distribution lists in the sidebar
      */
     async renderDistributionLists() {
@@ -877,6 +935,7 @@ export class ContactUIController {
             const card = document.createElement('div');
             card.className = 'contact-card';
             card.dataset.contactId = contact.contactId;
+            card.dataset.archived = contact.metadata.isArchived ? 'true' : 'false';
             
             card.innerHTML = `
                 <div class="contact-avatar">
@@ -895,23 +954,30 @@ export class ContactUIController {
                     <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View contact">
                         <i class="icon-eye"></i>
                     </button>
-                    ${contact.metadata.isOwned ? `
-                        <button class="btn-icon share-contact" data-contact-id="${contact.contactId}" title="Share contact">
-                            <i class="icon-share"></i>
-                        </button>
-                        <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
-                            <i class="icon-edit"></i>
-                        </button>
-                        <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive contact">
-                            <i class="icon-archive"></i>
-                        </button>
-                        <button class="btn-icon delete-contact" data-contact-id="${contact.contactId}" title="Delete contact">
-                            <i class="icon-trash"></i>
+                    ${contact.metadata.isArchived ? `
+                        <!-- Restore button for archived contacts -->
+                        <button class="btn-icon restore-contact" data-contact-id="${contact.contactId}" title="Restore from archive">
+                            <i class="icon-restore"></i>
                         </button>
                     ` : `
-                        <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive shared contact">
-                            <i class="icon-archive"></i>
-                        </button>
+                        ${contact.metadata.isOwned ? `
+                            <button class="btn-icon share-contact" data-contact-id="${contact.contactId}" title="Share contact">
+                                <i class="icon-share"></i>
+                            </button>
+                            <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
+                                <i class="icon-edit"></i>
+                            </button>
+                            <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive contact">
+                                <i class="icon-archive"></i>
+                            </button>
+                            <button class="btn-icon delete-contact" data-contact-id="${contact.contactId}" title="Delete contact">
+                                <i class="icon-trash"></i>
+                            </button>
+                        ` : `
+                            <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive shared contact">
+                                <i class="icon-archive"></i>
+                            </button>
+                        `}
                     `}
                 </div>
             `;
@@ -1048,6 +1114,17 @@ export class ContactUIController {
                 event.stopPropagation();
                 console.log('📦 Archive button clicked for:', contact.contactId);
                 this.archiveContact(contact.contactId);
+            });
+        }
+
+        // Restore contact button (for archived contacts)
+        const restoreBtn = card.querySelector('.restore-contact');
+        if (restoreBtn) {
+            console.log('🔗 Adding restore button listener');
+            restoreBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('🔄 Restore button clicked for:', contact.contactId);
+                this.restoreContact(contact.contactId);
             });
         }
 
@@ -2254,6 +2331,11 @@ export class ContactUIController {
         if (form) {
             form.reset();
             
+            // Reset multi-field components
+            this.resetMultiFieldComponent('phone');
+            this.resetMultiFieldComponent('email');
+            this.resetMultiFieldComponent('url');
+            
             // Clear any error messages
             const errorElements = form.querySelectorAll('.field-error');
             errorElements.forEach(el => el.style.display = 'none');
@@ -2263,6 +2345,24 @@ export class ContactUIController {
             fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
             
             console.log('✅ Contact form reset');
+        }
+    }
+
+    /**
+     * Reset a multi-field component to single empty field
+     */
+    resetMultiFieldComponent(fieldType) {
+        const container = document.getElementById(`${fieldType}-fields`);
+        if (container) {
+            // Clear all items
+            container.innerHTML = '';
+            
+            // Add one empty field
+            const fieldItem = this.createMultiFieldItem(fieldType);
+            container.appendChild(fieldItem);
+            
+            // Setup events
+            this.setupMultiFieldEvents(fieldType);
         }
     }
 
@@ -2433,14 +2533,18 @@ export class ContactUIController {
             this.setFormFieldValue('organization', displayData.organization);
             this.setFormFieldValue('title', displayData.title);
 
-            // Populate first phone number (simplified for now)
+            // Populate multi-field data
+            this.populateMultiFieldData('phone', displayData.phones);
+            this.populateMultiFieldData('email', displayData.emails);
+            this.populateMultiFieldData('url', displayData.urls);
+
+            // Fallback: populate single fields if multi-field containers don't exist
             if (displayData.phones.length > 0) {
                 this.setFormFieldValue('phone', displayData.phones[0].value);
             } else {
                 this.setFormFieldValue('phone', '');
             }
 
-            // Populate first email (simplified for now)
             if (displayData.emails.length > 0) {
                 this.setFormFieldValue('email', displayData.emails[0].value);
             } else {
@@ -2506,32 +2610,35 @@ export class ContactUIController {
             contactData.title = title.trim();
         }
 
-        // Handle phone numbers (simplified - single phone for now)
-        const phone = formData.get('phone');
-        if (phone && phone.trim()) {
-            contactData.phones = [{
-                value: phone.trim(),
-                type: 'other',
-                primary: true
-            }];
-        } else {
-            contactData.phones = [];
+        // Handle multi-field data
+        contactData.phones = this.extractMultiFieldData(formData, 'phone');
+        contactData.emails = this.extractMultiFieldData(formData, 'email');
+        contactData.urls = this.extractMultiFieldData(formData, 'url');
+
+        // Fallback to single field data if multi-field is empty
+        if (contactData.phones.length === 0) {
+            const phone = formData.get('phone');
+            if (phone && phone.trim()) {
+                contactData.phones = [{
+                    value: phone.trim(),
+                    type: 'other',
+                    primary: true
+                }];
+            }
         }
 
-        // Handle email addresses (simplified - single email for now)
-        const email = formData.get('email');
-        if (email && email.trim()) {
-            contactData.emails = [{
-                value: email.trim(),
-                type: 'other',
-                primary: true
-            }];
-        } else {
-            contactData.emails = [];
+        if (contactData.emails.length === 0) {
+            const email = formData.get('email');
+            if (email && email.trim()) {
+                contactData.emails = [{
+                    value: email.trim(),
+                    type: 'other',
+                    primary: true
+                }];
+            }
         }
 
         // Initialize empty arrays for other fields
-        contactData.urls = [];
         contactData.notes = [];
 
         return contactData;
@@ -2800,6 +2907,46 @@ export class ContactUIController {
             console.error('❌ Failed to archive contact:', error);
             this.showToast({ 
                 message: 'Failed to archive contact. Please try again.', 
+                type: 'error' 
+            });
+        }
+    }
+
+    /**
+     * Restore contact from archive with confirmation
+     */
+    async restoreContact(contactId) {
+        const contact = this.contactManager.getContact(contactId);
+        if (!contact) return;
+
+        // Show confirmation dialog
+        const confirmed = confirm(`Are you sure you want to restore "${contact.cardName}" from archive?\n\nThe contact will be moved back to your active contacts.`);
+        if (!confirmed) {
+            console.log('🔄 Restore cancelled by user for:', contactId);
+            return;
+        }
+
+        try {
+            const result = await this.contactManager.restoreContact(contactId);
+            if (result.success) {
+                console.log('✅ Contact restored successfully:', contactId);
+                this.showToast({ 
+                    message: 'Contact restored successfully', 
+                    type: 'success' 
+                });
+                // Refresh the contact list to update the UI
+                this.performSearch();
+            } else {
+                console.error('❌ Failed to restore contact:', result.error);
+                this.showToast({ 
+                    message: `Failed to restore contact: ${result.error}`, 
+                    type: 'error' 
+                });
+            }
+        } catch (error) {
+            console.error('❌ Failed to restore contact:', error);
+            this.showToast({ 
+                message: 'Failed to restore contact. Please try again.', 
                 type: 'error' 
             });
         }
@@ -3187,6 +3334,727 @@ export class ContactUIController {
         if (event.key === 'Enter') {
             event.preventDefault();
             this.handleAddUsername();
+        }
+    }
+
+    // ========== MULTI-FIELD FORM COMPONENTS ==========
+
+    /**
+     * Setup multi-field component listeners
+     */
+    setupMultiFieldListeners() {
+        // Add field buttons
+        const addPhoneBtn = document.getElementById('add-phone-btn');
+        const addEmailBtn = document.getElementById('add-email-btn');
+        const addUrlBtn = document.getElementById('add-url-btn');
+
+        if (addPhoneBtn) {
+            addPhoneBtn.addEventListener('click', () => this.addMultiField('phone'));
+        }
+        if (addEmailBtn) {
+            addEmailBtn.addEventListener('click', () => this.addMultiField('email'));
+        }
+        if (addUrlBtn) {
+            addUrlBtn.addEventListener('click', () => this.addMultiField('url'));
+        }
+
+        // Initial setup for existing fields
+        this.setupMultiFieldEvents('phone');
+        this.setupMultiFieldEvents('email');
+        this.setupMultiFieldEvents('url');
+    }
+
+    /**
+     * Add a new multi-field item
+     */
+    addMultiField(fieldType) {
+        const container = document.getElementById(`${fieldType}-fields`);
+        if (!container) return;
+
+        const newItem = this.createMultiFieldItem(fieldType);
+        container.appendChild(newItem);
+        
+        // Setup events for the new item
+        this.setupMultiFieldEvents(fieldType);
+        
+        // Focus the new input
+        const newInput = newItem.querySelector(`input[name="${fieldType}[]"]`);
+        if (newInput) {
+            newInput.focus();
+        }
+    }
+
+    /**
+     * Create a new multi-field item
+     */
+    createMultiFieldItem(fieldType) {
+        const item = document.createElement('div');
+        item.className = 'multi-field-item';
+
+        const typeOptions = this.getFieldTypeOptions(fieldType);
+        const inputType = this.getInputType(fieldType);
+        const placeholder = this.getPlaceholder(fieldType);
+
+        // Generate a unique ID for this field item
+        const fieldId = Date.now() + Math.random();
+
+        item.innerHTML = `
+            <select class="field-type-select" name="${fieldType}Type[]">
+                ${typeOptions}
+            </select>
+            <input type="${inputType}" name="${fieldType}[]" placeholder="${placeholder}">
+            <label class="primary-checkbox">
+                <input type="checkbox" name="${fieldType}Primary[]" value="${fieldId}">
+                <span class="checkmark"></span>
+                Primary
+            </label>
+            <button type="button" class="remove-field-btn" title="Remove ${fieldType}">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        // Store the field ID for later reference
+        item.dataset.fieldId = fieldId;
+
+        return item;
+    }
+
+    /**
+     * Get field type options for select
+     */
+    getFieldTypeOptions(fieldType) {
+        const options = {
+            phone: [
+                { value: 'work', label: 'Work' },
+                { value: 'home', label: 'Home' },
+                { value: 'mobile', label: 'Mobile' },
+                { value: 'fax', label: 'Fax' },
+                { value: 'other', label: 'Other' }
+            ],
+            email: [
+                { value: 'work', label: 'Work' },
+                { value: 'home', label: 'Home' },
+                { value: 'personal', label: 'Personal' },
+                { value: 'other', label: 'Other' }
+            ],
+            url: [
+                { value: 'work', label: 'Work' },
+                { value: 'home', label: 'Home' },
+                { value: 'personal', label: 'Personal' },
+                { value: 'blog', label: 'Blog' },
+                { value: 'other', label: 'Other' }
+            ]
+        };
+
+        return options[fieldType]?.map(option => 
+            `<option value="${option.value}">${option.label}</option>`
+        ).join('') || '';
+    }
+
+    /**
+     * Get input type for field
+     */
+    getInputType(fieldType) {
+        const types = {
+            phone: 'tel',
+            email: 'email',
+            url: 'url'
+        };
+        return types[fieldType] || 'text';
+    }
+
+    /**
+     * Get placeholder text for field
+     */
+    getPlaceholder(fieldType) {
+        const placeholders = {
+            phone: 'Phone number',
+            email: 'Email address',
+            url: 'Website URL'
+        };
+        return placeholders[fieldType] || '';
+    }
+
+    /**
+     * Setup events for multi-field items
+     */
+    setupMultiFieldEvents(fieldType) {
+        const container = document.getElementById(`${fieldType}-fields`);
+        if (!container) return;
+
+        // Remove field buttons
+        const removeButtons = container.querySelectorAll('.remove-field-btn');
+        removeButtons.forEach(button => {
+            // Remove existing listeners to avoid duplicates
+            button.replaceWith(button.cloneNode(true));
+        });
+
+        // Re-add listeners
+        const newRemoveButtons = container.querySelectorAll('.remove-field-btn');
+        newRemoveButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                this.removeMultiField(e.target.closest('.multi-field-item'), fieldType);
+            });
+        });
+
+        // Primary checkbox logic - only one can be checked
+        const primaryCheckboxes = container.querySelectorAll(`input[name="${fieldType}Primary[]"]`);
+        primaryCheckboxes.forEach(checkbox => {
+            checkbox.replaceWith(checkbox.cloneNode(true));
+        });
+
+        const newPrimaryCheckboxes = container.querySelectorAll(`input[name="${fieldType}Primary[]"]`);
+        newPrimaryCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    // Uncheck all other primary checkboxes for this field type
+                    newPrimaryCheckboxes.forEach(cb => {
+                        if (cb !== e.target) {
+                            cb.checked = false;
+                        }
+                    });
+                }
+            });
+        });
+
+        // Update remove button states
+        this.updateRemoveButtonStates(fieldType);
+    }
+
+    /**
+     * Remove a multi-field item
+     */
+    removeMultiField(item, fieldType) {
+        const container = document.getElementById(`${fieldType}-fields`);
+        if (!container) return;
+
+        // Don't allow removing the last item
+        const items = container.querySelectorAll('.multi-field-item');
+        if (items.length <= 1) {
+            this.showToast({
+                message: `At least one ${fieldType} field must remain`,
+                type: 'error'
+            });
+            return;
+        }
+
+        item.remove();
+        this.updateRemoveButtonStates(fieldType);
+    }
+
+    /**
+     * Update remove button states (disable if only one item)
+     */
+    updateRemoveButtonStates(fieldType) {
+        const container = document.getElementById(`${fieldType}-fields`);
+        if (!container) return;
+
+        const items = container.querySelectorAll('.multi-field-item');
+        const removeButtons = container.querySelectorAll('.remove-field-btn');
+
+        removeButtons.forEach(button => {
+            button.disabled = items.length <= 1;
+        });
+    }
+
+    /**
+     * Extract multi-field data from form
+     */
+    extractMultiFieldData(formData, fieldType) {
+        const values = formData.getAll(`${fieldType}[]`);
+        const types = formData.getAll(`${fieldType}Type[]`);
+        const checkedPrimaries = formData.getAll(`${fieldType}Primary[]`);
+
+        // Get all field items to map their IDs to indices
+        const container = document.getElementById(`${fieldType}-fields`);
+        const fieldItems = container ? Array.from(container.querySelectorAll('.multi-field-item')) : [];
+
+        const fieldData = [];
+        values.forEach((value, index) => {
+            if (value.trim()) {
+                // Get the field ID for this index
+                const fieldItem = fieldItems[index];
+                const fieldId = fieldItem ? fieldItem.dataset.fieldId : null;
+                
+                // Check if this field is marked as primary
+                const isPrimary = fieldId && checkedPrimaries.includes(fieldId);
+                
+                fieldData.push({
+                    value: value.trim(),
+                    type: types[index] || 'other',
+                    primary: isPrimary
+                });
+            }
+        });
+
+        return fieldData;
+    }
+
+    /**
+     * Populate multi-field data in form (for editing)
+     */
+    populateMultiFieldData(fieldType, data) {
+        const container = document.getElementById(`${fieldType}-fields`);
+        if (!container || !data || data.length === 0) return;
+
+        // Clear existing items
+        container.innerHTML = '';
+
+        // Add items for each data entry
+        data.forEach((item, index) => {
+            const fieldItem = this.createMultiFieldItem(fieldType);
+            
+            // Set values
+            const typeSelect = fieldItem.querySelector(`select[name="${fieldType}Type[]"]`);
+            const valueInput = fieldItem.querySelector(`input[name="${fieldType}[]"]`);
+            const primaryCheckbox = fieldItem.querySelector(`input[name="${fieldType}Primary[]"]`);
+
+            if (typeSelect) typeSelect.value = item.type || 'other';
+            if (valueInput) valueInput.value = item.value || '';
+            if (primaryCheckbox) primaryCheckbox.checked = item.primary || false;
+
+            container.appendChild(fieldItem);
+        });
+
+        // If no data provided, add one empty field
+        if (data.length === 0) {
+            const fieldItem = this.createMultiFieldItem(fieldType);
+            container.appendChild(fieldItem);
+        }
+
+        // Setup events
+        this.setupMultiFieldEvents(fieldType);
+    }
+
+    // ========== IMPORT/EXPORT METHODS ==========
+
+    /**
+     * Show import modal
+     */
+    showImportModal() {
+        this.showModal({ modalId: 'import-modal' });
+        this.resetImportForm();
+    }
+
+    /**
+     * Show export modal
+     */
+    showExportModal() {
+        this.showModal({ modalId: 'export-modal' });
+        this.resetExportForm();
+        this.updateExportPreview();
+    }
+
+    /**
+     * Reset import form
+     */
+    resetImportForm() {
+        if (this.elements.importForm) {
+            this.elements.importForm.reset();
+        }
+        this.setImportModalState('form');
+        this.clearImportFormErrors();
+    }
+
+    /**
+     * Reset export form
+     */
+    resetExportForm() {
+        if (this.elements.exportForm) {
+            this.elements.exportForm.reset();
+            // Set default filename
+            if (this.elements.exportFilename) {
+                this.elements.exportFilename.value = 'contacts';
+            }
+        }
+        this.clearExportFormErrors();
+    }
+
+    /**
+     * Set import modal state
+     */
+    setImportModalState(state) {
+        const formContainer = this.elements.importForm?.parentElement;
+        const loadingContainer = this.elements.importLoading;
+        const successContainer = this.elements.importSuccess;
+        
+        // Hide all states
+        if (formContainer) formContainer.style.display = 'none';
+        if (loadingContainer) loadingContainer.style.display = 'none';
+        if (successContainer) successContainer.style.display = 'none';
+        
+        // Show requested state
+        switch (state) {
+            case 'form':
+                if (formContainer) formContainer.style.display = 'block';
+                break;
+            case 'loading':
+                if (loadingContainer) loadingContainer.style.display = 'block';
+                break;
+            case 'success':
+                if (successContainer) successContainer.style.display = 'block';
+                break;
+        }
+    }
+
+    /**
+     * Handle import form submission
+     */
+    async handleImportSubmit(event) {
+        event.preventDefault();
+        
+        const fileInput = this.elements.importFile;
+        const cardNameInput = this.elements.importCardName;
+        
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            this.showFieldError('import-file', 'Please select a vCard file');
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        const cardName = cardNameInput?.value?.trim() || null;
+        
+        // Validate file type
+        if (!file.name.match(/\.(vcf|vcard)$/i)) {
+            this.showFieldError('import-file', 'Please select a valid vCard file (.vcf or .vcard)');
+            return;
+        }
+        
+        this.clearImportFormErrors();
+        this.setImportModalState('loading');
+        
+        try {
+            // Read file content
+            const fileContent = await this.readFileAsText(file);
+            
+            // Parse and import contacts
+            const result = await this.importContactsFromVCard(fileContent, cardName);
+            
+            if (result.success) {
+                this.showImportSuccess(result);
+                this.performSearch(); // Refresh contact list
+            } else {
+                this.setImportModalState('form');
+                this.showFieldError('import-file', result.error);
+            }
+            
+        } catch (error) {
+            console.error('Import failed:', error);
+            this.setImportModalState('form');
+            this.showFieldError('import-file', error.message || 'Failed to import contacts');
+        }
+    }
+
+    /**
+     * Import contacts from vCard content
+     */
+    async importContactsFromVCard(vCardContent, cardName) {
+        try {
+            // Split multiple vCards if present
+            const vCardBlocks = this.splitVCardContent(vCardContent);
+            
+            if (vCardBlocks.length === 0) {
+                throw new Error('No valid vCard data found in file');
+            }
+            
+            const results = {
+                imported: 0,
+                failed: 0,
+                errors: []
+            };
+            
+            for (let i = 0; i < vCardBlocks.length; i++) {
+                try {
+                    const vCardString = vCardBlocks[i];
+                    
+                    // Use the provided card name only for single contact imports
+                    const contactCardName = vCardBlocks.length === 1 ? cardName : null;
+                    
+                    // Import via ContactManager
+                    const contact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName);
+                    const saveResult = await this.contactManager.database.saveContact(contact);
+                    
+                    if (saveResult.success) {
+                        results.imported++;
+                        console.log(`✅ Imported contact: ${contact.cardName}`);
+                    } else {
+                        results.failed++;
+                        results.errors.push(`Contact ${i + 1}: ${saveResult.error}`);
+                    }
+                    
+                } catch (error) {
+                    results.failed++;
+                    results.errors.push(`Contact ${i + 1}: ${error.message}`);
+                    console.error(`❌ Failed to import contact ${i + 1}:`, error);
+                }
+            }
+            
+            // Trigger contacts update
+            await this.contactManager.loadContacts();
+            
+            return {
+                success: results.imported > 0,
+                imported: results.imported,
+                failed: results.failed,
+                errors: results.errors,
+                total: vCardBlocks.length
+            };
+            
+        } catch (error) {
+            console.error('Error in importContactsFromVCard:', error);
+            return {
+                success: false,
+                error: error.message || 'Failed to import contacts'
+            };
+        }
+    }
+
+    /**
+     * Split vCard content into individual vCard blocks
+     */
+    splitVCardContent(vCardContent) {
+        const blocks = [];
+        const lines = vCardContent.split(/\r?\n/);
+        let currentBlock = [];
+        let inVCard = false;
+        
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            
+            if (trimmedLine === 'BEGIN:VCARD') {
+                inVCard = true;
+                currentBlock = [line];
+            } else if (trimmedLine === 'END:VCARD') {
+                if (inVCard) {
+                    currentBlock.push(line);
+                    blocks.push(currentBlock.join('\n'));
+                    currentBlock = [];
+                    inVCard = false;
+                }
+            } else if (inVCard) {
+                currentBlock.push(line);
+            }
+        }
+        
+        return blocks;
+    }
+
+    /**
+     * Show import success state
+     */
+    showImportSuccess(result) {
+        this.setImportModalState('success');
+        
+        if (this.elements.importSuccessMessage) {
+            this.elements.importSuccessMessage.textContent = 
+                `Successfully imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}`;
+        }
+        
+        if (this.elements.importResults) {
+            let resultsHtml = '';
+            
+            if (result.imported > 0) {
+                resultsHtml += `<div class="import-stat success">
+                    <i class="fas fa-check-circle"></i>
+                    <span>${result.imported} imported successfully</span>
+                </div>`;
+            }
+            
+            if (result.failed > 0) {
+                resultsHtml += `<div class="import-stat error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>${result.failed} failed to import</span>
+                </div>`;
+                
+                if (result.errors.length > 0) {
+                    resultsHtml += `<div class="import-errors">
+                        <h5>Errors:</h5>
+                        <ul>${result.errors.map(error => `<li>${this.escapeHtml(error)}</li>`).join('')}</ul>
+                    </div>`;
+                }
+            }
+            
+            this.elements.importResults.innerHTML = resultsHtml;
+        }
+        
+        // Show success toast
+        this.showToast({
+            message: `Imported ${result.imported} contact${result.imported !== 1 ? 's' : ''} successfully`,
+            type: 'success'
+        });
+        
+        // Auto-close after 3 seconds if no errors
+        if (result.failed === 0) {
+            setTimeout(() => {
+                this.hideModal({ modalId: 'import-modal' });
+            }, 3000);
+        }
+    }
+
+    /**
+     * Handle export form submission
+     */
+    async handleExportSubmit(event) {
+        event.preventDefault();
+        
+        const formData = new FormData(event.target);
+        const exportType = formData.get('exportType') || 'all';
+        const filename = formData.get('filename')?.trim() || 'contacts';
+        
+        // Validate filename
+        if (!filename) {
+            this.showFieldError('export-filename', 'Filename is required');
+            return;
+        }
+        
+        this.clearExportFormErrors();
+        
+        try {
+            // Get contacts to export based on type
+            const contactsToExport = this.getContactsForExport(exportType);
+            
+            if (contactsToExport.length === 0) {
+                this.showFieldError('export-filename', 'No contacts found to export');
+                return;
+            }
+            
+            // Generate and download vCard file
+            await this.exportContacts(contactsToExport, filename);
+            
+            // Show success and close modal
+            this.showToast({
+                message: `Exported ${contactsToExport.length} contact${contactsToExport.length !== 1 ? 's' : ''} successfully`,
+                type: 'success'
+            });
+            
+            this.hideModal({ modalId: 'export-modal' });
+            
+        } catch (error) {
+            console.error('Export failed:', error);
+            this.showFieldError('export-filename', error.message || 'Failed to export contacts');
+        }
+    }
+
+    /**
+     * Get contacts for export based on type
+     */
+    getContactsForExport(exportType) {
+        const allContacts = Array.from(this.contactManager.contacts.values());
+        
+        switch (exportType) {
+            case 'owned':
+                return allContacts.filter(contact => 
+                    contact.metadata.isOwned && !contact.metadata.isDeleted);
+            
+            case 'active':
+                return allContacts.filter(contact => 
+                    !contact.metadata.isArchived && !contact.metadata.isDeleted);
+            
+            case 'all':
+            default:
+                return allContacts.filter(contact => !contact.metadata.isDeleted);
+        }
+    }
+
+    /**
+     * Export contacts to vCard file
+     */
+    async exportContacts(contacts, filename) {
+        try {
+            // Generate combined vCard content
+            const vCardContent = contacts
+                .map(contact => contact.vcard)
+                .join('\n\n');
+            
+            // Create and download file
+            const blob = new Blob([vCardContent], { type: 'text/vcard;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.vcf`;
+            a.style.display = 'none';
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up
+            URL.revokeObjectURL(url);
+            
+            console.log(`✅ Exported ${contacts.length} contacts to ${filename}.vcf`);
+            
+        } catch (error) {
+            console.error('Error exporting contacts:', error);
+            throw new Error('Failed to create export file');
+        }
+    }
+
+    /**
+     * Update export preview
+     */
+    updateExportPreview() {
+        if (!this.elements.exportContactCount) return;
+        
+        const formData = new FormData(this.elements.exportForm);
+        const exportType = formData.get('exportType') || 'all';
+        
+        const contactsToExport = this.getContactsForExport(exportType);
+        const count = contactsToExport.length;
+        
+        this.elements.exportContactCount.innerHTML = `
+            <span class="count-number">${count}</span> contact${count !== 1 ? 's' : ''} will be exported
+        `;
+    }
+
+    /**
+     * Read file as text
+     */
+    readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsText(file);
+        });
+    }
+
+    /**
+     * Clear import form errors
+     */
+    clearImportFormErrors() {
+        const errorElements = ['import-file-error', 'import-card-name-error'];
+        errorElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = '';
+                element.style.display = 'none';
+            }
+        });
+    }
+
+    /**
+     * Clear export form errors
+     */
+    clearExportFormErrors() {
+        const errorElements = ['export-filename-error'];
+        errorElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = '';
+                element.style.display = 'none';
+            }
+        });
+    }
+
+    /**
+     * Show field error
+     */
+    showFieldError(fieldId, message) {
+        const errorElement = document.getElementById(fieldId + '-error');
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
         }
     }
 }/* Cache bust: tor 18 sep 2025 08:55:36 CEST */

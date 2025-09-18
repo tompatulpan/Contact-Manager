@@ -20,6 +20,14 @@
                 </h1>
             </div>
             <div class="header-right">
+                <button id="import-contacts-btn" class="btn btn-secondary">
+                    <i class="fas fa-upload"></i>
+                    Import
+                </button>
+                <button id="export-contacts-btn" class="btn btn-secondary">
+                    <i class="fas fa-download"></i>
+                    Export
+                </button>
                 <button id="new-contact-btn" class="btn btn-primary">
                     <i class="fas fa-plus"></i>
                     New Contact
@@ -259,16 +267,90 @@
                             <div class="field-error" id="cardName-error"></div>
                         </div>
                         
+                        <!-- Multi-field Phone Numbers -->
                         <div class="form-group">
-                            <label for="phone">Phone</label>
-                            <input type="tel" id="phone" name="phone">
+                            <label>Phone Numbers</label>
+                            <div id="phone-fields" class="multi-field-container">
+                                <div class="multi-field-item">
+                                    <select class="field-type-select" name="phoneType[]">
+                                        <option value="work">Work</option>
+                                        <option value="home">Home</option>
+                                        <option value="mobile" selected>Mobile</option>
+                                        <option value="fax">Fax</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <input type="tel" name="phone[]" placeholder="Phone number">
+                                    <label class="primary-checkbox">
+                                        <input type="checkbox" name="phonePrimary[]">
+                                        <span class="checkmark"></span>
+                                        Primary
+                                    </label>
+                                    <button type="button" class="remove-field-btn" title="Remove phone">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" id="add-phone-btn" class="add-field-btn">
+                                <i class="fas fa-plus"></i> Add Phone Number
+                            </button>
                             <div class="field-error" id="phone-error"></div>
                         </div>
                         
+                        <!-- Multi-field Email Addresses -->
                         <div class="form-group">
-                            <label for="email">Email</label>
-                            <input type="email" id="email" name="email">
+                            <label>Email Addresses</label>
+                            <div id="email-fields" class="multi-field-container">
+                                <div class="multi-field-item">
+                                    <select class="field-type-select" name="emailType[]">
+                                        <option value="work" selected>Work</option>
+                                        <option value="home">Home</option>
+                                        <option value="personal">Personal</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <input type="email" name="email[]" placeholder="Email address">
+                                    <label class="primary-checkbox">
+                                        <input type="checkbox" name="emailPrimary[]">
+                                        <span class="checkmark"></span>
+                                        Primary
+                                    </label>
+                                    <button type="button" class="remove-field-btn" title="Remove email">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" id="add-email-btn" class="add-field-btn">
+                                <i class="fas fa-plus"></i> Add Email Address
+                            </button>
                             <div class="field-error" id="email-error"></div>
+                        </div>
+                        
+                        <!-- Multi-field URLs -->
+                        <div class="form-group">
+                            <label>Websites</label>
+                            <div id="url-fields" class="multi-field-container">
+                                <div class="multi-field-item">
+                                    <select class="field-type-select" name="urlType[]">
+                                        <option value="work" selected>Work</option>
+                                        <option value="home">Home</option>
+                                        <option value="personal">Personal</option>
+                                        <option value="blog">Blog</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <input type="url" name="url[]" placeholder="Website URL">
+                                    <label class="primary-checkbox">
+                                        <input type="checkbox" name="urlPrimary[]">
+                                        <span class="checkmark"></span>
+                                        Primary
+                                    </label>
+                                    <button type="button" class="remove-field-btn" title="Remove URL">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" id="add-url-btn" class="add-field-btn">
+                                <i class="fas fa-plus"></i> Add Website
+                            </button>
+                            <div class="field-error" id="url-error"></div>
                         </div>
                         
                         <div class="form-group">
@@ -514,6 +596,133 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Contacts Modal -->
+    <div id="import-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import Contacts</h2>
+                <button id="close-import-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Import contacts from vCard (.vcf) files. You can import single contacts or multiple contacts from a file.</p>
+                </div>
+                
+                <form id="import-form" class="import-form">
+                    <div class="form-group">
+                        <label for="import-file">Select vCard File (.vcf)</label>
+                        <input type="file" id="import-file" name="importFile" accept=".vcf,.vcard" required>
+                        <div class="field-error" id="import-file-error"></div>
+                        <small class="help-text">Supported formats: .vcf, .vcard</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="import-card-name">Card Name (Optional)</label>
+                        <input type="text" id="import-card-name" name="cardName" 
+                               placeholder="Leave empty to use name from file">
+                        <div class="field-error" id="import-card-name-error"></div>
+                        <small class="help-text">If importing multiple contacts, this will be ignored</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload"></i>
+                            Import Contacts
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Loading State -->
+                <div id="import-loading" class="loading-container" style="display: none;">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <p>Importing contacts...</p>
+                </div>
+                
+                <!-- Success State -->
+                <div id="import-success" class="success-container" style="display: none;">
+                    <div class="success-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h3>Import Successful!</h3>
+                    <p id="import-success-message">Contacts have been imported successfully.</p>
+                    <div class="import-results" id="import-results">
+                        <!-- Results will be populated here -->
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Contacts Modal -->
+    <div id="export-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Export Contacts</h2>
+                <button id="close-export-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Export your contacts to vCard (.vcf) format. You can export all contacts or select specific ones.</p>
+                </div>
+                
+                <form id="export-form" class="export-form">
+                    <div class="form-group">
+                        <label>Export Options</label>
+                        <div class="radio-group">
+                            <label class="radio-item">
+                                <input type="radio" name="exportType" value="all" checked>
+                                <span>Export All Contacts</span>
+                            </label>
+                            <label class="radio-item">
+                                <input type="radio" name="exportType" value="owned">
+                                <span>Export Only My Contacts</span>
+                            </label>
+                            <label class="radio-item">
+                                <input type="radio" name="exportType" value="active">
+                                <span>Export Active Contacts (excluding archived)</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="export-filename">Filename</label>
+                        <input type="text" id="export-filename" name="filename" 
+                               value="contacts" placeholder="contacts">
+                        <div class="field-error" id="export-filename-error"></div>
+                        <small class="help-text">File will be saved as [filename].vcf</small>
+                    </div>
+                    
+                    <div class="export-preview" id="export-preview">
+                        <h4>Export Preview</h4>
+                        <div id="export-contact-count" class="export-count">
+                            <span class="count-number">0</span> contacts will be exported
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-download"></i>
+                            Export Contacts
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
