@@ -14,7 +14,8 @@ export class ContactUIController {
         this.searchQuery = '';
         this.activeFilters = {
             includeArchived: false,  // Don't show archived contacts by default
-            includeDeleted: false    // Don't show deleted contacts by default
+            includeDeleted: false,   // Don't show deleted contacts by default
+            distributionList: null   // Current selected distribution list filter
         };
         
         // DOM elements cache
@@ -91,8 +92,13 @@ export class ContactUIController {
             
             // Search and filter elements
             searchInput: document.getElementById('search-input'),
+            filterBtn: document.getElementById('filter-btn'),
             filterDropdown: document.getElementById('filter-dropdown'),
             sortSelect: document.getElementById('sort-select'),
+            
+            // Distribution list elements
+            distributionListsContainer: document.getElementById('distribution-lists'),
+            createListBtn: document.getElementById('create-list-btn'),
             
             // Contact elements
             contactCards: document.getElementById('contact-list'), // Use the correct ID from HTML
@@ -184,6 +190,11 @@ export class ContactUIController {
             this.elements.searchInput.addEventListener('input', this.handleSearchInput);
         }
         
+        // Filter button toggle
+        if (this.elements.filterBtn) {
+            this.elements.filterBtn.addEventListener('click', this.toggleFilterDropdown.bind(this));
+        }
+        
         // Filter checkboxes
         const filterOwned = document.getElementById('filter-owned');
         const filterShared = document.getElementById('filter-shared');
@@ -201,6 +212,11 @@ export class ContactUIController {
         
         if (this.elements.sortSelect) {
             this.elements.sortSelect.addEventListener('change', this.handleSortChange.bind(this));
+        }
+        
+        // Distribution list events
+        if (this.elements.createListBtn) {
+            this.elements.createListBtn.addEventListener('click', this.showCreateListModal.bind(this));
         }
         
         // Navigation
@@ -399,6 +415,16 @@ export class ContactUIController {
     }
 
     /**
+     * Toggle filter dropdown visibility
+     */
+    toggleFilterDropdown() {
+        if (!this.elements.filterDropdown) return;
+        
+        const isVisible = this.elements.filterDropdown.style.display === 'block';
+        this.elements.filterDropdown.style.display = isVisible ? 'none' : 'block';
+    }
+
+    /**
      * Handle filter checkbox changes
      */
     handleFilterChange() {
@@ -409,7 +435,8 @@ export class ContactUIController {
         // Build filters based on checkbox states
         const filters = {
             includeArchived: filterArchived?.checked || false,
-            includeDeleted: false
+            includeDeleted: false,
+            distributionList: this.activeFilters.distributionList // Preserve distribution list filter
         };
         
         // Handle ownership filtering
@@ -517,6 +544,7 @@ export class ContactUIController {
         }
         
         this.updateTimeout = setTimeout(() => {
+            this.renderDistributionLists(); // Update distribution lists when contacts change
             this.performSearch();
             this.updateStats();
         }, 100); // 100ms debounce
@@ -550,6 +578,85 @@ export class ContactUIController {
             this.clearContactDetail();
         }
         this.performSearch();
+    }
+
+    /**
+     * Render distribution lists in the sidebar
+     */
+    async renderDistributionLists() {
+        if (!this.elements.distributionListsContainer) return;
+
+        try {
+            const listStats = await this.contactManager.getDistributionListCounts();
+            
+            if (listStats.length === 0) {
+                this.elements.distributionListsContainer.innerHTML = `
+                    <div class="no-lists-message">
+                        <p>No distribution lists yet</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const listItems = listStats.map(list => `
+                <div class="distribution-list-item" data-list-name="${list.name}">
+                    <span class="distribution-list-name">${list.name}</span>
+                    <span class="distribution-list-count">${list.count}</span>
+                </div>
+            `).join('');
+
+            // Add "All Contacts" option at the top
+            const allContactsCount = this.contactManager.contacts.size;
+            this.elements.distributionListsContainer.innerHTML = `
+                <div class="distribution-list-item ${this.activeFilters.distributionList === null ? 'active' : ''}" 
+                     data-list-name="">
+                    <span class="distribution-list-name">All Contacts</span>
+                    <span class="distribution-list-count">${allContactsCount}</span>
+                </div>
+                ${listItems}
+            `;
+
+            // Add click listeners to distribution list items
+            const listElements = this.elements.distributionListsContainer.querySelectorAll('.distribution-list-item');
+            listElements.forEach(element => {
+                element.addEventListener('click', this.handleDistributionListClick.bind(this));
+            });
+
+        } catch (error) {
+            console.error('Error rendering distribution lists:', error);
+            this.elements.distributionListsContainer.innerHTML = `
+                <div class="error-message">
+                    <p>Error loading lists</p>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Handle distribution list selection
+     */
+    handleDistributionListClick(event) {
+        const listName = event.currentTarget.dataset.listName;
+        
+        // Update active filter
+        this.activeFilters.distributionList = listName || null;
+        
+        // Update UI to show selected state
+        const allListItems = this.elements.distributionListsContainer.querySelectorAll('.distribution-list-item');
+        allListItems.forEach(item => item.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        // Update the contact list
+        this.performSearch();
+        
+        console.log('🎨 Distribution list selected:', listName || 'All Contacts');
+    }
+
+    /**
+     * Show create list modal (placeholder for Phase 2)
+     */
+    showCreateListModal() {
+        this.showToast('Creating distribution lists will be available in Phase 2', 'info');
     }
 
     /**
@@ -1059,6 +1166,7 @@ export class ContactUIController {
             app.classList.add('authenticated');
         }
         this.updateUserInterface();
+        this.renderDistributionLists(); // Render distribution lists on app start
         this.performSearch();
     }
 
@@ -1841,6 +1949,20 @@ export class ContactUIController {
         if (event.target.classList.contains('modal')) {
             const modalId = event.target.id;
             this.hideModal({ modalId });
+        }
+        
+        // Close filter dropdown when clicking outside
+        if (this.elements.filterDropdown && 
+            this.elements.filterDropdown.style.display === 'block') {
+            
+            const filterButton = this.elements.filterBtn;
+            const filterDropdown = this.elements.filterDropdown;
+            
+            // Check if click is outside filter button and dropdown
+            if (!filterButton?.contains(event.target) && 
+                !filterDropdown?.contains(event.target)) {
+                this.elements.filterDropdown.style.display = 'none';
+            }
         }
     }
 

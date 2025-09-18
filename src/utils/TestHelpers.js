@@ -31,7 +31,31 @@ export function generateMockContactData(overrides = {}) {
         distributionLists: ['work', 'clients']
     };
 
-    return { ...defaults, ...overrides };
+    const result = { ...defaults, ...overrides };
+    
+    // If name changed, also update related fields to avoid search conflicts
+    if (overrides.fn && overrides.fn !== defaults.fn) {
+        const firstName = overrides.fn.split(' ')[0].toLowerCase();
+        const lastName = overrides.fn.split(' ')[1]?.toLowerCase() || 'user';
+        
+        // Update emails if not explicitly overridden
+        if (!overrides.emails) {
+            result.emails = [
+                { value: `${firstName}.${lastName}@company.com`, type: 'work', primary: true },
+                { value: `${firstName}@personal.com`, type: 'home', primary: false }
+            ];
+        }
+        
+        // Update URLs if not explicitly overridden
+        if (!overrides.urls) {
+            result.urls = [
+                { value: `https://company.com/${firstName}`, type: 'work', primary: true },
+                { value: `https://${firstName}${lastName}.dev`, type: 'personal', primary: false }
+            ];
+        }
+    }
+
+    return result;
 }
 
 /**

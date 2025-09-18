@@ -1034,7 +1034,12 @@ export class ContactManager {
                     counts[list] = (counts[list] || 0) + 1;
                 });
             });
-        return counts;
+        
+        // Convert to array format expected by UI
+        return Object.entries(counts).map(([name, count]) => ({
+            name,
+            count
+        }));
     }
 
     /**
