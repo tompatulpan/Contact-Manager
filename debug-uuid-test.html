@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UUID Test - Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>UUID Generation Debug Test</h1>
+    
+    <button id="testNewUUID">Test New UUID Method</button>
+    <button id="testOldMethod">Test Old Method (for comparison)</button>
+    <button id="clearResults">Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script type="module">
+        import { VCardStandard } from './src/core/VCardStandard.js';
+
+        const vCardStandard = new VCardStandard();
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(content, className = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${className}`;
+            div.innerHTML = content;
+            resultsDiv.appendChild(div);
+        }
+
+        // Test new UUID method
+        document.getElementById('testNewUUID').addEventListener('click', () => {
+            try {
+                console.log('Testing new UUID method...');
+                const ids = [];
+                const startTime = performance.now();
+                
+                for (let i = 0; i < 5; i++) {
+                    const id = vCardStandard.generateContactId();
+                    ids.push(id);
+                    console.log(`Generated ID ${i + 1}: ${id}`);
+                }
+                
+                const endTime = performance.now();
+                const isUnique = new Set(ids).size === ids.length;
+                const isUUIDFormat = ids.every(id => {
+                    const uuidPart = id.replace('contact_', '');
+                    return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuidPart);
+                });
+
+                addResult(`
+                    <h3>✅ New UUID Method Test</h3>
+                    <p><strong>Generated:</strong> ${ids.length} IDs in ${(endTime - startTime).toFixed(2)}ms</p>
+                    <p><strong>All Unique:</strong> ${isUnique ? '✅ Yes' : '❌ No'}</p>
+                    <p><strong>Valid UUID v4 Format:</strong> ${isUUIDFormat ? '✅ Yes' : '❌ No'}</p>
+                    <details>
+                        <summary>Generated IDs:</summary>
+                        <pre>${ids.join('\\n')}</pre>
+                    </details>
+                `, isUnique && isUUIDFormat ? 'success' : 'error');
+
+            } catch (error) {
+                console.error('UUID test failed:', error);
+                addResult(`
+                    <h3>❌ New UUID Method Failed</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `, 'error');
+            }
+        });
+
+        // Test old method for comparison
+        document.getElementById('testOldMethod').addEventListener('click', () => {
+            const oldGenerateId = () => 'contact_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            const ids = [];
+            const startTime = performance.now();
+            
+            for (let i = 0; i < 5; i++) {
+                const id = oldGenerateId();
+                ids.push(id);
+            }
+            
+            const endTime = performance.now();
+            const isUnique = new Set(ids).size === ids.length;
+
+            addResult(`
+                <h3>⚠️ Old Method (for comparison)</h3>
+                <p><strong>Generated:</strong> ${ids.length} IDs in ${(endTime - startTime).toFixed(2)}ms</p>
+                <p><strong>All Unique:</strong> ${isUnique ? '✅ Yes' : '❌ No'}</p>
+                <p><strong>Format:</strong> Timestamp + Random</p>
+                <details>
+                    <summary>Generated IDs:</summary>
+                    <pre>${ids.join('\\n')}</pre>
+                </details>
+            `, 'info');
+        });
+
+        // Clear results
+        document.getElementById('clearResults').addEventListener('click', () => {
+            resultsDiv.innerHTML = '';
+        });
+
+        // Auto-run new method test
+        window.addEventListener('load', () => {
+            document.getElementById('testNewUUID').click();
+        });
+    </script>
+</body>
+</html>

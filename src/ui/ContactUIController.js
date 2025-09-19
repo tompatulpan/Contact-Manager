@@ -7,6 +7,9 @@ export class ContactUIController {
         this.eventBus = eventBus;
         this.contactManager = contactManager;
         
+        // Debug mode - set to false to reduce logging
+        this.debugMode = false;
+        
         // UI state
         this.currentUser = null;
         this.selectedContactId = null;
@@ -36,12 +39,81 @@ export class ContactUIController {
         this.handleWindowResize = this.debounce(this.handleWindowResize.bind(this), 250);
     }
 
+    // ========== UTILITY METHODS ==========
+
+    /**
+     * Log messages only in debug mode
+     */
+    log(message, data = null) {
+        if (this.debugMode) {
+            if (data) {
+                console.log(message, data);
+            } else {
+                console.log(message);
+            }
+        }
+    }
+
+    /**
+     * Log errors (always shown)
+     */
+    logError(message, error = null) {
+        if (error) {
+            console.error(message, error);
+        } else {
+            console.error(message);
+        }
+    }
+
+    /**
+     * Simplified error handling wrapper
+     */
+    async handleAsync(operation, errorMessage = 'Operation failed') {
+        try {
+            return await operation();
+        } catch (error) {
+            this.logError(`❌ ${errorMessage}:`, error);
+            this.showToast({ 
+                message: `${errorMessage}: ${error.message}`, 
+                type: 'error' 
+            });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Safe element operations
+     */
+    safeQuerySelector(selector, context = document) {
+        const element = context.querySelector(selector);
+        if (!element && this.debugMode) {
+            console.warn(`⚠️ Element not found: ${selector}`);
+        }
+        return element;
+    }
+
+    /**
+     * Safe event listener addition
+     */
+    safeAddEventListener(element, event, handler) {
+        if (element && typeof handler === 'function') {
+            element.addEventListener(event, handler);
+            return true;
+        }
+        if (this.debugMode) {
+            console.warn(`⚠️ Failed to add event listener: ${event}`, element);
+        }
+        return false;
+    }
+
+    // ========== INITIALIZATION ==========
+
     /**
      * Initialize the UI controller
      */
     async initialize() {
-        try {
-            console.log('🎨 Initializing UI Controller...');
+        return this.handleAsync(async () => {
+            this.log('🎨 Initializing UI Controller...');
             
             // Cache DOM elements
             this.cacheElements();
@@ -61,12 +133,9 @@ export class ContactUIController {
             // Clear contact detail to remove static welcome message
             this.clearContactDetail();
 
-            console.log('✅ UI Controller initialized');
-            
-        } catch (error) {
-            console.error('UI Controller initialization failed:', error);
-            throw error;
-        }
+            this.log('✅ UI Controller initialized');
+            return { success: true };
+        }, 'UI Controller initialization failed');
     }
 
     /**
@@ -143,8 +212,6 @@ export class ContactUIController {
             newContactBtn: document.getElementById('new-contact-btn'),
             importContactsBtn: document.getElementById('import-contacts-btn'),
             exportContactsBtn: document.getElementById('export-contacts-btn'),
-            userMenuBtn: document.getElementById('user-menu-btn'),
-            userDropdown: document.getElementById('user-dropdown'),
             currentUserDisplay: document.getElementById('current-user'),
             logoutBtn: document.getElementById('logout-btn'),
             
@@ -284,12 +351,12 @@ export class ContactUIController {
             this.elements.exportContactsBtn.addEventListener('click', this.showExportModal.bind(this));
         }
         
-        if (this.elements.userMenuBtn) {
-            this.elements.userMenuBtn.addEventListener('click', this.toggleUserMenu.bind(this));
-        }
-
         if (this.elements.logoutBtn) {
+            console.log('🔧 Setting up logout button listener');
             this.elements.logoutBtn.addEventListener('click', this.handleSignOut.bind(this));
+            console.log('🔧 Logout button listener attached successfully');
+        } else {
+            console.error('🔧 Logout button not found during setup');
         }
         
         // Contact form
@@ -675,7 +742,8 @@ export class ContactUIController {
     handleContactCreated(data) {
         this.hideContactModal();
         this.performSearch();
-        this.selectContact(data.contact.contactId);
+        // Select the contact but don't track access since it was just created
+        this.selectContactWithoutTracking(data.contact.contactId);
     }
 
     /**
@@ -863,12 +931,12 @@ export class ContactUIController {
      * Display contact list
      */
     displayContactList(contacts) {
-        console.log('🎨 DisplayContactList called with', contacts.length, 'contacts');
+        this.log('🎨 DisplayContactList called with', contacts.length, 'contacts');
         const container = this.elements.contactCards;
-        console.log('🎨 Container element:', container);
+        this.log('🎨 Container element:', container);
         
         if (!container) {
-            console.error('❌ Contact cards container not found!');
+            this.logError('❌ Contact cards container not found!');
             return;
         }
         
@@ -880,10 +948,10 @@ export class ContactUIController {
         
         // Clear existing contacts
         container.innerHTML = '';
-        console.log('🎨 Container cleared');
+        this.log('🎨 Container cleared');
         
         if (contacts.length === 0) {
-            console.log('🎨 No contacts to display, showing empty state');
+            this.log('🎨 No contacts to display, showing empty state');
             // Show the existing empty state element from HTML
             const emptyStateElement = document.getElementById('empty-state');
             if (emptyStateElement) {
@@ -898,18 +966,18 @@ export class ContactUIController {
             }
         }
         
-        console.log('🎨 Creating', contacts.length, 'contact cards...');
+        this.log('🎨 Creating', contacts.length, 'contact cards...');
         // Create contact cards
         contacts.forEach((contact, index) => {
-            console.log(`🎨 Creating card ${index + 1}:`, contact.cardName);
+            this.log(`🎨 Creating card ${index + 1}:`, contact.cardName);
             const contactCard = this.createContactCard(contact);
             container.appendChild(contactCard);
         });
         
-        console.log('🎨 Contact cards created and appended');
+        this.log('🎨 Contact cards created and appended');
         // Update contact count
         this.updateContactCount(contacts.length);
-        console.log('✅ DisplayContactList completed');
+        this.log('✅ DisplayContactList completed');
     }
 
     /**
@@ -917,7 +985,7 @@ export class ContactUIController {
      */
     createContactCard(contact) {
         try {
-            console.log('🎨 Creating contact card for:', {
+            this.log('🎨 Creating contact card for:', {
                 contactId: contact.contactId,
                 cardName: contact.cardName,
                 hasVCard: !!contact.vcard,
@@ -1140,6 +1208,28 @@ export class ContactUIController {
     }
 
     /**
+     * Select a contact without tracking access (used for newly created contacts)
+     */
+    selectContactWithoutTracking(contactId) {
+        const contact = this.contactManager.getContact(contactId);
+        if (!contact) return;
+        
+        // Update selected state in UI
+        this.elements.contactCards?.querySelectorAll('.contact-card').forEach(card => {
+            card.classList.remove('selected');
+            if (card.dataset.contactId === contactId) {
+                card.classList.add('selected');
+            }
+        });
+        
+        this.selectedContactId = contactId;
+        this.displayContactDetail(contact);
+        
+        // No access tracking for newly created contacts
+        console.log('📝 Contact selected without access tracking:', contactId);
+    }
+
+    /**
      * Select and display contact details
      */
     async selectContact(contactId) {
@@ -1296,7 +1386,7 @@ export class ContactUIController {
                         <span class="metadata-label">Type:</span>
                         <span class="metadata-value">${metadata.isOwned ? 'Owned' : 'Shared'}</span>
                     </div>
-                    ${metadata.usage.accessCount > 0 ? `
+                    ${metadata.usage?.accessCount > 0 ? `
                         <div class="metadata-item">
                             <span class="metadata-label">Views:</span>
                             <span class="metadata-value">${metadata.usage.accessCount}</span>
@@ -1963,19 +2053,17 @@ export class ContactUIController {
             return;
         }
         
-        console.log('🔄 Sharing contact with:', username, 'readonly:', isReadOnly);
+        console.log('🔄 Sharing individual contact with:', username, 'readonly:', isReadOnly);
+        console.log('ℹ️  Note: Now sharing individual contacts instead of entire database');
         
         // Show loading state
         this.setShareModalState('loading');
         
         try {
-            // Share via ContactManager/Database
-            const result = await this.contactManager.database.shareContacts(username, isReadOnly, false);
+            // Share individual contact via ContactManager
+            const result = await this.contactManager.shareContact(this.currentShareContact.contactId, username, isReadOnly, false);
             
             if (result.success) {
-                // Update contact sharing metadata
-                await this.updateContactSharingMetadata(this.currentShareContact.contactId, username, isReadOnly);
-                
                 // Show success state
                 this.setShareModalState('success');
                 if (this.elements.sharedWithUser) {
@@ -1985,7 +2073,7 @@ export class ContactUIController {
                 // Refresh contacts list to show sharing indicators
                 this.refreshContactsList();
                 
-                console.log('✅ Contact shared successfully with:', username);
+                console.log('✅ Individual contact shared successfully with:', username);
                 
                 // Auto-close after 3 seconds
                 setTimeout(() => {
@@ -2093,19 +2181,15 @@ export class ContactUIController {
             let errorCount = 0;
             const errors = [];
             
-            // Share each contact in the distribution list
+            // Share each contact individually
             for (const contact of contacts) {
                 try {
-                    // Set current contact for sharing
-                    this.currentShareContact = contact;
-                    
-                    // Share via ContactManager/Database
-                    const result = await this.contactManager.database.shareContacts(username, isReadOnly, false);
+                    // Share individual contact via ContactManager
+                    const result = await this.contactManager.shareContact(contact.contactId, username, isReadOnly, false);
                     
                     if (result.success) {
-                        // Update contact sharing metadata
-                        await this.updateContactSharingMetadata(contact.contactId, username, isReadOnly);
                         successCount++;
+                        console.log('✅ Individual contact shared:', contact.cardName);
                     } else {
                         errorCount++;
                         errors.push(`${contact.cardName}: ${result.error}`);
@@ -2538,19 +2622,6 @@ export class ContactUIController {
             this.populateMultiFieldData('email', displayData.emails);
             this.populateMultiFieldData('url', displayData.urls);
 
-            // Fallback: populate single fields if multi-field containers don't exist
-            if (displayData.phones.length > 0) {
-                this.setFormFieldValue('phone', displayData.phones[0].value);
-            } else {
-                this.setFormFieldValue('phone', '');
-            }
-
-            if (displayData.emails.length > 0) {
-                this.setFormFieldValue('email', displayData.emails[0].value);
-            } else {
-                this.setFormFieldValue('email', '');
-            }
-
             // Clear any previous errors
             this.clearFormErrors(form);
             
@@ -2785,12 +2856,6 @@ export class ContactUIController {
     confirmDeleteContact(contactId) {
         if (confirm('Are you sure you want to delete this contact?')) {
             this.contactManager.deleteContact(contactId);
-        }
-    }
-
-    toggleUserMenu() {
-        if (this.elements.userDropdown) {
-            this.elements.userDropdown.classList.toggle('show');
         }
     }
 

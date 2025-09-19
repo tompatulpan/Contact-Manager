@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Creation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .contact-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; }
+        .contact-item { margin: 5px 0; padding: 5px; background-color: #f8f9fa; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Contact Creation & UUID Test</h1>
+    
+    <div class="test-section info">
+        <h2>Test Instructions</h2>
+        <p>This test simulates the bug where creating multiple contacts quickly would cause overwrites.</p>
+        <p>With the fix, each contact should get a unique ID and none should overwrite others.</p>
+    </div>
+
+    <div class="test-section">
+        <h2>UUID Generation Test</h2>
+        <button id="testUUID">Test UUID Generation (10 contacts)</button>
+        <div id="uuidResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Rapid Contact Creation Test</h2>
+        <button id="testRapidCreation">Create 5 Contacts Rapidly</button>
+        <div id="rapidResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Mock Contact Database Test</h2>
+        <button id="testDatabase">Test Database Operations</button>
+        <div id="databaseResults"></div>
+    </div>
+
+    <script type="module">
+        import { VCardStandard } from './src/core/VCardStandard.js';
+
+        const vCardStandard = new VCardStandard();
+
+        // Test 1: UUID Generation
+        document.getElementById('testUUID').addEventListener('click', () => {
+            const resultsDiv = document.getElementById('uuidResults');
+            const ids = [];
+            
+            console.time('UUID Generation');
+            for (let i = 0; i < 10; i++) {
+                ids.push(vCardStandard.generateContactId());
+            }
+            console.timeEnd('UUID Generation');
+
+            const uniqueIds = new Set(ids);
+            const hasDuplicates = uniqueIds.size !== ids.length;
+
+            resultsDiv.innerHTML = `
+                <h3>UUID Generation Results:</h3>
+                <div class="${hasDuplicates ? 'error' : 'success'}">
+                    <p><strong>Generated:</strong> ${ids.length} IDs</p>
+                    <p><strong>Unique:</strong> ${uniqueIds.size} IDs</p>
+                    <p><strong>Status:</strong> ${hasDuplicates ? '❌ FAILED - Duplicates found!' : '✅ PASSED - All unique'}</p>
+                </div>
+                <details>
+                    <summary>View All Generated IDs</summary>
+                    <pre>${ids.join('\\n')}</pre>
+                </details>
+            `;
+        });
+
+        // Test 2: Rapid Contact Creation
+        document.getElementById('testRapidCreation').addEventListener('click', async () => {
+            const resultsDiv = document.getElementById('rapidResults');
+            const contacts = [];
+
+            resultsDiv.innerHTML = '<p>Creating contacts rapidly...</p>';
+
+            console.time('Rapid Contact Creation');
+            
+            // Create 5 contacts as quickly as possible (simulating the bug scenario)
+            for (let i = 0; i < 5; i++) {
+                const contactData = {
+                    fn: `Test Contact ${i + 1}`,
+                    phones: [{ value: `555-000${i}`, type: 'work', primary: true }],
+                    emails: [{ value: `test${i}@example.com`, type: 'work', primary: true }]
+                };
+
+                const vCardString = vCardStandard.generateVCard(contactData);
+                const contactId = vCardStandard.generateContactId();
+
+                const contact = {
+                    contactId,
+                    cardName: `Test Contact ${i + 1}`,
+                    vcard: vCardString,
+                    metadata: {
+                        createdAt: new Date().toISOString(),
+                        isOwned: true
+                    }
+                };
+
+                contacts.push(contact);
+                
+                // Small delay to simulate UI interaction timing
+                await new Promise(resolve => setTimeout(resolve, 1));
+            }
+            
+            console.timeEnd('Rapid Contact Creation');
+
+            // Check for duplicate contact IDs
+            const contactIds = contacts.map(c => c.contactId);
+            const uniqueContactIds = new Set(contactIds);
+            const hasDuplicateIds = uniqueContactIds.size !== contactIds.length;
+
+            // Check for duplicate card names (should be different)
+            const cardNames = contacts.map(c => c.cardName);
+            const uniqueCardNames = new Set(cardNames);
+
+            resultsDiv.innerHTML = `
+                <h3>Rapid Creation Results:</h3>
+                <div class="${hasDuplicateIds ? 'error' : 'success'}">
+                    <p><strong>Created:</strong> ${contacts.length} contacts</p>
+                    <p><strong>Unique Contact IDs:</strong> ${uniqueContactIds.size}</p>
+                    <p><strong>Unique Card Names:</strong> ${uniqueCardNames.size}</p>
+                    <p><strong>Status:</strong> ${hasDuplicateIds ? '❌ FAILED - Duplicate IDs found!' : '✅ PASSED - All IDs unique'}</p>
+                </div>
+                
+                <h4>Created Contacts:</h4>
+                <div class="contact-list">
+                    ${contacts.map((contact, index) => `
+                        <div class="contact-item">
+                            <strong>${contact.cardName}</strong><br>
+                            <small>ID: ${contact.contactId}</small><br>
+                            <small>Created: ${contact.metadata.createdAt}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        });
+
+        // Test 3: Mock Database Operations
+        document.getElementById('testDatabase').addEventListener('click', () => {
+            const resultsDiv = document.getElementById('databaseResults');
+            
+            // Simulate the old problematic behavior vs new behavior
+            const oldGenerateId = () => 'contact_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            const newGenerateId = () => vCardStandard.generateContactId();
+
+            // Test old method (might create duplicates if called rapidly)
+            const oldIds = [];
+            const newIds = [];
+            
+            console.time('Old ID Generation');
+            for (let i = 0; i < 100; i++) {
+                oldIds.push(oldGenerateId());
+            }
+            console.timeEnd('Old ID Generation');
+
+            console.time('New ID Generation');
+            for (let i = 0; i < 100; i++) {
+                newIds.push(newGenerateId());
+            }
+            console.timeEnd('New ID Generation');
+
+            const oldUnique = new Set(oldIds).size;
+            const newUnique = new Set(newIds).size;
+
+            resultsDiv.innerHTML = `
+                <h3>Database ID Generation Comparison:</h3>
+                
+                <div class="test-section ${oldUnique < 100 ? 'error' : 'success'}">
+                    <h4>Old Method (Timestamp + Random):</h4>
+                    <p><strong>Generated:</strong> 100 IDs</p>
+                    <p><strong>Unique:</strong> ${oldUnique} IDs</p>
+                    <p><strong>Status:</strong> ${oldUnique < 100 ? '❌ FAILED - ' + (100 - oldUnique) + ' duplicates' : '✅ PASSED'}</p>
+                </div>
+
+                <div class="test-section ${newUnique < 100 ? 'error' : 'success'}">
+                    <h4>New Method (UUID v4):</h4>
+                    <p><strong>Generated:</strong> 100 IDs</p>
+                    <p><strong>Unique:</strong> ${newUnique} IDs</p>
+                    <p><strong>Status:</strong> ${newUnique < 100 ? '❌ FAILED - ' + (100 - newUnique) + ' duplicates' : '✅ PASSED'}</p>
+                </div>
+
+                <div class="test-section info">
+                    <h4>Analysis:</h4>
+                    <p>The old timestamp-based method could create duplicates when called rapidly within the same millisecond.</p>
+                    <p>The new UUID v4 method should never create duplicates (probability: ~5.3×10⁻³⁷).</p>
+                    <p><strong>Improvement:</strong> ${newUnique >= oldUnique ? '✅ Better or equal uniqueness' : '❌ Worse uniqueness'}</p>
+                </div>
+            `;
+        });
+
+        // Auto-run UUID test on page load
+        window.addEventListener('load', () => {
+            document.getElementById('testUUID').click();
+        });
+    </script>
+</body>
+</html>

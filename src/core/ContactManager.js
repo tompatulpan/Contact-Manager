@@ -239,8 +239,8 @@ export class ContactManager {
                     lastUpdated: new Date().toISOString(),
                     distributionLists: sanitizedData.distributionLists || existingContact.metadata.distributionLists,
                     sync: {
-                        ...existingContact.metadata.sync,
-                        version: existingContact.metadata.sync.version + 1,
+                        ...(existingContact.metadata.sync || {}),
+                        version: (existingContact.metadata.sync?.version || 0) + 1,
                         lastSyncedAt: new Date().toISOString()
                     }
                 }
@@ -515,10 +515,33 @@ export class ContactManager {
                 return { success: false, error: 'Contact not found' };
             }
 
-            const restoredContact = {
-                ...contact,
-                metadata: {
-                    ...contact.metadata,
+            // Check if this is a shared contact
+            if (contactId.startsWith('shared_')) {
+                console.log('🔄 Restoring shared contact locally:', contactId);
+                
+                // For shared contacts, update the user's metadata
+                const restoredContact = {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        isArchived: false,
+                        archivedAt: null,
+                        archivedBy: null,
+                        archiveReason: null,
+                        restoredAt: new Date().toISOString(),
+                        restoredBy: this.database.currentUser?.userId,
+                        lastUpdated: new Date().toISOString()
+                    }
+                };
+
+                // Update metadata in user's metadata database
+                console.log('🔄 Restoring shared contact in user metadata:', {
+                    contactId: restoredContact.contactId,
+                    cardName: restoredContact.cardName,
+                    sharedBy: restoredContact.metadata.sharedBy
+                });
+
+                const metadataResult = await this.database.updateSharedContactMetadata(contactId, {
                     isArchived: false,
                     archivedAt: null,
                     archivedBy: null,
@@ -526,19 +549,47 @@ export class ContactManager {
                     restoredAt: new Date().toISOString(),
                     restoredBy: this.database.currentUser?.userId,
                     lastUpdated: new Date().toISOString()
+                });
+
+                if (!metadataResult.success) {
+                    console.error('❌ Failed to restore shared contact metadata:', metadataResult.error);
+                    return { success: false, error: 'Failed to restore shared contact metadata' };
                 }
-            };
 
-            const saveResult = await this.database.updateContact(restoredContact);
-            if (!saveResult.success) {
-                return { success: false, error: 'Failed to restore contact' };
+                // Update in memory
+                this.contacts.set(contactId, restoredContact);
+                this.clearSearchCache();
+
+                console.log('✅ Shared contact restored in user metadata:', contactId);
+                this.eventBus.emit('contact:restored', { contact: restoredContact });
+                return { success: true, contact: restoredContact };
+            } else {
+                // For owned contacts, update the contact directly
+                const restoredContact = {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        isArchived: false,
+                        archivedAt: null,
+                        archivedBy: null,
+                        archiveReason: null,
+                        restoredAt: new Date().toISOString(),
+                        restoredBy: this.database.currentUser?.userId,
+                        lastUpdated: new Date().toISOString()
+                    }
+                };
+
+                const saveResult = await this.database.updateContact(restoredContact);
+                if (!saveResult.success) {
+                    return { success: false, error: 'Failed to restore contact' };
+                }
+
+                this.contacts.set(contactId, restoredContact);
+                this.clearSearchCache();
+
+                this.eventBus.emit('contact:restored', { contact: restoredContact });
+                return { success: true, contact: restoredContact };
             }
-
-            this.contacts.set(contactId, restoredContact);
-            this.clearSearchCache();
-
-            this.eventBus.emit('contact:restored', { contact: restoredContact });
-            return { success: true, contact: restoredContact };
 
         } catch (error) {
             console.error('Restore contact failed:', error);
@@ -763,16 +814,19 @@ export class ContactManager {
 
             const now = new Date().toISOString();
             
+            // Ensure usage metadata exists with proper defaults
+            const currentUsage = contact.metadata?.usage || {};
+            
             const updatedContact = {
                 ...contact,
                 metadata: {
                     ...contact.metadata,
                     usage: {
-                        accessCount: (contact.metadata.usage.accessCount || 0) + 1,
+                        accessCount: (currentUsage.accessCount || 0) + 1,
                         lastAccessedAt: now,
                         viewDuration,
                         interactionHistory: [
-                            ...(contact.metadata.usage.interactionHistory || []).slice(-49), // Keep last 50
+                            ...(currentUsage.interactionHistory || []).slice(-49), // Keep last 50
                             {
                                 action: 'viewed',
                                 timestamp: now,
@@ -1064,6 +1118,13 @@ export class ContactManager {
      * @param {Object} details - Action details
      */
     addInteractionHistory(contact, action, details = {}) {
+        // Ensure metadata and usage exist
+        if (!contact.metadata) {
+            contact.metadata = {};
+        }
+        if (!contact.metadata.usage) {
+            contact.metadata.usage = {};
+        }
         if (!contact.metadata.usage.interactionHistory) {
             contact.metadata.usage.interactionHistory = [];
         }
@@ -1545,6 +1606,94 @@ export class ContactManager {
             
         } catch (error) {
             console.error('❌ Error removing username from distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Share individual contact with another user
+     * @param {string} contactId - Contact ID to share
+     * @param {string} username - Username to share with
+     * @param {boolean} readOnly - Whether sharing is read-only (default: true)
+     * @param {boolean} resharingAllowed - Whether resharing is allowed (default: false)
+     * @returns {Promise<Object>} Share result
+     */
+    async shareContact(contactId, username, readOnly = true, resharingAllowed = false) {
+        try {
+            console.log('🔄 ContactManager: Sharing contact:', contactId, 'with user:', username);
+            
+            // Get the contact
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                throw new Error(`Contact not found: ${contactId}`);
+            }
+            
+            // Check if it's a shared contact - we can't share shared contacts
+            if (contactId.startsWith('shared_')) {
+                throw new Error('Cannot share contacts that were shared with you');
+            }
+            
+            // Share using the database's new individual sharing method
+            const result = await this.database.shareContact(contact, username, readOnly, resharingAllowed);
+            
+            if (result.success) {
+                // Update contact metadata to track sharing
+                const updatedContact = {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        sharing: {
+                            ...contact.metadata.sharing,
+                            isShared: true,
+                            sharedWithUsers: [
+                                ...(contact.metadata.sharing?.sharedWithUsers || []),
+                                username
+                            ],
+                            sharePermissions: {
+                                ...contact.metadata.sharing?.sharePermissions,
+                                [username]: {
+                                    level: readOnly ? 'readOnly' : 'write',
+                                    sharedAt: new Date().toISOString(),
+                                    sharedBy: this.database.currentUser?.username,
+                                    canReshare: resharingAllowed
+                                }
+                            },
+                            shareHistory: [
+                                ...(contact.metadata.sharing?.shareHistory || []),
+                                {
+                                    action: 'shared',
+                                    targetUser: username,
+                                    timestamp: new Date().toISOString(),
+                                    permission: readOnly ? 'readOnly' : 'write',
+                                    sharedBy: this.database.currentUser?.username
+                                }
+                            ]
+                        },
+                        lastUpdated: new Date().toISOString()
+                    }
+                };
+                
+                // Update the contact in our local cache
+                this.contacts.set(contactId, updatedContact);
+                
+                // Save the updated metadata to the database
+                await this.database.updateContact(updatedContact);
+                
+                console.log('✅ Contact shared successfully:', contactId, 'with', username);
+                
+                this.eventBus.emit('contact:shared', { 
+                    contactId, 
+                    username, 
+                    readOnly, 
+                    resharingAllowed,
+                    sharedDbName: result.sharedDbName
+                });
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ ContactManager: Share contact failed:', error);
             return { success: false, error: error.message };
         }
     }

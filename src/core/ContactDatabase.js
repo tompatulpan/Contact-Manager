@@ -211,33 +211,23 @@ export class ContactDatabase {
                 return;
             }
 
-            const contactDatabases = sharedDbResult.databases.filter(db => 
-                db.databaseName === 'contacts'
+            // Only handle individual contact databases (no legacy support)
+            const individualContactDatabases = sharedDbResult.databases.filter(db => 
+                db.databaseName.startsWith('shared-contact-')
             );
 
-            console.log(`📬 Found ${contactDatabases.length} shared contact databases`);
+            console.log(`📬 Found ${individualContactDatabases.length} individual shared contact databases`);
 
-            for (const db of contactDatabases) {
+            // Handle individual contact databases
+            for (const db of individualContactDatabases) {
                 try {
-                    console.log(`🔄 Opening shared database from ${db.receivedFromUsername} with ID: ${db.databaseId}`);
+                    console.log(`🔄 Opening individual shared contact from ${db.receivedFromUsername} with ID: ${db.databaseId}`);
                     await userbase.openDatabase({
-                        databaseId: db.databaseId,  // Use only databaseId for shared databases
+                        databaseId: db.databaseId,
                         changeHandler: (items) => {
-                            console.log(`📨 Received shared contacts from ${db.receivedFromUsername}:`, items.length);
-                            console.log('🔍 Raw shared contact items:', items);
+                            console.log(`📨 Received individual shared contact from ${db.receivedFromUsername}:`, items.length);
                             
-                            // Log first contact structure for debugging
-                            if (items.length > 0) {
-                                console.log('🔍 First shared contact structure:', {
-                                    item: items[0].item,
-                                    itemId: items[0].itemId,
-                                    keys: Object.keys(items[0].item || {}),
-                                    hasVCard: !!(items[0].item && items[0].item.vcard),
-                                    vCardLength: items[0].item && items[0].item.vcard ? items[0].item.vcard.length : 'N/A'
-                                });
-                            }
-                            
-                            // Transform Userbase items to contact format
+                            // Transform individual contact
                             const contacts = items.map(userbaseItem => {
                                 const item = userbaseItem.item || {};
                                 return {
@@ -249,29 +239,24 @@ export class ContactDatabase {
                                         isOwned: false,
                                         sharedBy: db.receivedFromUsername,
                                         databaseId: db.databaseId,
+                                        shareType: 'individual',
                                         lastUpdated: item.metadata?.lastUpdated || new Date().toISOString()
                                     }
                                 };
                             });
                             
-                            console.log('🔄 Transformed shared contacts:', contacts);
-                            
                             this.eventBus.emit('contacts:changed', { 
                                 contacts: contacts, 
                                 isOwned: false,
                                 sharedBy: db.receivedFromUsername,
-                                databaseId: db.databaseId
+                                databaseId: db.databaseId,
+                                shareType: 'individual'
                             });
                         }
                     });
-                    console.log(`✅ Opened shared contacts database from: ${db.receivedFromUsername}`);
+                    console.log(`✅ Opened individual shared contact from: ${db.receivedFromUsername}`);
                 } catch (error) {
-                    console.error(`❌ Failed to open shared database from ${db.receivedFromUsername}:`, error);
-                    console.error('❌ Error details:', {
-                        message: error.message,
-                        name: error.name,
-                        code: error.code
-                    });
+                    console.error(`❌ Failed to open individual shared contact from ${db.receivedFromUsername}:`, error);
                 }
             }
         } catch (error) {
@@ -314,20 +299,19 @@ export class ContactDatabase {
      */
     async saveContact(contact) {
         try {
-            const itemId = contact.contactId || this.generateItemId();
-            
+            // Userbase insertItem doesn't return itemId, it generates one internally
             await userbase.insertItem({
                 databaseName: this.databases.contacts,
                 item: {
                     ...contact,
-                    itemId,
-                    contactId: contact.contactId || itemId // Ensure contactId is always set
-                },
-                itemId
+                    contactId: contact.contactId // Keep contactId separate from itemId
+                }
+                // Don't specify itemId - let Userbase generate a unique one
             });
 
-            this.eventBus.emit('contact:saved', { contact, itemId });
-            return { success: true, itemId };
+            // Since insertItem doesn't return the itemId, we'll use the contactId as reference
+            this.eventBus.emit('contact:saved', { contact, itemId: contact.contactId });
+            return { success: true, itemId: contact.contactId };
         } catch (error) {
             console.error('Save contact failed:', error);
             this.eventBus.emit('database:error', { error: error.message });
@@ -344,6 +328,7 @@ export class ContactDatabase {
         try {
             const itemId = contact.itemId || contact.contactId;
             
+            // Update in main contacts database
             await userbase.updateItem({
                 databaseName: this.databases.contacts,
                 item: {
@@ -356,12 +341,60 @@ export class ContactDatabase {
                 itemId
             });
 
+            // If this contact has been shared individually, update all shared databases
+            if (contact.metadata?.isOwned !== false) { // Only for owned contacts
+                await this.updateSharedContactDatabases(contact);
+            }
+
             this.eventBus.emit('contact:updated', { contact });
             return { success: true, itemId };
         } catch (error) {
             console.error('Update contact failed:', error);
             this.eventBus.emit('database:error', { error: error.message });
             return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Update contact in all shared databases (for real-time sync)
+     * @param {Object} contact - Updated contact object
+     */
+    async updateSharedContactDatabases(contact) {
+        try {
+            const sharedDbName = `shared-contact-${contact.contactId}`;
+            
+            console.log(`🔄 Checking if ${sharedDbName} exists for real-time update...`);
+            
+            // Try to update the shared database
+            // Note: We can't easily check if the database exists, so we try to update and catch errors
+            try {
+                await userbase.updateItem({
+                    databaseName: sharedDbName,
+                    itemId: contact.contactId,
+                    item: {
+                        ...contact,
+                        metadata: {
+                            ...contact.metadata,
+                            lastUpdated: new Date().toISOString(),
+                            sharedAt: contact.metadata?.sharedAt, // Preserve original sharing timestamp
+                            sharedBy: contact.metadata?.sharedBy // Preserve sharing info
+                        }
+                    }
+                });
+                
+                console.log(`✅ Updated shared database: ${sharedDbName}`);
+            } catch (error) {
+                // If the shared database doesn't exist, not open, or we don't have access, that's okay
+                if (error.name === 'DatabaseDoesNotExist' || 
+                    error.name === 'DatabaseNotOpen' || 
+                    error.name === 'Unauthorized') {
+                    console.log(`📭 Shared database ${sharedDbName} not available:`, error.name);
+                } else {
+                    console.error(`❌ Failed to update shared database ${sharedDbName}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error in updateSharedContactDatabases:', error);
         }
     }
 
@@ -520,56 +553,88 @@ export class ContactDatabase {
     }
 
     /**
-     * Share contacts database with another user
+     * Share individual contact with another user
+     * Creates a separate database for the contact to avoid sharing entire contact list
+     * @param {Object} contact - Contact to share
      * @param {string} username - Target username
      * @param {boolean} readOnly - Whether sharing is read-only
      * @param {boolean} resharingAllowed - Whether resharing is allowed
      * @returns {Promise<Object>} Share result
      */
-    async shareContacts(username, readOnly = true, resharingAllowed = false) {
+    async shareContact(contact, username, readOnly = true, resharingAllowed = false) {
         try {
-            console.log('🔄 Attempting to share database:', this.databases.contacts, 'with user:', username);
+            console.log('🔄 Attempting to share individual contact:', contact.contactId, 'with user:', username);
             console.log('📊 Share params:', { readOnly, resharingAllowed });
             
             if (!username || username.trim() === '') {
                 throw new Error('Username is required for sharing');
             }
             
-            if (!this.databases.contacts) {
-                throw new Error('No contacts database found to share');
+            if (!contact || !contact.contactId) {
+                throw new Error('Valid contact is required for sharing');
             }
+
+            // Create a unique database name for this shared contact
+            const sharedDbName = `shared-contact-${contact.contactId}`;
             
+            console.log('📦 Creating shared database:', sharedDbName);
+
+            // First, create/open the shared database and add the contact
+            await userbase.openDatabase({
+                databaseName: sharedDbName,
+                changeHandler: () => {} // Empty handler since this is just for creation
+            });
+
+            // Insert the contact into the shared database
+            await userbase.insertItem({
+                databaseName: sharedDbName,
+                item: {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        sharedAt: new Date().toISOString(),
+                        sharedBy: this.currentUser?.username,
+                        originalContactId: contact.contactId
+                    }
+                },
+                itemId: contact.contactId
+            });
+
+            // Now share this specific database with the target user
             await userbase.shareDatabase({
-                databaseName: this.databases.contacts,
+                databaseName: sharedDbName,
                 username: username.trim(),
                 readOnly,
                 resharingAllowed,
-                requireVerified: false  // Allow sharing with unverified users
+                requireVerified: false
             });
 
-            console.log('✅ Database shared successfully with:', username);
+            console.log('✅ Individual contact shared successfully with:', username);
 
             // Log the sharing activity
             await this.logActivity({
-                action: 'database_shared',
+                action: 'contact_shared',
                 targetUser: username,
                 details: {
-                    databaseName: this.databases.contacts,
+                    contactId: contact.contactId,
+                    contactName: contact.cardName,
+                    databaseName: sharedDbName,
                     readOnly,
                     resharingAllowed
                 }
             });
 
-            this.eventBus.emit('contacts:shared', { username, readOnly, resharingAllowed });
+            this.eventBus.emit('contact:shared', { 
+                contactId: contact.contactId,
+                username, 
+                readOnly, 
+                resharingAllowed,
+                sharedDbName
+            });
             
-            // Refresh shared databases to pick up any new shares
-            setTimeout(() => {
-                this.setupSharedDatabases();
-            }, 1000);
-            
-            return { success: true };
+            return { success: true, sharedDbName };
         } catch (error) {
-            console.error('Share contacts failed:', error);
+            console.error('Share contact failed:', error);
             console.error('Error details:', {
                 message: error.message,
                 code: error.code,
@@ -722,11 +787,22 @@ export class ContactDatabase {
     }
 
     /**
-     * Generate unique item ID
-     * @returns {string} Unique ID
+     * Generate unique item ID using UUID v4
+     * @returns {string} UUID v4 with item prefix
      */
     generateItemId() {
-        return `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Use crypto.randomUUID if available (modern browsers)
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return `item_${crypto.randomUUID()}`;
+        }
+        
+        // Fallback implementation for older browsers
+        const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+        return `item_${uuid}`;
     }
 
     /**
