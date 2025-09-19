@@ -3816,7 +3816,12 @@ export class ContactUIController {
             const valueInput = fieldItem.querySelector(`input[name="${fieldType}[]"]`);
             const primaryCheckbox = fieldItem.querySelector(`input[name="${fieldType}Primary[]"]`);
 
-            if (typeSelect) typeSelect.value = item.type || 'other';
+            // Normalize and set type value to match available options
+            if (typeSelect) {
+                const normalizedType = this.normalizeFieldType(fieldType, item.type);
+                typeSelect.value = normalizedType;
+            }
+            
             if (valueInput) valueInput.value = item.value || '';
             if (primaryCheckbox) primaryCheckbox.checked = item.primary || false;
 
@@ -3831,6 +3836,50 @@ export class ContactUIController {
 
         // Setup events
         this.setupMultiFieldEvents(fieldType);
+    }
+
+    /**
+     * Normalize field type to match available options in select
+     */
+    normalizeFieldType(fieldType, type) {
+        if (!type) return 'other';
+        
+        // Convert to lowercase for comparison
+        const normalizedType = type.toLowerCase();
+        
+        // Define mappings for each field type
+        const typeMappings = {
+            phone: {
+                'work': 'work',
+                'home': 'home',
+                'mobile': 'mobile',
+                'cell': 'mobile',  // Map 'cell' to 'mobile'
+                'fax': 'fax',
+                'voice': 'other',
+                'text': 'other',
+                'pager': 'other'
+            },
+            email: {
+                'work': 'work',
+                'home': 'home',
+                'personal': 'personal',
+                'internet': 'other'
+            },
+            url: {
+                'work': 'work',
+                'home': 'home',
+                'personal': 'personal',
+                'blog': 'blog'
+            }
+        };
+        
+        const mapping = typeMappings[fieldType];
+        if (mapping && mapping[normalizedType]) {
+            return mapping[normalizedType];
+        }
+        
+        // Default fallback
+        return 'other';
     }
 
     // ========== IMPORT/EXPORT METHODS ==========
