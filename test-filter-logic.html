@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filter Logic Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .filters { margin: 10px 0; }
+        .filters label { margin-right: 15px; }
+        .result { margin-top: 10px; font-weight: bold; }
+        .contacts { margin: 10px 0; }
+        .contact { padding: 5px; margin: 2px 0; border-left: 3px solid #ccc; }
+        .contact.owned { border-left-color: #007bff; }
+        .contact.shared { border-left-color: #28a745; }
+        .contact.archived { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>Filter Logic Test</h1>
+    
+    <div class="filters">
+        <label><input type="checkbox" id="filter-owned" checked> My Contacts</label>
+        <label><input type="checkbox" id="filter-shared" checked> Shared with Me</label>
+        <label><input type="checkbox" id="filter-archived"> Archived</label>
+        <button onclick="applyFilters()">Apply Filters</button>
+    </div>
+    
+    <div class="result" id="result"></div>
+    
+    <div class="contacts" id="all-contacts">
+        <h3>All Contacts:</h3>
+        <div class="contact owned">Contact 1 - My Active Contact (owned, active)</div>
+        <div class="contact owned archived">Contact 2 - My Archived Contact (owned, archived)</div>
+        <div class="contact shared">Contact 3 - Shared Active Contact (shared, active)</div>
+        <div class="contact shared archived">Contact 4 - Shared Archived Contact (shared, archived)</div>
+    </div>
+    
+    <div class="contacts" id="filtered-contacts">
+        <h3>Filtered Results:</h3>
+        <div id="filter-results"></div>
+    </div>
+
+    <script>
+        // Mock contact data
+        const contacts = [
+            { id: 1, name: "Contact 1 - My Active Contact", isOwned: true, isArchived: false },
+            { id: 2, name: "Contact 2 - My Archived Contact", isOwned: true, isArchived: true },
+            { id: 3, name: "Contact 3 - Shared Active Contact", isOwned: false, isArchived: false },
+            { id: 4, name: "Contact 4 - Shared Archived Contact", isOwned: false, isArchived: true }
+        ];
+
+        function applyFilters() {
+            const ownedChecked = document.getElementById('filter-owned').checked;
+            const sharedChecked = document.getElementById('filter-shared').checked;
+            const archivedChecked = document.getElementById('filter-archived').checked;
+            
+            console.log('Filter states:', { ownedChecked, sharedChecked, archivedChecked });
+            
+            let filters = {};
+            
+            // Apply the same logic as ContactUIController
+            if (archivedChecked && !ownedChecked && !sharedChecked) {
+                filters = {
+                    includeArchived: true,
+                    archiveOnly: true
+                };
+            } 
+            else if (archivedChecked && (ownedChecked || sharedChecked)) {
+                filters = {
+                    includeArchived: true,
+                    archiveOnly: false
+                };
+                
+                if (ownedChecked && !sharedChecked) {
+                    filters.ownership = 'owned';
+                } else if (!ownedChecked && sharedChecked) {
+                    filters.ownership = 'shared';
+                }
+            }
+            else if (!archivedChecked && (ownedChecked || sharedChecked)) {
+                filters = {
+                    includeArchived: false,
+                    archiveOnly: false
+                };
+                
+                if (ownedChecked && !sharedChecked) {
+                    filters.ownership = 'owned';
+                } else if (!ownedChecked && sharedChecked) {
+                    filters.ownership = 'shared';
+                }
+            }
+            else {
+                filters = {
+                    includeArchived: false,
+                    archiveOnly: false
+                };
+            }
+            
+            console.log('Generated filters:', filters);
+            
+            // Apply filters
+            let results = [...contacts];
+            
+            // Archive filtering
+            if (filters.archiveOnly) {
+                results = results.filter(contact => contact.isArchived);
+            } else if (!filters.includeArchived) {
+                results = results.filter(contact => !contact.isArchived);
+            }
+            
+            // Ownership filtering
+            if (filters.ownership === 'owned') {
+                results = results.filter(contact => contact.isOwned);
+            } else if (filters.ownership === 'shared') {
+                results = results.filter(contact => !contact.isOwned);
+            }
+            
+            console.log('Final results:', results);
+            
+            // Display results
+            document.getElementById('result').textContent = 
+                `Filters: ${JSON.stringify(filters)} | Results: ${results.length} contacts`;
+            
+            const resultsHtml = results.map(contact => 
+                `<div class="contact ${contact.isOwned ? 'owned' : 'shared'} ${contact.isArchived ? 'archived' : ''}">${contact.name}</div>`
+            ).join('');
+            
+            document.getElementById('filter-results').innerHTML = resultsHtml || '<div>No contacts found</div>';
+        }
+        
+        // Initial filter application
+        applyFilters();
+        
+        // Add event listeners
+        document.getElementById('filter-owned').addEventListener('change', applyFilters);
+        document.getElementById('filter-shared').addEventListener('change', applyFilters);
+        document.getElementById('filter-archived').addEventListener('change', applyFilters);
+    </script>
+</body>
+</html>

@@ -460,25 +460,23 @@ body {
 
 /* Filter Controls */
 .filter-controls {
-    position: relative;
+    margin-bottom: var(--space-4);
 }
 
-.dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    box-shadow: var(--shadow-lg);
-    padding: var(--space-2);
-    display: none;
-    z-index: 10;
+.filter-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
 }
 
-.dropdown-menu.show {
-    display: block;
+.filter-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
 }
 
 .checkbox-item {

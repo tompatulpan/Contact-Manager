@@ -165,8 +165,6 @@ export class ContactUIController {
             
             // Search and filter elements
             searchInput: document.getElementById('search-input'),
-            filterBtn: document.getElementById('filter-btn'),
-            filterDropdown: document.getElementById('filter-dropdown'),
             sortSelect: document.getElementById('sort-select'),
             
             // View toggle elements
@@ -303,11 +301,6 @@ export class ContactUIController {
         // Search and filter
         if (this.elements.searchInput) {
             this.elements.searchInput.addEventListener('input', this.handleSearchInput);
-        }
-        
-        // Filter button toggle
-        if (this.elements.filterBtn) {
-            this.elements.filterBtn.addEventListener('click', this.toggleFilterDropdown.bind(this));
         }
         
         // Filter checkboxes
@@ -614,16 +607,6 @@ export class ContactUIController {
     }
 
     /**
-     * Toggle filter dropdown visibility
-     */
-    toggleFilterDropdown() {
-        if (!this.elements.filterDropdown) return;
-        
-        const isVisible = this.elements.filterDropdown.style.display === 'block';
-        this.elements.filterDropdown.style.display = isVisible ? 'none' : 'block';
-    }
-
-    /**
      * Handle filter checkbox changes
      */
     handleFilterChange() {
@@ -631,26 +614,67 @@ export class ContactUIController {
         const filterShared = document.getElementById('filter-shared');
         const filterArchived = document.getElementById('filter-archived');
         
-        // Build filters based on checkbox states
-        const filters = {
-            includeArchived: filterArchived?.checked || false,
-            includeDeleted: false,
-            distributionList: this.activeFilters.distributionList // Preserve distribution list filter
-        };
-        
-        // Handle ownership filtering
         const ownedChecked = filterOwned?.checked || false;
         const sharedChecked = filterShared?.checked || false;
+        const archivedChecked = filterArchived?.checked || false;
         
-        if (ownedChecked && !sharedChecked) {
-            filters.ownership = 'owned';
-        } else if (!ownedChecked && sharedChecked) {
-            filters.ownership = 'shared';
+        // If only "Archived" is checked, show only archived contacts
+        if (archivedChecked && !ownedChecked && !sharedChecked) {
+            this.activeFilters = {
+                includeArchived: true,
+                includeDeleted: false,
+                archiveOnly: true, // Special flag for archive-only view
+                distributionList: this.activeFilters.distributionList
+            };
+        } 
+        // If "Archived" + other filters are checked, show all types including archived
+        else if (archivedChecked && (ownedChecked || sharedChecked)) {
+            const filters = {
+                includeArchived: true,
+                includeDeleted: false,
+                distributionList: this.activeFilters.distributionList
+            };
+            
+            // Handle ownership filtering when archived is also included
+            if (ownedChecked && !sharedChecked) {
+                filters.ownership = 'owned';
+            } else if (!ownedChecked && sharedChecked) {
+                filters.ownership = 'shared';
+            }
+            // If both ownership types checked, show all ownership types
+            
+            this.activeFilters = filters;
         }
-        // If both or neither are checked, show all (no ownership filter)
+        // If only ownership filters are checked (no archived), show active contacts only
+        else if (!archivedChecked && (ownedChecked || sharedChecked)) {
+            const filters = {
+                includeArchived: false,
+                includeDeleted: false,
+                distributionList: this.activeFilters.distributionList
+            };
+            
+            // Handle ownership filtering
+            if (ownedChecked && !sharedChecked) {
+                filters.ownership = 'owned';
+            } else if (!ownedChecked && sharedChecked) {
+                filters.ownership = 'shared';
+            }
+            // If both ownership types checked, show all ownership types
+            
+            this.activeFilters = filters;
+        }
+        // If no filters are checked, show active contacts (My contacts + Shared with me)
+        else {
+            this.activeFilters = {
+                includeArchived: false,
+                includeDeleted: false,
+                // Don't filter by ownership - show all active contacts
+                distributionList: this.activeFilters.distributionList
+            };
+        }
         
-        this.activeFilters = filters;
-        console.log('🔧 Filter changed:', filters);
+        console.log('🔧 Filter changed:', this.activeFilters);
+        console.log('🔧 Checkbox states:', { ownedChecked, sharedChecked, archivedChecked });
         this.performSearch();
     }
 

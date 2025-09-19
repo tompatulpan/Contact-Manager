@@ -639,12 +639,22 @@ export class ContactManager {
                 console.log('🔍 After deleted filter:', results.length, '(removed', beforeCount - results.length, 'deleted contacts)');
             }
 
-            // Filter out archived contacts by default
-            if (!filters.includeArchived) {
+            // Handle archive filtering with new logic
+            if (filters.archiveOnly) {
+                // Show ONLY archived contacts
+                const beforeCount = results.length;
+                results = results.filter(contact => contact.metadata.isArchived);
+                console.log('🔍 Archive-only filter:', results.length, '(showing only archived from', beforeCount, 'total)');
+            } else if (!filters.includeArchived) {
+                // Filter out archived contacts (default behavior)
                 const beforeCount = results.length;
                 results = results.filter(contact => !contact.metadata.isArchived);
                 console.log('🔍 After archived filter:', results.length, '(removed', beforeCount - results.length, 'archived contacts)');
+            } else {
+                // includeArchived is true and archiveOnly is false - show both archived and active
+                console.log('🔍 Including archived contacts - showing both active and archived contacts');
             }
+            // If includeArchived is true but archiveOnly is false, show both archived and active
 
             // Text search
             if (query && query.trim()) {
@@ -715,9 +725,15 @@ export class ContactManager {
 
         // Ownership filter
         if (filters.ownership === 'owned') {
+            const beforeCount = filtered.length;
             filtered = filtered.filter(contact => contact.metadata.isOwned);
+            console.log('🔍 ContactManager: Ownership filter (owned) reduced contacts from', beforeCount, 'to', filtered.length);
         } else if (filters.ownership === 'shared') {
+            const beforeCount = filtered.length;
             filtered = filtered.filter(contact => !contact.metadata.isOwned);
+            console.log('🔍 ContactManager: Ownership filter (shared) reduced contacts from', beforeCount, 'to', filtered.length);
+        } else {
+            console.log('🔍 ContactManager: No ownership filter applied');
         }
 
         // Favorite filter
