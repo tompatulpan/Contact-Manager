@@ -1684,11 +1684,24 @@ export class ContactUIController {
     clearContactDetail() {
         if (this.elements.contactDetail) {
             this.elements.contactDetail.innerHTML = `
-                <div class="empty-detail">
-                    <i class="fas fa-user"></i>
-                    <p>Select a contact to view details</p>
+                <div class="welcome-state">
+                    <i class="fas fa-hand-wave"></i>
+                    <h3>Welcome to Contact Manager</h3>
+                    <p>Select a contact to view details, or create a new contact to get started.</p>
+                    <button id="welcome-new-contact" class="btn btn-primary">
+                        <i class="fas fa-plus"></i>
+                        Create First Contact
+                    </button>
                 </div>
             `;
+            
+            // Add event listener for the welcome button
+            const welcomeBtn = this.elements.contactDetail.querySelector('#welcome-new-contact');
+            if (welcomeBtn) {
+                welcomeBtn.addEventListener('click', () => {
+                    this.showNewContactModal();
+                });
+            }
         }
         this.selectedContactId = null;
     }

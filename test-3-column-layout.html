@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-Column Layout Test - Contact Management System</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Test-specific styles for demonstration */
+        .test-info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        .demo-contact-card {
+            margin-bottom: 1rem;
+        }
+        .demo-content {
+            padding: 1rem;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        3-Column Layout Test<br>
+        Resize window to test responsiveness
+    </div>
+
+    <div id="app" class="app-container">
+        <!-- Header Section -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">
+                    <i class="fas fa-address-book"></i>
+                    Contact Manager - 3-Column Layout Test
+                </h1>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-primary">
+                    <i class="fas fa-plus"></i>
+                    New Contact
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area with 3-Column Layout -->
+        <main class="main-content">
+            
+            <!-- Sidebar (Column 1) -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Contacts</h3>
+                    <div class="search-container">
+                        <input type="text" placeholder="Search contacts..." class="search-input">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                    
+                    <div class="filter-controls">
+                        <button class="btn btn-ghost">
+                            <i class="fas fa-filter"></i>
+                            Filter
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Sharing Lists</h3>
+                    <div class="distribution-lists">
+                        <div class="distribution-list-item">
+                            <i class="fas fa-users"></i>
+                            <span>Work Colleagues (3)</span>
+                        </div>
+                        <div class="distribution-list-item">
+                            <i class="fas fa-heart"></i>
+                            <span>Family (5)</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-small">
+                        <i class="fas fa-plus"></i>
+                        Create Sharing List
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Quick Stats</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Total</span>
+                            <span class="stat-value">12</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Shared</span>
+                            <span class="stat-value">3</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Recent</span>
+                            <span class="stat-value">5</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Contact List Panel (Column 2) -->
+            <section class="contact-list-panel">
+                <div class="panel-header">
+                    <h2>All Contacts</h2>
+                    <div class="view-controls">
+                        <button class="btn btn-ghost active">
+                            <i class="fas fa-th-large"></i>
+                        </button>
+                        <button class="btn btn-ghost">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button class="btn btn-ghost">
+                            <i class="fas fa-sort"></i>
+                            Name
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="contact-list">
+                    <!-- Demo Contact Cards -->
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">J</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">John Doe</h3>
+                            <p class="contact-organization">Acme Corp</p>
+                            <p class="contact-title">Software Developer</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-123-4567</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card selected">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">A</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Alice Smith</h3>
+                            <p class="contact-organization">Tech Solutions</p>
+                            <p class="contact-title">Project Manager</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-987-6543</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">B</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Bob Johnson</h3>
+                            <p class="contact-organization">Design Studio</p>
+                            <p class="contact-title">UI Designer</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-246-8101</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card" data-archived="true">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">C</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Carol Brown</h3>
+                            <p class="contact-organization">Marketing Inc</p>
+                            <p class="contact-title">Marketing Director</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-369-2580</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="Restore contact">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contact Detail Panel (Column 3) -->
+            <section class="contact-detail-panel">
+                <div class="detail-content">
+                    <div class="contact-detail-header">
+                        <div class="contact-avatar-large">
+                            <span class="avatar-initial">A</span>
+                        </div>
+                        <div class="contact-info">
+                            <h2 class="contact-name">Alice Smith</h2>
+                            <p class="contact-organization">Tech Solutions</p>
+                            <p class="contact-title">Project Manager</p>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn btn-primary">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-secondary">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="contact-detail-body">
+                        <div class="field-group">
+                            <h4><i class="fas fa-phone"></i> Phone Numbers</h4>
+                            <div class="field-item">
+                                <span class="field-value">+1-555-987-6543</span>
+                                <span class="field-type">work</span>
+                                <span class="field-primary">Primary</span>
+                            </div>
+                            <div class="field-item">
+                                <span class="field-value">+1-555-456-7890</span>
+                                <span class="field-type">mobile</span>
+                            </div>
+                        </div>
+                        
+                        <div class="field-group">
+                            <h4><i class="fas fa-envelope"></i> Email Addresses</h4>
+                            <div class="field-item">
+                                <a href="mailto:alice@techsolutions.com" class="field-value">alice@techsolutions.com</a>
+                                <span class="field-type">work</span>
+                                <span class="field-primary">Primary</span>
+                            </div>
+                            <div class="field-item">
+                                <a href="mailto:alice.smith@personal.com" class="field-value">alice.smith@personal.com</a>
+                                <span class="field-type">personal</span>
+                            </div>
+                        </div>
+                        
+                        <div class="field-group">
+                            <h4><i class="fas fa-globe"></i> Websites</h4>
+                            <div class="field-item">
+                                <a href="https://techsolutions.com" target="_blank" class="field-value">https://techsolutions.com</a>
+                                <span class="field-type">work</span>
+                            </div>
+                        </div>
+
+                        <div class="field-group">
+                            <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
+                            <div class="address-display">
+                                <div class="address-header">
+                                    <span class="field-type">work</span>
+                                    <span class="field-primary">Primary</span>
+                                </div>
+                                <div class="address-lines">
+                                    <div class="address-line">123 Business Street</div>
+                                    <div class="address-line">Suite 456</div>
+                                    <div class="address-line">San Francisco, CA 94105</div>
+                                    <div class="address-line">United States</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="metadata-section">
+                            <h4>Contact Information</h4>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Created</span>
+                                <span class="metadata-value">Sept 15, 2025</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Last Updated</span>
+                                <span class="metadata-value">Sept 19, 2025</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Owned</span>
+                                <span class="metadata-value">Yes</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Simple interaction for testing
+        document.querySelectorAll('.demo-contact-card').forEach(card => {
+            card.addEventListener('click', function() {
+                // Remove selected from all cards
+                document.querySelectorAll('.demo-contact-card').forEach(c => c.classList.remove('selected'));
+                // Add selected to clicked card
+                this.classList.add('selected');
+                
+                console.log('Contact card clicked:', this.querySelector('.contact-name').textContent);
+            });
+        });
+
+        // Log window resize for testing responsiveness
+        window.addEventListener('resize', function() {
+            console.log('Window resized to:', window.innerWidth, 'x', window.innerHeight);
+        });
+
+        console.log('3-Column Layout Test initialized');
+        console.log('Current viewport:', window.innerWidth, 'x', window.innerHeight);
+    </script>
+</body>
+</html>
