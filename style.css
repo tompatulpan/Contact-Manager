@@ -575,6 +575,9 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 140px);
 }
 
 .panel-header {
@@ -622,6 +625,11 @@ body {
 
     .contact-detail-panel {
         order: 3;
+        display: none; /* Hide on mobile, show modal instead */
+    }
+
+    .contact-list-panel {
+        max-height: calc(100vh - 200px); /* Account for mobile header/footer */
     }
 }
 
@@ -639,6 +647,36 @@ body {
 .contact-list {
     display: grid;
     gap: var(--space-4);
+    padding: var(--space-4);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0; /* Important for flexbox scrolling */
+}
+
+/* Contact List Scrollbar Styling */
+.contact-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.contact-list::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.contact-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.contact-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* Firefox scrollbar styling */
+.contact-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--bg-secondary);
 }
 
 .contact-card {
@@ -969,6 +1007,10 @@ body {
     
     .field-group {
         margin-bottom: var(--space-4);
+    }
+
+    .contact-list-panel {
+        max-height: calc(100vh - 120px);
     }
 }
 

@@ -27,12 +27,28 @@
             color: #666;
             text-align: center;
         }
+        .scroll-indicator {
+            position: fixed;
+            top: 60px;
+            left: 10px;
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
     <div class="test-info">
         3-Column Layout Test<br>
         Resize window to test responsiveness
+    </div>
+
+    <div class="scroll-indicator">
+        📋 Contact List: <span id="contact-count">10</span> contacts<br>
+        🔄 Scroll to see more
     </div>
 
     <div id="app" class="app-container">
@@ -214,6 +230,161 @@
                             </button>
                         </div>
                     </div>
+
+                    <!-- Additional contacts to demonstrate scrolling -->
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">D</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">David Wilson</h3>
+                            <p class="contact-organization">Web Solutions</p>
+                            <p class="contact-title">Frontend Developer</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-147-2583</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">E</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Emma Davis</h3>
+                            <p class="contact-organization">Data Analytics</p>
+                            <p class="contact-title">Data Scientist</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-789-4561</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">F</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Frank Miller</h3>
+                            <p class="contact-organization">Creative Agency</p>
+                            <p class="contact-title">Art Director</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-951-7532</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">G</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Grace Taylor</h3>
+                            <p class="contact-organization">Consulting Group</p>
+                            <p class="contact-title">Business Consultant</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-357-9514</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">H</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Henry Anderson</h3>
+                            <p class="contact-organization">Tech Startup</p>
+                            <p class="contact-title">CTO</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-753-8426</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">I</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Ivy Robinson</h3>
+                            <p class="contact-organization">Digital Media</p>
+                            <p class="contact-title">Content Creator</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-159-4687</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="contact-card demo-contact-card">
+                        <div class="contact-avatar">
+                            <span class="avatar-initial">J</span>
+                        </div>
+                        <div class="contact-info">
+                            <h3 class="contact-name">Jack Thompson</h3>
+                            <p class="contact-organization">Finance Corp</p>
+                            <p class="contact-title">Financial Analyst</p>
+                            <div class="contact-meta">
+                                <span class="contact-phone">+1-555-486-2731</span>
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <button class="btn-icon" title="View contact">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -328,6 +499,24 @@
         window.addEventListener('resize', function() {
             console.log('Window resized to:', window.innerWidth, 'x', window.innerHeight);
         });
+
+        // Track scrolling in contact list
+        const contactList = document.querySelector('.contact-list');
+        if (contactList) {
+            contactList.addEventListener('scroll', function() {
+                const scrollTop = this.scrollTop;
+                const scrollHeight = this.scrollHeight;
+                const clientHeight = this.clientHeight;
+                const scrollPercentage = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100);
+                
+                const indicator = document.querySelector('.scroll-indicator');
+                if (indicator) {
+                    indicator.innerHTML = `📋 Contact List: <span id="contact-count">10</span> contacts<br>📍 Scroll: ${scrollPercentage}%`;
+                }
+                
+                console.log('Contact list scrolled:', scrollPercentage + '%');
+            });
+        }
 
         console.log('3-Column Layout Test initialized');
         console.log('Current viewport:', window.innerWidth, 'x', window.innerHeight);
