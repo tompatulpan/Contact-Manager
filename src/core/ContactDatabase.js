@@ -577,37 +577,77 @@ export class ContactDatabase {
             // Create a unique database name for this shared contact
             const sharedDbName = `shared-contact-${contact.contactId}`;
             
-            console.log('📦 Creating shared database:', sharedDbName);
+            console.log('📦 Preparing to share contact database:', sharedDbName);
 
-            // First, create/open the shared database and add the contact
-            await userbase.openDatabase({
-                databaseName: sharedDbName,
-                changeHandler: () => {} // Empty handler since this is just for creation
-            });
+            // Check if the shared database already exists
+            let databaseExists = false;
+            try {
+                const databases = await userbase.getDatabases();
+                const dbList = databases.databases || databases;
+                databaseExists = dbList.some(db => 
+                    db.databaseName === sharedDbName && db.isOwner
+                );
+                console.log('🔍 Database exists check:', sharedDbName, '→', databaseExists);
+            } catch (checkError) {
+                console.log('⚠️ Could not check database existence, proceeding with creation:', checkError.message);
+            }
 
-            // Insert the contact into the shared database
-            await userbase.insertItem({
-                databaseName: sharedDbName,
-                item: {
-                    ...contact,
-                    metadata: {
-                        ...contact.metadata,
-                        sharedAt: new Date().toISOString(),
-                        sharedBy: this.currentUser?.username,
-                        originalContactId: contact.contactId
-                    }
-                },
-                itemId: contact.contactId
-            });
+            if (databaseExists) {
+                // Database already exists, just add the new user to it
+                console.log('📤 Adding user to existing shared database:', username);
+                await userbase.shareDatabase({
+                    databaseName: sharedDbName,
+                    username: username.trim(),
+                    readOnly,
+                    resharingAllowed,
+                    requireVerified: false
+                });
+                console.log('✅ Successfully added user to existing shared database:', username);
+                
+                // Update the existing contact item in the shared database to ensure it's current
+                try {
+                    await this.updateSharedContactDatabase(contact, sharedDbName);
+                    console.log('✅ Updated contact data in shared database');
+                } catch (updateError) {
+                    console.log('⚠️ Could not update contact in shared database:', updateError.message);
+                    // Continue anyway, the sharing was successful
+                }
+            } else {
+                // Database doesn't exist, create it and share it
+                console.log('📦 Creating new shared database:', sharedDbName);
 
-            // Now share this specific database with the target user
-            await userbase.shareDatabase({
-                databaseName: sharedDbName,
-                username: username.trim(),
-                readOnly,
-                resharingAllowed,
-                requireVerified: false
-            });
+                // First, create/open the shared database and add the contact
+                await userbase.openDatabase({
+                    databaseName: sharedDbName,
+                    changeHandler: () => {} // Empty handler since this is just for creation
+                });
+
+                // Insert the contact into the shared database
+                await userbase.insertItem({
+                    databaseName: sharedDbName,
+                    item: {
+                        ...contact,
+                        metadata: {
+                            ...contact.metadata,
+                            sharedAt: new Date().toISOString(),
+                            sharedBy: this.currentUser?.username,
+                            originalContactId: contact.contactId
+                        }
+                    },
+                    itemId: contact.contactId
+                });
+
+                // Now share this specific database with the target user
+                await userbase.shareDatabase({
+                    databaseName: sharedDbName,
+                    username: username.trim(),
+                    readOnly,
+                    resharingAllowed,
+                    requireVerified: false
+                });
+
+                console.log('✅ New shared database created and shared with:', username);
+            }
 
             console.log('✅ Individual contact shared successfully with:', username);
 
@@ -641,22 +681,6 @@ export class ContactDatabase {
                 name: error.name,
                 stack: error.stack
             });
-            
-            // Handle case where contact is already shared with this user
-            if (error.name === 'ItemAlreadyExists') {
-                console.log('ℹ️ Contact already shared with user:', username);
-                const sharedDbName = `shared-contact-${contact.contactId}`;
-                
-                // Try to update the existing shared database with latest contact data
-                try {
-                    await this.updateSharedContactDatabase(contact, sharedDbName);
-                    console.log('✅ Updated existing shared contact for user:', username);
-                    return { success: true, sharedDbName, wasAlreadyShared: true };
-                } catch (updateError) {
-                    console.warn('⚠️ Could not update existing shared contact:', updateError.message);
-                    return { success: true, sharedDbName, wasAlreadyShared: true };
-                }
-            }
             
             this.eventBus.emit('database:error', { error: error.message });
             return { success: false, error: error.message };
