@@ -969,14 +969,20 @@ export class ContactDatabase {
      */
     async updateSettings(settings) {
         try {
+            console.log('💾 updateSettings called with:', settings);
+            console.log('💾 Current settingsItems:', this.settingsItems);
+            
             const settingsToSave = {
                 ...this.getDefaultSettings(),
                 ...settings,
                 lastUpdated: new Date().toISOString()
             };
 
+            console.log('💾 Settings to save:', settingsToSave);
+
             // Initialize settingsItems if it's not set
             if (!this.settingsItems) {
+                console.log('💾 Initializing settingsItems array');
                 this.settingsItems = [];
             }
 
@@ -994,10 +1000,18 @@ export class ContactDatabase {
             } else {
                 // Create new settings
                 console.log('💾 Creating new settings item');
+                
                 const result = await userbase.insertItem({
                     databaseName: 'user-settings',
                     item: settingsToSave
                 });
+                
+                // Check if insert was successful
+                if (!result || !result.itemId) {
+                    throw new Error('Failed to create settings item - no itemId returned');
+                }
+                
+                console.log('💾 Settings item created with itemId:', result.itemId);
                 
                 // Update local cache
                 this.settingsItems = [{ itemId: result.itemId, ...settingsToSave }];

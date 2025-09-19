@@ -1313,8 +1313,30 @@ export class ContactManager {
             
             // Get current settings and existing lists
             const currentSettings = await this.database.getSettings() || {};
-            const distributionLists = currentSettings.distributionLists || {};
+            let distributionLists = currentSettings.distributionLists || {};
+            
+            // Defensive programming: ensure distributionLists is an object
+            if (Array.isArray(distributionLists)) {
+                console.warn('📋 Found distributionLists as array, converting to object');
+                distributionLists = {};
+                // Save corrected structure
+                await this.database.updateSettings({
+                    ...currentSettings,
+                    distributionLists
+                });
+            } else if (typeof distributionLists !== 'object') {
+                console.warn('📋 Invalid distributionLists type, resetting to empty object');
+                distributionLists = {};
+                // Save corrected structure
+                await this.database.updateSettings({
+                    ...currentSettings,
+                    distributionLists
+                });
+            }
+            
             console.log('📋 Current distribution lists:', Object.keys(distributionLists));
+            console.log('📋 Distribution lists type:', typeof distributionLists);
+            console.log('📋 Distribution lists structure:', distributionLists);
             
             // Check if list already exists (case-insensitive)
             const existingListKey = Object.keys(distributionLists).find(key => 
