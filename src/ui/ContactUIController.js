@@ -799,13 +799,20 @@ export class ContactUIController {
                 const userCount = list.usernames ? list.usernames.length : 0;
                 return `
                     <div class="distribution-list-item" data-list-name="${this.escapeHtml(list.name)}">
-                        <div class="list-item-content">
-                            <span class="distribution-list-name" style="color: ${list.color || '#007bff'}">${this.escapeHtml(list.name)}</span>
+                        <div class="list-item-content" data-list-name="${this.escapeHtml(list.name)}">
+                            <span class="distribution-list-name" style="color: ${list.color || '#007bff'}" data-list-name="${this.escapeHtml(list.name)}">${this.escapeHtml(list.name)}</span>
                             <span class="distribution-list-count">${userCount}</span>
                         </div>
                         <div class="distribution-list-users">
                             <span class="user-count">${userCount} user${userCount !== 1 ? 's' : ''}</span>
-                            <button class="manage-list-btn" data-list-name="${this.escapeHtml(list.name)}">Manage</button>
+                            <div class="distribution-list-actions">
+                                <button class="manage-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Manage users in this list">
+                                    <i class="fas fa-users"></i> Manage
+                                </button>
+                                <button class="delete-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Delete this sharing list">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -821,6 +828,16 @@ export class ContactUIController {
                     e.stopPropagation(); // Prevent triggering the list item click
                     const listName = button.dataset.listName;
                     this.openUsernameManagementModal(listName);
+                });
+            });
+
+            // Add click listeners for delete buttons
+            const deleteButtons = this.elements.distributionListsContainer.querySelectorAll('.delete-list-btn');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent triggering the list item click
+                    const listName = button.dataset.listName;
+                    this.confirmDeleteDistributionList(listName);
                 });
             });
 
@@ -3082,8 +3099,17 @@ export class ContactUIController {
         
         // Handle distribution list sidebar clicks
         if (event.target.matches('.distribution-list-item, .distribution-list-item *')) {
+            // Skip if clicking on action buttons
+            if (event.target.matches('.manage-list-btn, .delete-list-btn, .manage-list-btn *, .delete-list-btn *')) {
+                return;
+            }
+            
             const listItem = event.target.closest('.distribution-list-item');
             const listName = listItem?.dataset.listName;
+            
+            console.log('🎯 Distribution list clicked:', listName);
+            console.log('🎯 Event target:', event.target);
+            console.log('🎯 Event currentTarget:', event.currentTarget);
             
             if (listName !== undefined) {
                 this.filterByDistributionList(listName);
@@ -3164,8 +3190,11 @@ export class ContactUIController {
      * Filter contacts by distribution list
      */
     filterByDistributionList(listName) {
+        console.log('🎯 filterByDistributionList called with:', listName);
+        
         // Update active filter
         this.activeFilters.distributionList = listName || null;
+        console.log('🎯 Updated activeFilters:', this.activeFilters);
         
         // Update UI state
         document.querySelectorAll('.distribution-list-item').forEach(item => {
@@ -3175,13 +3204,22 @@ export class ContactUIController {
         const activeItem = document.querySelector(`.distribution-list-item[data-list-name="${listName || ''}"]`);
         if (activeItem) {
             activeItem.classList.add('active');
+            console.log('🎯 Set active class on item:', activeItem);
+        } else {
+            console.log('🎯 No item found with data-list-name:', listName);
         }
         
         // Apply filter
         this.refreshContactsList();
         
-        // Show appropriate message
-        const listDisplayName = listName || 'All Contacts';
+        // Show appropriate message - only show "All Contacts" if explicitly null/undefined, not empty string
+        let listDisplayName;
+        if (listName === null || listName === undefined) {
+            listDisplayName = 'All Contacts';
+        } else {
+            listDisplayName = listName || 'Unnamed List';
+        }
+        
         this.showToast({ 
             message: `Showing: ${listDisplayName}`, 
             type: 'info' 
@@ -3416,6 +3454,48 @@ export class ContactUIController {
         if (event.key === 'Enter') {
             event.preventDefault();
             this.handleAddUsername();
+        }
+    }
+
+    /**
+     * Confirm deletion of a distribution list
+     */
+    confirmDeleteDistributionList(listName) {
+        if (confirm(`Are you sure you want to delete the "${listName}" sharing list?\n\nThis will remove the list from all contacts that are assigned to it. This action cannot be undone.`)) {
+            this.deleteDistributionList(listName);
+        }
+    }
+
+    /**
+     * Delete a distribution list
+     */
+    async deleteDistributionList(listName) {
+        try {
+            const result = await this.contactManager.deleteDistributionList(listName);
+            
+            if (result.success) {
+                this.showToast({ 
+                    message: `Distribution list "${listName}" deleted successfully`, 
+                    type: 'success' 
+                });
+                
+                // Clear the filter if the deleted list was active
+                if (this.activeFilters.distributionList === listName) {
+                    this.activeFilters.distributionList = null;
+                    await this.refreshContactsList();
+                }
+                
+                // Refresh distribution lists in sidebar
+                await this.renderDistributionLists();
+            } else {
+                this.showToast({ 
+                    message: result.error || 'Failed to delete distribution list', 
+                    type: 'error' 
+                });
+            }
+        } catch (error) {
+            console.error('Error deleting distribution list:', error);
+            this.showToast({ message: 'Failed to delete distribution list', type: 'error' });
         }
     }
 

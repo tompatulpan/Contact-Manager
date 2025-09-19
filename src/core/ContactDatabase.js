@@ -664,6 +664,40 @@ export class ContactDatabase {
     }
 
     /**
+     * Update an existing shared contact database with latest contact data
+     * @param {Object} contact - The contact data to update
+     * @param {string} sharedDbName - The shared database name
+     * @returns {Promise<Object>} Update result
+     */
+    async updateSharedContactDatabase(contact, sharedDbName) {
+        try {
+            console.log(`📝 Updating existing shared contact in database: ${sharedDbName}`);
+            
+            // Open the shared database
+            await userbase.openDatabase({
+                databaseName: sharedDbName,
+                changeHandler: (items) => {
+                    console.log(`📄 Shared database ${sharedDbName} items:`, items);
+                }
+            });
+
+            // Update the contact item in the shared database
+            await userbase.updateItem({
+                databaseName: sharedDbName,
+                itemId: contact.itemId,
+                item: contact
+            });
+
+            console.log(`✅ Successfully updated contact in shared database: ${sharedDbName}`);
+            return { success: true };
+
+        } catch (error) {
+            console.error(`❌ Error updating shared contact database ${sharedDbName}:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Get all shared databases
      * @returns {Promise<Array>} Array of shared databases
      */

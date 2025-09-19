@@ -689,11 +689,20 @@ export class ContactManager {
      */
     applyFilters(contacts, filters) {
         let filtered = [...contacts];
+        console.log('🔍 ContactManager: Applying filters:', filters, 'to', filtered.length, 'contacts');
 
         // Distribution list filter
         if (filters.distributionList) {
-            filtered = filtered.filter(contact => 
-                contact.metadata.distributionLists?.includes(filters.distributionList));
+            console.log('🔍 ContactManager: Filtering by distribution list:', filters.distributionList);
+            const beforeCount = filtered.length;
+            filtered = filtered.filter(contact => {
+                const hasListAssignment = contact.metadata.distributionLists?.includes(filters.distributionList);
+                if (hasListAssignment) {
+                    console.log('🔍 ContactManager: Contact', contact.metadata.cardName, 'matches list', filters.distributionList);
+                }
+                return hasListAssignment;
+            });
+            console.log('🔍 ContactManager: Distribution list filter reduced contacts from', beforeCount, 'to', filtered.length);
         }
 
         // Ownership filter

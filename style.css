@@ -1447,6 +1447,12 @@ body {
     font-weight: 500;
 }
 
+.distribution-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .manage-list-btn {
     background: none;
     border: none;
@@ -1455,11 +1461,29 @@ body {
     font-size: 0.8em;
     text-decoration: underline;
     padding: 0;
-    margin-left: 8px;
 }
 
 .manage-list-btn:hover {
     color: #0056b3;
+}
+
+.delete-list-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 0.8em;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-list-btn:hover {
+    background: #dc3545;
+    color: white;
 }
 
 /* ========== IMPORT/EXPORT STYLES ========== */
