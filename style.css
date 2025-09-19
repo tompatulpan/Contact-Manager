@@ -1967,6 +1967,92 @@ body {
     font-size: 0.8rem;
 }
 
+/* Address field specific styles */
+.address-field {
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.address-field .field-type-select {
+    align-self: flex-start;
+    max-width: 150px;
+}
+
+.address-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.address-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 120px;
+    gap: 0.5rem;
+}
+
+.address-inputs input {
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.address-inputs input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.address-field .primary-checkbox {
+    align-self: flex-start;
+}
+
+.address-field .remove-field-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+}
+
+/* Note field specific styles */
+.note-field {
+    flex-direction: column;
+    gap: 0.5rem;
+    position: relative;
+}
+
+.note-field textarea {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.4;
+}
+
+.note-field textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.note-field .remove-field-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid var(--border-color);
+}
+
+.note-field .remove-field-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
 /* Responsive adjustments for multi-fields */
 @media (max-width: 768px) {
     .multi-field-item {
@@ -1986,6 +2072,26 @@ body {
     
     .remove-field-btn {
         align-self: center;
+    }
+    
+    /* Address field responsive */
+    .address-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .address-field .remove-field-btn {
+        position: static;
+        align-self: center;
+        margin-top: 0.5rem;
+    }
+    
+    /* Note field responsive */
+    .note-field .remove-field-btn {
+        position: static;
+        align-self: center;
+        margin-top: 0.5rem;
+        background: var(--surface-color);
     }
 }
 
@@ -2037,6 +2143,164 @@ body {
     margin-bottom: 5px;
 }
 
+/* =============================
+   CONTACT DETAIL VIEW STYLES
+   ============================= */
+
+/* Field Groups in Detail View */
+.field-group {
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 1rem;
+}
+
+.field-group:last-child {
+    border-bottom: none;
+}
+
+.field-group h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.field-group h4 i {
+    color: var(--primary-color);
+    width: 20px;
+    text-align: center;
+}
+
+/* Field Items */
+.field-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #fafafa;
+}
+
+.field-item:last-child {
+    border-bottom: none;
+}
+
+.field-value {
+    flex: 1;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.field-value:hover {
+    color: var(--primary-color);
+}
+
+.field-type {
+    background: #f8f9fa;
+    color: #6c757d;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    text-transform: capitalize;
+    margin-left: 0.5rem;
+}
+
+.field-primary {
+    background: var(--primary-color);
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+}
+
+/* Address-specific styling */
+.address-item {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.address-content {
+    margin-bottom: 0.5rem;
+}
+
+.address-line {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    line-height: 1.4;
+    margin-bottom: 0.25rem;
+}
+
+.address-line:last-child {
+    margin-bottom: 0;
+}
+
+.address-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Notes styling */
+.field-item p.field-value {
+    margin: 0;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+/* Metadata section */
+.metadata-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #f0f0f0;
+}
+
+.metadata-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.metadata-section h4 i {
+    color: var(--text-secondary);
+    width: 20px;
+    text-align: center;
+}
+
+.metadata-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.metadata-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.metadata-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+.metadata-value {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
 @media (max-width: 480px) {
     .multi-field-item {
         padding: 0.5rem;
@@ -2050,5 +2314,24 @@ body {
     .format-badge {
         font-size: 10px;
         padding: 1px 6px;
+    }
+
+    .field-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .field-type,
+    .field-primary {
+        align-self: flex-start;
+    }
+
+    .metadata-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .address-meta {
+        justify-content: flex-start;
     }
 }

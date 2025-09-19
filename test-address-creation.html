@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Address Creation and Display</title>
+    <script src="lib/userbase.js"></script>
+    <script src="src/core/VCardStandard.js"></script>
+</head>
+<body>
+    <h1>Test Address Creation and Display</h1>
+    <button id="createContact">Create Contact with Address</button>
+    <button id="testExisting">Test Existing Contacts</button>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            console.log(message);
+            const div = document.createElement('div');
+            div.textContent = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+            div.style.marginBottom = '10px';
+            div.style.fontFamily = 'monospace';
+            div.style.whiteSpace = 'pre-wrap';
+            output.appendChild(div);
+        }
+
+        let userbaseReady = false;
+        let vCardStandard = null;
+
+        // Initialize userbase
+        userbase.init({ appId: '77e5016f-285d-4678-a31a-3718479a638a' })
+            .then(() => {
+                log('✅ Userbase initialized');
+                return userbase.signIn({ username: 'user1', password: 'password123' });
+            })
+            .then(() => {
+                log('✅ Signed in as user1');
+                vCardStandard = new VCardStandard();
+                userbaseReady = true;
+            })
+            .catch(error => {
+                log(`❌ Error: ${error.message}`);
+            });
+
+        document.getElementById('createContact').addEventListener('click', async () => {
+            if (!userbaseReady) {
+                log('❌ Userbase not ready');
+                return;
+            }
+
+            try {
+                // Create a contact with address data
+                const contactData = {
+                    fn: 'Test Address Person',
+                    phones: [{ value: '123-456-7890', type: 'work' }],
+                    emails: [{ value: 'test@example.com', type: 'work' }],
+                    addresses: [{
+                        street: '123 Main Street',
+                        city: 'Anytown',
+                        state: 'CA',
+                        postalCode: '12345',
+                        country: 'USA',
+                        type: 'home'
+                    }],
+                    notes: ['This contact has an address for testing']
+                };
+
+                log('📝 Creating contact with address data...');
+                log(contactData);
+
+                const vCardString = vCardStandard.generateVCard(contactData);
+                log('\n📄 Generated vCard:');
+                log(vCardString);
+
+                const contact = {
+                    contactId: `contact_${Date.now()}`,
+                    cardName: 'Test Address Contact',
+                    vcard: vCardString,
+                    metadata: {
+                        createdAt: new Date().toISOString(),
+                        lastUpdated: new Date().toISOString(),
+                        isOwned: true,
+                        isArchived: false
+                    }
+                };
+
+                // Save to database
+                await userbase.insertItem({
+                    databaseName: 'contacts',
+                    item: contact
+                });
+
+                log('✅ Contact created successfully!');
+
+                // Now test extraction
+                const extractedData = vCardStandard.extractDisplayData(contact);
+                log('\n🔍 Extracted display data:');
+                log(extractedData);
+
+                log('\n📍 Address data specifically:');
+                log(extractedData.addresses);
+
+            } catch (error) {
+                log(`❌ Error creating contact: ${error.message}`);
+            }
+        });
+
+        document.getElementById('testExisting').addEventListener('click', async () => {
+            if (!userbaseReady) {
+                log('❌ Userbase not ready');
+                return;
+            }
+
+            try {
+                const items = await new Promise((resolve, reject) => {
+                    userbase.openDatabase({
+                        databaseName: 'contacts',
+                        changeHandler: (items) => resolve(items)
+                    }).catch(reject);
+                });
+
+                log(`📋 Found ${items.length} existing contacts`);
+
+                items.forEach((item, index) => {
+                    log(`\n=== Contact ${index + 1}: ${item.cardName || 'Unnamed'} ===`);
+                    
+                    // Test extraction
+                    const extractedData = vCardStandard.extractDisplayData(item);
+                    log('Addresses extracted:');
+                    log(extractedData.addresses || 'No addresses');
+                    
+                    if (item.vcard.includes('ADR')) {
+                        log('✅ vCard contains ADR property');
+                        const adrLines = item.vcard.split('\n').filter(line => line.startsWith('ADR'));
+                        log('ADR lines:');
+                        adrLines.forEach(line => log(`  ${line}`));
+                    } else {
+                        log('❌ vCard does not contain ADR property');
+                    }
+                });
+
+            } catch (error) {
+                log(`❌ Error testing existing contacts: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -943,6 +943,13 @@ export class ContactUIController {
         // Convert form data to contact data object
         const contactData = this.formDataToContactData(formData);
         
+        // Debug extracted address data
+        if (contactData.addresses) {
+            console.log('🏠 DEBUG: Form extracted addresses:', contactData.addresses);
+        } else {
+            console.log('🏠 DEBUG: Form - no addresses extracted');
+        }
+        
         // Show loading state
         this.showFormLoading(true);
         
@@ -1395,8 +1402,39 @@ export class ContactUIController {
             `;
         }
         
+        // Addresses
+        console.log('🏠 DEBUG: Rendering addresses in detail view:', displayData.addresses);
+        if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
+            console.log(`🏠 DEBUG: Found ${displayData.addresses.length} addresses to display`);
+            html += `
+                <div class="field-group">
+                    <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
+                    ${displayData.addresses.map((address, index) => {
+                        console.log(`🏠 DEBUG: Rendering address ${index}:`, address);
+                        return `
+                        <div class="field-item address-item">
+                            <div class="address-content">
+                                ${address.street ? `<div class="address-line">${this.escapeHtml(address.street)}</div>` : ''}
+                                <div class="address-line">
+                                    ${[address.city, address.state, address.postalCode].filter(Boolean).map(part => this.escapeHtml(part)).join(', ')}
+                                </div>
+                                ${address.country ? `<div class="address-line">${this.escapeHtml(address.country)}</div>` : ''}
+                            </div>
+                            <div class="address-meta">
+                                <span class="field-type">${address.type || 'other'}</span>
+                                ${address.primary ? '<span class="field-primary">Primary</span>' : ''}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } else {
+            console.log('🏠 DEBUG: No addresses to display - data:', displayData.addresses);
+        }
+        
         // Notes
-        if (displayData.notes.length > 0) {
+        if (displayData.notes && displayData.notes.length > 0) {
             html += `
                 <div class="field-group">
                     <h4><i class="fas fa-sticky-note"></i> Notes</h4>
@@ -2686,6 +2724,20 @@ export class ContactUIController {
             this.populateMultiFieldData('phone', displayData.phones);
             this.populateMultiFieldData('email', displayData.emails);
             this.populateMultiFieldData('url', displayData.urls);
+            
+            // Debug address data
+            console.log('🏠 DEBUG: Address data for population:', displayData.addresses);
+            console.log('🏠 DEBUG: Address data type:', typeof displayData.addresses);
+            console.log('🏠 DEBUG: Address data is array:', Array.isArray(displayData.addresses));
+            if (displayData.addresses) {
+                console.log('🏠 DEBUG: Address data length:', displayData.addresses.length);
+                displayData.addresses.forEach((addr, i) => {
+                    console.log(`🏠 DEBUG: Address ${i}:`, addr);
+                });
+            }
+            
+            this.populateMultiFieldData('address', displayData.addresses);
+            this.populateNotesData(displayData.notes);
 
             // Clear any previous errors
             this.clearFormErrors(form);
@@ -2750,6 +2802,8 @@ export class ContactUIController {
         contactData.phones = this.extractMultiFieldData(formData, 'phone');
         contactData.emails = this.extractMultiFieldData(formData, 'email');
         contactData.urls = this.extractMultiFieldData(formData, 'url');
+        contactData.addresses = this.extractMultiFieldData(formData, 'address');
+        contactData.notes = this.extractNotesData(formData);
 
         // Fallback to single field data if multi-field is empty
         if (contactData.phones.length === 0) {
@@ -2773,9 +2827,6 @@ export class ContactUIController {
                 }];
             }
         }
-
-        // Initialize empty arrays for other fields
-        contactData.notes = [];
 
         return contactData;
     }
@@ -3554,6 +3605,8 @@ export class ContactUIController {
         const addPhoneBtn = document.getElementById('add-phone-btn');
         const addEmailBtn = document.getElementById('add-email-btn');
         const addUrlBtn = document.getElementById('add-url-btn');
+        const addAddressBtn = document.getElementById('add-address-btn');
+        const addNoteBtn = document.getElementById('add-note-btn');
 
         if (addPhoneBtn) {
             addPhoneBtn.addEventListener('click', () => this.addMultiField('phone'));
@@ -3564,11 +3617,19 @@ export class ContactUIController {
         if (addUrlBtn) {
             addUrlBtn.addEventListener('click', () => this.addMultiField('url'));
         }
+        if (addAddressBtn) {
+            addAddressBtn.addEventListener('click', () => this.addMultiField('address'));
+        }
+        if (addNoteBtn) {
+            addNoteBtn.addEventListener('click', () => this.addMultiField('note'));
+        }
 
         // Initial setup for existing fields
         this.setupMultiFieldEvents('phone');
         this.setupMultiFieldEvents('email');
         this.setupMultiFieldEvents('url');
+        this.setupMultiFieldEvents('address');
+        this.setupMultiFieldEvents('note');
     }
 
     /**
@@ -3584,8 +3645,16 @@ export class ContactUIController {
         // Setup events for the new item
         this.setupMultiFieldEvents(fieldType);
         
-        // Focus the new input
-        const newInput = newItem.querySelector(`input[name="${fieldType}[]"]`);
+        // Focus the new input based on field type
+        let newInput;
+        if (fieldType === 'address') {
+            newInput = newItem.querySelector(`input[name="addressStreet[]"]`);
+        } else if (fieldType === 'note') {
+            newInput = newItem.querySelector(`textarea[name="${fieldType}[]"]`);
+        } else {
+            newInput = newItem.querySelector(`input[name="${fieldType}[]"]`);
+        }
+        
         if (newInput) {
             newInput.focus();
         }
@@ -3597,28 +3666,71 @@ export class ContactUIController {
     createMultiFieldItem(fieldType) {
         const item = document.createElement('div');
         item.className = 'multi-field-item';
+        
+        // Add specific class for special field types
+        if (fieldType === 'address') {
+            item.classList.add('address-field');
+        } else if (fieldType === 'note') {
+            item.classList.add('note-field');
+        }
 
         const typeOptions = this.getFieldTypeOptions(fieldType);
-        const inputType = this.getInputType(fieldType);
-        const placeholder = this.getPlaceholder(fieldType);
-
-        // Generate a unique ID for this field item
         const fieldId = Date.now() + Math.random();
 
-        item.innerHTML = `
-            <select class="field-type-select" name="${fieldType}Type[]">
-                ${typeOptions}
-            </select>
-            <input type="${inputType}" name="${fieldType}[]" placeholder="${placeholder}">
-            <label class="primary-checkbox">
-                <input type="checkbox" name="${fieldType}Primary[]" value="${fieldId}">
-                <span class="checkmark"></span>
-                Primary
-            </label>
-            <button type="button" class="remove-field-btn" title="Remove ${fieldType}">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
+        // Special handling for address fields
+        if (fieldType === 'address') {
+            item.innerHTML = `
+                <select class="field-type-select" name="${fieldType}Type[]">
+                    ${typeOptions}
+                </select>
+                <div class="address-inputs">
+                    <input type="text" name="addressStreet[]" placeholder="Street address">
+                    <div class="address-row">
+                        <input type="text" name="addressCity[]" placeholder="City">
+                        <input type="text" name="addressState[]" placeholder="State/Province">
+                        <input type="text" name="addressPostalCode[]" placeholder="Postal code">
+                    </div>
+                    <input type="text" name="addressCountry[]" placeholder="Country">
+                </div>
+                <label class="primary-checkbox">
+                    <input type="checkbox" name="${fieldType}Primary[]" value="${fieldId}">
+                    <span class="checkmark"></span>
+                    Primary
+                </label>
+                <button type="button" class="remove-field-btn" title="Remove ${fieldType}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+        }
+        // Special handling for note fields
+        else if (fieldType === 'note') {
+            item.innerHTML = `
+                <textarea name="${fieldType}[]" placeholder="Add a note..." rows="3"></textarea>
+                <button type="button" class="remove-field-btn" title="Remove ${fieldType}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+        }
+        // Standard handling for other field types
+        else {
+            const inputType = this.getInputType(fieldType);
+            const placeholder = this.getPlaceholder(fieldType);
+
+            item.innerHTML = `
+                <select class="field-type-select" name="${fieldType}Type[]">
+                    ${typeOptions}
+                </select>
+                <input type="${inputType}" name="${fieldType}[]" placeholder="${placeholder}">
+                <label class="primary-checkbox">
+                    <input type="checkbox" name="${fieldType}Primary[]" value="${fieldId}">
+                    <span class="checkmark"></span>
+                    Primary
+                </label>
+                <button type="button" class="remove-field-btn" title="Remove ${fieldType}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+        }
 
         // Store the field ID for later reference
         item.dataset.fieldId = fieldId;
@@ -3650,7 +3762,13 @@ export class ContactUIController {
                 { value: 'personal', label: 'Personal' },
                 { value: 'blog', label: 'Blog' },
                 { value: 'other', label: 'Other' }
-            ]
+            ],
+            address: [
+                { value: 'home', label: 'Home' },
+                { value: 'work', label: 'Work' },
+                { value: 'other', label: 'Other' }
+            ],
+            note: [] // Notes don't have types
         };
 
         return options[fieldType]?.map(option => 
@@ -3768,6 +3886,11 @@ export class ContactUIController {
      * Extract multi-field data from form
      */
     extractMultiFieldData(formData, fieldType) {
+        // Special handling for address fields
+        if (fieldType === 'address') {
+            return this.extractAddressData(formData);
+        }
+
         const values = formData.getAll(`${fieldType}[]`);
         const types = formData.getAll(`${fieldType}Type[]`);
         const checkedPrimaries = formData.getAll(`${fieldType}Primary[]`);
@@ -3798,14 +3921,76 @@ export class ContactUIController {
     }
 
     /**
+     * Extract address data from form
+     */
+    extractAddressData(formData) {
+        const streets = formData.getAll('addressStreet[]');
+        const cities = formData.getAll('addressCity[]');
+        const states = formData.getAll('addressState[]');
+        const postalCodes = formData.getAll('addressPostalCode[]');
+        const countries = formData.getAll('addressCountry[]');
+        const types = formData.getAll('addressType[]');
+        const checkedPrimaries = formData.getAll('addressPrimary[]');
+
+        // Get all field items to map their IDs to indices
+        const container = document.getElementById('address-fields');
+        const fieldItems = container ? Array.from(container.querySelectorAll('.multi-field-item')) : [];
+
+        const addressData = [];
+        streets.forEach((street, index) => {
+            // At least street or city should be filled for a valid address
+            if (street.trim() || cities[index]?.trim()) {
+                // Get the field ID for this index
+                const fieldItem = fieldItems[index];
+                const fieldId = fieldItem ? fieldItem.dataset.fieldId : null;
+                
+                // Check if this field is marked as primary
+                const isPrimary = fieldId && checkedPrimaries.includes(fieldId);
+                
+                addressData.push({
+                    street: street.trim(),
+                    city: (cities[index] || '').trim(),
+                    state: (states[index] || '').trim(),
+                    postalCode: (postalCodes[index] || '').trim(),
+                    country: (countries[index] || '').trim(),
+                    type: types[index] || 'home',
+                    primary: isPrimary
+                });
+            }
+        });
+
+        return addressData;
+    }
+
+    /**
+     * Extract notes data from form
+     */
+    extractNotesData(formData) {
+        const notes = formData.getAll('note[]');
+        return notes
+            .filter(note => note.trim())
+            .map(note => note.trim());
+    }
+
+    /**
      * Populate multi-field data in form (for editing)
      */
     populateMultiFieldData(fieldType, data) {
+        console.log(`🔍 DEBUG: populateMultiFieldData called with fieldType: ${fieldType}, data:`, data);
         const container = document.getElementById(`${fieldType}-fields`);
-        if (!container || !data || data.length === 0) return;
+        if (!container || !data || data.length === 0) {
+            console.log(`🔍 DEBUG: Early return - container: ${!!container}, data: ${!!data}, data.length: ${data ? data.length : 'N/A'}`);
+            return;
+        }
 
         // Clear existing items
         container.innerHTML = '';
+
+        // Special handling for addresses
+        if (fieldType === 'address') {
+            this.populateAddressData(data);
+            return;
+        }
 
         // Add items for each data entry
         data.forEach((item, index) => {
@@ -3836,6 +4021,93 @@ export class ContactUIController {
 
         // Setup events
         this.setupMultiFieldEvents(fieldType);
+    }
+
+    /**
+     * Populate address data specifically
+     */
+    populateAddressData(data) {
+        console.log('🏠 DEBUG: populateAddressData called with data:', data);
+        const container = document.getElementById('address-fields');
+        if (!container) {
+            console.log('🏠 DEBUG: No address-fields container found');
+            return;
+        }
+
+        // Clear existing items
+        container.innerHTML = '';
+
+        // Handle cases where data might be undefined or empty
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            console.log('🏠 DEBUG: No address data, adding empty field');
+            // Add one empty field if no data
+            const fieldItem = this.createMultiFieldItem('address');
+            container.appendChild(fieldItem);
+            this.setupMultiFieldEvents('address');
+            return;
+        }
+
+        console.log(`🏠 DEBUG: Processing ${data.length} addresses`);
+        // Add items for each address
+        data.forEach((address, index) => {
+            const fieldItem = this.createMultiFieldItem('address');
+            
+            // Set address values
+            const typeSelect = fieldItem.querySelector('select[name="addressType[]"]');
+            const streetInput = fieldItem.querySelector('input[name="addressStreet[]"]');
+            const cityInput = fieldItem.querySelector('input[name="addressCity[]"]');
+            const stateInput = fieldItem.querySelector('input[name="addressState[]"]');
+            const postalCodeInput = fieldItem.querySelector('input[name="addressPostalCode[]"]');
+            const countryInput = fieldItem.querySelector('input[name="addressCountry[]"]');
+            const primaryCheckbox = fieldItem.querySelector('input[name="addressPrimary[]"]');
+
+            if (typeSelect) typeSelect.value = address.type || 'home';
+            if (streetInput) streetInput.value = address.street || '';
+            if (cityInput) cityInput.value = address.city || '';
+            if (stateInput) stateInput.value = address.state || '';
+            if (postalCodeInput) postalCodeInput.value = address.postalCode || '';
+            if (countryInput) countryInput.value = address.country || '';
+            if (primaryCheckbox) primaryCheckbox.checked = address.primary || false;
+
+            container.appendChild(fieldItem);
+        });
+
+        // Setup events
+        this.setupMultiFieldEvents('address');
+    }
+
+    /**
+     * Populate notes data in form
+     */
+    populateNotesData(data) {
+        const container = document.getElementById('note-fields');
+        if (!container) return;
+
+        // Clear existing items
+        container.innerHTML = '';
+
+        // Handle cases where data might be undefined or empty
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            // Add one empty field if no data
+            const fieldItem = this.createMultiFieldItem('note');
+            container.appendChild(fieldItem);
+            this.setupMultiFieldEvents('note');
+            return;
+        }
+
+        // Add items for each note
+        data.forEach((note, index) => {
+            const fieldItem = this.createMultiFieldItem('note');
+            
+            // Set note value
+            const textarea = fieldItem.querySelector('textarea[name="note[]"]');
+            if (textarea) textarea.value = note || '';
+
+            container.appendChild(fieldItem);
+        });
+
+        // Setup events
+        this.setupMultiFieldEvents('note');
     }
 
     /**

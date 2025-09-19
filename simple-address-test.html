@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Address Test</title>
+    <script src="lib/userbase.js"></script>
+</head>
+<body>
+    <h1>Simple Address Test</h1>
+    <button id="checkContacts">Check Current Contacts for Addresses</button>
+    <button id="addAddress">Add Address to First Contact</button>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            console.log(message);
+            const div = document.createElement('div');
+            div.textContent = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+            div.style.marginBottom = '10px';
+            div.style.fontFamily = 'monospace';
+            div.style.whiteSpace = 'pre-wrap';
+            output.appendChild(div);
+        }
+
+        let database = null;
+
+        // Initialize userbase
+        userbase.init({ appId: '77e5016f-285d-4678-a31a-3718479a638a' })
+            .then(() => {
+                log('✅ Userbase initialized');
+                return userbase.signIn({ username: 'user1', password: 'password123' });
+            })
+            .then(() => {
+                log('✅ Signed in as user1');
+                return userbase.openDatabase({
+                    databaseName: 'contacts',
+                    changeHandler: (items) => {
+                        database = items;
+                        log(`📋 Database opened with ${items.length} contacts`);
+                    }
+                });
+            })
+            .catch(error => {
+                log(`❌ Error: ${error.message}`);
+            });
+
+        document.getElementById('checkContacts').addEventListener('click', () => {
+            if (!database) {
+                log('❌ Database not ready');
+                return;
+            }
+
+            log(`\n📋 Checking ${database.length} contacts for addresses:`);
+            
+            database.forEach((contact, index) => {
+                log(`\n--- Contact ${index + 1}: ${contact.cardName} ---`);
+                log(`vCard length: ${contact.vcard.length} characters`);
+                
+                if (contact.vcard.includes('ADR')) {
+                    log('✅ Contains ADR property');
+                    const adrLines = contact.vcard.split('\n').filter(line => line.startsWith('ADR'));
+                    adrLines.forEach(line => log(`  ${line}`));
+                } else {
+                    log('❌ No ADR property found');
+                }
+            });
+        });
+
+        document.getElementById('addAddress').addEventListener('click', async () => {
+            if (!database || database.length === 0) {
+                log('❌ No contacts available');
+                return;
+            }
+
+            try {
+                const firstContact = database[0];
+                log(`\n📝 Adding address to: ${firstContact.cardName}`);
+                
+                // Add ADR line to vCard
+                const vCardLines = firstContact.vcard.split('\n');
+                const endIndex = vCardLines.findIndex(line => line.startsWith('END:VCARD'));
+                
+                // Insert address before END:VCARD
+                const addressLine = 'ADR;TYPE=home:;;123 Test Street;Test City;CA;12345;USA';
+                vCardLines.splice(endIndex, 0, addressLine);
+                
+                const updatedVCard = vCardLines.join('\n');
+                log('Updated vCard:');
+                log(updatedVCard);
+                
+                // Update the contact
+                const updatedContact = {
+                    ...firstContact,
+                    vcard: updatedVCard,
+                    metadata: {
+                        ...firstContact.metadata,
+                        lastUpdated: new Date().toISOString()
+                    }
+                };
+                
+                await userbase.updateItem({
+                    databaseName: 'contacts',
+                    itemId: firstContact.itemId,
+                    item: updatedContact
+                });
+                
+                log('✅ Contact updated with address');
+                
+            } catch (error) {
+                log(`❌ Error adding address: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -72,6 +72,13 @@ export class VCardStandard {
      * @returns {string} RFC 9553 vCard string
      */
     generateVCard(contactData) {
+        // Debug address data during vCard generation
+        if (contactData.addresses) {
+            console.log('🏠 DEBUG: generateVCard received addresses:', contactData.addresses);
+        } else {
+            console.log('🏠 DEBUG: generateVCard - no addresses in contactData');
+        }
+        
         let vcard = 'BEGIN:VCARD\n';
         vcard += 'VERSION:4.0\n';
 
@@ -111,6 +118,18 @@ export class VCardStandard {
             });
         }
 
+        // Addresses (ADR)
+        if (contactData.addresses && contactData.addresses.length > 0) {
+            contactData.addresses.forEach((address, index) => {
+                const params = this.buildParameters({
+                    type: address.type,
+                    pref: index === 0 || address.primary
+                });
+                const adrValue = this.formatAddressValue(address);
+                vcard += `ADR${params}:${adrValue}\n`;
+            });
+        }
+
         // Single-value properties
         if (contactData.organization) {
             vcard += `ORG:${this.escapeValue(contactData.organization)}\n`;
@@ -145,6 +164,12 @@ export class VCardStandard {
     extractDisplayData(contact) {
         const vCardData = this.parseVCard(contact.vcard);
         
+        // Debug address extraction
+        const addresses = this.extractMultiValueProperty(vCardData, 'ADR');
+        if (contact.vcard.includes('ADR')) {
+            console.log('🏠 DEBUG: Found ADR in vCard, extracted addresses:', addresses);
+        }
+        
         return {
             contactId: contact.contactId,
             cardName: contact.cardName,
@@ -154,7 +179,8 @@ export class VCardStandard {
             phones: this.extractMultiValueProperty(vCardData, 'TEL'),
             emails: this.extractMultiValueProperty(vCardData, 'EMAIL'),
             urls: this.extractMultiValueProperty(vCardData, 'URL'),
-            notes: vCardData.properties.get('NOTE') || [],
+            addresses: addresses,
+            notes: this.extractNotesProperty(vCardData),
             birthday: vCardData.properties.get('BDAY') || '',
             lastUpdated: contact.metadata?.lastUpdated || '',
             isOwned: contact.metadata?.isOwned || false
@@ -162,33 +188,83 @@ export class VCardStandard {
     }
 
     /**
+     * Extract notes property specifically  
+     * @param {Object} vCardData - Parsed vCard data
+     * @returns {Array} Array of note strings
+     */
+    extractNotesProperty(vCardData) {
+        const noteValues = vCardData.properties.get('NOTE') || [];
+        
+        if (!Array.isArray(noteValues)) {
+            // Single note - extract the value
+            if (typeof noteValues === 'string') {
+                return [noteValues];
+            } else if (noteValues && noteValues.value) {
+                return [noteValues.value];
+            }
+            return [];
+        }
+        
+        // Multiple notes - extract values from each
+        return noteValues.map(note => {
+            if (typeof note === 'string') {
+                return note;
+            } else if (note && note.value) {
+                return note.value;
+            }
+            return '';
+        }).filter(note => note.length > 0);
+    }
+
+    /**
      * Extract multi-value property with type and preference information
      * @param {Object} vCardData - Parsed vCard data
-     * @param {string} property - Property name (TEL, EMAIL, URL)
+     * @param {string} property - Property name (TEL, EMAIL, URL, ADR)
      * @returns {Array} Array of property objects
      */
     extractMultiValueProperty(vCardData, property) {
         const values = vCardData.properties.get(property) || [];
         if (!Array.isArray(values)) {
-            return [values].map(this.normalizePropertyValue.bind(this));
+            return [values].map(value => this.normalizePropertyValue(value, property));
         }
-        return values.map(this.normalizePropertyValue.bind(this));
+        return values.map(value => this.normalizePropertyValue(value, property));
     }
 
     /**
      * Normalize property value to consistent format
      * @param {*} value - Property value
+     * @param {string} property - Property type (for special handling)
      * @returns {Object} Normalized property object
      */
-    normalizePropertyValue(value) {
+    normalizePropertyValue(value, property = '') {
         if (typeof value === 'string') {
+            // Handle ADR (address) property specially
+            if (property === 'ADR') {
+                return {
+                    ...this.parseAddressValue(value),
+                    type: 'other',
+                    primary: false
+                };
+            }
             return { value, type: 'other', primary: false };
+        }
+        
+        const baseObj = {
+            type: value.parameters?.TYPE || 'other',
+            primary: value.parameters?.PREF === '1' || value.parameters?.PREF === 1
+        };
+
+        // Handle ADR (address) property specially
+        if (property === 'ADR') {
+            return {
+                ...this.parseAddressValue(value.value || ''),
+                ...baseObj
+            };
         }
         
         return {
             value: value.value || '',
-            type: value.parameters?.TYPE || 'other',
-            primary: value.parameters?.PREF === '1' || value.parameters?.PREF === 1
+            ...baseObj
         };
     }
 
@@ -209,6 +285,45 @@ export class VCardStandard {
         }
 
         return paramStrings.length > 0 ? `;${paramStrings.join(';')}` : '';
+    }
+
+    /**
+     * Format address value for vCard ADR property
+     * RFC 9553 ADR format: PO Box;Extended Address;Street;City;State/Province;Postal Code;Country
+     * @param {Object} address - Address object
+     * @returns {string} Formatted address string
+     */
+    formatAddressValue(address) {
+        const addressParts = [
+            address.poBox || '',           // PO Box
+            address.extended || '',        // Extended Address
+            address.street || '',          // Street
+            address.city || '',            // City
+            address.state || '',           // State/Province
+            address.postalCode || '',      // Postal Code
+            address.country || ''          // Country
+        ];
+        
+        return addressParts.map(part => this.escapeValue(part)).join(';');
+    }
+
+    /**
+     * Parse address value from vCard ADR property
+     * @param {string} addressValue - Raw address value from vCard
+     * @returns {Object} Parsed address object
+     */
+    parseAddressValue(addressValue) {
+        const parts = addressValue.split(';');
+        
+        return {
+            poBox: this.unescapeValue(parts[0] || ''),
+            extended: this.unescapeValue(parts[1] || ''),
+            street: this.unescapeValue(parts[2] || ''),
+            city: this.unescapeValue(parts[3] || ''),
+            state: this.unescapeValue(parts[4] || ''),
+            postalCode: this.unescapeValue(parts[5] || ''),
+            country: this.unescapeValue(parts[6] || '')
+        };
     }
 
     /**
@@ -791,6 +906,19 @@ export class VCardStandard {
             });
         }
 
+        // Addresses with Apple formatting
+        if (displayData.addresses && displayData.addresses.length > 0) {
+            displayData.addresses.forEach(address => {
+                const appleType = this.convertToAppleAddressType(address.type);
+                const pref = address.primary ? ';pref' : '';
+                const adrValue = this.formatAddressValue(address);
+                vcard += `ADR;type=${appleType}${pref}:${adrValue}\n`;
+            });
+        } else {
+            // Default empty address for Apple compatibility
+            vcard += 'ADR:;;;;;;;\n';
+        }
+
         // Organization
         if (displayData.organization) {
             vcard += `ORG:${this.escapeValue(displayData.organization)}\n`;
@@ -807,9 +935,6 @@ export class VCardStandard {
                 vcard += `NOTE:${this.escapeValue(note)}\n`;
             });
         }
-
-        // Basic address field (empty but formatted)
-        vcard += 'ADR:;;Street;City;;PostalCode;\n';
 
         vcard += 'END:VCARD';
         return vcard;
@@ -916,6 +1041,23 @@ export class VCardStandard {
             case 'home': return 'PERSONAL';
             case 'other': return 'OTHER';
             default: return 'OTHER';
+        }
+    }
+
+    /**
+     * Convert standard address type to Apple
+     * @param {string} standardType - Standard address type
+     * @returns {string} Apple address type
+     */
+    convertToAppleAddressType(standardType) {
+        if (!standardType) return 'HOME';
+        
+        const type = standardType.toLowerCase();
+        switch (type) {
+            case 'work': return 'WORK';
+            case 'home': return 'HOME';
+            case 'other': return 'OTHER';
+            default: return 'HOME';
         }
     }
 

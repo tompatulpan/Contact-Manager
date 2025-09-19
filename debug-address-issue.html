@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Address Issue</title>
+    <script src="lib/userbase.js"></script>
+</head>
+<body>
+    <h1>Debug Address Issue</h1>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            console.log(message);
+            const div = document.createElement('div');
+            div.textContent = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+            div.style.marginBottom = '10px';
+            div.style.fontFamily = 'monospace';
+            div.style.whiteSpace = 'pre-wrap';
+            output.appendChild(div);
+        }
+
+        // Initialize userbase and check contacts
+        userbase.init({ appId: '77e5016f-285d-4678-a31a-3718479a638a' })
+            .then(() => {
+                log('✅ Userbase initialized');
+                return userbase.signIn({ username: 'user1', password: 'password123' });
+            })
+            .then(() => {
+                log('✅ Signed in as user1');
+                return userbase.openDatabase({
+                    databaseName: 'contacts',
+                    changeHandler: (items) => {
+                        log(`📋 Found ${items.length} contacts`);
+                        
+                        // Look for contacts with addresses
+                        items.forEach((item, index) => {
+                            log(`\n=== Contact ${index + 1}: ${item.cardName || 'Unnamed'} ===`);
+                            log(`vCard Content:`);
+                            log(item.vcard);
+                            
+                            // Check if vCard contains ADR
+                            if (item.vcard.includes('ADR')) {
+                                log(`🏠 This contact has address data!`);
+                                
+                                // Parse the vCard to see structure
+                                const lines = item.vcard.split('\n');
+                                const adrLines = lines.filter(line => line.startsWith('ADR'));
+                                log(`Address lines found: ${adrLines.length}`);
+                                adrLines.forEach(line => {
+                                    log(`  ${line}`);
+                                });
+                            } else {
+                                log(`❌ No address data found in this contact`);
+                            }
+                        });
+                    }
+                });
+            })
+            .catch(error => {
+                log(`❌ Error: ${error.message}`);
+            });
+    </script>
+</body>
+</html>

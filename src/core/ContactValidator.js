@@ -41,6 +41,7 @@ export class ContactValidator {
             this.validatePhones(contactData.phones, errors, warnings);
             this.validateEmails(contactData.emails, errors, warnings);
             this.validateUrls(contactData.urls, errors, warnings);
+            this.validateAddresses(contactData.addresses, errors, warnings);
             
             // Single field validation
             this.validateTextField(contactData.organization, 'organization', errors);
@@ -226,6 +227,60 @@ export class ContactValidator {
     }
 
     /**
+     * Validate addresses
+     * @param {Array} addresses - Array of address objects
+     * @param {Array} errors - Errors array
+     * @param {Array} warnings - Warnings array
+     */
+    validateAddresses(addresses, errors, warnings) {
+        if (!addresses || !Array.isArray(addresses)) {
+            return;
+        }
+
+        if (addresses.length > 5) {
+            warnings.push('Large number of addresses (>5) may affect performance');
+        }
+
+        addresses.forEach((address, index) => {
+            if (!address || typeof address !== 'object') {
+                errors.push(`Invalid address object at position ${index + 1}`);
+                return;
+            }
+
+            // Check if at least one meaningful field is provided
+            const hasData = ['street', 'city', 'state', 'postalCode', 'country'].some(field => 
+                address[field] && typeof address[field] === 'string' && address[field].trim().length > 0
+            );
+
+            if (!hasData) {
+                warnings.push(`Address ${index + 1} appears to be empty (no street, city, state, postal code, or country)`);
+            }
+
+            // Validate address type
+            if (address.type && !this.isValidAddressType(address.type)) {
+                warnings.push(`Non-standard address type at position ${index + 1}: "${address.type}"`);
+            }
+
+            // Validate field lengths
+            const maxLengths = {
+                poBox: 100,
+                extended: 100,
+                street: 255,
+                city: 100,
+                state: 100,
+                postalCode: 20,
+                country: 100
+            };
+
+            Object.entries(maxLengths).forEach(([field, maxLength]) => {
+                if (address[field] && typeof address[field] === 'string' && address[field].length > maxLength) {
+                    errors.push(`Address ${index + 1} ${field} exceeds maximum length of ${maxLength} characters`);
+                }
+            });
+        });
+    }
+
+    /**
      * Validate text field
      * @param {string} value - Field value
      * @param {string} fieldName - Field name
@@ -401,6 +456,16 @@ export class ContactValidator {
     }
 
     /**
+     * Check if address type is valid
+     * @param {string} type - Address type
+     * @returns {boolean} Is valid type
+     */
+    isValidAddressType(type) {
+        const standardTypes = ['home', 'work', 'office', 'mailing', 'postal', 'other'];
+        return standardTypes.includes(type.toLowerCase());
+    }
+
+    /**
      * Sanitize contact data for security
      * @param {Object} contactData - Contact data
      * @returns {Object} Sanitized contact data
@@ -428,6 +493,29 @@ export class ContactValidator {
                     .filter(item => item.value.length > 0);
             }
         });
+
+        // Sanitize addresses
+        if (contactData.addresses && Array.isArray(contactData.addresses)) {
+            sanitized.addresses = contactData.addresses
+                .slice(0, 5) // Limit to 5 addresses
+                .map(addr => ({
+                    poBox: typeof addr.poBox === 'string' ? addr.poBox.trim().substring(0, 100) : '',
+                    extended: typeof addr.extended === 'string' ? addr.extended.trim().substring(0, 100) : '',
+                    street: typeof addr.street === 'string' ? addr.street.trim().substring(0, 255) : '',
+                    city: typeof addr.city === 'string' ? addr.city.trim().substring(0, 100) : '',
+                    state: typeof addr.state === 'string' ? addr.state.trim().substring(0, 100) : '',
+                    postalCode: typeof addr.postalCode === 'string' ? addr.postalCode.trim().substring(0, 20) : '',
+                    country: typeof addr.country === 'string' ? addr.country.trim().substring(0, 100) : '',
+                    type: typeof addr.type === 'string' ? addr.type.toLowerCase() : 'home',
+                    primary: Boolean(addr.primary)
+                }))
+                .filter(addr => 
+                    // Keep address if at least one meaningful field is filled
+                    addr.street.length > 0 || addr.city.length > 0 || 
+                    addr.state.length > 0 || addr.postalCode.length > 0 || 
+                    addr.country.length > 0
+                );
+        }
 
         // Sanitize notes
         if (contactData.notes && Array.isArray(contactData.notes)) {

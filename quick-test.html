@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Address & Notes Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        pre { background: #f5f5f5; padding: 10px; border: 1px solid #ddd; }
+        button { padding: 10px 20px; margin: 10px 0; background: #007bff; color: white; border: none; cursor: pointer; }
+        .result { margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>Quick Address & Notes Test</h1>
+    
+    <button onclick="runTest()">Run Full Test</button>
+    <div id="result"></div>
+
+    <script type="module">
+        import { VCardStandard } from './src/core/VCardStandard.js';
+        
+        window.runTest = function() {
+            console.log('🧪 Running quick address & notes test...');
+            
+            const vCardStandard = new VCardStandard();
+            
+            // Test data similar to what the form would generate
+            const testData = {
+                fn: 'Alice Test',
+                cardName: 'Alice Test Contact',
+                organization: 'Test Corp',
+                title: 'Test Engineer',
+                phones: [
+                    { value: '+1-555-123-4567', type: 'work', primary: true }
+                ],
+                emails: [
+                    { value: 'alice@test.com', type: 'work', primary: true }
+                ],
+                addresses: [
+                    {
+                        street: '123 Main Street',
+                        city: 'Springfield',
+                        state: 'IL',
+                        postalCode: '62701',
+                        country: 'USA',
+                        type: 'work',
+                        primary: true
+                    }
+                ],
+                notes: [
+                    'First test note',
+                    'Second test note'
+                ]
+            };
+            
+            // Step 1: Generate vCard
+            console.log('📄 Generating vCard from test data...');
+            const vCardString = vCardStandard.generateVCard(testData);
+            console.log('Generated vCard:', vCardString);
+            
+            // Step 2: Create contact object
+            const contact = {
+                contactId: 'test-123',
+                cardName: testData.cardName,
+                vcard: vCardString,
+                metadata: {
+                    createdAt: new Date().toISOString(),
+                    lastUpdated: new Date().toISOString(),
+                    isOwned: true,
+                    isArchived: false
+                }
+            };
+            
+            // Step 3: Extract display data
+            console.log('📊 Extracting display data...');
+            const displayData = vCardStandard.extractDisplayData(contact);
+            console.log('Display data:', displayData);
+            
+            // Show results
+            document.getElementById('result').innerHTML = `
+                <div class="result">
+                    <h3>Generated vCard:</h3>
+                    <pre>${vCardString}</pre>
+                    
+                    <h3>Extracted Display Data:</h3>
+                    <pre>${JSON.stringify(displayData, null, 2)}</pre>
+                    
+                    <h3>Addresses Check:</h3>
+                    <p>Count: ${displayData.addresses?.length || 0}</p>
+                    <p>Type: ${Array.isArray(displayData.addresses) ? 'Array' : typeof displayData.addresses}</p>
+                    <pre>${JSON.stringify(displayData.addresses, null, 2)}</pre>
+                    
+                    <h3>Notes Check:</h3>
+                    <p>Count: ${displayData.notes?.length || 0}</p>
+                    <p>Type: ${Array.isArray(displayData.notes) ? 'Array' : typeof displayData.notes}</p>
+                    <pre>${JSON.stringify(displayData.notes, null, 2)}</pre>
+                </div>
+            `;
+        };
+    </script>
+</body>
+</html>

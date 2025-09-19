@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Address Display in Detail View</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .test-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-output {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .demo-detail-view {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Test Address and Notes in Detail View</h1>
+        
+        <div class="test-section">
+            <h2>Contact Detail View Demo</h2>
+            <button class="test-button" onclick="showDetailView()">Show Contact with Address & Notes</button>
+            <button class="test-button" onclick="clearOutput()">Clear Output</button>
+        </div>
+
+        <div id="contact-detail-demo" class="demo-detail-view" style="display: none;">
+            <!-- Detail view will be rendered here -->
+        </div>
+
+        <div id="test-output" class="test-output">
+Test output will appear here...
+        </div>
+    </div>
+
+    <!-- Include required modules -->
+    <script src="src/utils/EventBus.js"></script>
+    <script src="src/core/VCardStandard.js"></script>
+    <script src="src/core/ContactValidator.js"></script>
+    <script src="src/core/ContactDatabase.js"></script>
+    <script src="src/core/ContactManager.js"></script>
+    <script src="src/ui/ContactUIController.js"></script>
+
+    <script>
+        let eventBus, vCardStandard, contactManager, uiController;
+
+        // Initialize components
+        function initializeTest() {
+            eventBus = new EventBus();
+            vCardStandard = new VCardStandard();
+            contactManager = new ContactManager(eventBus, null); // No database for testing
+            uiController = new ContactUIController(eventBus, contactManager);
+            
+            log('✅ Test environment initialized');
+        }
+
+        function log(message) {
+            const output = document.getElementById('test-output');
+            output.textContent += new Date().toISOString() + ': ' + message + '\n';
+        }
+
+        function clearOutput() {
+            document.getElementById('test-output').textContent = 'Test output cleared...\n';
+        }
+
+        // Show detailed view with address and notes
+        function showDetailView() {
+            log('\n=== Testing Detail View with Address and Notes ===');
+            
+            // Create a test contact with comprehensive data
+            const testContactData = {
+                fn: 'Jane Smith',
+                cardName: 'Jane - Business Contact',
+                organization: 'Tech Solutions Inc.',
+                title: 'Senior Software Engineer',
+                phones: [
+                    { value: '+1-555-123-4567', type: 'work', primary: true },
+                    { value: '+1-555-987-6543', type: 'mobile', primary: false }
+                ],
+                emails: [
+                    { value: 'jane.smith@techsolutions.com', type: 'work', primary: true },
+                    { value: 'jane@personal.com', type: 'home', primary: false }
+                ],
+                urls: [
+                    { value: 'https://www.techsolutions.com', type: 'work', primary: true },
+                    { value: 'https://jane-portfolio.dev', type: 'personal', primary: false }
+                ],
+                addresses: [
+                    {
+                        street: '1234 Technology Drive',
+                        city: 'San Francisco',
+                        state: 'CA',
+                        postalCode: '94105',
+                        country: 'United States',
+                        type: 'work',
+                        primary: true
+                    },
+                    {
+                        street: '567 Residential Lane',
+                        city: 'Palo Alto',
+                        state: 'CA',
+                        postalCode: '94301',
+                        country: 'United States',
+                        type: 'home',
+                        primary: false
+                    },
+                    {
+                        street: '890 Conference Center Blvd',
+                        city: 'Las Vegas',
+                        state: 'NV',
+                        postalCode: '89109',
+                        country: 'United States',
+                        type: 'other',
+                        primary: false
+                    }
+                ],
+                notes: [
+                    'Lead engineer on the mobile app project - excellent technical skills',
+                    'Prefers morning meetings (PST)',
+                    'Speaks fluent Spanish and French',
+                    'Attending DevCon 2025 conference in Vegas'
+                ]
+            };
+
+            try {
+                // Generate vCard
+                const vCard = vCardStandard.generateVCard(testContactData);
+                log('✅ vCard generated successfully');
+                
+                // Create contact object
+                const contact = {
+                    contactId: 'test-contact-123',
+                    cardName: testContactData.cardName,
+                    vcard: vCard,
+                    metadata: {
+                        createdAt: new Date().toISOString(),
+                        lastUpdated: new Date().toISOString(),
+                        isOwned: true,
+                        usage: {
+                            accessCount: 7
+                        }
+                    }
+                };
+
+                // Extract display data
+                const displayData = vCardStandard.extractDisplayData(contact);
+                log('✅ Display data extracted');
+                log('Addresses found: ' + displayData.addresses.length);
+                log('Notes found: ' + displayData.notes.length);
+
+                // Show the detail view
+                const detailContainer = document.getElementById('contact-detail-demo');
+                detailContainer.style.display = 'block';
+                
+                // Use the UI controller's render methods
+                const fieldsHtml = uiController.renderContactFields(displayData);
+                const metadataHtml = uiController.renderContactMetadata(contact);
+                
+                detailContainer.innerHTML = `
+                    <div class="contact-detail-header">
+                        <h2>${displayData.fullName}</h2>
+                        <p>${displayData.organization} ${displayData.title ? '• ' + displayData.title : ''}</p>
+                    </div>
+                    <div class="contact-detail-body">
+                        ${fieldsHtml}
+                        ${metadataHtml}
+                    </div>
+                `;
+
+                log('✅ Detail view rendered successfully');
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+                console.error('Detail view error:', error);
+            }
+        }
+
+        // Initialize when page loads
+        window.addEventListener('DOMContentLoaded', initializeTest);
+    </script>
+</body>
+</html>

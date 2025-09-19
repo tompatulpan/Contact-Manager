@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Contact Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Contact Data Debug Tool</h1>
+    
+    <div class="debug-section">
+        <h2>Test vCard with Address and Notes</h2>
+        <button onclick="testVCardParsing()">Test vCard Parsing</button>
+        <div id="vcard-result"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>Extract Display Data Test</h2>
+        <button onclick="testDisplayData()">Test Display Data Extraction</button>
+        <div id="display-result"></div>
+    </div>
+
+    <script type="module">
+        import { VCardStandard } from './src/core/VCardStandard.js';
+        
+        window.vCardStandard = new VCardStandard();
+        
+        window.testVCardParsing = function() {
+            const testVCard = `BEGIN:VCARD
+VERSION:4.0
+FN:John Test
+TEL;TYPE=work;PREF=1:+1-555-123-4567
+EMAIL;TYPE=work:john@test.com
+ADR;TYPE=home:;;123 Main St;Springfield;IL;62701;USA
+NOTE:This is a test note
+NOTE:Second note for testing
+REV:2025-09-19T10:00:00Z
+END:VCARD`;
+
+            console.log('🧪 Testing vCard parsing...');
+            console.log('Input vCard:', testVCard);
+            
+            const parsed = window.vCardStandard.parseVCard(testVCard);
+            console.log('Parsed vCard:', parsed);
+            
+            document.getElementById('vcard-result').innerHTML = `
+                <h3>Parsed vCard Properties:</h3>
+                <pre>${JSON.stringify(Array.from(parsed.properties.entries()), null, 2)}</pre>
+            `;
+        };
+
+        window.testDisplayData = function() {
+            const testContact = {
+                contactId: 'test-123',
+                cardName: 'Test Contact',
+                vcard: `BEGIN:VCARD
+VERSION:4.0
+FN:John Test
+TEL;TYPE=work;PREF=1:+1-555-123-4567
+EMAIL;TYPE=work:john@test.com
+ADR;TYPE=home:;;123 Main St;Springfield;IL;62701;USA
+NOTE:This is a test note
+NOTE:Second note for testing
+REV:2025-09-19T10:00:00Z
+END:VCARD`,
+                metadata: {
+                    createdAt: new Date().toISOString(),
+                    lastUpdated: new Date().toISOString(),
+                    isOwned: true
+                }
+            };
+
+            console.log('🧪 Testing display data extraction...');
+            console.log('Input contact:', testContact);
+            
+            const displayData = window.vCardStandard.extractDisplayData(testContact);
+            console.log('Display data:', displayData);
+            
+            document.getElementById('display-result').innerHTML = `
+                <h3>Extracted Display Data:</h3>
+                <pre>${JSON.stringify(displayData, null, 2)}</pre>
+                
+                <h4>Notes:</h4>
+                <p>Count: ${displayData.notes?.length || 0}</p>
+                <pre>${JSON.stringify(displayData.notes, null, 2)}</pre>
+                
+                <h4>Addresses:</h4>
+                <p>Count: ${displayData.addresses?.length || 0}</p>
+                <pre>${JSON.stringify(displayData.addresses, null, 2)}</pre>
+            `;
+        };
+    </script>
+</body>
+</html>

@@ -215,6 +215,14 @@ export class ContactManager {
 
             // Sanitize and validate input data
             const sanitizedData = this.validator.sanitizeContactData(contactData);
+            
+            // Debug address data before vCard generation
+            if (sanitizedData.addresses) {
+                console.log('🏠 DEBUG: ContactManager updateContact - sanitized addresses:', sanitizedData.addresses);
+            } else {
+                console.log('🏠 DEBUG: ContactManager updateContact - no addresses in sanitized data');
+            }
+            
             const validation = this.validator.validateContactData(sanitizedData);
             
             if (!validation.isValid) {
@@ -826,6 +834,17 @@ export class ContactManager {
             // Ensure usage metadata exists with proper defaults
             const currentUsage = contact.metadata?.usage || {};
             
+            // Keep interaction history very small to prevent 10KB limit issues
+            const currentHistory = currentUsage.interactionHistory || [];
+            const limitedHistory = currentHistory.slice(-4); // Keep only last 5 interactions
+            
+            // Create minimal interaction entry to save space
+            const newInteraction = {
+                action: 'viewed',
+                timestamp: now,
+                duration: viewDuration
+            };
+            
             const updatedContact = {
                 ...contact,
                 metadata: {
@@ -834,15 +853,7 @@ export class ContactManager {
                         accessCount: (currentUsage.accessCount || 0) + 1,
                         lastAccessedAt: now,
                         viewDuration,
-                        interactionHistory: [
-                            ...(currentUsage.interactionHistory || []).slice(-49), // Keep last 50
-                            {
-                                action: 'viewed',
-                                timestamp: now,
-                                userId: this.database.currentUser?.userId,
-                                duration: viewDuration
-                            }
-                        ]
+                        interactionHistory: [...limitedHistory, newInteraction]
                     },
                     lastUpdated: now
                 }
@@ -865,9 +876,33 @@ export class ContactManager {
                 // Update local cache
                 this.contacts.set(contactId, updatedContact);
             } else {
-                // For owned contacts, update both database and cache
-                await this.database.updateContact(updatedContact);
-                this.contacts.set(contactId, updatedContact);
+                // Validate contact size before saving
+                const sizeValidation = this.validateContactSize(updatedContact);
+                
+                if (!sizeValidation.isValid) {
+                    console.warn('🚨 Contact too large, cleaning up metadata:', sizeValidation);
+                    const cleanedContact = this.cleanupContactMetadata(updatedContact);
+                    
+                    // Validate again after cleanup
+                    const newValidation = this.validateContactSize(cleanedContact);
+                    if (newValidation.isValid) {
+                        await this.database.updateContact(cleanedContact);
+                        this.contacts.set(contactId, cleanedContact);
+                        console.log('✅ Contact saved after cleanup, size:', newValidation.sizeInKB + 'KB');
+                    } else {
+                        console.error('❌ Contact still too large after cleanup:', newValidation);
+                        // Still update cache but don't save to database
+                        this.contacts.set(contactId, cleanedContact);
+                    }
+                } else {
+                    // For owned contacts, update both database and cache
+                    await this.database.updateContact(updatedContact);
+                    this.contacts.set(contactId, updatedContact);
+                    
+                    if (sizeValidation.warning) {
+                        console.warn('⚠️ Contact size warning:', sizeValidation.warning, sizeValidation.sizeInKB + 'KB');
+                    }
+                }
             }
 
         } catch (error) {
@@ -1784,5 +1819,57 @@ export class ContactManager {
             console.error('❌ Error sharing profile with distribution list:', error);
             return { success: false, error: error.message };
         }
+    }
+
+    /**
+     * Validate contact data size to prevent 10KB limit issues
+     * @param {Object} contact - Contact object to validate
+     * @returns {Object} Validation result with size info
+     */
+    validateContactSize(contact) {
+        try {
+            const contactString = JSON.stringify(contact);
+            const sizeInBytes = new Blob([contactString]).size;
+            const sizeInKB = sizeInBytes / 1024;
+            
+            const isValid = sizeInKB < 9; // Keep under 9KB to be safe (limit is 10KB)
+            
+            return {
+                isValid,
+                sizeInBytes,
+                sizeInKB: Math.round(sizeInKB * 100) / 100,
+                warning: sizeInKB > 7 ? 'Contact approaching size limit' : null
+            };
+        } catch (error) {
+            console.error('Error validating contact size:', error);
+            return { isValid: false, error: error.message };
+        }
+    }
+
+    /**
+     * Clean up contact metadata to reduce size
+     * @param {Object} contact - Contact to clean up
+     * @returns {Object} Cleaned contact
+     */
+    cleanupContactMetadata(contact) {
+        const cleaned = { ...contact };
+        
+        // Limit interaction history to only essential data
+        if (cleaned.metadata?.usage?.interactionHistory) {
+            cleaned.metadata.usage.interactionHistory = cleaned.metadata.usage.interactionHistory
+                .slice(-3) // Keep only last 3 interactions
+                .map(interaction => ({
+                    action: interaction.action,
+                    timestamp: interaction.timestamp
+                    // Remove duration and userId to save space
+                }));
+        }
+        
+        // Remove unnecessary fields that might accumulate
+        if (cleaned.metadata?.sharing?.shareHistory) {
+            cleaned.metadata.sharing.shareHistory = cleaned.metadata.sharing.shareHistory.slice(-5);
+        }
+        
+        return cleaned;
     }
 }
