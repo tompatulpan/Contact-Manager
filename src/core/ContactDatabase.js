@@ -706,9 +706,10 @@ export class ContactDatabase {
             });
 
             // Update the contact item in the shared database
+            // Use contactId as itemId since that's how it was originally inserted
             await userbase.updateItem({
                 databaseName: sharedDbName,
-                itemId: contact.itemId,
+                itemId: contact.contactId,
                 item: contact
             });
 
