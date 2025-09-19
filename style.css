@@ -53,7 +53,7 @@ body {
 
 /* Forms */
 .contact-form {
-    max-width: 500px;
+    max-width: 100%; /* Remove fixed max-width to use full modal width */
     margin: 0 auto;
 }
 
@@ -79,6 +79,8 @@ body {
     transition: border-color 0.2s ease;
     background: var(--surface-color);
     color: var(--text-primary);
+    min-height: 44px; /* Ensure touch-friendly minimum height */
+    box-sizing: border-box;
 }
 
 .form-group input:focus,
@@ -238,17 +240,23 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    padding: 1rem; /* Add padding to prevent edge touching */
+    box-sizing: border-box;
+    overflow-y: auto; /* Allow modal itself to scroll if needed */
 }
 
 .modal-content {
     background: var(--bg-primary);
     border-radius: 12px;
     box-shadow: var(--shadow-lg);
-    width: 90%;
-    max-width: 600px;
-    max-height: 90vh;
+    width: 95%;
+    max-width: min(800px, 95vw); /* Flexible max-width based on viewport */
+    max-height: min(95vh, 800px); /* Flexible max-height with better scaling */
     overflow: hidden;
     position: relative;
+    margin: 2.5vh auto; /* Center with flexible margin */
+    display: flex;
+    flex-direction: column; /* Enable flex layout for proper scrolling */
 }
 
 .modal-header {
@@ -257,6 +265,7 @@ body {
     justify-content: space-between;
     padding: var(--space-6);
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
 
 .modal-header h2 {
@@ -283,6 +292,11 @@ body {
 .modal-body {
     padding: var(--space-6);
     overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    flex: 1; /* Take remaining space */
+    min-height: 0; /* Allow shrinking below content size */
+    scroll-behavior: smooth; /* Smooth scrolling */
+    -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
 }
 
 /* Authentication Modal */
@@ -658,8 +672,18 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
     .modal-content {
-        width: 95%;
-        margin: 1rem;
+        width: 98%;
+        max-width: 98vw;
+        margin: 1vh auto;
+        max-height: 98vh;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .modal-body {
+        padding: var(--space-4);
+        flex: 1;
+        min-height: 0;
     }
     
     .app-container {
@@ -670,6 +694,88 @@ body {
         flex-direction: column;
         gap: var(--space-4);
     }
+}
+
+/* Additional responsive breakpoints for better scaling */
+@media (max-width: 480px) {
+    .modal-content {
+        width: 100%;
+        max-width: 100vw;
+        margin: 0;
+        max-height: 100vh;
+        border-radius: 0; /* Full screen on very small devices */
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .modal-body {
+        padding: var(--space-2);
+        flex: 1;
+        min-height: 0;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem; /* Tighter spacing on small screens */
+    }
+}
+
+/* High zoom / small viewport height support */
+@media (max-height: 600px) {
+    .modal-content {
+        max-height: 95vh;
+        margin: 2.5vh auto;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .modal-body {
+        padding: var(--space-4);
+        flex: 1;
+        min-height: 0;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+}
+
+/* High-DPI and zoom level support */
+@media (min-resolution: 2dppx), (-webkit-min-device-pixel-ratio: 2) {
+    .modal-content {
+        max-width: min(900px, 90vw); /* Larger modals on high-DPI displays */
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        font-size: 1.1rem; /* Slightly larger text for better readability */
+        padding: 0.875rem;
+    }
+}
+
+/* Scrollbar styling for better UX */
+.modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* Firefox scrollbar styling */
+.modal-body {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--bg-secondary);
 }
 
 /* === SHARING MODAL STYLES === */

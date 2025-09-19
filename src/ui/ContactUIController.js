@@ -781,20 +781,50 @@ export class ContactUIController {
      * Render distribution lists in the sidebar
      */
     async renderDistributionLists() {
-        if (!this.elements.distributionListsContainer) return;
+        console.log('🎨 UI: Starting renderDistributionLists...');
+        if (!this.elements.distributionListsContainer) {
+            console.log('❌ UI: distributionListsContainer not found');
+            return;
+        }
 
         try {
+            console.log('📋 UI: Getting distribution lists from contact manager...');
             const distributionLists = await this.contactManager.getDistributionLists();
+            console.log('📋 UI: Received distribution lists:', distributionLists);
             
             if (distributionLists.length === 0) {
-                this.elements.distributionListsContainer.innerHTML = `
+                console.log('📋 UI: No distribution lists found, showing All Contacts option');
+                // Still show "All Contacts" option even when no lists exist
+                const isAllContactsActive = !this.activeFilters.distributionList; // Active when no distribution list filter
+                const allContactsItem = `
+                    <div class="distribution-list-item all-contacts-filter ${isAllContactsActive ? 'active' : ''}" data-list-name="">
+                        <div class="list-item-content" data-list-name="">
+                            <span class="distribution-list-name" style="color: #333"># All Contacts</span>
+                            <span class="distribution-list-count">show all</span>
+                        </div>
+                    </div>
+                `;
+                this.elements.distributionListsContainer.innerHTML = allContactsItem + `
                     <div class="no-lists-message">
-                        <p>No distribution lists yet</p>
+                        <p style="margin-top: 10px; opacity: 0.7;">No sharing lists yet</p>
                     </div>
                 `;
                 return;
             }
 
+            console.log('🎨 UI: Rendering', distributionLists.length, 'distribution lists...');
+            
+            // Add "All Contacts" filter option at the top
+            const isAllContactsActive = !this.activeFilters.distributionList; // Active when no distribution list filter
+            const allContactsItem = `
+                <div class="distribution-list-item all-contacts-filter ${isAllContactsActive ? 'active' : ''}" data-list-name="">
+                    <div class="list-item-content" data-list-name="">
+                        <span class="distribution-list-name" style="color: #333"># All Contacts</span>
+                        <span class="distribution-list-count">show all</span>
+                    </div>
+                </div>
+            `;
+            
             const listItems = distributionLists.map(list => {
                 const userCount = list.usernames ? list.usernames.length : 0;
                 return `
@@ -818,8 +848,9 @@ export class ContactUIController {
                 `;
             }).join('');
 
-            // Display sharing lists only (no "All Contacts" since these are for sharing)
-            this.elements.distributionListsContainer.innerHTML = listItems;
+            // Combine "All Contacts" with sharing lists
+            this.elements.distributionListsContainer.innerHTML = allContactsItem + listItems;
+            console.log('✅ UI: Distribution lists HTML updated successfully');
 
             // Add click listeners for manage buttons
             const manageButtons = this.elements.distributionListsContainer.querySelectorAll('.manage-list-btn');
@@ -3106,13 +3137,20 @@ export class ContactUIController {
             
             const listItem = event.target.closest('.distribution-list-item');
             const listName = listItem?.dataset.listName;
+            const isAllContactsFilter = listItem?.classList.contains('all-contacts-filter');
             
             console.log('🎯 Distribution list clicked:', listName);
+            console.log('🎯 Is All Contacts filter:', isAllContactsFilter);
             console.log('🎯 Event target:', event.target);
-            console.log('🎯 Event currentTarget:', event.currentTarget);
             
-            if (listName !== undefined) {
-                this.filterByDistributionList(listName);
+            // Only allow filtering for "All Contacts" option, not regular distribution lists
+            if (isAllContactsFilter && listName === '') {
+                console.log('🎯 Activating "All Contacts" filter (show all)');
+                this.filterByDistributionList(null); // Reset filter to show all contacts
+            } else if (!isAllContactsFilter) {
+                console.log('🎯 Regular distribution list clicked - no automatic filtering');
+                // Don't auto-filter for regular distribution lists
+                // User must use a different method to filter (like a separate filter button)
             }
             return;
         }
@@ -3471,9 +3509,12 @@ export class ContactUIController {
      */
     async deleteDistributionList(listName) {
         try {
+            console.log('🗑️ UI: Starting deletion of distribution list:', listName);
             const result = await this.contactManager.deleteDistributionList(listName);
+            console.log('🗑️ UI: Deletion result:', result);
             
             if (result.success) {
+                console.log('✅ UI: Distribution list deleted successfully, updating UI...');
                 this.showToast({ 
                     message: `Distribution list "${listName}" deleted successfully`, 
                     type: 'success' 
@@ -3481,13 +3522,17 @@ export class ContactUIController {
                 
                 // Clear the filter if the deleted list was active
                 if (this.activeFilters.distributionList === listName) {
+                    console.log('🔄 UI: Clearing active filter for deleted list');
                     this.activeFilters.distributionList = null;
                     await this.refreshContactsList();
                 }
                 
                 // Refresh distribution lists in sidebar
+                console.log('🔄 UI: Refreshing distribution lists display...');
                 await this.renderDistributionLists();
+                console.log('✅ UI: Distribution lists display refreshed');
             } else {
+                console.error('❌ UI: Distribution list deletion failed:', result.error);
                 this.showToast({ 
                     message: result.error || 'Failed to delete distribution list', 
                     type: 'error' 

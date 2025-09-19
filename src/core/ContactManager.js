@@ -1456,6 +1456,7 @@ export class ContactManager {
      * @returns {Promise<Object>} Deletion result
      */
     async deleteDistributionList(listName) {
+        console.log('�🚨🚨 FORCE RELOAD: Browser cache cleared - deleteDistributionList method starting for:', listName);
         try {
             console.log('🗑️ Deleting distribution list:', listName);
             
@@ -1474,10 +1475,15 @@ export class ContactManager {
                 distributionLists
             });
             
-            if (updateResult.success) {
+            console.log('🔍 updateResult from database:', updateResult);
+            
+            if (updateResult) { // updateSettings returns boolean, not {success: true}
+                console.log('✅ Database update successful, removing list from contacts...');
+                
                 // Remove the list from all contacts
                 for (const contact of this.contacts.values()) {
                     if (contact.metadata.distributionLists?.includes(listName)) {
+                        console.log('🔄 Removing list from contact:', contact.cardName);
                         const updatedLists = contact.metadata.distributionLists.filter(l => l !== listName);
                         await this.updateContact(contact.contactId, {
                             distributionLists: updatedLists
@@ -1490,6 +1496,7 @@ export class ContactManager {
                 
                 return { success: true };
             } else {
+                console.log('❌ Database update failed');
                 return { success: false, error: 'Failed to delete distribution list' };
             }
             
