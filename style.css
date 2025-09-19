@@ -645,9 +645,6 @@ body {
 }
 
 .contact-list {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-4);
     overflow-y: auto;
     flex: 1;
     min-height: 0; /* Important for flexbox scrolling */
@@ -677,6 +674,126 @@ body {
 .contact-list {
     scrollbar-width: thin;
     scrollbar-color: var(--border-color) var(--bg-secondary);
+}
+
+/* Contact List View Modes */
+.contact-list.card-view {
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.contact-list.list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+/* List View Item Styles - Minimal, compact design */
+.contact-list.list-view .contact-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3);
+    height: 36px; /* Fixed low height */
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    background: var(--bg-primary);
+    font-size: 0.875rem; /* Smaller font size */
+}
+
+.contact-list.list-view .contact-list-item:hover {
+    background: var(--hover-color);
+}
+
+.contact-list.list-view .contact-list-item.selected {
+    background: var(--primary-light);
+    border-left: 3px solid var(--primary-color);
+    padding-left: calc(var(--space-3) - 3px); /* Compensate for border */
+}
+
+.contact-list.list-view .contact-list-item:last-child {
+    border-bottom: none;
+}
+
+.contact-list.list-view .contact-list-item .contact-name {
+    flex: 1;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+.contact-list.list-view .contact-list-item .contact-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.contact-list.list-view .contact-list-item:hover .contact-actions {
+    opacity: 1;
+}
+
+.contact-list.list-view .contact-list-item .contact-actions .action-btn {
+    padding: 4px;
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.contact-list.list-view .contact-list-item .contact-actions .action-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.contact-list.list-view .contact-list-item[data-archived="true"] {
+    opacity: 0.7;
+    background: linear-gradient(135deg, var(--bg-primary) 0%, #f5f5f5 100%);
+}
+
+.contact-list.list-view .contact-list-item[data-archived="true"] .contact-name {
+    color: var(--text-secondary);
+    text-decoration: line-through;
+}
+
+/* Default styles for list items when NOT in list view */
+.contact-list-item {
+    display: none; /* Hide list items by default - they should only show in list view */
+}
+
+/* Hide contact cards when in list view */
+.contact-list.list-view .contact-card {
+    display: none;
+}
+
+/* Hide list items when in card view */
+.contact-list.card-view .contact-list-item {
+    display: none;
+}
+
+/* Show list items only in list view */
+.contact-list.list-view .contact-list-item {
+    display: flex;
 }
 
 .contact-card {

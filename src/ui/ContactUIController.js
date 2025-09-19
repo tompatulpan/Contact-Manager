@@ -14,6 +14,7 @@ export class ContactUIController {
         this.currentUser = null;
         this.selectedContactId = null;
         this.currentView = 'contacts'; // contacts, archived, shared
+        this.viewMode = 'card'; // card, list
         this.searchQuery = '';
         this.activeFilters = {
             includeArchived: false,  // Don't show archived contacts by default
@@ -168,6 +169,10 @@ export class ContactUIController {
             filterDropdown: document.getElementById('filter-dropdown'),
             sortSelect: document.getElementById('sort-select'),
             
+            // View toggle elements
+            viewCardBtn: document.getElementById('view-card'),
+            viewListBtn: document.getElementById('view-list'),
+            
             // Distribution list elements
             distributionListsContainer: document.getElementById('distribution-lists'),
             createListBtn: document.getElementById('create-list-btn'),
@@ -318,6 +323,14 @@ export class ContactUIController {
         }
         if (filterArchived) {
             filterArchived.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+
+        // View toggle buttons
+        if (this.elements.viewCardBtn) {
+            this.elements.viewCardBtn.addEventListener('click', () => this.setViewMode('card'));
+        }
+        if (this.elements.viewListBtn) {
+            this.elements.viewListBtn.addEventListener('click', () => this.setViewMode('list'));
         }
         
         if (this.elements.sortSelect) {
@@ -983,6 +996,36 @@ export class ContactUIController {
     }
 
     /**
+     * Set view mode (card or list)
+     */
+    setViewMode(mode) {
+        this.viewMode = mode;
+        
+        // Update button states
+        if (this.elements.viewCardBtn) {
+            this.elements.viewCardBtn.classList.toggle('active', mode === 'card');
+        }
+        if (this.elements.viewListBtn) {
+            this.elements.viewListBtn.classList.toggle('active', mode === 'list');
+        }
+        
+        // Update container class
+        const container = this.elements.contactCards;
+        if (container) {
+            container.classList.remove('card-view', 'list-view');
+            container.classList.add(mode + '-view');
+        }
+        
+        // Re-render current contacts with new view mode
+        if (this.contactManager && this.contactManager.getAllContacts) {
+            const allContacts = this.contactManager.getAllContacts();
+            this.displayContactList(this.filterAndSortContacts(allContacts));
+        }
+        
+        this.log(`🎨 View mode changed to: ${mode}`);
+    }
+
+    /**
      * Display contact list
      */
     displayContactList(contacts) {
@@ -1021,15 +1064,25 @@ export class ContactUIController {
             }
         }
         
-        this.log('🎨 Creating', contacts.length, 'contact cards...');
-        // Create contact cards
+        this.log('🎨 Creating', contacts.length, 'contact items...');
+        // Set container view mode class
+        container.classList.remove('card-view', 'list-view');
+        container.classList.add(this.viewMode + '-view');
+        
+        // Create both card and list items for each contact
         contacts.forEach((contact, index) => {
-            this.log(`🎨 Creating card ${index + 1}:`, contact.cardName);
-            const contactCard = this.createContactCard(contact);
-            container.appendChild(contactCard);
+            this.log(`🎨 Creating card and list items ${index + 1}:`, contact.cardName);
+            
+            // Create card element
+            const cardElement = this.createContactCard(contact);
+            container.appendChild(cardElement);
+            
+            // Create list element
+            const listElement = this.createContactListItem(contact);
+            container.appendChild(listElement);
         });
         
-        this.log('🎨 Contact cards created and appended');
+        this.log('🎨 Contact items created and appended');
         // Update contact count
         this.updateContactCount(contacts.length);
         this.log('✅ DisplayContactList completed');
@@ -1263,6 +1316,108 @@ export class ContactUIController {
     }
 
     /**
+     * Create contact list item for list view
+     */
+    createContactListItem(contact) {
+        console.log('📝 Creating list item for contact:', contact.contactId);
+        
+        const vCardData = this.contactManager.vCardStandard.parseVCard(contact.vcard);
+        const fullName = vCardData.properties.get('FN') || 'Unnamed Contact';
+        
+        const listItem = document.createElement('div');
+        listItem.className = 'contact-list-item';
+        listItem.dataset.contactId = contact.contactId;
+        
+        // Add ownership indicator class
+        if (contact.metadata?.isOwned) {
+            listItem.classList.add('owned-contact');
+        } else {
+            listItem.classList.add('shared-contact');
+        }
+        
+        // Simple structure: just name and minimal actions
+        listItem.innerHTML = `
+            <div class="contact-name">${this.escapeHtml(fullName)}</div>
+            <div class="contact-actions">
+                <button class="action-btn view-contact" title="View Contact">
+                    👁️
+                </button>
+                ${contact.metadata?.isOwned ? `
+                    <button class="action-btn edit-contact" title="Edit Contact">
+                        ✏️
+                    </button>
+                    <button class="action-btn delete-contact" title="Delete Contact">
+                        🗑️
+                    </button>
+                ` : ''}
+                <button class="action-btn archive-contact" title="Archive Contact">
+                    📦
+                </button>
+            </div>
+        `;
+        
+        this.attachContactListItemListeners(listItem, contact);
+        return listItem;
+    }
+
+    /**
+     * Attach event listeners to contact list item buttons
+     */
+    attachContactListItemListeners(listItem, contact) {
+        console.log('🔗 Attaching listeners to contact list item:', contact.contactId);
+        
+        // View contact button
+        const viewBtn = listItem.querySelector('.view-contact');
+        if (viewBtn) {
+            viewBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('👁️ View button clicked for:', contact.contactId);
+                this.selectContact(contact.contactId);
+            });
+        }
+
+        // Edit contact button (only for owned contacts)
+        const editBtn = listItem.querySelector('.edit-contact');
+        if (editBtn) {
+            editBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('✏️ Edit button clicked for:', contact.contactId);
+                this.showEditContactModal(contact.contactId);
+            });
+        }
+
+        // Delete contact button (only for owned contacts)
+        const deleteBtn = listItem.querySelector('.delete-contact');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('🗑️ Delete button clicked for:', contact.contactId);
+                this.showDeleteConfirmModal(contact.contactId);
+            });
+        }
+
+        // Archive contact button
+        const archiveBtn = listItem.querySelector('.archive-contact');
+        if (archiveBtn) {
+            archiveBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('📦 Archive button clicked for:', contact.contactId);
+                this.archiveContact(contact.contactId);
+            });
+        }
+
+        // Click on list item to select (but not on buttons)
+        listItem.addEventListener('click', (event) => {
+            if (!event.target.closest('.contact-actions')) {
+                console.log('🎯 List item clicked (not on button) for:', contact.contactId);
+                this.selectContact(contact.contactId);
+            }
+        });
+        
+        console.log('✅ All listeners attached for contact list item:', contact.contactId);
+    }
+
+    /**
      * Select a contact without tracking access (used for newly created contacts)
      */
     selectContactWithoutTracking(contactId) {
@@ -1291,11 +1446,11 @@ export class ContactUIController {
         const contact = this.contactManager.getContact(contactId);
         if (!contact) return;
         
-        // Update selected state in UI
-        this.elements.contactCards?.querySelectorAll('.contact-card').forEach(card => {
-            card.classList.remove('selected');
-            if (card.dataset.contactId === contactId) {
-                card.classList.add('selected');
+        // Update selected state in UI for both card and list views
+        this.elements.contactCards?.querySelectorAll('.contact-card, .contact-list-item').forEach(item => {
+            item.classList.remove('selected');
+            if (item.dataset.contactId === contactId) {
+                item.classList.add('selected');
             }
         });
         
@@ -1690,7 +1845,7 @@ export class ContactUIController {
                     <p>Select a contact to view details, or create a new contact to get started.</p>
                     <button id="welcome-new-contact" class="btn btn-primary">
                         <i class="fas fa-plus"></i>
-                        Create First Contact
+                        Create New Contact
                     </button>
                 </div>
             `;
