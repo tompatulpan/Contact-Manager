@@ -1989,6 +1989,54 @@ body {
     }
 }
 
+/* Format Badges for Export */
+.format-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+.format-badge.standard {
+    background-color: #10b981;
+    color: white;
+}
+
+.format-badge.apple {
+    background-color: #007AFF;
+    color: white;
+}
+
+/* Apple/iCloud Import/Export Styles */
+.apple-import-indicator {
+    background: linear-gradient(45deg, #007AFF, #5AC8FA);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.apple-vcard-preview {
+    border-left: 3px solid #007AFF;
+    background: #f8f9ff;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.apple-vcard-preview::before {
+    content: "🍎 Apple/iCloud vCard 3.0";
+    font-size: 12px;
+    font-weight: 600;
+    color: #007AFF;
+    display: block;
+    margin-bottom: 5px;
+}
+
 @media (max-width: 480px) {
     .multi-field-item {
         padding: 0.5rem;
@@ -1997,5 +2045,10 @@ body {
     .add-field-btn {
         padding: 0.75rem;
         font-size: 0.8rem;
+    }
+    
+    .format-badge {
+        font-size: 10px;
+        padding: 1px 6px;
     }
 }

@@ -396,7 +396,7 @@ export class ContactUIController {
         
         // Export form radio changes to update preview
         if (this.elements.exportForm) {
-            const exportRadios = this.elements.exportForm.querySelectorAll('input[name="exportType"]');
+            const exportRadios = this.elements.exportForm.querySelectorAll('input[name="exportType"], input[name="exportFormat"]');
             exportRadios.forEach(radio => {
                 radio.addEventListener('change', this.updateExportPreview.bind(this));
             });
@@ -4155,6 +4155,7 @@ export class ContactUIController {
         
         const formData = new FormData(event.target);
         const exportType = formData.get('exportType') || 'all';
+        const exportFormat = formData.get('exportFormat') || 'standard';
         const filename = formData.get('filename')?.trim() || 'contacts';
         
         // Validate filename
@@ -4174,12 +4175,13 @@ export class ContactUIController {
                 return;
             }
             
-            // Generate and download vCard file
-            await this.exportContacts(contactsToExport, filename);
+            // Generate and download vCard file based on format
+            await this.exportContacts(contactsToExport, filename, exportFormat);
             
             // Show success and close modal
+            const formatLabel = exportFormat === 'apple' ? 'Apple/iCloud vCard 3.0' : 'Standard vCard 4.0';
             this.showToast({
-                message: `Exported ${contactsToExport.length} contact${contactsToExport.length !== 1 ? 's' : ''} successfully`,
+                message: `Exported ${contactsToExport.length} contact${contactsToExport.length !== 1 ? 's' : ''} as ${formatLabel}`,
                 type: 'success'
             });
             
@@ -4215,12 +4217,28 @@ export class ContactUIController {
     /**
      * Export contacts to vCard file
      */
-    async exportContacts(contacts, filename) {
+    async exportContacts(contacts, filename, format = 'standard') {
         try {
-            // Generate combined vCard content
-            const vCardContent = contacts
-                .map(contact => contact.vcard)
-                .join('\n\n');
+            let vCardContent;
+            let fileExtension = '.vcf';
+            
+            if (format === 'apple') {
+                // Export as Apple/iCloud vCard 3.0 format
+                console.log('🍎 Exporting as Apple/iCloud vCard 3.0 format');
+                vCardContent = contacts
+                    .map(contact => {
+                        const appleExport = this.contactManager.vCardStandard.exportAsAppleVCard(contact);
+                        return appleExport.content;
+                    })
+                    .join('\n\n');
+                fileExtension = '_apple.vcf';
+            } else {
+                // Export as standard vCard 4.0 format
+                console.log('📄 Exporting as Standard vCard 4.0 format');
+                vCardContent = contacts
+                    .map(contact => contact.vcard)
+                    .join('\n\n');
+            }
             
             // Create and download file
             const blob = new Blob([vCardContent], { type: 'text/vcard;charset=utf-8' });
@@ -4228,7 +4246,7 @@ export class ContactUIController {
             
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${filename}.vcf`;
+            a.download = `${filename}${fileExtension}`;
             a.style.display = 'none';
             
             document.body.appendChild(a);
@@ -4238,7 +4256,7 @@ export class ContactUIController {
             // Clean up
             URL.revokeObjectURL(url);
             
-            console.log(`✅ Exported ${contacts.length} contacts to ${filename}.vcf`);
+            console.log(`✅ Exported ${contacts.length} contacts to ${filename}${fileExtension} (${format} format)`);
             
         } catch (error) {
             console.error('Error exporting contacts:', error);
@@ -4254,12 +4272,17 @@ export class ContactUIController {
         
         const formData = new FormData(this.elements.exportForm);
         const exportType = formData.get('exportType') || 'all';
+        const exportFormat = formData.get('exportFormat') || 'standard';
         
         const contactsToExport = this.getContactsForExport(exportType);
         const count = contactsToExport.length;
         
+        const formatInfo = exportFormat === 'apple' 
+            ? '<span class="format-badge apple">🍎 Apple/iCloud 3.0</span>'
+            : '<span class="format-badge standard">📄 Standard 4.0</span>';
+        
         this.elements.exportContactCount.innerHTML = `
-            <span class="count-number">${count}</span> contact${count !== 1 ? 's' : ''} will be exported
+            <span class="count-number">${count}</span> contact${count !== 1 ? 's' : ''} will be exported as ${formatInfo}
         `;
     }
 

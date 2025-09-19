@@ -679,6 +679,22 @@
                     </div>
                     
                     <div class="form-group">
+                        <label>Export Format</label>
+                        <div class="radio-group">
+                            <label class="radio-item">
+                                <input type="radio" name="exportFormat" value="standard" checked>
+                                <span>📄 Standard vCard 4.0 (Recommended)</span>
+                                <small class="help-text">Compatible with most modern contact applications</small>
+                            </label>
+                            <label class="radio-item">
+                                <input type="radio" name="exportFormat" value="apple">
+                                <span>🍎 Apple/iCloud vCard 3.0</span>
+                                <small class="help-text">Optimized for Apple Contacts, iPhone, and iCloud</small>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
                         <label for="export-filename">Filename</label>
                         <input type="text" id="export-filename" name="filename" 
                                value="contacts" placeholder="contacts">

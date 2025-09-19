@@ -10,6 +10,15 @@ export class VCardStandard {
             'NOTE', 'BDAY', 'ADR', 'PHOTO', 'CATEGORIES', 'REV'
         ]);
         this.requiredProperties = new Set(['VERSION', 'FN']);
+        
+        // Apple/iCloud vCard 3.0 compatibility mappings
+        this.appleUrlTypes = new Set([
+            'PERSONAL', 'SOCIAL', 'OTHER', 'WORK', 'HOME'
+        ]);
+        
+        this.standardUrlTypes = new Set([
+            'work', 'home', 'other'
+        ]);
     }
 
     /**
@@ -445,6 +454,13 @@ export class VCardStandard {
      * @returns {Object} Contact object
      */
     importFromVCard(vCardString, cardName = null) {
+        // Auto-detect Apple/iCloud vCard 3.0 format
+        if (this.isAppleVCard(vCardString)) {
+            console.log('🍎 Detected Apple/iCloud vCard 3.0 format - using Apple import');
+            return this.importFromAppleVCard(vCardString, cardName);
+        }
+
+        // Standard vCard 4.0 validation and import
         const validation = this.validateVCard(vCardString);
         if (!validation.isValid) {
             throw new Error(`Invalid vCard: ${validation.errors.join(', ')}`);
@@ -491,5 +507,427 @@ export class VCardStandard {
             const v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
+    }
+
+    /**
+     * Import Apple/iCloud vCard 3.0 format and convert to vCard 4.0
+     * @param {string} vCardString - Apple vCard 3.0 string
+     * @param {string} cardName - User-friendly card name
+     * @returns {Object} Contact object with vCard 4.0 format
+     */
+    importFromAppleVCard(vCardString, cardName = null) {
+        console.log('🍎 Importing Apple/iCloud vCard 3.0...');
+        
+        // Parse the Apple vCard 3.0
+        const appleContact = this.parseAppleVCard(vCardString);
+        
+        // Convert to vCard 4.0 format
+        const vCard40String = this.convertAppleToStandard(appleContact);
+        
+        // Create contact object
+        const displayData = this.extractDisplayData({ vcard: vCard40String });
+        
+        return {
+            contactId: this.generateContactId(),
+            cardName: cardName || displayData.fullName || 'Apple Import',
+            vcard: vCard40String,
+            metadata: {
+                createdAt: new Date().toISOString(),
+                lastUpdated: new Date().toISOString(),
+                isOwned: true,
+                isArchived: false,
+                sharedWith: [],
+                importSource: 'apple_icloud_3.0'
+            }
+        };
+    }
+
+    /**
+     * Export contact to Apple/iCloud compatible vCard 3.0 format
+     * @param {Object} contact - Contact object
+     * @returns {Object} Export data with Apple vCard 3.0
+     */
+    exportAsAppleVCard(contact) {
+        console.log('🍎 Exporting to Apple/iCloud vCard 3.0...');
+        
+        const displayData = this.extractDisplayData(contact);
+        const appleVCard = this.convertStandardToApple(displayData);
+        const filename = `${displayData.fullName.replace(/[^a-zA-Z0-9]/g, '_')}_apple.vcf`;
+        
+        return {
+            filename,
+            content: appleVCard,
+            mimeType: 'text/vcard;charset=utf-8',
+            format: 'apple_3.0'
+        };
+    }
+
+    /**
+     * Parse Apple vCard 3.0 format
+     * @param {string} vCardString - Apple vCard string
+     * @returns {Object} Parsed Apple contact data
+     */
+    parseAppleVCard(vCardString) {
+        const lines = this.unfoldLines(vCardString);
+        const contact = { 
+            version: '3.0', 
+            properties: new Map(),
+            rawProperties: new Map()
+        };
+
+        for (const line of lines) {
+            if (line.startsWith('BEGIN:VCARD') || line.startsWith('END:VCARD')) {
+                continue;
+            }
+            
+            try {
+                const { property, parameters, value } = this.parseAppleLine(line);
+                this.addProperty(contact, property, parameters, value);
+                
+                // Store raw property for debugging
+                if (!contact.rawProperties.has(property)) {
+                    contact.rawProperties.set(property, []);
+                }
+                contact.rawProperties.get(property).push(line);
+            } catch (error) {
+                console.warn(`Failed to parse Apple vCard line: "${line}"`, error);
+            }
+        }
+
+        return contact;
+    }
+
+    /**
+     * Parse Apple vCard 3.0 property line
+     * @param {string} line - Apple property line
+     * @returns {Object} Parsed property data
+     */
+    parseAppleLine(line) {
+        const colonIndex = line.indexOf(':');
+        if (colonIndex === -1) {
+            throw new Error(`Invalid Apple property line: ${line}`);
+        }
+
+        const propertyPart = line.substring(0, colonIndex);
+        const value = line.substring(colonIndex + 1);
+
+        const semicolonIndex = propertyPart.indexOf(';');
+        let property, parametersString;
+
+        if (semicolonIndex === -1) {
+            property = propertyPart;
+            parametersString = '';
+        } else {
+            property = propertyPart.substring(0, semicolonIndex);
+            parametersString = propertyPart.substring(semicolonIndex + 1);
+        }
+
+        const parameters = this.parseAppleParameters(parametersString);
+
+        return {
+            property: property.toUpperCase(),
+            parameters,
+            value: this.unescapeValue(value)
+        };
+    }
+
+    /**
+     * Parse Apple vCard 3.0 parameters (lowercase 'type')
+     * @param {string} parametersString - Apple parameter string
+     * @returns {Object} Parameters object
+     */
+    parseAppleParameters(parametersString) {
+        const parameters = {};
+        
+        if (!parametersString) {
+            return parameters;
+        }
+
+        const params = parametersString.split(';');
+        for (const param of params) {
+            const equalIndex = param.indexOf('=');
+            if (equalIndex !== -1) {
+                const key = param.substring(0, equalIndex).toLowerCase(); // Keep lowercase for Apple
+                const value = param.substring(equalIndex + 1);
+                
+                // Convert to standard format
+                if (key === 'type') {
+                    parameters['TYPE'] = value.toUpperCase();
+                } else if (key === 'pref') {
+                    parameters['PREF'] = value;
+                } else {
+                    parameters[key.toUpperCase()] = value;
+                }
+            }
+        }
+
+        return parameters;
+    }
+
+    /**
+     * Convert Apple vCard 3.0 to standard vCard 4.0
+     * @param {Object} appleContact - Parsed Apple contact
+     * @returns {string} vCard 4.0 string
+     */
+    convertAppleToStandard(appleContact) {
+        let vcard = 'BEGIN:VCARD\n';
+        vcard += 'VERSION:4.0\n';
+
+        // Full Name
+        const fn = appleContact.properties.get('FN');
+        if (fn) {
+            vcard += `FN:${this.escapeValue(fn)}\n`;
+        }
+
+        // Structured Name (N)
+        const n = appleContact.properties.get('N');
+        if (n) {
+            vcard += `N:${this.escapeValue(n)}\n`;
+        }
+
+        // Phone numbers
+        const phones = appleContact.properties.get('TEL') || [];
+        phones.forEach(phone => {
+            const type = this.convertApplePhoneType(phone.parameters?.TYPE);
+            const pref = phone.parameters?.PREF ? ';PREF=1' : '';
+            vcard += `TEL;TYPE=${type}${pref}:${this.escapeValue(phone.value)}\n`;
+        });
+
+        // Email addresses
+        const emails = appleContact.properties.get('EMAIL') || [];
+        emails.forEach(email => {
+            const type = this.convertAppleEmailType(email.parameters?.TYPE);
+            const pref = email.parameters?.PREF ? ';PREF=1' : '';
+            vcard += `EMAIL;TYPE=${type}${pref}:${this.escapeValue(email.value)}\n`;
+        });
+
+        // URLs with Apple type conversion
+        const urls = appleContact.properties.get('URL') || [];
+        urls.forEach(url => {
+            const type = this.convertAppleUrlType(url.parameters?.TYPE);
+            const pref = url.parameters?.PREF ? ';PREF=1' : '';
+            vcard += `URL;TYPE=${type}${pref}:${this.escapeValue(url.value)}\n`;
+        });
+
+        // Address (ADR)
+        const addresses = appleContact.properties.get('ADR') || [];
+        addresses.forEach(addr => {
+            vcard += `ADR:${this.escapeValue(addr.value || addr)}\n`;
+        });
+
+        // Organization
+        const org = appleContact.properties.get('ORG');
+        if (org) {
+            vcard += `ORG:${this.escapeValue(org)}\n`;
+        }
+
+        // Title
+        const title = appleContact.properties.get('TITLE');
+        if (title) {
+            vcard += `TITLE:${this.escapeValue(title)}\n`;
+        }
+
+        // Notes
+        const notes = appleContact.properties.get('NOTE') || [];
+        if (Array.isArray(notes)) {
+            notes.forEach(note => {
+                vcard += `NOTE:${this.escapeValue(note.value || note)}\n`;
+            });
+        } else if (notes) {
+            vcard += `NOTE:${this.escapeValue(notes)}\n`;
+        }
+
+        // Add revision timestamp
+        vcard += `REV:${new Date().toISOString()}\n`;
+
+        vcard += 'END:VCARD';
+        return vcard;
+    }
+
+    /**
+     * Convert standard vCard 4.0 to Apple vCard 3.0
+     * @param {Object} displayData - Standard contact display data
+     * @returns {string} Apple vCard 3.0 string
+     */
+    convertStandardToApple(displayData) {
+        let vcard = 'BEGIN:VCARD\n';
+        vcard += 'VERSION:3.0\n';
+
+        // Full Name
+        if (displayData.fullName) {
+            vcard += `FN:${this.escapeValue(displayData.fullName)}\n`;
+            
+            // Create structured name (N) from full name if not present
+            const nameParts = displayData.fullName.split(' ');
+            const lastName = nameParts.pop() || '';
+            const firstName = nameParts.join(' ') || '';
+            vcard += `N:${lastName};${firstName};;;\n`;
+        }
+
+        // Phone numbers with Apple formatting
+        if (displayData.phones && displayData.phones.length > 0) {
+            displayData.phones.forEach(phone => {
+                const appleType = this.convertToApplePhoneType(phone.type);
+                const pref = phone.primary ? ';pref' : '';
+                vcard += `TEL;type=${appleType}${pref}:${this.escapeValue(phone.value)}\n`;
+            });
+        }
+
+        // Email addresses with Apple formatting
+        if (displayData.emails && displayData.emails.length > 0) {
+            displayData.emails.forEach(email => {
+                const appleType = this.convertToAppleEmailType(email.type);
+                const pref = email.primary ? ';pref' : '';
+                vcard += `EMAIL;type=${appleType}${pref}:${this.escapeValue(email.value)}\n`;
+            });
+        }
+
+        // URLs with Apple type handling
+        if (displayData.urls && displayData.urls.length > 0) {
+            displayData.urls.forEach(url => {
+                const appleType = this.convertToAppleUrlType(url.type);
+                const pref = url.primary ? ';pref' : '';
+                vcard += `URL;type=${appleType}${pref}:${this.escapeValue(url.value)}\n`;
+            });
+        }
+
+        // Organization
+        if (displayData.organization) {
+            vcard += `ORG:${this.escapeValue(displayData.organization)}\n`;
+        }
+
+        // Title
+        if (displayData.title) {
+            vcard += `TITLE:${this.escapeValue(displayData.title)}\n`;
+        }
+
+        // Notes
+        if (displayData.notes && displayData.notes.length > 0) {
+            displayData.notes.forEach(note => {
+                vcard += `NOTE:${this.escapeValue(note)}\n`;
+            });
+        }
+
+        // Basic address field (empty but formatted)
+        vcard += 'ADR:;;Street;City;;PostalCode;\n';
+
+        vcard += 'END:VCARD';
+        return vcard;
+    }
+
+    /**
+     * Convert Apple phone type to standard
+     * @param {string} appleType - Apple phone type
+     * @returns {string} Standard phone type
+     */
+    convertApplePhoneType(appleType) {
+        if (!appleType) return 'other';
+        
+        const type = appleType.toLowerCase();
+        switch (type) {
+            case 'work': return 'work';
+            case 'home': return 'home';
+            case 'mobile': return 'cell';
+            case 'cell': return 'cell';
+            default: return 'other';
+        }
+    }
+
+    /**
+     * Convert standard phone type to Apple
+     * @param {string} standardType - Standard phone type
+     * @returns {string} Apple phone type
+     */
+    convertToApplePhoneType(standardType) {
+        if (!standardType) return 'WORK';
+        
+        const type = standardType.toLowerCase();
+        switch (type) {
+            case 'work': return 'WORK';
+            case 'home': return 'HOME';
+            case 'cell': return 'MOBILE';
+            case 'mobile': return 'MOBILE';
+            default: return 'WORK';
+        }
+    }
+
+    /**
+     * Convert Apple email type to standard
+     * @param {string} appleType - Apple email type
+     * @returns {string} Standard email type
+     */
+    convertAppleEmailType(appleType) {
+        if (!appleType) return 'other';
+        
+        const type = appleType.toLowerCase();
+        switch (type) {
+            case 'work': return 'work';
+            case 'home': return 'home';
+            default: return 'other';
+        }
+    }
+
+    /**
+     * Convert standard email type to Apple
+     * @param {string} standardType - Standard email type
+     * @returns {string} Apple email type
+     */
+    convertToAppleEmailType(standardType) {
+        if (!standardType) return 'HOME';
+        
+        const type = standardType.toLowerCase();
+        switch (type) {
+            case 'work': return 'WORK';
+            case 'home': return 'HOME';
+            default: return 'HOME';
+        }
+    }
+
+    /**
+     * Convert Apple URL type to standard
+     * @param {string} appleType - Apple URL type (PERSONAL, SOCIAL, OTHER, etc.)
+     * @returns {string} Standard URL type
+     */
+    convertAppleUrlType(appleType) {
+        if (!appleType) return 'other';
+        
+        const type = appleType.toLowerCase();
+        switch (type) {
+            case 'work': return 'work';
+            case 'home': return 'home';
+            case 'personal': return 'home';
+            case 'social': return 'other';
+            case 'other': return 'other';
+            default: return 'other';
+        }
+    }
+
+    /**
+     * Convert standard URL type to Apple
+     * @param {string} standardType - Standard URL type
+     * @returns {string} Apple URL type
+     */
+    convertToAppleUrlType(standardType) {
+        if (!standardType) return 'OTHER';
+        
+        const type = standardType.toLowerCase();
+        switch (type) {
+            case 'work': return 'WORK';
+            case 'home': return 'PERSONAL';
+            case 'other': return 'OTHER';
+            default: return 'OTHER';
+        }
+    }
+
+    /**
+     * Detect if vCard is Apple/iCloud format
+     * @param {string} vCardString - vCard string
+     * @returns {boolean} True if Apple format
+     */
+    isAppleVCard(vCardString) {
+        return vCardString.includes('VERSION:3.0') && 
+               (vCardString.includes('type=') || 
+                vCardString.includes('TYPE=PERSONAL') ||
+                vCardString.includes('TYPE=SOCIAL'));
     }
 }
