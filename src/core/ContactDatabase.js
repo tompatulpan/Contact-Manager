@@ -641,6 +641,23 @@ export class ContactDatabase {
                 name: error.name,
                 stack: error.stack
             });
+            
+            // Handle case where contact is already shared with this user
+            if (error.name === 'ItemAlreadyExists') {
+                console.log('ℹ️ Contact already shared with user:', username);
+                const sharedDbName = `shared-contact-${contact.contactId}`;
+                
+                // Try to update the existing shared database with latest contact data
+                try {
+                    await this.updateSharedContactDatabase(contact, sharedDbName);
+                    console.log('✅ Updated existing shared contact for user:', username);
+                    return { success: true, sharedDbName, wasAlreadyShared: true };
+                } catch (updateError) {
+                    console.warn('⚠️ Could not update existing shared contact:', updateError.message);
+                    return { success: true, sharedDbName, wasAlreadyShared: true };
+                }
+            }
+            
             this.eventBus.emit('database:error', { error: error.message });
             return { success: false, error: error.message };
         }
@@ -899,8 +916,14 @@ export class ContactDatabase {
                 lastUpdated: new Date().toISOString()
             };
 
-            if (this.settingsItems && this.settingsItems.length > 0 && this.settingsItems[0] && this.settingsItems[0].itemId) {
+            // Initialize settingsItems if it's not set
+            if (!this.settingsItems) {
+                this.settingsItems = [];
+            }
+
+            if (this.settingsItems.length > 0 && this.settingsItems[0] && this.settingsItems[0].itemId) {
                 // Update existing settings
+                console.log('💾 Updating existing settings with itemId:', this.settingsItems[0].itemId);
                 await userbase.updateItem({
                     databaseName: 'user-settings',
                     itemId: this.settingsItems[0].itemId,
@@ -911,6 +934,7 @@ export class ContactDatabase {
                 this.settingsItems[0] = { ...this.settingsItems[0], ...settingsToSave };
             } else {
                 // Create new settings
+                console.log('💾 Creating new settings item');
                 const result = await userbase.insertItem({
                     databaseName: 'user-settings',
                     item: settingsToSave

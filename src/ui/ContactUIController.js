@@ -1960,6 +1960,7 @@ export class ContactUIController {
         try {
             let successCount = 0;
             let errorCount = 0;
+            let alreadySharedCount = 0;
             const errors = [];
             
             // Share contact with each user in the distribution list
@@ -1972,15 +1973,20 @@ export class ContactUIController {
                     }
                     
                     console.log(`📤 Sharing with user: ${username}`);
-                    const result = await this.contactManager.shareContactWithUser(
+                    const result = await this.contactManager.shareContact(
                         this.currentShareContact.contactId, 
                         username, 
                         isReadOnly
                     );
                     
                     if (result.success) {
-                        successCount++;
-                        console.log(`✅ Successfully shared with: ${username}`);
+                        if (result.wasAlreadyShared) {
+                            alreadySharedCount++;
+                            console.log(`ℹ️ Contact was already shared with: ${username}`);
+                        } else {
+                            successCount++;
+                            console.log(`✅ Successfully shared with: ${username}`);
+                        }
                     } else {
                         errorCount++;
                         errors.push(`${username}: ${result.error}`);
@@ -1993,12 +1999,23 @@ export class ContactUIController {
                 }
             }
             
-            // Show results
-            if (successCount > 0 && errorCount === 0) {
-                // Complete success
+            // Show results with improved messaging
+            const totalProcessed = successCount + alreadySharedCount;
+            if (totalProcessed > 0 && errorCount === 0) {
+                // Complete success (including already shared)
+                let message = '';
+                
+                if (successCount > 0 && alreadySharedCount > 0) {
+                    message = `Newly shared with ${successCount} users and ${alreadySharedCount} users already had access in "${listName}".`;
+                } else if (successCount > 0) {
+                    message = `Your contact was shared with all ${successCount} users in "${listName}".`;
+                } else if (alreadySharedCount > 0) {
+                    message = `All ${alreadySharedCount} users in "${listName}" already have access to this contact.`;
+                }
+                
                 this.setShareModalState('success', {
-                    title: 'Contact Shared Successfully!',
-                    message: `Your contact was shared with all ${successCount} users in "${listName}".`,
+                    title: 'Contact Sharing Complete!',
+                    message: message,
                     details: usernames.map(u => `✅ ${u}`).join('\n')
                 });
                 
@@ -2008,11 +2025,11 @@ export class ContactUIController {
                     sharedWith: [...(this.currentShareContact.metadata?.sharedWith || []), ...usernames]
                 });
                 
-            } else if (successCount > 0 && errorCount > 0) {
+            } else if (totalProcessed > 0 && errorCount > 0) {
                 // Partial success
                 this.setShareModalState('warning', {
                     title: 'Partially Shared',
-                    message: `Shared with ${successCount} users, but ${errorCount} failed.`,
+                    message: `Shared with ${totalProcessed} users, but ${errorCount} failed.`,
                     details: `Errors:\n${errors.join('\n')}`
                 });
                 
