@@ -566,13 +566,14 @@ export class VCardStandard {
      * Import vCard from string and create contact object
      * @param {string} vCardString - vCard string
      * @param {string} cardName - User-friendly card name
+     * @param {boolean} markAsImported - Whether to mark contact as imported (default: true)
      * @returns {Object} Contact object
      */
-    importFromVCard(vCardString, cardName = null) {
+    importFromVCard(vCardString, cardName = null, markAsImported = true) {
         // Auto-detect Apple/iCloud vCard 3.0 format
         if (this.isAppleVCard(vCardString)) {
             console.log('🍎 Detected Apple/iCloud vCard 3.0 format - using Apple import');
-            return this.importFromAppleVCard(vCardString, cardName);
+            return this.importFromAppleVCard(vCardString, cardName, markAsImported);
         }
 
         // Standard vCard 4.0 validation and import
@@ -583,17 +584,24 @@ export class VCardStandard {
 
         const displayData = this.extractDisplayData({ vcard: vCardString });
         
+        const metadata = {
+            createdAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            isOwned: true,
+            isArchived: false,
+            sharedWith: []
+        };
+
+        // Only add isImported flag if markAsImported is true
+        if (markAsImported) {
+            metadata.isImported = true;
+        }
+        
         return {
             contactId: this.generateContactId(),
             cardName: cardName || displayData.fullName || 'Imported Contact',
             vcard: vCardString,
-            metadata: {
-                createdAt: new Date().toISOString(),
-                lastUpdated: new Date().toISOString(),
-                isOwned: true,
-                isArchived: false,
-                sharedWith: []
-            }
+            metadata
         };
     }
 
@@ -628,9 +636,10 @@ export class VCardStandard {
      * Import Apple/iCloud vCard 3.0 format and convert to vCard 4.0
      * @param {string} vCardString - Apple vCard 3.0 string
      * @param {string} cardName - User-friendly card name
+     * @param {boolean} markAsImported - Whether to mark contact as imported (default: true)
      * @returns {Object} Contact object with vCard 4.0 format
      */
-    importFromAppleVCard(vCardString, cardName = null) {
+    importFromAppleVCard(vCardString, cardName = null, markAsImported = true) {
         console.log('🍎 Importing Apple/iCloud vCard 3.0...');
         
         // Parse the Apple vCard 3.0
@@ -642,18 +651,25 @@ export class VCardStandard {
         // Create contact object
         const displayData = this.extractDisplayData({ vcard: vCard40String });
         
+        const metadata = {
+            createdAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            isOwned: true,
+            isArchived: false,
+            sharedWith: [],
+            importSource: 'apple_icloud_3.0'
+        };
+
+        // Only add isImported flag if markAsImported is true
+        if (markAsImported) {
+            metadata.isImported = true;
+        }
+        
         return {
             contactId: this.generateContactId(),
             cardName: cardName || displayData.fullName || 'Apple Import',
             vcard: vCard40String,
-            metadata: {
-                createdAt: new Date().toISOString(),
-                lastUpdated: new Date().toISOString(),
-                isOwned: true,
-                isArchived: false,
-                sharedWith: [],
-                importSource: 'apple_icloud_3.0'
-            }
+            metadata
         };
     }
 

@@ -235,6 +235,7 @@ export class ContactUIController {
             importForm: document.getElementById('import-form'),
             importFile: document.getElementById('import-file'),
             importCardName: document.getElementById('import-card-name'),
+            markAsImported: document.getElementById('mark-as-imported'),
             importLoading: document.getElementById('import-loading'),
             importSuccess: document.getElementById('import-success'),
             importResults: document.getElementById('import-results'),
@@ -326,6 +327,7 @@ export class ContactUIController {
         // Filter checkboxes
         const filterOwned = document.getElementById('filter-owned');
         const filterShared = document.getElementById('filter-shared');
+        const filterImported = document.getElementById('filter-imported');
         const filterArchived = document.getElementById('filter-archived');
         
         if (filterOwned) {
@@ -333,6 +335,9 @@ export class ContactUIController {
         }
         if (filterShared) {
             filterShared.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+        if (filterImported) {
+            filterImported.addEventListener('change', this.handleFilterChange.bind(this));
         }
         if (filterArchived) {
             filterArchived.addEventListener('change', this.handleFilterChange.bind(this));
@@ -699,14 +704,16 @@ export class ContactUIController {
     handleFilterChange() {
         const filterOwned = document.getElementById('filter-owned');
         const filterShared = document.getElementById('filter-shared');
+        const filterImported = document.getElementById('filter-imported');
         const filterArchived = document.getElementById('filter-archived');
         
         const ownedChecked = filterOwned?.checked || false;
         const sharedChecked = filterShared?.checked || false;
+        const importedChecked = filterImported?.checked || false;
         const archivedChecked = filterArchived?.checked || false;
         
         // If only "Archived" is checked, show only archived contacts
-        if (archivedChecked && !ownedChecked && !sharedChecked) {
+        if (archivedChecked && !ownedChecked && !sharedChecked && !importedChecked) {
             this.activeFilters = {
                 includeArchived: true,
                 includeDeleted: false,
@@ -714,39 +721,38 @@ export class ContactUIController {
                 distributionList: this.activeFilters.distributionList
             };
         } 
+        // If only "Imported Files" is checked, show only imported contacts
+        else if (importedChecked && !ownedChecked && !sharedChecked && !archivedChecked) {
+            this.activeFilters = {
+                includeArchived: false,
+                includeDeleted: false,
+                importedOnly: true, // Special flag for imported-only view
+                distributionList: this.activeFilters.distributionList
+            };
+        }
         // If "Archived" + other filters are checked, show all types including archived
-        else if (archivedChecked && (ownedChecked || sharedChecked)) {
+        else if (archivedChecked && (ownedChecked || sharedChecked || importedChecked)) {
             const filters = {
                 includeArchived: true,
                 includeDeleted: false,
                 distributionList: this.activeFilters.distributionList
             };
             
-            // Handle ownership filtering when archived is also included
-            if (ownedChecked && !sharedChecked) {
-                filters.ownership = 'owned';
-            } else if (!ownedChecked && sharedChecked) {
-                filters.ownership = 'shared';
-            }
-            // If both ownership types checked, show all ownership types
+            // Handle ownership and import filtering when archived is also included
+            this.setOwnershipAndImportFilters(filters, ownedChecked, sharedChecked, importedChecked);
             
             this.activeFilters = filters;
         }
-        // If only ownership filters are checked (no archived), show active contacts only
-        else if (!archivedChecked && (ownedChecked || sharedChecked)) {
+        // If only ownership/import filters are checked (no archived), show active contacts only
+        else if (!archivedChecked && (ownedChecked || sharedChecked || importedChecked)) {
             const filters = {
                 includeArchived: false,
                 includeDeleted: false,
                 distributionList: this.activeFilters.distributionList
             };
             
-            // Handle ownership filtering
-            if (ownedChecked && !sharedChecked) {
-                filters.ownership = 'owned';
-            } else if (!ownedChecked && sharedChecked) {
-                filters.ownership = 'shared';
-            }
-            // If both ownership types checked, show all ownership types
+            // Handle ownership and import filtering
+            this.setOwnershipAndImportFilters(filters, ownedChecked, sharedChecked, importedChecked);
             
             this.activeFilters = filters;
         }
@@ -761,7 +767,7 @@ export class ContactUIController {
         }
         
         console.log('🔧 Filter changed:', this.activeFilters);
-        console.log('🔧 Checkbox states:', { ownedChecked, sharedChecked, archivedChecked });
+        console.log('🔧 Checkbox states:', { ownedChecked, sharedChecked, importedChecked, archivedChecked });
         
         // Update mobile title if mobile navigation is active
         if (this.mobileNavigation && window.innerWidth <= 768) {
@@ -769,6 +775,39 @@ export class ContactUIController {
         }
         
         this.performSearch();
+    }
+
+    /**
+     * Helper method to set ownership and import filters
+     */
+    setOwnershipAndImportFilters(filters, ownedChecked, sharedChecked, importedChecked) {
+        const filterTypes = [];
+        
+        if (ownedChecked) filterTypes.push('owned');
+        if (sharedChecked) filterTypes.push('shared');
+        if (importedChecked) filterTypes.push('imported');
+        
+        // If only one type is selected, set specific filter
+        if (filterTypes.length === 1) {
+            if (filterTypes[0] === 'imported') {
+                filters.importedOnly = true;
+            } else {
+                filters.ownership = filterTypes[0];
+            }
+        }
+        // If multiple types selected, set combination flags
+        else if (filterTypes.length > 1) {
+            if (filterTypes.includes('imported')) {
+                filters.includeImported = true;
+            }
+            
+            // Handle ownership combinations
+            const ownershipTypes = filterTypes.filter(t => t !== 'imported');
+            if (ownershipTypes.length === 1) {
+                filters.ownership = ownershipTypes[0];
+            }
+            // If both owned and shared are selected, don't set ownership filter (show all)
+        }
     }
 
     /**
@@ -4592,6 +4631,7 @@ export class ContactUIController {
         
         const fileInput = this.elements.importFile;
         const cardNameInput = this.elements.importCardName;
+        const markAsImportedInput = this.elements.markAsImported;
         
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             this.showFieldError('import-file', 'Please select a vCard file');
@@ -4600,6 +4640,7 @@ export class ContactUIController {
         
         const file = fileInput.files[0];
         const cardName = cardNameInput?.value?.trim() || null;
+        const markAsImported = markAsImportedInput?.checked !== false; // Default to true if element not found
         
         // Validate file type
         if (!file.name.match(/\.(vcf|vcard)$/i)) {
@@ -4615,7 +4656,7 @@ export class ContactUIController {
             const fileContent = await this.readFileAsText(file);
             
             // Parse and import contacts
-            const result = await this.importContactsFromVCard(fileContent, cardName);
+            const result = await this.importContactsFromVCard(fileContent, cardName, markAsImported);
             
             if (result.success) {
                 this.showImportSuccess(result);
@@ -4635,7 +4676,7 @@ export class ContactUIController {
     /**
      * Import contacts from vCard content
      */
-    async importContactsFromVCard(vCardContent, cardName) {
+    async importContactsFromVCard(vCardContent, cardName, markAsImported = true) {
         try {
             // Split multiple vCards if present
             const vCardBlocks = this.splitVCardContent(vCardContent);
@@ -4657,8 +4698,8 @@ export class ContactUIController {
                     // Use the provided card name only for single contact imports
                     const contactCardName = vCardBlocks.length === 1 ? cardName : null;
                     
-                    // Import via ContactManager
-                    const contact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName);
+                    // Import via ContactManager with markAsImported option
+                    const contact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, markAsImported);
                     const saveResult = await this.contactManager.database.saveContact(contact);
                     
                     if (saveResult.success) {

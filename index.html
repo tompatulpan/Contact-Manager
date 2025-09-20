@@ -73,6 +73,10 @@
                                 <span>Shared with Me</span>
                             </label>
                             <label class="checkbox-item">
+                                <input type="checkbox" id="filter-imported">
+                                <span>Imported Files</span>
+                            </label>
+                            <label class="checkbox-item">
                                 <input type="checkbox" id="filter-archived">
                                 <span>Archived</span>
                             </label>
@@ -695,6 +699,14 @@
                                placeholder="Leave empty to use name from file">
                         <div class="field-error" id="import-card-name-error"></div>
                         <small class="help-text">If importing multiple contacts, this will be ignored</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="mark-as-imported" name="markAsImported" checked>
+                            <span>Mark as "Imported Files" for filtering</span>
+                        </label>
+                        <small class="help-text">When enabled, imported contacts can be filtered using the "Imported Files" option</small>
                     </div>
                     
                     <div class="form-actions">

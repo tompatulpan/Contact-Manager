@@ -710,6 +710,15 @@ export class ContactManager {
         let filtered = [...contacts];
         console.log('🔍 ContactManager: Applying filters:', filters, 'to', filtered.length, 'contacts');
 
+        // Handle imported-only filter first (special case)
+        if (filters.importedOnly) {
+            console.log('🔍 ContactManager: Filtering for imported-only contacts');
+            const beforeCount = filtered.length;
+            filtered = filtered.filter(contact => contact.metadata.isImported === true);
+            console.log('🔍 ContactManager: Imported-only filter reduced contacts from', beforeCount, 'to', filtered.length);
+            return filtered; // Return early for imported-only filter
+        }
+
         // Distribution list filter
         if (filters.distributionList) {
             console.log('🔍 ContactManager: Filtering by distribution list:', filters.distributionList);
@@ -727,7 +736,7 @@ export class ContactManager {
         // Ownership filter
         if (filters.ownership === 'owned') {
             const beforeCount = filtered.length;
-            filtered = filtered.filter(contact => contact.metadata.isOwned);
+            filtered = filtered.filter(contact => contact.metadata.isOwned && !contact.metadata.isImported);
             console.log('🔍 ContactManager: Ownership filter (owned) reduced contacts from', beforeCount, 'to', filtered.length);
         } else if (filters.ownership === 'shared') {
             const beforeCount = filtered.length;
@@ -735,6 +744,20 @@ export class ContactManager {
             console.log('🔍 ContactManager: Ownership filter (shared) reduced contacts from', beforeCount, 'to', filtered.length);
         } else {
             console.log('🔍 ContactManager: No ownership filter applied');
+        }
+
+        // Include imported filter (combine imported with other filters)
+        if (filters.includeImported) {
+            console.log('🔍 ContactManager: Including imported contacts with other filters');
+            const beforeCount = filtered.length;
+            const importedContacts = contacts.filter(contact => contact.metadata.isImported === true);
+            
+            // Add imported contacts to current filtered results (avoid duplicates)
+            const currentIds = new Set(filtered.map(c => c.contactId));
+            const newImportedContacts = importedContacts.filter(c => !currentIds.has(c.contactId));
+            filtered = [...filtered, ...newImportedContacts];
+            
+            console.log('🔍 ContactManager: Added', newImportedContacts.length, 'imported contacts. Total now:', filtered.length);
         }
 
         // Favorite filter
@@ -948,11 +971,12 @@ export class ContactManager {
      * Import contact from vCard
      * @param {string} vCardString - vCard string
      * @param {string} cardName - Optional card name
+     * @param {boolean} markAsImported - Whether to mark contact as imported (default: true)
      * @returns {Promise<Object>} Import result
      */
-    async importContactFromVCard(vCardString, cardName = null) {
+    async importContactFromVCard(vCardString, cardName = null, markAsImported = true) {
         try {
-            const contact = this.vCardStandard.importFromVCard(vCardString, cardName);
+            const contact = this.vCardStandard.importFromVCard(vCardString, cardName, markAsImported);
             const saveResult = await this.database.saveContact(contact);
             
             if (saveResult.success) {
