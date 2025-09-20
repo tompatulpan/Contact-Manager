@@ -1523,6 +1523,9 @@ export class ContactUIController {
                     👁️
                 </button>
                 ${contact.metadata?.isOwned ? `
+                    <button class="action-btn share-contact" title="Share Contact">
+                        📤
+                    </button>
                     <button class="action-btn edit-contact" title="Edit Contact">
                         ✏️
                     </button>
@@ -1553,6 +1556,16 @@ export class ContactUIController {
                 event.stopPropagation();
                 console.log('👁️ View button clicked for:', contact.contactId);
                 this.selectContact(contact.contactId);
+            });
+        }
+
+        // Share contact button (only for owned contacts)
+        const shareBtn = listItem.querySelector('.share-contact');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('🔗 Share button clicked for:', contact.contactId);
+                this.showShareContactModal(contact.contactId);
             });
         }
 

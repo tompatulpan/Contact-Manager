@@ -304,6 +304,16 @@ export class MockDatabase {
         }
         
         this.currentUser = { username, userId: `user_${Date.now()}` };
+        
+        // Emit authentication event and load existing contacts
+        setTimeout(() => {
+            this.eventBus.emit('database:authenticated', { user: this.currentUser });
+            // Load any existing contacts
+            if (this.contacts.size > 0) {
+                this.eventBus.emit('contacts:changed', Array.from(this.contacts.values()));
+            }
+        }, 10);
+        
         return { success: true, user: this.currentUser };
     }
 
@@ -318,7 +328,14 @@ export class MockDatabase {
         }
         
         const itemId = contact.contactId || `item_${Date.now()}`;
-        this.contacts.set(itemId, { ...contact, itemId });
+        const savedContact = { ...contact, itemId };
+        this.contacts.set(itemId, savedContact);
+        
+        // Emit event that ContactManager expects
+        setTimeout(() => {
+            this.eventBus.emit('contacts:changed', Array.from(this.contacts.values()));
+        }, 10);
+        
         return { success: true, itemId };
     }
 
@@ -329,6 +346,12 @@ export class MockDatabase {
         
         const itemId = contact.contactId || contact.itemId;
         this.contacts.set(itemId, contact);
+        
+        // Emit event that ContactManager expects
+        setTimeout(() => {
+            this.eventBus.emit('contacts:changed', Array.from(this.contacts.values()));
+        }, 10);
+        
         return { success: true, itemId };
     }
 

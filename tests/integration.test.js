@@ -280,6 +280,9 @@ runner.test('ContactManager should search contacts', async () => {
     await contactManager.createContact(contactData1);
     await contactManager.createContact(contactData2);
     
+    // Small delay to ensure async events are processed
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Search for John
     const results = contactManager.searchContacts('John');
     
@@ -304,11 +307,17 @@ runner.test('ContactManager should update contact', async () => {
     
     runner.assert(createResult.success, 'Contact creation should succeed');
     
+    // Small delay to ensure contact is in cache
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Update the contact
     const updatedData = generateMockContactData({ fn: 'John Smith' });
     const updateResult = await contactManager.updateContact(createResult.contactId, updatedData);
     
     runner.assert(updateResult.success, 'Contact update should succeed');
+    
+    // Small delay to ensure update is processed
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     // Verify the update
     const contact = contactManager.getContact(createResult.contactId);
@@ -323,19 +332,25 @@ runner.test('ContactManager should get contact statistics', async () => {
     const validator = new ContactValidator(vCardStandard);
     const contactManager = new ContactManager(eventBus, database, vCardStandard, validator);
     
-    // Initialize and create test contacts
+    // Initialize
     await database.initialize();
     await database.signIn('testuser', 'password');
     await contactManager.initialize();
     
-    const contactData = generateMockContactData();
-    await contactManager.createContact(contactData);
+    // Create multiple contacts
+    for (let i = 0; i < 3; i++) {
+        const contactData = generateMockContactData({ fn: `Contact ${i + 1}` });
+        await contactManager.createContact(contactData);
+    }
+    
+    // Small delay to ensure all contacts are in cache
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     const stats = contactManager.getContactStatistics();
     
-    runner.assert(stats.total >= 1, 'Should have at least one contact');
-    runner.assert(stats.active >= 1, 'Should have at least one active contact');
-    runner.assert(typeof stats.owned === 'number', 'Should have owned count');
+    runner.assertEqual(stats.total, 3, 'Should have 3 total contacts');
+    runner.assertEqual(stats.active, 3, 'Should have 3 active contacts');
+    runner.assertEqual(stats.archived, 0, 'Should have 0 archived contacts');
 });
 
 // Database Mock Tests
@@ -392,6 +407,9 @@ runner.test('Complete workflow: create, search, update, delete', async () => {
     
     const contactId = createResult.contactId;
     
+    // Small delay to ensure contact is in cache
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     // Search for contact
     const searchResults = contactManager.searchContacts('Integration');
     runner.assert(searchResults.length === 1, 'Should find created contact');
@@ -400,6 +418,9 @@ runner.test('Complete workflow: create, search, update, delete', async () => {
     const updatedData = generateMockContactData({ fn: 'Updated Integration Test' });
     const updateResult = await contactManager.updateContact(contactId, updatedData);
     runner.assert(updateResult.success, 'Update should succeed');
+    
+    // Small delay to ensure update is processed
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     // Verify update
     const updatedContact = contactManager.getContact(contactId);
