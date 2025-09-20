@@ -323,6 +323,30 @@ body {
     position: relative;
 }
 
+/* Authentication Welcome Message */
+.auth-welcome {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    color: white;
+    border-radius: 8px;
+}
+
+.auth-welcome h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: white;
+}
+
+.auth-welcome p {
+    font-size: 0.875rem;
+    margin: 0;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
 /* Loading States */
 #loading-overlay {
     position: fixed;
@@ -725,9 +749,10 @@ body {
 .contact-list.list-view .contact-list-item .contact-name {
     flex: 1;
     font-size: 0.875rem;
-    font-weight: 400;
-    color: var(--text-primary);
+    font-weight: 500;
+    color: #000000;
     margin: 0;
+    padding-left: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1280,6 +1305,39 @@ body {
     font-weight: 600;
     font-size: 1.125rem;
     color: var(--text-primary);
+    margin: 0;
+}
+
+.contact-info .contact-card-name {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--primary-color);
+    margin: 0;
+    font-style: italic;
+}
+
+.contact-info .contact-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+
+.contact-info .contact-phone,
+.contact-info .contact-email {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.contact-info .contact-phone i,
+.contact-info .contact-email i {
+    width: 14px;
+    text-align: center;
+    color: var(--primary-color);
+    font-size: 0.75rem;
 }
 
 .contact-info .contact-detail {
@@ -2799,5 +2857,16 @@ body {
 
     .address-meta {
         justify-content: flex-start;
+    }
+}
+
+/* Mobile visibility classes */
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .mobile-only {
+        display: block !important;
     }
 }

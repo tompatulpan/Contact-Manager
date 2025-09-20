@@ -302,6 +302,7 @@ export class ContactUIController {
         this.eventBus.on('ui:showModal', this.showModal.bind(this));
         this.eventBus.on('ui:hideModal', this.hideModal.bind(this));
         this.eventBus.on('ui:updateStats', this.updateStats.bind(this));
+        this.eventBus.on('ui:show-contact-form', this.handleShowContactForm.bind(this));
     }
 
     /**
@@ -954,6 +955,15 @@ export class ContactUIController {
                 </div>
             `;
             
+            // Add sharing lists section header
+            const sharingListsHeader = distributionLists.length > 0 ? `
+                <div class="sharing-lists-header">
+                    <h4 style="margin: 16px 0 8px 0; font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">
+                        <i class="fas fa-users" style="margin-right: 8px;"></i>Sharing Lists
+                    </h4>
+                </div>
+            ` : '';
+            
             const listItems = distributionLists.map(list => {
                 const userCount = list.usernames ? list.usernames.length : 0;
                 return `
@@ -977,8 +987,8 @@ export class ContactUIController {
                 `;
             }).join('');
 
-            // Combine "All Contacts" with sharing lists
-            this.elements.distributionListsContainer.innerHTML = allContactsItem + listItems;
+            // Combine "All Contacts" + sharing lists header + sharing lists
+            this.elements.distributionListsContainer.innerHTML = allContactsItem + sharingListsHeader + listItems;
             console.log('✅ UI: Distribution lists HTML updated successfully');
 
             // Add click listeners for manage buttons
@@ -1056,6 +1066,17 @@ export class ContactUIController {
         if (contact) {
             this.showModal({ modalId: 'contact-modal', mode: 'edit' });
             this.populateContactForm(contact);
+        }
+    }
+
+    /**
+     * Handle show contact form event (for mobile navigation)
+     */
+    handleShowContactForm(data) {
+        if (data && data.isEdit && data.contactId) {
+            this.showEditContactModal(data.contactId);
+        } else {
+            this.showNewContactModal();
         }
     }
 
@@ -1258,10 +1279,22 @@ export class ContactUIController {
                 </div>
                 <div class="contact-info">
                     <h3 class="contact-name">${this.escapeHtml(displayData.fullName)}</h3>
-                    <p class="contact-organization">${this.escapeHtml(displayData.organization)}</p>
-                    <p class="contact-title">${this.escapeHtml(displayData.title)}</p>
+                    ${contact.cardName ? `<p class="contact-card-name">${this.escapeHtml(contact.cardName)}</p>` : ''}
+                    <div class="contact-details">
+                        ${displayData.phones.length > 0 ? `
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                <span>${this.escapeHtml(displayData.phones[0].value)}</span>
+                            </div>
+                        ` : ''}
+                        ${displayData.emails.length > 0 ? `
+                            <div class="contact-email">
+                                <i class="fas fa-envelope"></i>
+                                <span>${this.escapeHtml(displayData.emails[0].value)}</span>
+                            </div>
+                        ` : ''}
+                    </div>
                     <div class="contact-meta">
-                        ${displayData.phones.length > 0 ? `<span class="contact-phone">${this.escapeHtml(displayData.phones[0].value)}</span>` : ''}
                         ${!contact.metadata.isOwned ? `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : ''}
                     </div>
                 </div>
@@ -1675,7 +1708,7 @@ export class ContactUIController {
                     <h4><i class="fas fa-phone"></i> Phone Numbers</h4>
                     ${displayData.phones.map(phone => `
                         <div class="field-item">
-                            <span class="field-value">${this.escapeHtml(phone.value)}</span>
+                            <a href="tel:${phone.value}" class="field-value">${this.escapeHtml(phone.value)}</a>
                             <span class="field-type">${phone.type}</span>
                             ${phone.primary ? '<span class="field-primary">Primary</span>' : ''}
                         </div>

@@ -56,16 +56,7 @@
                 
                 <div class="sidebar-content">
                 <div class="sidebar-section">
-                    <h3>Contacts</h3>
-                    <div class="search-container">
-                        <input 
-                            type="text" 
-                            id="search-input" 
-                            placeholder="Search contacts..." 
-                            class="search-input"
-                        >
-                        <i class="fas fa-search search-icon"></i>
-                    </div>
+                    <h3>Menu</h3>
                     
                     <div class="filter-controls">
                         <h4 class="filter-title">
@@ -87,11 +78,8 @@
                             </label>
                         </div>
                     </div>
-                </div>
-
-                <!-- Sharing Lists -->
-                <div class="sidebar-section">
-                    <h3>Sharing Lists</h3>
+                    
+                    <!-- Distribution Lists Container -->
                     <div id="distribution-lists" class="distribution-lists">
                         <!-- Dynamic sharing lists will be inserted here -->
                     </div>
@@ -148,6 +136,17 @@
                             <i class="fas fa-chevron-down"></i>
                         </button>
                     </div>
+                </div>
+                
+                <!-- Search Container -->
+                <div class="search-container">
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        placeholder="Search contacts..." 
+                        class="search-input"
+                    >
+                    <i class="fas fa-search search-icon"></i>
                 </div>
                 
                 <div id="contact-list" class="contact-list">
@@ -229,6 +228,12 @@
                 </button>
             </div>
             <div class="modal-body">
+                <!-- Welcome Message -->
+                <div class="auth-welcome">
+                    <h3>Welcome!</h3>
+                    <p>Your contacts are protected with secure, end-to-end encryption.</p>
+                </div>
+                
                 <form id="auth-form" data-mode="signin">
                     <div id="auth-error" class="field-error" style="display: none;"></div>
                     <div class="form-group">

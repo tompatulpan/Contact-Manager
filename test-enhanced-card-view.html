@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Contact Card View Test</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            padding: 20px;
+            margin: 0;
+        }
+        
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .test-header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+        }
+        
+        .test-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+        
+        .test-description {
+            color: #6b7280;
+            margin-bottom: 20px;
+        }
+        
+        /* Enhanced contact cards container for testing */
+        .contact-list.card-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* Contact card specific styles for testing */
+        .contact-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            position: relative;
+            padding: 16px;
+        }
+        
+        .contact-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        
+        .contact-actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .contact-card:hover .contact-actions {
+            opacity: 1;
+        }
+        
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background: #f3f4f6;
+            color: #6b7280;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-icon:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .contact-meta {
+            margin-top: 8px;
+        }
+        
+        .shared-indicator {
+            font-size: 0.75rem;
+            color: #8b5cf6;
+            background: #f3e8ff;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1>🎨 Enhanced Contact Card View Test</h1>
+            <p>Testing the new contact card layout with Full Name, Card Name, Phone Number, and Email Address</p>
+        </div>
+        
+        <div class="test-section">
+            <h2 class="test-title">Enhanced Contact Cards</h2>
+            <p class="test-description">
+                The enhanced contact cards now display:
+                <strong>Full Name</strong>, <strong>Card Name</strong>, <strong>Phone Number</strong>, and <strong>Email Address</strong>
+                with proper icons and improved layout.
+            </p>
+            
+            <div class="contact-list card-view">
+                <!-- Sample Contact Card 1: Complete information -->
+                <div class="contact-card" data-contact-id="1" data-archived="false">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">J</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">John Doe</h3>
+                        <p class="contact-card-name">Work Contact</p>
+                        <div class="contact-details">
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                <span>+1 (555) 123-4567</span>
+                            </div>
+                            <div class="contact-email">
+                                <i class="fas fa-envelope"></i>
+                                <span>john.doe@company.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-meta">
+                        </div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn-icon view-contact" title="View contact">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon share-contact" title="Share contact">
+                            <i class="fas fa-share"></i>
+                        </button>
+                        <button class="btn-icon edit-contact" title="Edit contact">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sample Contact Card 2: Shared contact -->
+                <div class="contact-card" data-contact-id="2" data-archived="false">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">A</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Alice Smith</h3>
+                        <p class="contact-card-name">Personal</p>
+                        <div class="contact-details">
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                <span>+1 (555) 987-6543</span>
+                            </div>
+                            <div class="contact-email">
+                                <i class="fas fa-envelope"></i>
+                                <span>alice@example.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-meta">
+                            <span class="shared-indicator">Shared by bob</span>
+                        </div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn-icon view-contact" title="View contact">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon archive-contact" title="Archive shared contact">
+                            <i class="fas fa-archive"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sample Contact Card 3: Minimal information -->
+                <div class="contact-card" data-contact-id="3" data-archived="false">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">M</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Mike Johnson</h3>
+                        <div class="contact-details">
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                <span>+1 (555) 456-7890</span>
+                            </div>
+                        </div>
+                        <div class="contact-meta">
+                        </div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn-icon view-contact" title="View contact">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon edit-contact" title="Edit contact">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sample Contact Card 4: Email only -->
+                <div class="contact-card" data-contact-id="4" data-archived="false">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">S</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Sarah Williams</h3>
+                        <p class="contact-card-name">Client</p>
+                        <div class="contact-details">
+                            <div class="contact-email">
+                                <i class="fas fa-envelope"></i>
+                                <span>sarah.williams@client.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-meta">
+                        </div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn-icon view-contact" title="View contact">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon share-contact" title="Share contact">
+                            <i class="fas fa-share"></i>
+                        </button>
+                        <button class="btn-icon edit-contact" title="Edit contact">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sample Contact Card 5: Archived contact -->
+                <div class="contact-card" data-contact-id="5" data-archived="true">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">D</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">David Brown</h3>
+                        <p class="contact-card-name">Former Colleague</p>
+                        <div class="contact-details">
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                <span>+1 (555) 321-9876</span>
+                            </div>
+                            <div class="contact-email">
+                                <i class="fas fa-envelope"></i>
+                                <span>david@oldcompany.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-meta">
+                        </div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn-icon view-contact" title="View contact">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon restore-contact" title="Restore from archive">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sample Contact Card 6: Full information -->
+                <div class="contact-card" data-contact-id="6" data-archived="false">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">E</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Emma Wilson</h3>
+                        <p class="contact-card-name">Family</p>
+                        <div class="contact-details">
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                <span>+1 (555) 654-3210</span>
+                            </div>
+                            <div class="contact-email">
+                                <i class="fas fa-envelope"></i>
+                                <span>emma.wilson@gmail.com</span>
+                            </div>
+                        </div>
+                        <div class="contact-meta">
+                        </div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn-icon view-contact" title="View contact">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon share-contact" title="Share contact">
+                            <i class="fas fa-share"></i>
+                        </button>
+                        <button class="btn-icon edit-contact" title="Edit contact">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2 class="test-title">✨ Enhancement Summary</h2>
+            <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3>✅ New Contact Card Features:</h3>
+                <ul style="line-height: 1.6; color: #4b5563;">
+                    <li><strong>Full Name</strong> - Prominently displayed as the main title</li>
+                    <li><strong>Card Name</strong> - Shown in italics with primary color styling (e.g., "Work Contact", "Personal")</li>
+                    <li><strong>Phone Number</strong> - Displayed with phone icon, shows primary phone</li>
+                    <li><strong>Email Address</strong> - Displayed with envelope icon, shows primary email</li>
+                    <li><strong>Improved Layout</strong> - Better spacing and visual hierarchy</li>
+                    <li><strong>Icon Integration</strong> - FontAwesome icons for phone and email</li>
+                    <li><strong>Responsive Design</strong> - Works well in grid layout</li>
+                </ul>
+                
+                <h3 style="margin-top: 20px;">🎨 Visual Improvements:</h3>
+                <ul style="line-height: 1.6; color: #4b5563;">
+                    <li>Card name displayed in italics with primary color</li>
+                    <li>Contact details grouped in a clean section</li>
+                    <li>Consistent icon sizing and alignment</li>
+                    <li>Proper spacing between elements</li>
+                    <li>Maintained support for archived and shared contacts</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactivity to test hover effects
+        document.querySelectorAll('.contact-card').forEach(card => {
+            card.addEventListener('click', function() {
+                console.log('Contact card clicked:', this.dataset.contactId);
+            });
+        });
+        
+        document.querySelectorAll('.btn-icon').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                console.log('Action button clicked:', this.className, this.title);
+            });
+        });
+    </script>
+</body>
+</html>
