@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Debug Test</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile.css">
+    <style>
+        .debug-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 10px;
+            font-size: 12px;
+            z-index: 10000;
+            max-width: 250px;
+        }
+        .test-contact {
+            padding: 15px;
+            border: 1px solid #ddd;
+            margin: 5px;
+            cursor: pointer;
+            background: white;
+            border-radius: 5px;
+        }
+        .test-contact:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body class="mobile-nav-active mobile-page-contacts">
+    <div id="app">
+        <div class="debug-panel">
+            <div><strong>Mobile Debug</strong></div>
+            <div>Screen: <span id="screen-width"></span>px</div>
+            <div>Page: <span id="current-page">contacts</span></div>
+            <div>Detail chars: <span id="detail-content-length">0</span></div>
+            <hr>
+            <button onclick="testGoToDetail()" style="background: #007bff; border: none; color: white; padding: 5px; margin: 2px; cursor: pointer;">Test Detail</button>
+            <button onclick="testGoBack()" style="background: #dc3545; border: none; color: white; padding: 5px; margin: 2px; cursor: pointer;">Test Back</button>
+        </div>
+
+        <!-- Left Sidebar / Menu -->
+        <aside class="left-sidebar">
+            <div class="mobile-header mobile-only">
+                <button class="mobile-back-btn" id="mobile-back-menu">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h1 class="mobile-page-title">Menu</h1>
+                <div></div>
+            </div>
+            <div class="sidebar-content">
+                <h3>Menu</h3>
+            </div>
+        </aside>
+
+        <!-- Contact List Section -->
+        <section class="contact-list-panel contact-list-section">
+            <div class="mobile-header mobile-only">
+                <button class="mobile-menu-btn" id="mobile-menu-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="mobile-page-title">All Contacts</h1>
+                <button class="mobile-new-contact-btn" id="mobile-new-contact">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            
+            <div class="contact-list" id="contact-list">
+                <div class="test-contact" onclick="selectTestContact('Test Contact 1')">
+                    <h4>Test Contact 1</h4>
+                    <p>📧 test1@example.com</p>
+                    <p>📞 +1-555-123-4567</p>
+                </div>
+                <div class="test-contact" onclick="selectTestContact('Test Contact 2')">
+                    <h4>Test Contact 2</h4>
+                    <p>📧 test2@example.com</p>
+                    <p>📞 +1-555-987-6543</p>
+                </div>
+                <div class="test-contact" onclick="selectTestContact('Test Contact 3')">
+                    <h4>Test Contact 3</h4>
+                    <p>📧 test3@example.com</p>
+                    <p>🌐 https://example.com</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Detail Section -->
+        <section class="contact-detail-panel contact-detail-section">
+            <div class="mobile-header mobile-only">
+                <button class="mobile-back-btn" id="mobile-back-detail">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h1 class="mobile-page-title" id="mobile-contact-title">Contact</h1>
+                <button class="mobile-menu-btn" id="mobile-contact-actions">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+            </div>
+            
+            <div class="contact-detail" id="contact-detail">
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    <p>👤 No contact selected</p>
+                    <p><small>Click a contact from the list to view details</small></p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="lib/userbase.js"></script>
+    <script src="src/utils/EventBus.js"></script>
+    <script src="src/ui/MobileNavigation.js"></script>
+
+    <script>
+        // Debug info updates
+        function updateDebugInfo() {
+            document.getElementById('screen-width').textContent = window.innerWidth;
+            document.getElementById('detail-content-length').textContent = 
+                document.getElementById('contact-detail').innerHTML.length;
+            
+            // Update current page based on body class
+            const bodyClasses = document.body.className;
+            if (bodyClasses.includes('mobile-page-menu')) {
+                document.getElementById('current-page').textContent = 'menu';
+            } else if (bodyClasses.includes('mobile-page-detail')) {
+                document.getElementById('current-page').textContent = 'detail';
+            } else {
+                document.getElementById('current-page').textContent = 'contacts';
+            }
+        }
+
+        // Initialize
+        const eventBus = new EventBus();
+        const mobileNav = new MobileNavigation(eventBus);
+
+        // Test functions
+        function testGoToDetail() {
+            selectTestContact('Debug Test Contact');
+        }
+
+        function testGoBack() {
+            mobileNav.goBack();
+            updateDebugInfo();
+        }
+
+        function selectTestContact(name) {
+            console.log('📱 Selecting test contact:', name);
+            
+            // Create test contact data
+            const testContact = {
+                contactId: 'test-' + Date.now(),
+                cardName: name,
+                vcard: `BEGIN:VCARD\\nVERSION:4.0\\nFN:${name}\\nEMAIL:${name.toLowerCase().replace(/\\s/g, '')}@example.com\\nEND:VCARD`
+            };
+            
+            // Populate detail content first (simulate ContactUIController.displayContactDetail)
+            document.getElementById('contact-detail').innerHTML = `
+                <div class="contact-detail-header">
+                    <div class="contact-avatar-large">
+                        <span class="avatar-initial">${name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div class="contact-info">
+                        <h2 class="contact-name">${name}</h2>
+                        <p class="contact-organization">Example Company</p>
+                        <p class="contact-title">Software Developer</p>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="btn btn-primary">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="contact-detail-body" style="padding: 20px;">
+                    <h3>📧 Email</h3>
+                    <p>${name.toLowerCase().replace(/\\s/g, '')}@example.com</p>
+                    
+                    <h3>📞 Phone</h3>
+                    <p>+1-555-123-4567</p>
+                    
+                    <h3>🌐 Website</h3>
+                    <p>https://example.com</p>
+                    
+                    <h3>📝 Notes</h3>
+                    <p>This is a test contact created for mobile navigation debugging.</p>
+                </div>
+            `;
+            
+            console.log('📱 Content populated, triggering mobile navigation...');
+            
+            // Emit the contact:selected event (simulate ContactUIController)
+            eventBus.emit('contact:selected', { contact: testContact });
+            
+            updateDebugInfo();
+        }
+
+        // Update debug info periodically and on events
+        setInterval(updateDebugInfo, 500);
+        updateDebugInfo();
+
+        // Window resize handling
+        window.addEventListener('resize', updateDebugInfo);
+
+        console.log('📱 Mobile debug test initialized');
+    </script>
+</body>
+</html>

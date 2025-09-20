@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Management System</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -43,7 +44,17 @@
         <main class="main-content">
             
             <!-- Sidebar Navigation -->
-            <aside class="sidebar">
+            <aside class="sidebar left-sidebar">
+                <!-- Mobile Header -->
+                <div class="mobile-header mobile-only">
+                    <button class="mobile-back-btn" id="mobile-back-menu">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="mobile-page-title">Menu</h1>
+                    <div></div> <!-- Spacer -->
+                </div>
+                
+                <div class="sidebar-content">
                 <div class="sidebar-section">
                     <h3>Contacts</h3>
                     <div class="search-container">
@@ -111,7 +122,17 @@
             </aside>
 
             <!-- Contact List Panel -->
-            <section class="contact-list-panel">
+            <section class="contact-list-panel contact-list-section">
+                <!-- Mobile Header -->
+                <div class="mobile-header mobile-only">
+                    <button class="mobile-menu-btn" id="mobile-menu-btn">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="mobile-page-title">All Contacts</h1>
+                    <button class="mobile-menu-btn" id="mobile-new-contact">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
                 <div class="panel-header">
                     <h2 id="contact-list-title">All Contacts</h2>
                     <div class="view-controls">
@@ -146,7 +167,17 @@
             </section>
 
             <!-- Contact Detail Panel -->
-            <section class="contact-detail-panel">
+            <section class="contact-detail-panel contact-detail-section">
+                <!-- Mobile Header -->
+                <div class="mobile-header mobile-only">
+                    <button class="mobile-back-btn" id="mobile-back-detail">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="mobile-page-title" id="mobile-contact-title">Contact</h1>
+                    <button class="mobile-menu-btn" id="mobile-contact-actions">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
                 <div id="contact-detail-content" class="detail-content">
                     <div class="welcome-state">
                         <i class="fas fa-hand-wave"></i>

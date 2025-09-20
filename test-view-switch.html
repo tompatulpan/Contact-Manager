@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test View Switch</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div style="padding: 20px;">
+        <h1>Test View Switch</h1>
+        
+        <div class="view-controls">
+            <button id="view-card" class="btn btn-ghost active">Card View</button>
+            <button id="view-list" class="btn btn-ghost">List View</button>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <p>Current container classes: <span id="current-classes">None</span></p>
+        </div>
+        
+        <div id="contact-list" class="contact-list list-view">
+            <div class="contact-list-item">
+                <div class="contact-name">Test Contact 1</div>
+                <div class="contact-actions">
+                    <button class="action-btn">👁️</button>
+                </div>
+            </div>
+            <div class="contact-list-item">
+                <div class="contact-name">Test Contact 2</div>
+                <div class="contact-actions">
+                    <button class="action-btn">👁️</button>
+                </div>
+            </div>
+            <div class="contact-card">
+                <div class="contact-card-header">
+                    <div class="contact-avatar">TC</div>
+                    <div class="contact-name">Test Contact (Card)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cardBtn = document.getElementById('view-card');
+        const listBtn = document.getElementById('view-list');
+        const container = document.getElementById('contact-list');
+        const classDisplay = document.getElementById('current-classes');
+        
+        function updateClassDisplay() {
+            classDisplay.textContent = container.className;
+        }
+        
+        function setViewMode(mode) {
+            console.log('Setting view mode to:', mode);
+            
+            // Update button states
+            cardBtn.classList.toggle('active', mode === 'card');
+            listBtn.classList.toggle('active', mode === 'list');
+            
+            // Update container class
+            container.classList.remove('card-view', 'list-view');
+            container.classList.add(mode + '-view');
+            
+            updateClassDisplay();
+            console.log('Container classes:', container.className);
+        }
+        
+        cardBtn.addEventListener('click', () => setViewMode('card'));
+        listBtn.addEventListener('click', () => setViewMode('list'));
+        
+        // Initialize
+        updateClassDisplay();
+        console.log('Initial container classes:', container.className);
+    </script>
+</body>
+</html>

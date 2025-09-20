@@ -2,19 +2,21 @@
  * ContactUIController - Main UI coordinator
  * Manages all UI components and handles user interactions
  */
+import { MobileNavigation } from './MobileNavigation.js';
+
 export class ContactUIController {
     constructor(eventBus, contactManager) {
         this.eventBus = eventBus;
         this.contactManager = contactManager;
         
         // Debug mode - set to false to reduce logging
-        this.debugMode = false;
+        this.debugMode = true; // Temporarily re-enable to debug view switching
         
         // UI state
         this.currentUser = null;
         this.selectedContactId = null;
         this.currentView = 'contacts'; // contacts, archived, shared
-        this.viewMode = 'card'; // card, list
+        this.viewMode = 'list'; // card, list - default to list view for better functionality
         this.searchQuery = '';
         this.activeFilters = {
             includeArchived: false,  // Don't show archived contacts by default
@@ -114,22 +116,30 @@ export class ContactUIController {
      */
     async initialize() {
         return this.handleAsync(async () => {
+            console.log('🎨 ContactUIController initialize() called');
             this.log('🎨 Initializing UI Controller...');
             
             // Cache DOM elements
+            console.log('🎨 About to cache elements...');
             this.cacheElements();
             
             // Setup event listeners
+            console.log('🎨 About to setup event listeners...');
             this.setupEventListeners();
             
             // Initialize authentication state
+            console.log('🎨 About to initialize auth state...');
             this.initializeAuthenticationState();
             
             // Setup UI components
+            console.log('🎨 About to setup components...');
             this.setupComponents();
             
             // Initialize responsive behavior
             this.initializeResponsiveDesign();
+            
+            // Initialize mobile navigation
+            this.mobileNavigation = new MobileNavigation(this.eventBus);
             
             // Clear contact detail to remove static welcome message
             this.clearContactDetail();
@@ -143,6 +153,8 @@ export class ContactUIController {
      * Cache frequently used DOM elements
      */
     cacheElements() {
+        console.log('🎯 Caching DOM elements...');
+        
         this.elements = {
             // Authentication elements
             authModal: document.getElementById('auth-modal'),
@@ -245,6 +257,13 @@ export class ContactUIController {
             contactCount: document.getElementById('contact-count'),
             statsContainer: document.querySelector('.stats')
         };
+        
+        // Debug: Log which key elements were found
+        console.log('🎯 Key elements found:');
+        console.log('🎯 viewCardBtn:', !!this.elements.viewCardBtn, this.elements.viewCardBtn);
+        console.log('🎯 viewListBtn:', !!this.elements.viewListBtn, this.elements.viewListBtn);
+        console.log('🎯 contactCards:', !!this.elements.contactCards, this.elements.contactCards);
+        console.log('🎯 app:', !!this.elements.app, this.elements.app);
     }
 
     /**
@@ -320,10 +339,34 @@ export class ContactUIController {
 
         // View toggle buttons
         if (this.elements.viewCardBtn) {
-            this.elements.viewCardBtn.addEventListener('click', () => this.setViewMode('card'));
+            console.log('🎨 Found card view button, adding event listener');
+            this.elements.viewCardBtn.addEventListener('click', () => {
+                console.log('🎨 Card view button clicked!');
+                try {
+                    console.log('🎨 About to call setViewMode("card")...');
+                    this.setViewMode('card');
+                    console.log('🎨 setViewMode("card") completed');
+                } catch (error) {
+                    console.error('❌ Error calling setViewMode("card"):', error);
+                }
+            });
+        } else {
+            console.log('❌ Card view button not found!');
         }
         if (this.elements.viewListBtn) {
-            this.elements.viewListBtn.addEventListener('click', () => this.setViewMode('list'));
+            console.log('🎨 Found list view button, adding event listener');
+            this.elements.viewListBtn.addEventListener('click', () => {
+                console.log('🎨 List view button clicked!');
+                try {
+                    console.log('🎨 About to call setViewMode("list")...');
+                    this.setViewMode('list');
+                    console.log('🎨 setViewMode("list") completed');
+                } catch (error) {
+                    console.error('❌ Error calling setViewMode("list"):', error);
+                }
+            });
+        } else {
+            console.log('❌ List view button not found!');
         }
         
         if (this.elements.sortSelect) {
@@ -501,6 +544,49 @@ export class ContactUIController {
         // Components will be created when UI components are implemented
         // This is a placeholder for component initialization
         console.log('Setting up UI components...');
+        console.log('🎨 Current viewMode before initialization:', this.viewMode);
+        
+        // Initialize default view mode
+        this.initializeViewMode();
+    }
+    
+    /**
+     * Initialize the default view mode
+     */
+    initializeViewMode() {
+        console.log('🔧 Initializing view mode...');
+        console.log('🔧 Current viewMode:', this.viewMode);
+        
+        // Set initial view mode and update UI accordingly
+        const container = this.elements.contactCards;
+        console.log('🔧 Container element found:', !!container);
+        console.log('🔧 Container element:', container);
+        
+        if (container) {
+            console.log('🔧 Container classes before:', container.className);
+            container.classList.remove('card-view', 'list-view');
+            container.classList.add(this.viewMode + '-view');
+            console.log('🔧 Container classes after:', container.className);
+            
+            // Update button states
+            console.log('🔧 Checking buttons...');
+            if (this.elements.viewCardBtn) {
+                console.log('🔧 Found card button:', this.elements.viewCardBtn);
+                this.elements.viewCardBtn.classList.toggle('active', this.viewMode === 'card');
+            } else {
+                console.log('🔧 No card button found');
+            }
+            if (this.elements.viewListBtn) {
+                console.log('🔧 Found list button:', this.elements.viewListBtn);
+                this.elements.viewListBtn.classList.toggle('active', this.viewMode === 'list');
+            } else {
+                console.log('🔧 No list button found');
+            }
+            
+            this.log(`🎨 Initialized view mode: ${this.viewMode}`);
+        } else {
+            console.log('🔧 No container found - cannot initialize view mode');
+        }
     }
 
     /**
@@ -675,6 +761,12 @@ export class ContactUIController {
         
         console.log('🔧 Filter changed:', this.activeFilters);
         console.log('🔧 Checkbox states:', { ownedChecked, sharedChecked, archivedChecked });
+        
+        // Update mobile title if mobile navigation is active
+        if (this.mobileNavigation && window.innerWidth <= 768) {
+            this.mobileNavigation.updateMobileTitle();
+        }
+        
         this.performSearch();
     }
 
@@ -1023,27 +1115,37 @@ export class ContactUIController {
      * Set view mode (card or list)
      */
     setViewMode(mode) {
+        this.log(`🎨 setViewMode called with: ${mode}`);
         this.viewMode = mode;
+        this.log(`🎨 viewMode updated to: ${this.viewMode}`);
         
         // Update button states
         if (this.elements.viewCardBtn) {
             this.elements.viewCardBtn.classList.toggle('active', mode === 'card');
+            this.log('🎨 Card button updated:', this.elements.viewCardBtn.classList.contains('active'));
         }
         if (this.elements.viewListBtn) {
             this.elements.viewListBtn.classList.toggle('active', mode === 'list');
+            this.log('🎨 List button updated:', this.elements.viewListBtn.classList.contains('active'));
         }
         
         // Update container class
         const container = this.elements.contactCards;
         if (container) {
+            this.log('🎨 Container classes before update:', container.className);
             container.classList.remove('card-view', 'list-view');
             container.classList.add(mode + '-view');
+            this.log('🎨 Container classes after update:', container.className);
+        } else {
+            this.logError('❌ Container not found in setViewMode');
         }
         
         // Re-render current contacts with new view mode
-        if (this.contactManager && this.contactManager.getAllContacts) {
-            const allContacts = this.contactManager.getAllContacts();
-            this.displayContactList(this.filterAndSortContacts(allContacts));
+        if (this.contactManager) {
+            this.log('🔄 setViewMode: Calling performSearch to refresh view with current filters');
+            this.performSearch();
+        } else {
+            this.log('❌ setViewMode: ContactManager not available, cannot refresh view');
         }
         
         this.log(`🎨 View mode changed to: ${mode}`);
@@ -1056,6 +1158,8 @@ export class ContactUIController {
         this.log('🎨 DisplayContactList called with', contacts.length, 'contacts');
         const container = this.elements.contactCards;
         this.log('🎨 Container element:', container);
+        this.log('🎨 Current viewMode:', this.viewMode);
+        this.log('🎨 Container classes before:', container?.className);
         
         if (!container) {
             this.logError('❌ Contact cards container not found!');
@@ -1091,19 +1195,30 @@ export class ContactUIController {
         this.log('🎨 Creating', contacts.length, 'contact items...');
         // Set container view mode class
         container.classList.remove('card-view', 'list-view');
-        container.classList.add(this.viewMode + '-view');
         
-        // Create both card and list items for each contact
+        // Force list view on mobile, otherwise use current view mode
+        const isMobile = window.innerWidth <= 768;
+        const actualViewMode = isMobile ? 'list' : this.viewMode;
+        container.classList.add(actualViewMode + '-view');
+        
+        this.log('🎨 isMobile:', isMobile);
+        this.log('🎨 actualViewMode:', actualViewMode);
+        this.log('🎨 Container classes after:', container.className);
+        
+        // Create contact items based on view mode
         contacts.forEach((contact, index) => {
-            this.log(`🎨 Creating card and list items ${index + 1}:`, contact.cardName);
+            this.log(`🎨 Creating ${actualViewMode} item ${index + 1}:`, contact.cardName);
             
-            // Create card element
-            const cardElement = this.createContactCard(contact);
-            container.appendChild(cardElement);
+            let contactElement;
+            if (actualViewMode === 'list') {
+                contactElement = this.createContactListItem(contact);
+            } else {
+                contactElement = this.createContactCard(contact);
+            }
             
-            // Create list element
-            const listElement = this.createContactListItem(contact);
-            container.appendChild(listElement);
+            if (contactElement) {
+                container.appendChild(contactElement);
+            }
         });
         
         this.log('🎨 Contact items created and appended');
@@ -1330,6 +1445,14 @@ export class ContactUIController {
 
         // Click on card to select (but not on buttons)
         card.addEventListener('click', (event) => {
+            // On mobile, make entire card clickable
+            if (window.innerWidth <= 768) {
+                console.log('📱 Mobile card clicked for:', contact.contactId);
+                this.selectContact(contact.contactId);
+                return;
+            }
+            
+            // On desktop, only select if not clicking on action buttons
             if (!event.target.closest('.contact-actions')) {
                 console.log('🎯 Card clicked (not on button) for:', contact.contactId);
                 this.selectContact(contact.contactId);
@@ -1489,10 +1612,16 @@ export class ContactUIController {
      * Display contact details
      */
     displayContactDetail(contact) {
+        console.log('🎯 displayContactDetail called with:', contact?.cardName);
+        
         const container = this.elements.contactDetail;
-        if (!container) return;
+        if (!container) {
+            console.log('❌ No contact detail container found!');
+            return;
+        }
         
         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+        console.log('🎯 Extracted display data:', displayData);
         
         container.innerHTML = `
             <div class="contact-detail-header">
@@ -1520,11 +1649,17 @@ export class ContactUIController {
             </div>
         `;
         
+        console.log('🎯 Contact detail content populated, length:', container.innerHTML.length, 'chars');
+        
         // Add event listeners for detail actions
         this.setupContactDetailListeners(container, contact.contactId);
         
         // Populate distribution list selects
         setTimeout(() => this.populateDistributionListSelects(), 100);
+        
+        // Emit event for mobile navigation AFTER content is rendered
+        console.log('🎯 Emitting contact:selected event for mobile navigation');
+        this.eventBus.emit('contact:selected', { contact });
     }
 
     /**

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile CSS Test - Contact Management System</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Override for testing - force mobile layout */
+        body {
+            margin: 0;
+            max-width: 375px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+        }
+        
+        /* Force mobile styles */
+        @media screen and (min-width: 1px) {
+            .app-container {
+                display: block !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            .left-sidebar,
+            .contact-list-section,
+            .contact-detail-section {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100vh;
+                background: white;
+                z-index: 100;
+                transform: translateX(100%);
+                transition: transform 0.3s ease-in-out;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .page-active {
+                transform: translateX(0) !important;
+                z-index: 200;
+            }
+            
+            .contact-list-section.page-active {
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body class="mobile-nav-active mobile-page-contacts">
+    <!-- Mobile test version -->
+    <div id="app" class="app-container">
+        <!-- Contact List Section (Active Page) -->
+        <section class="contact-list-section page-active">
+            <!-- Mobile Header -->
+            <div class="mobile-header">
+                <button class="mobile-menu-btn" id="mobile-menu-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="mobile-page-title">All Contacts</h1>
+                <button class="mobile-menu-btn" id="mobile-new-contact">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            
+            <!-- Search Controls -->
+            <div class="contact-search-controls">
+                <input type="text" class="search-input" placeholder="Search contacts..." value="">
+                <div class="filter-controls">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" checked> My Contacts
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" checked> Shared
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox"> Archived
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Contact List -->
+            <div class="contact-list">
+                <!-- Sample contact cards -->
+                <div class="contact-card" data-contact-id="1">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">J</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">John Doe</h3>
+                        <p class="contact-organization">ACME Corporation</p>
+                        <p class="contact-title">Software Developer</p>
+                        <div class="contact-meta">
+                            <span class="contact-phone">+1-555-123-4567</span>
+                        </div>
+                    </div>
+                    <div class="contact-badges">
+                        <span class="shared-indicator">Shared</span>
+                    </div>
+                </div>
+                
+                <div class="contact-card" data-contact-id="2">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">A</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Alice Smith</h3>
+                        <p class="contact-organization">Tech Solutions Inc</p>
+                        <p class="contact-title">Project Manager</p>
+                        <div class="contact-meta">
+                            <span class="contact-phone">+1-555-987-6543</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="contact-card" data-contact-id="3">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">B</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Bob Johnson</h3>
+                        <p class="contact-organization">Design Studio</p>
+                        <p class="contact-title">Creative Director</p>
+                        <div class="contact-meta">
+                            <span class="contact-phone">+1-555-456-7890</span>
+                        </div>
+                    </div>
+                    <div class="contact-badges">
+                        <span class="contact-badge badge-archived">Archived</span>
+                    </div>
+                </div>
+                
+                <div class="contact-card" data-contact-id="4">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">M</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">Maria Garcia</h3>
+                        <p class="contact-organization">Global Communications</p>
+                        <p class="contact-title">Marketing Specialist</p>
+                        <div class="contact-meta">
+                            <span class="contact-phone">+1-555-321-9876</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="contact-card" data-contact-id="5">
+                    <div class="contact-avatar">
+                        <span class="avatar-initial">D</span>
+                    </div>
+                    <div class="contact-info">
+                        <h3 class="contact-name">David Chen</h3>
+                        <p class="contact-organization">Innovation Labs</p>
+                        <p class="contact-title">Research Scientist</p>
+                        <div class="contact-meta">
+                            <span class="contact-phone">+1-555-654-3210</span>
+                        </div>
+                    </div>
+                    <div class="contact-badges">
+                        <span class="shared-indicator">Shared</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Menu Section (Hidden) -->
+        <aside class="left-sidebar">
+            <div class="mobile-header">
+                <button class="mobile-back-btn" id="mobile-back-menu">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h1 class="mobile-page-title">Menu</h1>
+                <div></div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="sidebar-section">
+                    <h3>Contacts</h3>
+                    <a href="#" class="sidebar-item">All Contacts</a>
+                    <a href="#" class="sidebar-item">My Contacts</a>
+                    <a href="#" class="sidebar-item">Shared with Me</a>
+                    <a href="#" class="sidebar-item">Archived</a>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3>Sharing Lists</h3>
+                    <a href="#" class="sidebar-item">Work Colleagues</a>
+                    <a href="#" class="sidebar-item">Family</a>
+                    <a href="#" class="sidebar-item">Create New List</a>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3>Settings</h3>
+                    <a href="#" class="sidebar-item">Import Contacts</a>
+                    <a href="#" class="sidebar-item">Export Contacts</a>
+                    <a href="#" class="sidebar-item">Account Settings</a>
+                    <a href="#" class="sidebar-item">Log Out</a>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Detail Section (Hidden) -->
+        <section class="contact-detail-section">
+            <div class="mobile-header">
+                <button class="mobile-back-btn" id="mobile-back-detail">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h1 class="mobile-page-title">Contact</h1>
+                <button class="mobile-menu-btn" id="mobile-contact-actions">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+            </div>
+            
+            <div class="contact-detail-content">
+                <h2>Contact Detail View</h2>
+                <p>This would show contact details...</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Simple demo navigation
+        let currentPage = 'contacts';
+        
+        function showPage(page) {
+            // Hide all pages
+            document.querySelectorAll('.left-sidebar, .contact-list-section, .contact-detail-section')
+                .forEach(el => el.classList.remove('page-active'));
+            
+            // Show selected page
+            let selector;
+            switch(page) {
+                case 'menu': selector = '.left-sidebar'; break;
+                case 'contacts': selector = '.contact-list-section'; break;
+                case 'detail': selector = '.contact-detail-section'; break;
+            }
+            
+            if (selector) {
+                document.querySelector(selector).classList.add('page-active');
+            }
+            
+            currentPage = page;
+        }
+        
+        // Event handlers
+        document.getElementById('mobile-menu-btn').addEventListener('click', () => showPage('menu'));
+        document.getElementById('mobile-back-menu').addEventListener('click', () => showPage('contacts'));
+        document.getElementById('mobile-back-detail').addEventListener('click', () => showPage('contacts'));
+        
+        // Contact card clicks
+        document.querySelectorAll('.contact-card').forEach(card => {
+            card.addEventListener('click', () => {
+                document.getElementById('mobile-contact-title').textContent = 
+                    card.querySelector('.contact-name').textContent;
+                showPage('detail');
+            });
+        });
+        
+        console.log('📱 Mobile test page loaded');
+    </script>
+</body>
+</html>
