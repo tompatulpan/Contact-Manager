@@ -2390,63 +2390,32 @@ export class ContactUIController {
         // Clear previous errors
         this.clearShareFormErrors();
         
-        // Get usernames from the distribution list
-        const usernames = await this.contactManager.getUsernamesInDistributionList(listName);
-        
-        if (usernames.length === 0) {
-            this.showFieldError('share-with-distribution-list', 'This sharing list has no users');
-            return;
-        }
-        
-        console.log(`🔄 Sharing contact "${this.currentShareContact.cardName}" with ${usernames.length} users from "${listName}":`, usernames);
+        console.log(`🔄 Sharing contact "${this.currentShareContact.cardName}" with distribution list "${listName}"`);
         
         // Show loading state
         this.setShareModalState('loading');
         
         try {
-            let successCount = 0;
-            let errorCount = 0;
-            let alreadySharedCount = 0;
-            const errors = [];
+            // Use the new centralized method for distribution list sharing
+            const result = await this.contactManager.shareContactWithDistributionList(
+                this.currentShareContact.contactId, 
+                listName, 
+                isReadOnly
+            );
             
-            // Share contact with each user in the distribution list
-            for (const username of usernames) {
-                try {
-                    // Skip sharing with self
-                    if (username === this.contactManager.database.currentUser?.username) {
-                        console.log(`⏭️ Skipping self-share with: ${username}`);
-                        continue;
-                    }
-                    
-                    console.log(`📤 Sharing with user: ${username}`);
-                    const result = await this.contactManager.shareContact(
-                        this.currentShareContact.contactId, 
-                        username, 
-                        isReadOnly
-                    );
-                    
-                    if (result.success) {
-                        if (result.wasAlreadyShared) {
-                            alreadySharedCount++;
-                            console.log(`ℹ️ Contact was already shared with: ${username}`);
-                        } else {
-                            successCount++;
-                            console.log(`✅ Successfully shared with: ${username}`);
-                        }
-                    } else {
-                        errorCount++;
-                        errors.push(`${username}: ${result.error}`);
-                        console.error(`❌ Failed to share with ${username}:`, result.error);
-                    }
-                } catch (error) {
-                    errorCount++;
-                    errors.push(`${username}: ${error.message}`);
-                    console.error(`❌ Error sharing with ${username}:`, error);
-                }
+            if (!result.success) {
+                this.setShareModalState('error', {
+                    title: 'Sharing Failed',
+                    message: result.error,
+                    details: ''
+                });
+                return;
             }
             
-            // Show results with improved messaging
+            const { successCount, alreadySharedCount, errorCount, errors } = result;
             const totalProcessed = successCount + alreadySharedCount;
+            
+            // Show results with improved messaging
             if (totalProcessed > 0 && errorCount === 0) {
                 // Complete success (including already shared)
                 let message = '';
@@ -2462,13 +2431,7 @@ export class ContactUIController {
                 this.setShareModalState('success', {
                     title: 'Contact Sharing Complete!',
                     message: message,
-                    details: usernames.map(u => `✅ ${u}`).join('\n')
-                });
-                
-                // Update contact metadata
-                await this.contactManager.updateContactMetadata(this.currentShareContact.contactId, {
-                    lastSharedAt: new Date().toISOString(),
-                    sharedWith: [...(this.currentShareContact.metadata?.sharedWith || []), ...usernames]
+                    details: result.results.map(r => `${r.success ? '✅' : '❌'} ${r.username}`).join('\n')
                 });
                 
             } else if (totalProcessed > 0 && errorCount > 0) {
@@ -3844,9 +3807,32 @@ export class ContactUIController {
             if (result.success) {
                 this.elements.newUsernameInput.value = '';
                 this.loadUsernamesForList(this.currentDistributionList);
+                
+                // Enhanced feedback for retroactive sharing
+                let message = `Added "${username}" to distribution list`;
+                let toastType = 'success';
+                
+                if (result.retroactiveSharing && result.retroactiveSharing.contactsFound > 0) {
+                    const { contactsFound, successfulShares, alreadyShared, failedShares } = result.retroactiveSharing;
+                    
+                    if (successfulShares > 0) {
+                        message += ` and automatically shared ${successfulShares} existing contact${successfulShares === 1 ? '' : 's'}`;
+                        if (alreadyShared > 0) {
+                            message += ` (${alreadyShared} already shared)`;
+                        }
+                    } else if (alreadyShared > 0) {
+                        message += ` (${alreadyShared} existing contact${alreadyShared === 1 ? ' was' : 's were'} already shared)`;
+                    }
+                    
+                    if (failedShares > 0) {
+                        message += ` (${failedShares} failed to share)`;
+                        toastType = 'warning';
+                    }
+                }
+                
                 this.showToast({ 
-                    message: `Added "${username}" to distribution list`, 
-                    type: 'success' 
+                    message: message, 
+                    type: toastType 
                 });
                 
                 // Refresh distribution lists in sidebar

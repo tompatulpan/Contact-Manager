@@ -274,13 +274,35 @@ export class ContactDatabase {
             await userbase.openDatabase({
                 databaseName,
                 changeHandler: (items) => {
-                    // Process items and emit appropriate events
-                    const processedItems = items.map(item => ({
-                        ...item.item,
-                        itemId: item.itemId,
-                        contactId: item.item.contactId || item.itemId // Ensure contactId is available
-                    }));
+                    console.log(`🔍 DEBUG: openDatabase changeHandler called for ${databaseName} with ${items.length} items`);
                     
+                    // Process items and emit appropriate events
+                    const processedItems = items.map((item, index) => {
+                        console.log(`🔍 DEBUG: Processing item ${index}:`, {
+                            hasItem: !!item.item,
+                            hasItemId: !!item.itemId,
+                            itemId: item.itemId,
+                            itemKeys: Object.keys(item),
+                            itemItemKeys: item.item ? Object.keys(item.item) : 'no item'
+                        });
+                        
+                        const processed = {
+                            ...item.item,
+                            itemId: item.itemId,
+                            contactId: item.item.contactId || item.itemId // Ensure contactId is available
+                        };
+                        
+                        console.log(`🔍 DEBUG: Processed item ${index}:`, {
+                            contactId: processed.contactId,
+                            itemId: processed.itemId,
+                            hasItemId: !!processed.itemId,
+                            processedKeys: Object.keys(processed)
+                        });
+                        
+                        return processed;
+                    });
+                    
+                    console.log(`🔍 DEBUG: Calling changeHandler for ${databaseName} with ${processedItems.length} processed items`);
                     changeHandler(processedItems);
                 }
             });
@@ -299,19 +321,21 @@ export class ContactDatabase {
      */
     async saveContact(contact) {
         try {
-            // Userbase insertItem doesn't return itemId, it generates one internally
+            // Use contactId as itemId to ensure we can reference it later
+            const itemId = contact.contactId;
+            
             await userbase.insertItem({
                 databaseName: this.databases.contacts,
+                itemId: itemId, // Specify the itemId explicitly
                 item: {
                     ...contact,
-                    contactId: contact.contactId // Keep contactId separate from itemId
+                    contactId: contact.contactId // Keep contactId for clarity
                 }
-                // Don't specify itemId - let Userbase generate a unique one
             });
 
-            // Since insertItem doesn't return the itemId, we'll use the contactId as reference
-            this.eventBus.emit('contact:saved', { contact, itemId: contact.contactId });
-            return { success: true, itemId: contact.contactId };
+            console.log(`✅ Contact saved with itemId: ${itemId}`);
+            this.eventBus.emit('contact:saved', { contact, itemId });
+            return { success: true, itemId };
         } catch (error) {
             console.error('Save contact failed:', error);
             this.eventBus.emit('database:error', { error: error.message });
@@ -327,6 +351,13 @@ export class ContactDatabase {
     async updateContact(contact) {
         try {
             const itemId = contact.itemId || contact.contactId;
+            
+            if (!itemId) {
+                throw new Error('No itemId or contactId provided for update');
+            }
+            
+            console.log('💾 Updating contact with itemId:', itemId, 'contactId:', contact.contactId);
+            console.log('💾 Contact has itemId:', !!contact.itemId, 'contactId:', !!contact.contactId);
             
             // Update in main contacts database
             await userbase.updateItem({
@@ -688,6 +719,102 @@ export class ContactDatabase {
     }
 
     /**
+     * Revoke user access to a specific contact's shared database
+     * @param {string} contactId - The contact ID to revoke access to
+     * @param {string} username - Username to revoke access from
+     * @returns {Promise<Object>} Revocation result
+     */
+    async revokeContactAccess(contactId, username) {
+        try {
+            const sharedDbName = `shared-contact-${contactId}`;
+            console.log(`🔒 Revoking access to shared database "${sharedDbName}" from user "${username}"`);
+            
+            // First check if the database exists and we own it
+            let databaseExists = false;
+            try {
+                const databases = await userbase.getDatabases();
+                const dbList = databases.databases || databases;
+                databaseExists = dbList.some(db => 
+                    db.databaseName === sharedDbName && db.isOwner
+                );
+                console.log('🔍 Database exists check for revocation:', sharedDbName, '→', databaseExists);
+            } catch (checkError) {
+                console.log('⚠️ Could not check database existence for revocation:', checkError.message);
+                return { success: false, error: `Could not verify database ownership: ${checkError.message}` };
+            }
+
+            if (!databaseExists) {
+                console.log('📝 Database does not exist or not owned, skipping revocation:', sharedDbName);
+                return { success: true, message: 'Database not found or not owned' };
+            }
+
+            // Remove user from the shared database
+            // Note: We'll try using shareDatabase with revoke parameter
+            // If that doesn't work, we may need to delete and recreate the database
+            try {
+                await userbase.shareDatabase({
+                    databaseName: sharedDbName,
+                    username: username.trim(),
+                    revoke: true
+                });
+                console.log(`✅ Successfully revoked access using shareDatabase revoke`);
+            } catch (revokeError) {
+                console.log(`⚠️ shareDatabase revoke failed, trying alternative approach:`, revokeError.message);
+                
+                // Alternative approach: If revoke isn't supported, we could delete and recreate
+                // For now, we'll just log this limitation
+                console.log(`❌ Cannot revoke access to "${sharedDbName}" from user "${username}" - Userbase may not support direct revocation`);
+                return { 
+                    success: false, 
+                    error: `Access revocation not supported: ${revokeError.message}`,
+                    suggestion: "User will retain access until database is recreated"
+                };
+            }
+            
+            console.log(`✅ Successfully revoked access to "${sharedDbName}" from user "${username}"`);
+
+            // Log the revocation activity
+            await this.logActivity({
+                action: 'contact_access_revoked',
+                targetUser: username,
+                details: {
+                    contactId: contactId,
+                    databaseName: sharedDbName
+                }
+            });
+
+            this.eventBus.emit('contact:access_revoked', { 
+                contactId: contactId,
+                username: username,
+                sharedDbName: sharedDbName
+            });
+            
+            return { success: true, sharedDbName };
+
+        } catch (error) {
+            console.error(`❌ Revoke contact access failed for contact ${contactId}, user ${username}:`, error);
+            
+            // Check if this is because the user wasn't shared with in the first place
+            if (error.message && (
+                error.message.includes('User does not exist') ||
+                error.message.includes('User not found') ||
+                error.message.includes('not permitted')
+            )) {
+                console.log('📝 User was not shared with this database, considering revocation successful');
+                return { success: true, message: 'User was not shared with this contact' };
+            }
+            
+            console.error('Revocation error details:', {
+                message: error.message,
+                code: error.code,
+                name: error.name
+            });
+            
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Update an existing shared contact database with latest contact data
      * @param {Object} contact - The contact data to update
      * @param {string} sharedDbName - The shared database name
@@ -998,23 +1125,20 @@ export class ContactDatabase {
                 // Update local cache
                 this.settingsItems[0] = { ...this.settingsItems[0], ...settingsToSave };
             } else {
-                // Create new settings
+                // Create new settings with fixed itemId (like in saveSettings method)
                 console.log('💾 Creating new settings item');
+                const fixedItemId = 'user-settings';
                 
-                const result = await userbase.insertItem({
+                await userbase.insertItem({
                     databaseName: 'user-settings',
-                    item: settingsToSave
+                    item: settingsToSave,
+                    itemId: fixedItemId
                 });
                 
-                // Check if insert was successful
-                if (!result || !result.itemId) {
-                    throw new Error('Failed to create settings item - no itemId returned');
-                }
-                
-                console.log('💾 Settings item created with itemId:', result.itemId);
+                console.log('💾 Settings item created with itemId:', fixedItemId);
                 
                 // Update local cache
-                this.settingsItems = [{ itemId: result.itemId, ...settingsToSave }];
+                this.settingsItems = [{ itemId: fixedItemId, ...settingsToSave }];
             }
 
             console.log('💾 Settings updated successfully');

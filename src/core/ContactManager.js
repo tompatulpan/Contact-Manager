@@ -155,8 +155,9 @@ export class ContactManager {
                 };
             }
 
-            // Add to local cache
-            this.contacts.set(contactId, contact);
+            // NOTE: Don't add to local cache here - let the database change handler
+            // handle it to ensure itemId is properly set by Userbase
+            // this.contacts.set(contactId, contact);
             
             // Clear search cache
             this.clearSearchCache();
@@ -270,7 +271,7 @@ export class ContactManager {
             }
 
             // Update local cache
-            this.contacts.set(contactId, updatedContact);
+            this.setContactInCache(contactId, updatedContact, 'updateContact');
             
             // Clear search cache
             this.clearSearchCache();
@@ -968,12 +969,59 @@ export class ContactManager {
     }
 
     /**
-     * Get contact by ID
-     * @param {string} contactId - Contact ID
-     * @returns {Object|null} Contact object
+     * Debug wrapper for contacts.set to track itemId issues
      */
+    setContactInCache(contactId, contact, source = 'unknown') {
+        console.log(`🔧 DEBUG: setContactInCache called from ${source}:`, {
+            contactId: contactId,
+            hasItemId: !!contact.itemId,
+            itemId: contact.itemId,
+            contactKeys: Object.keys(contact),
+            source: source
+        });
+        
+        if (!contact.itemId) {
+            console.error(`🚨 WARNING: Storing contact WITHOUT itemId from ${source}:`, contactId);
+            console.trace(`🚨 CALL STACK for itemId-less storage from ${source}:`);
+        }
+        
+        this.contacts.set(contactId, contact);
+        
+        // Verify storage
+        const stored = this.contacts.get(contactId);
+        console.log(`🔧 DEBUG: Verification after ${source} storage:`, {
+            contactId: contactId,
+            storedHasItemId: !!stored?.itemId,
+            storedItemId: stored?.itemId,
+            success: stored === contact
+        });
+    }
     getContact(contactId) {
-        return this.contacts.get(contactId) || null;
+        const contact = this.contacts.get(contactId);
+        
+        // Debug contact retrieval for itemId investigation
+        if (contact) {
+            console.log('🔍 DEBUG: getContact called for:', contactId);
+            console.log('🔍 DEBUG: Retrieved contact keys:', Object.keys(contact));
+            console.log('🔍 DEBUG: Retrieved contact itemId:', contact.itemId, typeof contact.itemId);
+            console.log('🔍 DEBUG: Retrieved contact structure:', {
+                contactId: contact.contactId,
+                cardName: contact.cardName,
+                hasItemId: !!contact.itemId,
+                itemIdValue: contact.itemId,
+                contactKeys: Object.keys(contact)
+            });
+            
+            // Check if contact is missing itemId and warn
+            if (!contact.itemId) {
+                console.error('🚨 CRITICAL: Contact retrieved from cache missing itemId!', contactId);
+                console.trace('🚨 CALL STACK for missing itemId retrieval:');
+            }
+        } else {
+            console.log('🔍 DEBUG: getContact - contact not found:', contactId);
+        }
+        
+        return contact || null;
     }
 
     /**
@@ -1028,15 +1076,59 @@ export class ContactManager {
             
             // Add new owned contacts
             contactsArray.forEach(contact => {
-                // Ensure owned contacts have correct metadata
-                contact.metadata = {
-                    ...contact.metadata,
-                    isOwned: true,
-                    sharedBy: null,
-                    databaseId: null
+                // CRITICAL: Preserve the Userbase itemId before any processing
+                const originalItemId = contact.itemId;
+                
+                console.log('🔍 DEBUG: Processing contact for cache:', {
+                    contactId: contact.contactId,
+                    originalItemId: originalItemId,
+                    cardName: contact.cardName,
+                    hasItemId: !!contact.itemId,
+                    contactKeys: Object.keys(contact)
+                });
+                
+                // Ensure owned contacts have correct metadata and preserve itemId
+                const processedContact = {
+                    ...contact,
+                    itemId: originalItemId, // Explicitly preserve itemId
+                    metadata: {
+                        ...contact.metadata,
+                        isOwned: true,
+                        sharedBy: null,
+                        databaseId: null
+                    }
                 };
-                console.log('📋 Adding owned contact to cache:', contact.contactId, contact.cardName || 'Unnamed');
-                this.contacts.set(contact.contactId, contact);
+                
+                // Validate itemId is present
+                if (!processedContact.itemId) {
+                    console.error('❌ Contact missing itemId:', contact.contactId);
+                    // For newly created contacts, itemId should equal contactId
+                    processedContact.itemId = contact.contactId;
+                    console.log('🔧 Set itemId to contactId:', processedContact.itemId);
+                }
+                
+                console.log('📋 Adding owned contact to cache:', processedContact.contactId, processedContact.cardName || 'Unnamed', 'itemId:', processedContact.itemId);
+                console.log('🔍 DEBUG: Final processed contact structure:', {
+                    contactId: processedContact.contactId,
+                    itemId: processedContact.itemId,
+                    hasItemId: !!processedContact.itemId,
+                    processedKeys: Object.keys(processedContact)
+                });
+                
+                // Store the contact in cache
+                this.setContactInCache(processedContact.contactId, processedContact, 'handleContactsChanged');
+                
+                // Verify the contact was stored correctly
+                const storedContact = this.contacts.get(processedContact.contactId);
+                console.log('🔍 DEBUG: Verification - stored contact has itemId:', !!storedContact?.itemId, storedContact?.itemId);
+                console.log('🔍 DEBUG: Verification - stored contact keys:', Object.keys(storedContact || {}));
+                
+                // Deep verify storage by checking the same object reference
+                if (storedContact === processedContact) {
+                    console.log('✅ Same object reference confirmed');
+                } else {
+                    console.error('❌ Different object reference - possible mutation!');
+                }
             });
             
             console.log('📋 Final contact count after adding owned:', this.contacts.size);
@@ -1061,22 +1153,29 @@ export class ContactManager {
             
             // Add new shared contacts
             contactsArray.forEach(contact => {
-                // Ensure shared contacts have correct metadata
-                contact.metadata = {
-                    ...contact.metadata,
-                    isOwned: false,
-                    sharedBy: sharedBy,
-                    databaseId: databaseId,
-                    originalContactId: contact.contactId  // Store original ID for reference
-                };
+                // CRITICAL: Preserve the Userbase itemId before any processing
+                const originalItemId = contact.itemId;
+                const originalContactId = contact.contactId;
                 
                 // Create unique ID for shared contacts to avoid conflicts
-                const originalId = contact.contactId;
-                const sharedContactId = `shared_${sharedBy}_${contact.contactId}`;
-                contact.contactId = sharedContactId;
+                const sharedContactId = `shared_${sharedBy}_${originalContactId}`;
                 
-                console.log('📋 Adding shared contact to cache:', sharedContactId, contact.cardName || 'Unnamed', `(from ${sharedBy}, original: ${originalId})`);
-                this.contacts.set(sharedContactId, contact);
+                // Create new contact object to avoid modifying the original
+                const processedContact = {
+                    ...contact,
+                    contactId: sharedContactId,
+                    itemId: originalItemId, // Explicitly preserve itemId
+                    metadata: {
+                        ...contact.metadata,
+                        isOwned: false,
+                        sharedBy: sharedBy,
+                        databaseId: databaseId,
+                        originalContactId: originalContactId  // Store original ID for reference
+                    }
+                };
+                
+                console.log('📋 Adding shared contact to cache:', sharedContactId, processedContact.cardName || 'Unnamed', `(from ${sharedBy}, original: ${originalContactId}, itemId: ${processedContact.itemId})`);
+                this.contacts.set(sharedContactId, processedContact);
             });
             
             // Load and merge user's metadata for shared contacts
@@ -1215,6 +1314,13 @@ export class ContactManager {
             if (!contact) {
                 throw new Error('Contact not found');
             }
+            
+            if (!contact.itemId) {
+                console.error('❌ Contact missing itemId in updateContactMetadata:', contactId);
+                throw new Error('Contact missing itemId, cannot update');
+            }
+
+            console.log('🔄 Updating contact metadata for:', contactId, 'itemId:', contact.itemId);
 
             // Update contact with new metadata
             const updatedContact = {
@@ -1648,9 +1754,52 @@ export class ContactManager {
                 await this.database.updateSettings(updatedSettings);
                 
                 console.log(`✅ Added username "${username}" to distribution list "${listName}"`);
+                
+                // 🔄 RETROACTIVE SHARING: Share existing contacts with the newly added user
+                const existingContactsToShare = await this.findContactsSharedWithDistributionList(listName);
+                let retroactiveResults = {
+                    contactsFound: existingContactsToShare.length,
+                    successfulShares: 0,
+                    failedShares: 0,
+                    alreadyShared: 0,
+                    errors: []
+                };
+                
+                if (existingContactsToShare.length > 0) {
+                    console.log(`🔄 Found ${existingContactsToShare.length} existing contacts to retroactively share with "${username}"`);
+                    
+                    for (const contact of existingContactsToShare) {
+                        try {
+                            const result = await this.shareContact(contact.contactId, username, true);
+                            if (result.success) {
+                                if (result.wasAlreadyShared) {
+                                    retroactiveResults.alreadyShared++;
+                                    console.log(`ℹ️ Contact "${contact.cardName}" was already shared with ${username}`);
+                                } else {
+                                    retroactiveResults.successfulShares++;
+                                    console.log(`✅ Retroactively shared contact "${contact.cardName}" with ${username}`);
+                                }
+                            } else {
+                                retroactiveResults.failedShares++;
+                                retroactiveResults.errors.push(`${contact.cardName}: ${result.error}`);
+                                console.error(`❌ Failed to retroactively share "${contact.cardName}" with ${username}:`, result.error);
+                            }
+                        } catch (error) {
+                            retroactiveResults.failedShares++;
+                            retroactiveResults.errors.push(`${contact.cardName}: ${error.message}`);
+                            console.error(`❌ Error retroactively sharing "${contact.cardName}" with ${username}:`, error);
+                        }
+                    }
+                    
+                    console.log(`🎯 Retroactive sharing complete: ${retroactiveResults.successfulShares} new shares, ${retroactiveResults.alreadyShared} already shared, ${retroactiveResults.failedShares} failed`);
+                }
+                
                 this.eventBus.emit('distributionListsUpdated');
                 
-                return { success: true };
+                return { 
+                    success: true, 
+                    retroactiveSharing: retroactiveResults
+                };
             } else {
                 console.log(`ℹ️ Username "${username}" already in distribution list "${listName}"`);
                 return { success: true, message: 'Username already in list' };
@@ -1659,6 +1808,65 @@ export class ContactManager {
         } catch (error) {
             console.error('❌ Error adding username to distribution list:', error);
             return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Find contacts that have been previously shared with a specific distribution list
+     * This helps identify contacts that need retroactive sharing when new users are added to the list
+     * @param {string} listName - Name of the distribution list
+     * @returns {Array} Array of contacts that have been shared with this distribution list
+     */
+    async findContactsSharedWithDistributionList(listName) {
+        try {
+            const contactsSharedWithList = [];
+            
+            // Search through all contacts for ones that have been shared with this distribution list
+            for (const contact of this.contacts.values()) {
+                // Debug: log contact metadata
+                console.log(`🔍 Checking contact ${contact.cardName}:`, {
+                    isDeleted: contact.metadata?.isDeleted,
+                    isArchived: contact.metadata?.isArchived,
+                    isOwned: contact.metadata?.isOwned,
+                    sharedWithDistributionList: contact.metadata?.sharedWithDistributionList,
+                    distributionLists: contact.metadata?.distributionLists
+                });
+                
+                // Skip deleted or archived contacts
+                if (contact.metadata?.isDeleted || contact.metadata?.isArchived) {
+                    console.log(`⏭️ Skipping ${contact.cardName} - deleted or archived`);
+                    continue;
+                }
+                
+                // Skip contacts that aren't owned by the current user (can't share others' contacts)
+                if (!contact.metadata?.isOwned) {
+                    console.log(`⏭️ Skipping ${contact.cardName} - not owned by current user`);
+                    continue;
+                }
+                
+                // Check if contact metadata indicates it was shared with this distribution list
+                if (contact.metadata?.sharedWithDistributionList === listName) {
+                    console.log(`✅ Found contact ${contact.cardName} shared with list ${listName}`);
+                    contactsSharedWithList.push(contact);
+                    continue;
+                }
+                
+                // Also check if the contact is in the distribution list (older method)
+                if (contact.metadata?.distributionLists?.includes(listName)) {
+                    console.log(`✅ Found contact ${contact.cardName} in distribution lists`);
+                    contactsSharedWithList.push(contact);
+                    continue;
+                }
+                
+                console.log(`⏭️ Contact ${contact.cardName} not shared with list ${listName}`);
+            }
+            
+            console.log(`📋 Found ${contactsSharedWithList.length} contacts previously shared with distribution list "${listName}"`);
+            return contactsSharedWithList;
+            
+        } catch (error) {
+            console.error('❌ Error finding contacts shared with distribution list:', error);
+            return [];
         }
     }
 
@@ -1674,27 +1882,86 @@ export class ContactManager {
                 return { success: true, message: 'Username not in list' };
             }
             
-            // Remove username
+            // Check if username is actually in the list
             const index = distributionLists[listName].usernames.indexOf(username);
-            if (index > -1) {
-                distributionLists[listName].usernames.splice(index, 1);
-                
-                // Update settings
-                const updatedSettings = {
-                    ...settings,
-                    distributionLists: distributionLists
-                };
-                
-                await this.database.updateSettings(updatedSettings);
-                
-                console.log(`✅ Removed username "${username}" from distribution list "${listName}"`);
-                this.eventBus.emit('distributionListsUpdated');
+            if (index === -1) {
+                return { success: true, message: 'Username not in list' };
             }
+            
+            // Remove username
+            distributionLists[listName].usernames.splice(index, 1);
+            
+            // Update settings first
+            const updatedSettings = {
+                ...settings,
+                distributionLists: distributionLists
+            };
+            
+            await this.database.updateSettings(updatedSettings);
+            
+            console.log(`✅ Removed username "${username}" from distribution list "${listName}"`);
+            
+            // **NEW: Revoke access to all contacts shared with this distribution list**
+            await this.revokeDistributionListAccess(listName, username);
+            
+            this.eventBus.emit('distributionListsUpdated');
             
             return { success: true };
             
         } catch (error) {
             console.error('❌ Error removing username from distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Revoke access to all contacts that were shared with a distribution list
+     * @param {string} listName - Distribution list name
+     * @param {string} username - Username to revoke access from
+     */
+    async revokeDistributionListAccess(listName, username) {
+        try {
+            console.log(`🔒 Revoking access for "${username}" to contacts shared with distribution list "${listName}"`);
+            
+            // Find all contacts that were shared with this distribution list
+            const sharedContacts = await this.findContactsSharedWithDistributionList(listName);
+            
+            console.log(`🔍 Found ${sharedContacts.length} contacts to revoke access from for user "${username}"`);
+            
+            let revokedCount = 0;
+            let errorCount = 0;
+            
+            for (const contact of sharedContacts) {
+                try {
+                    console.log(`🔒 Revoking access to contact "${contact.cardName}" (${contact.contactId}) from user "${username}"`);
+                    
+                    const result = await this.database.revokeContactAccess(contact.contactId, username);
+                    
+                    if (result.success) {
+                        revokedCount++;
+                        console.log(`✅ Successfully revoked access to "${contact.cardName}" from "${username}"`);
+                    } else {
+                        errorCount++;
+                        console.error(`❌ Failed to revoke access to "${contact.cardName}" from "${username}":`, result.error);
+                    }
+                    
+                } catch (error) {
+                    errorCount++;
+                    console.error(`❌ Error revoking access to "${contact.cardName}" from "${username}":`, error);
+                }
+            }
+            
+            console.log(`🔒 Access revocation complete: ${revokedCount} revoked, ${errorCount} errors`);
+            
+            return {
+                success: true,
+                revokedCount,
+                errorCount,
+                totalContacts: sharedContacts.length
+            };
+            
+        } catch (error) {
+            console.error('❌ Error in revokeDistributionListAccess:', error);
             return { success: false, error: error.message };
         }
     }
@@ -1711,11 +1978,50 @@ export class ContactManager {
         try {
             console.log('🔄 ContactManager: Sharing contact:', contactId, 'with user:', username);
             
-            // Get the contact
-            const contact = this.contacts.get(contactId);
+            // Get the contact - retry a few times to handle race conditions
+            let contact;
+            let retries = 3;
+            while (retries > 0) {
+                contact = this.contacts.get(contactId);
+                console.log(`🔍 Contact retrieval attempt ${4-retries}: contact found:`, !!contact, 'itemId present:', !!contact?.itemId);
+                if (contact?.itemId) {
+                    console.log('🔍 Contact object structure:', {
+                        contactId: contact.contactId,
+                        itemId: contact.itemId,
+                        cardName: contact.cardName,
+                        hasMetadata: !!contact.metadata,
+                        isOwned: contact.metadata?.isOwned
+                    });
+                } else if (contact) {
+                    console.log('🔍 DEBUG: Contact object keys:', Object.keys(contact));
+                    console.log('🔍 DEBUG: Contact object itemId value:', contact.itemId);
+                    console.log('🔍 DEBUG: Contact object structure:', {
+                        contactId: contact.contactId,
+                        itemId: contact.itemId,
+                        cardName: contact.cardName,
+                        hasItemId: !!contact.itemId,
+                        itemIdType: typeof contact.itemId,
+                        itemIdValue: contact.itemId
+                    });
+                }
+                if (contact && contact.itemId) {
+                    break; // Contact found with itemId
+                }
+                console.log(`⏳ Contact not ready for sharing (attempt ${4-retries}/3), waiting...`);
+                await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+                retries--;
+            }
+            
             if (!contact) {
                 throw new Error(`Contact not found: ${contactId}`);
             }
+            
+            if (!contact.itemId) {
+                console.error('❌ Contact missing itemId:', contact);
+                throw new Error(`Contact ${contactId} missing itemId, cannot share. Contact may need to be recreated.`);
+            }
+            
+            console.log('✅ Contact ready for sharing - itemId:', contact.itemId);
             
             // Check if it's a shared contact - we can't share shared contacts
             if (contactId.startsWith('shared_')) {
@@ -1762,8 +2068,15 @@ export class ContactManager {
                     }
                 };
                 
-                // Update the contact in our local cache
+                // Update the contact in our local cache first
                 this.contacts.set(contactId, updatedContact);
+                
+                // CRITICAL: Ensure the contact has itemId for database update
+                console.log('🔍 Contact before database update - itemId:', updatedContact.itemId, 'contactId:', updatedContact.contactId);
+                if (!updatedContact.itemId) {
+                    console.error('❌ Contact missing itemId, cannot update database:', contactId);
+                    throw new Error('Contact missing itemId, cannot update database');
+                }
                 
                 // Save the updated metadata to the database
                 await this.database.updateContact(updatedContact);
@@ -1855,6 +2168,103 @@ export class ContactManager {
             
         } catch (error) {
             console.error('❌ Error sharing profile with distribution list:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Share a specific contact with all users in a distribution list
+     * @param {string} contactId - ID of the contact to share
+     * @param {string} listName - Name of the distribution list
+     * @param {boolean} readOnly - Whether sharing is read-only (default: true)
+     * @returns {Promise<Object>} Share result with details
+     */
+    async shareContactWithDistributionList(contactId, listName, readOnly = true) {
+        try {
+            // Get the contact to share
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                throw new Error('Contact not found');
+            }
+            
+            // Get usernames in the distribution list
+            const usernames = await this.getUsernamesInDistributionList(listName);
+            if (usernames.length === 0) {
+                throw new Error('No usernames in distribution list');
+            }
+            
+            console.log(`🔄 Sharing contact "${contact.cardName}" with ${usernames.length} users from "${listName}":`, usernames);
+            
+            // Share the contact with each username
+            let successCount = 0;
+            let errorCount = 0;
+            let alreadySharedCount = 0;
+            const results = [];
+            const errors = [];
+            
+            for (const username of usernames) {
+                try {
+                    // Skip sharing with self
+                    if (username === this.database.currentUser?.username) {
+                        console.log(`⏭️ Skipping self-share with: ${username}`);
+                        continue;
+                    }
+                    
+                    const result = await this.shareContact(contactId, username, readOnly);
+                    results.push({
+                        username,
+                        success: result.success,
+                        wasAlreadyShared: result.wasAlreadyShared,
+                        error: result.error || null
+                    });
+                    
+                    if (result.success) {
+                        if (result.wasAlreadyShared) {
+                            alreadySharedCount++;
+                            console.log(`ℹ️ Contact was already shared with: ${username}`);
+                        } else {
+                            successCount++;
+                            console.log(`✅ Successfully shared with: ${username}`);
+                        }
+                    } else {
+                        errorCount++;
+                        errors.push(`${username}: ${result.error}`);
+                        console.error(`❌ Failed to share with ${username}:`, result.error);
+                    }
+                } catch (error) {
+                    errorCount++;
+                    errors.push(`${username}: ${error.message}`);
+                    console.error(`❌ Error sharing with ${username}:`, error);
+                    results.push({
+                        username,
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
+            
+            // Update contact metadata to track distribution list sharing
+            await this.updateContactMetadata(contactId, {
+                metadata: {
+                    sharedWithDistributionList: listName,
+                    lastSharedAt: new Date().toISOString()
+                }
+            });
+            
+            console.log(`✅ Distribution list sharing complete: ${successCount} new shares, ${alreadySharedCount} already shared, ${errorCount} errors`);
+            
+            return {
+                success: true,
+                successCount,
+                alreadySharedCount,
+                errorCount,
+                total: usernames.length,
+                results,
+                errors
+            };
+            
+        } catch (error) {
+            console.error('❌ Error sharing contact with distribution list:', error);
             return { success: false, error: error.message };
         }
     }
