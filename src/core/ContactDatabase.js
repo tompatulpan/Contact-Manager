@@ -11,7 +11,8 @@ export class ContactDatabase {
             contacts: 'contacts',
             settings: 'user-settings',
             activity: 'activity-log',
-            sharedContactMeta: 'shared-contact-metadata'  // Store user's metadata for shared contacts
+            sharedContactMeta: 'shared-contact-metadata',  // Store user's metadata for shared contacts
+            distributionSharing: 'distribution-sharing'   // Store distribution list sharing relationships
         };
         this.changeHandlers = new Map();
         this.lastKnownSharedCount = 0;
@@ -32,6 +33,7 @@ export class ContactDatabase {
      * @param {string} appId - Userbase application ID
      */
     async initialize(appId) {
+        console.log('🚀 ContactDatabase.initialize() started with appId:', appId);
         let retryCount = 0;
         const maxRetries = 3;
         
@@ -39,6 +41,7 @@ export class ContactDatabase {
             try {
                 // Check if Userbase SDK is available
                 if (typeof window.userbase === 'undefined') {
+                    console.error('❌ Userbase SDK not loaded!');
                     throw new Error('Userbase SDK not loaded. Make sure userbase.js is loaded before app.js');
                 }
 
@@ -245,22 +248,54 @@ export class ContactDatabase {
     async setupDatabases() {
         try {
             // Setup own contacts database with real-time updates
+            console.log('📊 Setting up contacts database...');
             await this.openDatabase('contacts', (items) => {
+                console.log('📱 Contacts database change handler triggered with', items.length, 'items');
                 this.eventBus.emit('contacts:changed', { contacts: items, isOwned: true });
             });
 
-            // Setup shared contact databases
+            // Setup shared contact databases - CRITICAL for cross-device sharing
+            console.log('🔗 Setting up shared databases...');
             await this.setupSharedDatabases();
 
+            // Force initial monitoring check for any existing shared databases
+            console.log('🔍 Performing initial shared database check...');
+            await this.checkForNewSharedDatabases();
+
             // Setup settings database
+            console.log('⚙️ Setting up settings database...');
             await this.openDatabase('user-settings', (items) => {
+                console.log('⚙️ [DEBUG] Settings database change handler triggered with', items.length, 'items');
+                console.log('⚙️ [DEBUG] Settings items details:', items.map(item => ({
+                    itemId: item.itemId,
+                    hasItem: !!item.item,
+                    hasDistributionLists: !!(item.item && item.item.distributionLists),
+                    distributionListsCount: item.item && item.item.distributionLists ? Object.keys(item.item.distributionLists).length : 0
+                })));
+                
                 this.settingsItems = items; // Store settings locally
+                console.log('⚙️ [DEBUG] settingsItems updated to:', this.settingsItems);
+                
                 this.eventBus.emit('settings:changed', { settings: items });
             });
 
             // Setup activity log database
+            console.log('📝 Setting up activity log database...');
             await this.openDatabase('activity-log', (items) => {
+                console.log('📝 Activity log database change handler triggered with', items.length, 'items');
                 this.eventBus.emit('activity:changed', { activities: items });
+            });
+
+            // Setup distribution sharing database
+            console.log('🔗 Setting up distribution sharing database...');
+            await this.openDatabase('distribution-sharing', (items) => {
+                console.log('🔗 Distribution sharing database change handler triggered with', items.length, 'items');
+                console.log('🔗 Distribution sharing items:', items.map(item => ({
+                    contactId: item.contactId,
+                    listName: item.listName,
+                    usernames: item.usernames?.length || 0
+                })));
+                this.eventBus.emit('distributionSharing:changed', { distributionSharing: items });
             });
 
         } catch (error) {
@@ -270,27 +305,48 @@ export class ContactDatabase {
     }
 
     /**
-     * Setup shared contact databases
+     * Setup shared contact databases - CRITICAL FIX for cross-device sharing
      */
     async setupSharedDatabases() {
         try {
-            const sharedDbResult = await this.getSharedDatabases();
-            if (!sharedDbResult.success) {
+            // Get ALL databases (both owned and received) to handle cross-device sharing
+            const allDatabases = await this.getAllSharedContactDatabases();
+            if (!allDatabases.success) {
                 console.log('📭 No shared databases found or error accessing them');
                 return;
             }
 
-            // Only handle individual contact databases (no legacy support)
-            const individualContactDatabases = sharedDbResult.databases.filter(db => 
-                db.databaseName.startsWith('shared-contact-')
-            );
+            const { ownedSharedDatabases, receivedSharedDatabases } = allDatabases;
+            
+            console.log(`📬 Found ${ownedSharedDatabases.length} owned shared databases and ${receivedSharedDatabases.length} received shared databases`);
 
-            console.log(`📬 Found ${individualContactDatabases.length} individual shared contact databases`);
-
-            // Handle individual contact databases
-            for (const db of individualContactDatabases) {
+            // 🔑 CRITICAL FIX: Handle OWNED shared databases (for cross-device editing)
+            // When User1 switches devices, they need to monitor their own shared databases
+            // to ensure updates propagate to recipients
+            for (const db of ownedSharedDatabases) {
                 try {
-                    console.log(`🔄 Opening individual shared contact from ${db.receivedFromUsername} with ID: ${db.databaseId}`);
+                    console.log(`🔄 Opening OWNED shared contact database: ${db.databaseName} (ID: ${db.databaseId})`);
+                    await userbase.openDatabase({
+                        databaseId: db.databaseId,
+                        changeHandler: (items) => {
+                            console.log(`📤 Change detected in OWNED shared database ${db.databaseName}:`, items.length, 'items');
+                            
+                            // Don't emit contacts:changed for owned shared databases
+                            // These are just for monitoring outgoing changes
+                            // The contact changes will be handled by the main contacts database
+                            console.log(`✅ Successfully monitoring owned shared database: ${db.databaseName}`);
+                        }
+                    });
+                    console.log(`✅ Monitoring owned shared database: ${db.databaseName}`);
+                } catch (error) {
+                    console.error(`❌ Failed to open owned shared database ${db.databaseName}:`, error);
+                }
+            }
+
+            // Handle RECEIVED shared databases (from other users)
+            for (const db of receivedSharedDatabases) {
+                try {
+                    console.log(`🔄 Opening RECEIVED shared contact from ${db.receivedFromUsername} with ID: ${db.databaseId}`);
                     await userbase.openDatabase({
                         databaseId: db.databaseId,
                         changeHandler: (items) => {
@@ -323,9 +379,9 @@ export class ContactDatabase {
                             });
                         }
                     });
-                    console.log(`✅ Opened individual shared contact from: ${db.receivedFromUsername}`);
+                    console.log(`✅ Opened received shared contact from: ${db.receivedFromUsername}`);
                 } catch (error) {
-                    console.error(`❌ Failed to open individual shared contact from ${db.receivedFromUsername}:`, error);
+                    console.error(`❌ Failed to open received shared contact from ${db.receivedFromUsername}:`, error);
                 }
             }
         } catch (error) {
@@ -498,7 +554,188 @@ export class ContactDatabase {
         }
     }
 
-    // ========== SHARED CONTACT METADATA METHODS ==========
+    // ========== DISTRIBUTION LIST SHARING PERSISTENCE METHODS ==========
+
+    /**
+     * Save distribution list sharing relationship 
+     * @param {string} contactId - Contact ID that was shared
+     * @param {string} listName - Distribution list name
+     * @param {Array} usernames - Array of usernames shared with
+     * @returns {Promise<Object>} Save result
+     */
+    async saveDistributionListSharing(contactId, listName, usernames) {
+        try {
+            console.log('💾 Saving distribution list sharing relationship:', {
+                contactId,
+                listName,
+                usernames: usernames.length
+            });
+
+            const sharingRecord = {
+                contactId,
+                listName,
+                usernames: usernames.slice(), // Create a copy
+                sharedAt: new Date().toISOString(),
+                sharedBy: this.currentUser?.username || 'unknown',
+                lastUpdated: new Date().toISOString()
+            };
+
+            // Use a deterministic itemId based on contact and list
+            const itemId = `sharing_${contactId}_${listName}`;
+
+            await userbase.insertItem({
+                databaseName: this.databases.distributionSharing,
+                item: sharingRecord,
+                itemId: itemId
+            });
+
+            console.log('✅ Distribution list sharing relationship saved:', itemId);
+            return { success: true, itemId, sharingRecord };
+
+        } catch (error) {
+            // If item already exists, update it
+            if (error.name === 'ItemAlreadyExists') {
+                return await this.updateDistributionListSharing(contactId, listName, usernames);
+            }
+            
+            console.error('❌ Save distribution list sharing failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Update distribution list sharing relationship
+     * @param {string} contactId - Contact ID
+     * @param {string} listName - Distribution list name 
+     * @param {Array} usernames - Updated array of usernames
+     * @returns {Promise<Object>} Update result
+     */
+    async updateDistributionListSharing(contactId, listName, usernames) {
+        try {
+            const itemId = `sharing_${contactId}_${listName}`;
+            
+            const sharingRecord = {
+                contactId,
+                listName,
+                usernames: usernames.slice(), // Create a copy
+                sharedAt: new Date().toISOString(), // Keep original time if needed
+                sharedBy: this.currentUser?.username || 'unknown',
+                lastUpdated: new Date().toISOString()
+            };
+
+            await userbase.updateItem({
+                databaseName: this.databases.distributionSharing,
+                itemId: itemId,
+                item: sharingRecord
+            });
+
+            console.log('✅ Distribution list sharing relationship updated:', itemId);
+            return { success: true, itemId, sharingRecord };
+
+        } catch (error) {
+            // If item doesn't exist, create it
+            if (error.name === 'ItemDoesNotExist') {
+                console.log('📝 Sharing record doesn\'t exist, creating new:', contactId, listName);
+                return await this.saveDistributionListSharing(contactId, listName, usernames);
+            }
+            
+            console.error('❌ Update distribution list sharing failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get distribution list sharing relationships for a contact
+     * @param {string} contactId - Contact ID
+     * @returns {Promise<Array>} Array of sharing relationships
+     */
+    async getDistributionListSharingForContact(contactId) {
+        try {
+            return new Promise((resolve, reject) => {
+                userbase.openDatabase({
+                    databaseName: this.databases.distributionSharing,
+                    changeHandler: (items) => {
+                        const contactSharings = items
+                            .filter(item => item.item && item.item.contactId === contactId)
+                            .map(item => item.item);
+                        resolve(contactSharings);
+                    },
+                }).catch(reject);
+            });
+        } catch (error) {
+            console.error('❌ Get distribution list sharing for contact failed:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get all distribution list sharing relationships
+     * @returns {Promise<Array>} Array of all sharing relationships
+     */
+    async getAllDistributionListSharings() {
+        try {
+            return new Promise((resolve, reject) => {
+                userbase.openDatabase({
+                    databaseName: this.databases.distributionSharing,
+                    changeHandler: (items) => {
+                        const sharings = items.map(item => item.item).filter(Boolean);
+                        resolve(sharings);
+                    },
+                }).catch(reject);
+            });
+        } catch (error) {
+            console.error('❌ Get all distribution list sharings failed:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Delete distribution list sharing relationship
+     * @param {string} contactId - Contact ID
+     * @param {string} listName - Distribution list name
+     * @returns {Promise<Object>} Delete result
+     */
+    async deleteDistributionListSharing(contactId, listName) {
+        try {
+            const itemId = `sharing_${contactId}_${listName}`;
+
+            await userbase.deleteItem({
+                databaseName: this.databases.distributionSharing,
+                itemId: itemId
+            });
+
+            console.log('✅ Distribution list sharing relationship deleted:', itemId);
+            return { success: true };
+
+        } catch (error) {
+            console.error('❌ Delete distribution list sharing failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get contacts shared with a specific distribution list
+     * @param {string} listName - Distribution list name
+     * @returns {Promise<Array>} Array of contact IDs shared with this list
+     */
+    async getContactsSharedWithDistributionList(listName) {
+        try {
+            return new Promise((resolve, reject) => {
+                userbase.openDatabase({
+                    databaseName: this.databases.distributionSharing,
+                    changeHandler: (items) => {
+                        const contactIds = items
+                            .filter(item => item.item && item.item.listName === listName)
+                            .map(item => item.item.contactId);
+                        resolve(contactIds);
+                    },
+                }).catch(reject);
+            });
+        } catch (error) {
+            console.error('❌ Get contacts shared with distribution list failed:', error);
+            return [];
+        }
+    }
 
     /**
      * Save or update shared contact metadata (user-specific states like archive, access tracking)
@@ -788,6 +1025,39 @@ export class ContactDatabase {
     }
 
     /**
+     * Update contact in shared database after editing - CRITICAL for cross-device updates
+     * @param {Object} contact - Updated contact object
+     * @param {string} sharedDbName - Name of the shared database
+     * @returns {Promise<Object>} Update result
+     */
+    async updateSharedContactDatabase(contact, sharedDbName) {
+        try {
+            console.log('🔄 Updating contact in shared database:', sharedDbName);
+            
+            // Update the contact in the shared database to ensure recipients get updates
+            await userbase.updateItem({
+                databaseName: sharedDbName,
+                item: {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        lastSharedUpdate: new Date().toISOString(),
+                        sharedBy: this.currentUser?.username
+                    }
+                },
+                itemId: contact.contactId
+            });
+            
+            console.log('✅ Contact updated in shared database:', sharedDbName);
+            return { success: true };
+            
+        } catch (error) {
+            console.error('❌ Failed to update contact in shared database:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Revoke user access to a specific contact's shared database
      * @param {string} contactId - The contact ID to revoke access to
      * @param {string} username - Username to revoke access from
@@ -922,6 +1192,66 @@ export class ContactDatabase {
      * Get all shared databases
      * @returns {Promise<Array>} Array of shared databases
      */
+    /**
+     * Get all shared contact databases (both owned and received) - CRITICAL for cross-device sharing
+     * @returns {Promise<Object>} Object with ownedSharedDatabases and receivedSharedDatabases arrays
+     */
+    async getAllSharedContactDatabases() {
+        try {
+            const databases = await userbase.getDatabases();
+            console.log('🔍 Raw databases from getDatabases() for shared contact analysis:', databases);
+            
+            // Check if databases is an object with databases property or direct array
+            let databasesArray;
+            if (Array.isArray(databases)) {
+                databasesArray = databases;
+            } else if (databases && Array.isArray(databases.databases)) {
+                databasesArray = databases.databases;
+            } else {
+                console.warn('⚠️ Unexpected databases format:', databases);
+                return { success: true, ownedSharedDatabases: [], receivedSharedDatabases: [] };
+            }
+            
+            // Filter for shared contact databases
+            const sharedContactDatabases = databasesArray.filter(db => 
+                db.databaseName.startsWith('shared-contact-')
+            );
+            
+            // Separate owned vs received shared databases
+            const ownedSharedDatabases = sharedContactDatabases.filter(db => db.isOwner);
+            const receivedSharedDatabases = sharedContactDatabases.filter(db => !db.isOwner);
+            
+            console.log('📊 Shared contact database analysis:', {
+                total: sharedContactDatabases.length,
+                owned: ownedSharedDatabases.length,
+                received: receivedSharedDatabases.length
+            });
+            
+            // Log details for debugging
+            ownedSharedDatabases.forEach(db => {
+                console.log(`🏠 Owned shared database: ${db.databaseName} (ID: ${db.databaseId})`);
+            });
+            
+            receivedSharedDatabases.forEach(db => {
+                console.log(`📨 Received shared database: ${db.databaseName} from ${db.receivedFromUsername} (ID: ${db.databaseId})`);
+            });
+            
+            return { 
+                success: true, 
+                ownedSharedDatabases,
+                receivedSharedDatabases
+            };
+        } catch (error) {
+            console.error('Get all shared contact databases failed:', error);
+            return { 
+                success: false, 
+                error: error.message,
+                ownedSharedDatabases: [],
+                receivedSharedDatabases: []
+            };
+        }
+    }
+
     async getSharedDatabases() {
         try {
             const databases = await userbase.getDatabases();
@@ -1113,25 +1443,38 @@ export class ContactDatabase {
     }
 
     /**
-     * Check for new shared databases
+     * Check for new shared databases - ENHANCED for cross-device sharing
      */
     async checkForNewSharedDatabases() {
         try {
-            const allDatabases = await userbase.getDatabases();
-            const sharedDatabases = allDatabases.databases.filter(db => !db.isOwner);
+            // Get all databases and check for new shared contact databases
+            const allDatabases = await this.getAllSharedContactDatabases();
+            if (!allDatabases.success) {
+                console.log('❌ Failed to check for new shared databases:', allDatabases.error);
+                return;
+            }
+            
+            const { ownedSharedDatabases, receivedSharedDatabases } = allDatabases;
+            const totalSharedCount = ownedSharedDatabases.length + receivedSharedDatabases.length;
             
             // Check if we have new shared databases
             const currentSharedCount = this.lastKnownSharedCount || 0;
-            const newSharedCount = sharedDatabases.length;
             
-            if (newSharedCount > currentSharedCount) {
-                console.log(`🔄 Detected ${newSharedCount - currentSharedCount} new shared database(s)!`);
-                console.log('🔄 Re-setting up shared databases...');
+            if (totalSharedCount > currentSharedCount) {
+                console.log(`🔄 Detected new shared database(s)! Total: ${totalSharedCount}, Previous: ${currentSharedCount}`);
+                console.log(`🔄 Owned: ${ownedSharedDatabases.length}, Received: ${receivedSharedDatabases.length}`);
+                console.log('🔄 Re-setting up shared databases to include new ones...');
                 
                 // Re-setup all shared databases to include new ones
                 await this.setupSharedDatabases();
                 
-                this.lastKnownSharedCount = newSharedCount;
+                this.lastKnownSharedCount = totalSharedCount;
+                
+                console.log(`✅ Shared database monitoring updated. Now monitoring ${totalSharedCount} total shared databases.`);
+            } else if (totalSharedCount < currentSharedCount) {
+                // Handle case where shared databases were removed
+                console.log(`🔄 Detected removed shared database(s). Total: ${totalSharedCount}, Previous: ${currentSharedCount}`);
+                this.lastKnownSharedCount = totalSharedCount;
             }
             
         } catch (error) {
@@ -1145,15 +1488,53 @@ export class ContactDatabase {
      */
     async getSettings() {
         try {
-            // Try to get existing settings
+            console.log('💾 [DEBUG] getSettings() called');
+            console.log('💾 [DEBUG] Current settingsItems:', this.settingsItems);
+            console.log('💾 [DEBUG] settingsItems length:', this.settingsItems ? this.settingsItems.length : 'null');
+            
+            // Try to get existing settings from cache first
             if (this.settingsItems && this.settingsItems.length > 0) {
-                return this.settingsItems[0] || this.getDefaultSettings();
+                const settings = this.settingsItems[0] || this.getDefaultSettings();
+                console.log('💾 [DEBUG] Returning cached settings:', settings);
+                console.log('💾 [DEBUG] Distribution lists in cached settings:', settings.distributionLists);
+                return settings;
             }
             
-            return this.getDefaultSettings();
+            // FALLBACK: If cache is empty, fetch fresh data from database
+            console.log('💾 [DEBUG] No cached settings, fetching fresh data from database...');
+            try {
+                const freshItems = await new Promise((resolve, reject) => {
+                    this.userbase.openDatabase({
+                        databaseName: 'user-settings',
+                        changeHandler: (items) => {
+                            console.log('💾 [DEBUG] Fresh settings fetch - change handler called with:', items.length, 'items');
+                            resolve(items);
+                        }
+                    }).catch(reject);
+                });
+
+                if (freshItems && freshItems.length > 0) {
+                    const freshSettings = freshItems[0].item;  // Fix: need .item property
+                    console.log('💾 [DEBUG] Fresh settings retrieved:', freshSettings);
+                    console.log('💾 [DEBUG] Fresh distribution lists:', freshSettings.distributionLists);
+                    
+                    // Update cache for future calls
+                    this.settingsItems = freshItems;
+                    console.log('💾 [DEBUG] Cache updated with fresh data');
+                    
+                    return freshSettings;
+                } else {
+                    console.log('💾 [DEBUG] No items in database, returning defaults');
+                    return this.getDefaultSettings();
+                }
+            } catch (freshError) {
+                console.error('💾 [DEBUG] Fresh data fetch failed:', freshError);
+                console.log('💾 [DEBUG] Falling back to default settings');
+                return this.getDefaultSettings();
+            }
             
         } catch (error) {
-            console.error('💾 Error getting settings:', error);
+            console.error('💾 [DEBUG] Error getting settings:', error);
             return this.getDefaultSettings();
         }
     }
@@ -1165,8 +1546,8 @@ export class ContactDatabase {
      */
     async updateSettings(settings) {
         try {
-            console.log('💾 updateSettings called with:', settings);
-            console.log('💾 Current settingsItems:', this.settingsItems);
+            console.log('💾 [DEBUG] updateSettings called with:', settings);
+            console.log('💾 [DEBUG] Current settingsItems:', this.settingsItems);
             
             const settingsToSave = {
                 ...this.getDefaultSettings(),
@@ -1174,17 +1555,18 @@ export class ContactDatabase {
                 lastUpdated: new Date().toISOString()
             };
 
-            console.log('💾 Settings to save:', settingsToSave);
+            console.log('💾 [DEBUG] Settings to save:', settingsToSave);
+            console.log('💾 [DEBUG] Distribution lists in settings to save:', settingsToSave.distributionLists);
 
             // Initialize settingsItems if it's not set
             if (!this.settingsItems) {
-                console.log('💾 Initializing settingsItems array');
+                console.log('💾 [DEBUG] Initializing settingsItems array');
                 this.settingsItems = [];
             }
 
             if (this.settingsItems.length > 0 && this.settingsItems[0] && this.settingsItems[0].itemId) {
                 // Update existing settings
-                console.log('💾 Updating existing settings with itemId:', this.settingsItems[0].itemId);
+                console.log('💾 [DEBUG] Updating existing settings with itemId:', this.settingsItems[0].itemId);
                 await userbase.updateItem({
                     databaseName: 'user-settings',
                     itemId: this.settingsItems[0].itemId,
@@ -1193,9 +1575,10 @@ export class ContactDatabase {
                 
                 // Update local cache
                 this.settingsItems[0] = { ...this.settingsItems[0], ...settingsToSave };
+                console.log('💾 [DEBUG] Local cache updated:', this.settingsItems[0]);
             } else {
                 // Create new settings with fixed itemId (like in saveSettings method)
-                console.log('💾 Creating new settings item');
+                console.log('💾 [DEBUG] Creating new settings item');
                 const fixedItemId = 'user-settings';
                 
                 await userbase.insertItem({
@@ -1204,17 +1587,25 @@ export class ContactDatabase {
                     itemId: fixedItemId
                 });
                 
-                console.log('💾 Settings item created with itemId:', fixedItemId);
+                console.log('💾 [DEBUG] Settings item created with itemId:', fixedItemId);
                 
                 // Update local cache
                 this.settingsItems = [{ itemId: fixedItemId, ...settingsToSave }];
+                console.log('💾 [DEBUG] Local cache initialized:', this.settingsItems);
             }
 
-            console.log('💾 Settings updated successfully');
+            console.log('💾 [DEBUG] Settings updated successfully, verifying cache...');
+            console.log('💾 [DEBUG] Final settingsItems state:', this.settingsItems);
+            console.log('💾 [DEBUG] Final distribution lists in cache:', this.settingsItems[0]?.distributionLists);
             return true;
             
         } catch (error) {
-            console.error('💾 Error updating settings:', error);
+            console.error('💾 [DEBUG] Error updating settings:', error);
+            console.error('💾 [DEBUG] Error details:', {
+                message: error.message,
+                name: error.name,
+                stack: error.stack
+            });
             return false;
         }
     }

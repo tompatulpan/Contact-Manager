@@ -2241,7 +2241,9 @@ export class ContactUIController {
      * Populate the share-with-list dropdown
      */
     async populateShareWithListDropdown() {
-        if (!this.elements.shareWithListSelect) return;
+        if (!this.elements.shareWithListSelect) {
+            return;
+        }
         
         try {
             const distributionLists = await this.contactManager.getDistributionLists();
@@ -2255,7 +2257,7 @@ export class ContactUIController {
             }
             
             // Add distribution list options
-            distributionLists.forEach(list => {
+            distributionLists.forEach((list, index) => {
                 const option = document.createElement('option');
                 option.value = list.name;
                 option.textContent = `${list.name} (${list.userCount} users)`;
@@ -2268,7 +2270,7 @@ export class ContactUIController {
             });
             
         } catch (error) {
-            console.error('Error populating share-with-list dropdown:', error);
+            console.error('Error populating share dropdown:', error);
             this.elements.shareWithListSelect.innerHTML = '<option value="">Error loading lists</option>';
         }
     }
