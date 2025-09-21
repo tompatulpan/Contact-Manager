@@ -405,35 +405,92 @@ class ContactManagementApp {
 }
 
 /**
- * Wait for Userbase SDK to be available
+ * Wait for Userbase SDK to be available with retry logic
  * @returns {Promise} Resolves when Userbase is loaded
  */
 function waitForUserbase() {
     return new Promise((resolve, reject) => {
-        // Check if Userbase is already available
-        if (typeof window.userbase !== 'undefined') {
-            resolve();
-            return;
-        }
-
-        // Wait for Userbase script to load
         let attempts = 0;
-        const maxAttempts = 50; // 5 seconds max wait time
+        const maxAttempts = 100; // 10 seconds max wait time
         
         const checkUserbase = () => {
             attempts++;
             
             if (typeof window.userbase !== 'undefined') {
                 console.log('✅ Userbase SDK loaded successfully');
+                
+                // Verify Userbase has required methods
+                const requiredMethods = ['init', 'signUp', 'signIn', 'signOut', 'openDatabase', 'insertItem'];
+                const missingMethods = requiredMethods.filter(method => typeof window.userbase[method] !== 'function');
+                
+                if (missingMethods.length > 0) {
+                    console.error('❌ Userbase SDK incomplete, missing methods:', missingMethods);
+                    reject(new Error(`Userbase SDK incomplete. Missing methods: ${missingMethods.join(', ')}`));
+                    return;
+                }
+                
+                console.log('✅ Userbase SDK fully loaded and verified');
                 resolve();
             } else if (attempts >= maxAttempts) {
-                reject(new Error('Userbase SDK failed to load within timeout'));
+                console.error('❌ Userbase SDK failed to load within timeout');
+                
+                // Try to reload the script as a last resort
+                console.log('🔄 Attempting to reload Userbase script...');
+                this.reloadUserbaseScript()
+                    .then(() => {
+                        console.log('✅ Userbase script reloaded, checking again...');
+                        setTimeout(() => {
+                            if (typeof window.userbase !== 'undefined') {
+                                resolve();
+                            } else {
+                                reject(new Error('Userbase SDK failed to load even after script reload'));
+                            }
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        reject(new Error(`Userbase SDK failed to load: ${error.message}`));
+                    });
             } else {
                 setTimeout(checkUserbase, 100); // Check every 100ms
             }
         };
         
         checkUserbase();
+    });
+}
+
+/**
+ * Reload Userbase script if initial load failed
+ * @returns {Promise} Resolves when script is reloaded
+ */
+function reloadUserbaseScript() {
+    return new Promise((resolve, reject) => {
+        // Remove existing script
+        const existingScript = document.querySelector('script[src*="userbase"]');
+        if (existingScript) {
+            existingScript.remove();
+            console.log('🗑️ Removed existing Userbase script');
+        }
+
+        // Clear window.userbase
+        if (window.userbase) {
+            delete window.userbase;
+            console.log('🗑️ Cleared window.userbase');
+        }
+
+        // Add new script
+        const script = document.createElement('script');
+        script.src = 'lib/userbase.js';
+        script.onload = () => {
+            console.log('✅ Userbase script reloaded successfully');
+            resolve();
+        };
+        script.onerror = () => {
+            console.error('❌ Failed to reload Userbase script');
+            reject(new Error('Failed to reload Userbase script'));
+        };
+        
+        document.head.appendChild(script);
     });
 }
 

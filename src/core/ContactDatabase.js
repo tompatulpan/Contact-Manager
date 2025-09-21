@@ -28,51 +28,120 @@ export class ContactDatabase {
     }
 
     /**
-     * Initialize Userbase connection
+     * Initialize Userbase connection with retry logic
      * @param {string} appId - Userbase application ID
      */
     async initialize(appId) {
-        try {
-            // Check if Userbase SDK is available
-            if (typeof window.userbase === 'undefined') {
-                throw new Error('Userbase SDK not loaded. Make sure userbase.js is loaded before app.js');
-            }
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount <= maxRetries) {
+            try {
+                // Check if Userbase SDK is available
+                if (typeof window.userbase === 'undefined') {
+                    throw new Error('Userbase SDK not loaded. Make sure userbase.js is loaded before app.js');
+                }
 
-            this.appId = appId;
-            console.log('🔗 Initializing Userbase with App ID:', appId);
-            
-            // Initialize Userbase - this can restore previous sessions
-            const session = await window.userbase.init({ appId });
-            
-            // Handle restored session
-            if (session.user) {
-                console.log('🔄 Restored user session:', session.user.username);
-                this.currentUser = session.user;
-                await this.setupDatabases();
-                this.eventBus.emit('database:authenticated', { user: this.currentUser });
-            } else {
-                console.log('📝 No existing session found');
-            }
-            
-            this.isInitialized = true;
-            console.log('✅ Userbase initialized successfully');
-            
-            this.eventBus.emit('database:initialized', { 
-                appId,
-                timestamp: new Date().toISOString() 
-            });
+                this.appId = appId;
+                console.log(`🔗 Initializing Userbase with App ID: ${appId} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+                
+                // Clear any corrupted storage on retry
+                if (retryCount > 0) {
+                    console.log('🧹 Clearing potentially corrupted storage before retry...');
+                    this.clearCorruptedStorage();
+                    await this.sleep(1000); // Wait 1 second before retry
+                }
+                
+                // Initialize Userbase - this can restore previous sessions
+                const session = await window.userbase.init({ 
+                    appId,
+                    updateUserHandler: (user) => {
+                        console.log('👤 User update received:', user?.username);
+                        this.currentUser = user;
+                        this.eventBus.emit('database:userUpdated', { user });
+                    }
+                });
+                
+                // Handle restored session
+                if (session.user) {
+                    console.log('🔄 Restored user session:', session.user.username);
+                    this.currentUser = session.user;
+                    await this.setupDatabases();
+                    this.eventBus.emit('database:authenticated', { user: this.currentUser });
+                } else {
+                    console.log('📝 No existing session found');
+                }
+                
+                this.isInitialized = true;
+                console.log('✅ Userbase initialized successfully');
+                
+                this.eventBus.emit('database:initialized', { 
+                    appId,
+                    timestamp: new Date().toISOString() 
+                });
 
-            // Start periodic check for new shared databases
-            this.startSharedDatabaseMonitoring();
-            
-        } catch (error) {
-            console.error('Database initialization failed:', error);
-            this.eventBus.emit('database:error', { 
-                error: error.message,
-                phase: 'initialization'
-            });
-            throw error;
+                // Start periodic check for new shared databases
+                this.startSharedDatabaseMonitoring();
+                
+                return; // Success, exit retry loop
+                
+            } catch (error) {
+                console.error(`Database initialization failed (attempt ${retryCount + 1}):`, error);
+                
+                retryCount++;
+                
+                if (retryCount <= maxRetries) {
+                    console.log(`🔄 Retrying initialization in 2 seconds... (${retryCount}/${maxRetries})`);
+                    await this.sleep(2000);
+                } else {
+                    console.error('❌ Max retry attempts reached for database initialization');
+                    this.eventBus.emit('database:error', { 
+                        error: `Initialization failed after ${maxRetries + 1} attempts: ${error.message}`,
+                        phase: 'initialization',
+                        retryCount: maxRetries + 1
+                    });
+                    throw error;
+                }
+            }
         }
+    }
+
+    /**
+     * Clear potentially corrupted storage
+     */
+    clearCorruptedStorage() {
+        try {
+            // Clear Userbase-related storage
+            if (typeof localStorage !== 'undefined') {
+                const keys = Object.keys(localStorage);
+                keys.forEach(key => {
+                    if (key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')) {
+                        localStorage.removeItem(key);
+                        console.log(`🗑️ Cleared localStorage: ${key}`);
+                    }
+                });
+            }
+            
+            if (typeof sessionStorage !== 'undefined') {
+                const keys = Object.keys(sessionStorage);
+                keys.forEach(key => {
+                    if (key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')) {
+                        sessionStorage.removeItem(key);
+                        console.log(`🗑️ Cleared sessionStorage: ${key}`);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error clearing corrupted storage:', error);
+        }
+    }
+
+    /**
+     * Sleep utility for retry delays
+     * @param {number} ms - Milliseconds to sleep
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**

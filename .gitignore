@@ -9,6 +9,7 @@ backend/app_data/addressbooks/
 backend/app_data/index.json
 .github/copilot-instructions.md
 *.sh
+*.zip
 
 # Compiled backend binary
 backend/main
@@ -80,6 +81,12 @@ npm-debug.log*
 .yarn-integrity
 .pnp.*
 .pnp/
+
+# Ignore debug and test HTML pages
+debug-*.html
+test-*.html
+fix-*.html
+quick-*.html
 
 # Test environment files
 .env.test

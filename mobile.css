@@ -362,12 +362,309 @@
         display: none !important;
     }
     
+    /* Mobile-only elements */
+    .mobile-only {
+        display: block !important;
+    }
+    
     /* Show mobile-only elements */
     .mobile-only {
         display: block !important;
     }
     
-    /* Empty states */
+    /* ========== AUTHENTICATION MODAL - MOBILE ========== */
+    
+    /* Authentication Modal - Mobile specific styles */
+    #auth-modal {
+        padding: 12px !important;
+        align-items: flex-start !important;
+        padding-top: 20px !important;
+    }
+    
+    .auth-modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        border-radius: 12px !important;
+        max-height: calc(100vh - 40px) !important;
+        overflow-y: auto !important;
+    }
+    
+    /* Authentication form buttons - mobile */
+    #auth-form .form-actions {
+        flex-direction: column !important;
+        gap: 12px !important;
+        margin-top: 24px !important;
+        padding-top: 20px !important;
+    }
+    
+    #auth-form .btn {
+        width: 100% !important;
+        padding: 16px 24px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        min-height: 48px !important; /* Touch target size */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* IMPORTANT: Override global mobile span hiding for auth buttons */
+    #auth-form .btn span {
+        display: inline !important;
+        color: inherit !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+    }
+    
+    #auth-form .btn-primary {
+        background: #007bff !important;
+        color: white !important;
+        border: 2px solid #007bff !important;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2) !important;
+    }
+    
+    #auth-form .btn-primary:hover,
+    #auth-form .btn-primary:active {
+        background: #0056b3 !important;
+        border-color: #0056b3 !important;
+        transform: none !important; /* Disable transform on mobile */
+    }
+    
+    #auth-form .btn-ghost {
+        background: transparent !important;
+        color: #007bff !important;
+        border: 2px solid #007bff !important;
+        text-decoration: none !important;
+    }
+    
+    #auth-form .btn-ghost:hover,
+    #auth-form .btn-ghost:active {
+        background: rgba(0, 123, 255, 0.1) !important;
+        color: #0056b3 !important;
+        border-color: #0056b3 !important;
+    }
+    
+    /* Authentication form inputs - mobile */
+    #auth-form .form-group {
+        margin-bottom: 20px !important;
+    }
+    
+    #auth-form .form-group label {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+        display: block !important;
+        color: #495057 !important;
+    }
+    
+    #auth-form .form-group input {
+        width: 100% !important;
+        padding: 16px !important;
+        font-size: 16px !important; /* Prevent iOS zoom */
+        border: 2px solid #ced4da !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+        background: white !important;
+        color: #495057 !important;
+    }
+    
+    #auth-form .form-group input:focus {
+        outline: none !important;
+        border-color: #007bff !important;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1) !important;
+    }
+    
+    /* Authentication welcome section - mobile */
+    .auth-welcome {
+        margin-bottom: 24px !important;
+        padding: 20px !important;
+        border-radius: 12px !important;
+    }
+    
+    .auth-welcome h3 {
+        font-size: 20px !important;
+        margin-bottom: 8px !important;
+    }
+    
+    .auth-welcome p {
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+    }
+    
+    /* Error messages - mobile */
+    #auth-error {
+        padding: 12px !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+        margin-bottom: 16px !important;
+        background: #f8d7da !important;
+        color: #721c24 !important;
+        border: 1px solid #f5c6cb !important;
+    }
+    
+    /* ========== GENERAL MODAL STYLES - MOBILE ========== */
+    
+    /* All modals - mobile optimizations */
+    .modal {
+        padding: 8px !important;
+        align-items: flex-start !important;
+        padding-top: 12px !important;
+    }
+    
+    .modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: calc(100vh - 24px) !important;
+        margin: 0 !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }
+    
+    .modal-header {
+        padding: 16px 20px !important;
+        flex-shrink: 0 !important;
+    }
+    
+    .modal-header h2 {
+        font-size: 18px !important;
+        margin: 0 !important;
+    }
+    
+    .modal-close {
+        font-size: 24px !important;
+        padding: 8px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .modal-body {
+        padding: 20px !important;
+        overflow-y: auto !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    /* Form buttons in modals - mobile */
+    .modal .form-actions {
+        flex-direction: column !important;
+        gap: 12px !important;
+        margin-top: 24px !important;
+        padding-top: 20px !important;
+        border-top: 1px solid #dee2e6 !important;
+    }
+    
+    .modal .form-actions .btn {
+        width: 100% !important;
+        padding: 16px 24px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        min-height: 48px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* IMPORTANT: Override global mobile span hiding for all modal buttons */
+    .modal .btn span {
+        display: inline !important;
+        color: inherit !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+    }
+    
+    /* Primary buttons in modals */
+    .modal .btn-primary {
+        background: #007bff !important;
+        color: white !important;
+        border: 2px solid #007bff !important;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2) !important;
+    }
+    
+    .modal .btn-primary:hover,
+    .modal .btn-primary:active,
+    .modal .btn-primary:focus {
+        background: #0056b3 !important;
+        border-color: #0056b3 !important;
+        transform: none !important;
+    }
+    
+    /* Secondary buttons in modals */
+    .modal .btn-secondary {
+        background: white !important;
+        color: #495057 !important;
+        border: 2px solid #ced4da !important;
+    }
+    
+    .modal .btn-secondary:hover,
+    .modal .btn-secondary:active,
+    .modal .btn-secondary:focus {
+        background: #e9ecef !important;
+        border-color: #adb5bd !important;
+        color: #495057 !important;
+    }
+    
+    /* Ghost buttons in modals */
+    .modal .btn-ghost {
+        background: transparent !important;
+        color: #007bff !important;
+        border: 2px solid transparent !important;
+        text-decoration: none !important;
+    }
+    
+    .modal .btn-ghost:hover,
+    .modal .btn-ghost:active,
+    .modal .btn-ghost:focus {
+        background: rgba(0, 123, 255, 0.1) !important;
+        color: #0056b3 !important;
+        border-color: transparent !important;
+    }
+    
+    /* Form inputs in modals - mobile */
+    .modal .form-group {
+        margin-bottom: 20px !important;
+    }
+    
+    .modal .form-group label {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+        display: block !important;
+        color: #495057 !important;
+    }
+    
+    .modal .form-group input,
+    .modal .form-group select,
+    .modal .form-group textarea {
+        width: 100% !important;
+        padding: 16px !important;
+        font-size: 16px !important; /* Prevent iOS zoom */
+        border: 2px solid #ced4da !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+        background: white !important;
+        color: #495057 !important;
+    }
+    
+    .modal .form-group input:focus,
+    .modal .form-group select:focus,
+    .modal .form-group textarea:focus {
+        outline: none !important;
+        border-color: #007bff !important;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1) !important;
+    }    /* Empty states */
     .empty-state {
         text-align: center !important;
         padding: 60px 20px !important;
