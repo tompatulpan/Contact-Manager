@@ -1488,26 +1488,18 @@ export class ContactDatabase {
      */
     async getSettings() {
         try {
-            console.log('💾 [DEBUG] getSettings() called');
-            console.log('💾 [DEBUG] Current settingsItems:', this.settingsItems);
-            console.log('💾 [DEBUG] settingsItems length:', this.settingsItems ? this.settingsItems.length : 'null');
-            
             // Try to get existing settings from cache first
             if (this.settingsItems && this.settingsItems.length > 0) {
                 const settings = this.settingsItems[0] || this.getDefaultSettings();
-                console.log('💾 [DEBUG] Returning cached settings:', settings);
-                console.log('💾 [DEBUG] Distribution lists in cached settings:', settings.distributionLists);
                 return settings;
             }
             
             // FALLBACK: If cache is empty, fetch fresh data from database
-            console.log('💾 [DEBUG] No cached settings, fetching fresh data from database...');
             try {
                 const freshItems = await new Promise((resolve, reject) => {
-                    this.userbase.openDatabase({
+                    userbase.openDatabase({
                         databaseName: 'user-settings',
                         changeHandler: (items) => {
-                            console.log('💾 [DEBUG] Fresh settings fetch - change handler called with:', items.length, 'items');
                             resolve(items);
                         }
                     }).catch(reject);
@@ -1515,26 +1507,21 @@ export class ContactDatabase {
 
                 if (freshItems && freshItems.length > 0) {
                     const freshSettings = freshItems[0].item;  // Fix: need .item property
-                    console.log('💾 [DEBUG] Fresh settings retrieved:', freshSettings);
-                    console.log('💾 [DEBUG] Fresh distribution lists:', freshSettings.distributionLists);
                     
                     // Update cache for future calls
                     this.settingsItems = freshItems;
-                    console.log('💾 [DEBUG] Cache updated with fresh data');
                     
                     return freshSettings;
                 } else {
-                    console.log('💾 [DEBUG] No items in database, returning defaults');
                     return this.getDefaultSettings();
                 }
             } catch (freshError) {
-                console.error('💾 [DEBUG] Fresh data fetch failed:', freshError);
-                console.log('💾 [DEBUG] Falling back to default settings');
+                console.error('💾 Fresh data fetch failed:', freshError);
                 return this.getDefaultSettings();
             }
             
         } catch (error) {
-            console.error('💾 [DEBUG] Error getting settings:', error);
+            console.error('💾 Error getting settings:', error);
             return this.getDefaultSettings();
         }
     }
@@ -1546,27 +1533,19 @@ export class ContactDatabase {
      */
     async updateSettings(settings) {
         try {
-            console.log('💾 [DEBUG] updateSettings called with:', settings);
-            console.log('💾 [DEBUG] Current settingsItems:', this.settingsItems);
-            
             const settingsToSave = {
                 ...this.getDefaultSettings(),
                 ...settings,
                 lastUpdated: new Date().toISOString()
             };
 
-            console.log('💾 [DEBUG] Settings to save:', settingsToSave);
-            console.log('💾 [DEBUG] Distribution lists in settings to save:', settingsToSave.distributionLists);
-
             // Initialize settingsItems if it's not set
             if (!this.settingsItems) {
-                console.log('💾 [DEBUG] Initializing settingsItems array');
                 this.settingsItems = [];
             }
 
             if (this.settingsItems.length > 0 && this.settingsItems[0] && this.settingsItems[0].itemId) {
                 // Update existing settings
-                console.log('💾 [DEBUG] Updating existing settings with itemId:', this.settingsItems[0].itemId);
                 await userbase.updateItem({
                     databaseName: 'user-settings',
                     itemId: this.settingsItems[0].itemId,
@@ -1575,10 +1554,8 @@ export class ContactDatabase {
                 
                 // Update local cache
                 this.settingsItems[0] = { ...this.settingsItems[0], ...settingsToSave };
-                console.log('💾 [DEBUG] Local cache updated:', this.settingsItems[0]);
             } else {
                 // Create new settings with fixed itemId (like in saveSettings method)
-                console.log('💾 [DEBUG] Creating new settings item');
                 const fixedItemId = 'user-settings';
                 
                 await userbase.insertItem({
@@ -1587,25 +1564,14 @@ export class ContactDatabase {
                     itemId: fixedItemId
                 });
                 
-                console.log('💾 [DEBUG] Settings item created with itemId:', fixedItemId);
-                
                 // Update local cache
                 this.settingsItems = [{ itemId: fixedItemId, ...settingsToSave }];
-                console.log('💾 [DEBUG] Local cache initialized:', this.settingsItems);
             }
 
-            console.log('💾 [DEBUG] Settings updated successfully, verifying cache...');
-            console.log('💾 [DEBUG] Final settingsItems state:', this.settingsItems);
-            console.log('💾 [DEBUG] Final distribution lists in cache:', this.settingsItems[0]?.distributionLists);
             return true;
             
         } catch (error) {
-            console.error('💾 [DEBUG] Error updating settings:', error);
-            console.error('💾 [DEBUG] Error details:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-            });
+            console.error('💾 Error updating settings:', error);
             return false;
         }
     }
