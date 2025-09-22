@@ -112,6 +112,8 @@ npm-debug.log*
 *old*.html
 *backup*.html
 *temp*.html
+*cleanup*.html
+*debug*.js
 
 # Test environment files
 .env.test
