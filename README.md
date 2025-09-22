@@ -46,5 +46,15 @@ production_zip.sh   # Production packaging script
 - Contributions and feedback are welcome.
 
 ---
+## Roadmap
 
-*For detailed architecture and RFC 9553 compliance, see `.github/copilot-instructions.md`.*
+- [ ] QR-code generation
+- [ ] Bulk operations (Delete, Export etc.)
+- [ ] Multi-language support
+- [ ] Contact backup/restore
+- [ ] Advanced sharing permissions (edit contacts)
+
+### Ideas
+- [ ] Contact merge functionality
+- [ ] Mobile app (PWA improvements)
+- [ ] Integration with external services
