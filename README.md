@@ -67,4 +67,8 @@ mobile.css
 ---
 ## Acknowledgements
 
+<<<<<<< HEAD
 This project has been developed with assistance from [GitHub Copilot](https://github.com/features/copilot).
+=======
+This project has been developed with assistance from [GitHub Copilot](https://github.com/features/copilot).
+>>>>>>> be8fac438016de63df586f205e1737bbdb077e9d
