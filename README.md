@@ -52,14 +52,19 @@ mobile.css
 - [ ] Multi-language support
 - [ ] Contact backup/restore
 - [ ] Advanced sharing permissions (edit contacts)
-- [ ] Set passwords rules
+- [ ] Stay logged in feature
 - [ ] Change password
+- [ ] Set passwords rules
 - [ ] Dark mode
 - [ ] Create e-mail distrubution list
-- [ ] Icons improvments
+- [ ] Icons improvments (pictures?)
 
 ### Ideas
 - [ ] Contact merge functionality
 - [ ] A Progressive Web App (PWA)
-- [ ] Integration with external services
 - [ ] Improve decentralization
+
+---
+## Acknowledgements
+
+This project has been developed with assistance from [GitHub Copilot](https://github.com/features/copilot).
