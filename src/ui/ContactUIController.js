@@ -116,23 +116,18 @@ export class ContactUIController {
      */
     async initialize() {
         return this.handleAsync(async () => {
-            console.log('🎨 ContactUIController initialize() called');
-            this.log('🎨 Initializing UI Controller...');
+            this.log('Initializing UI Controller...');
             
             // Cache DOM elements
-            console.log('🎨 About to cache elements...');
             this.cacheElements();
             
             // Setup event listeners
-            console.log('🎨 About to setup event listeners...');
             this.setupEventListeners();
             
             // Initialize authentication state
-            console.log('🎨 About to initialize auth state...');
             this.initializeAuthenticationState();
             
             // Setup UI components
-            console.log('🎨 About to setup components...');
             this.setupComponents();
             
             // Initialize responsive behavior
@@ -144,7 +139,6 @@ export class ContactUIController {
             // Clear contact detail to remove static welcome message
             this.clearContactDetail();
 
-            this.log('✅ UI Controller initialized');
             return { success: true };
         }, 'UI Controller initialization failed');
     }
@@ -153,7 +147,6 @@ export class ContactUIController {
      * Cache frequently used DOM elements
      */
     cacheElements() {
-        console.log('🎯 Caching DOM elements...');
         
         this.elements = {
             // Authentication elements
@@ -259,12 +252,7 @@ export class ContactUIController {
             statsContainer: document.querySelector('.stats')
         };
         
-        // Debug: Log which key elements were found
-        console.log('🎯 Key elements found:');
-        console.log('🎯 viewCardBtn:', !!this.elements.viewCardBtn, this.elements.viewCardBtn);
-        console.log('🎯 viewListBtn:', !!this.elements.viewListBtn, this.elements.viewListBtn);
-        console.log('🎯 contactCards:', !!this.elements.contactCards, this.elements.contactCards);
-        console.log('🎯 app:', !!this.elements.app, this.elements.app);
+        // Cache DOM elements complete
     }
 
     /**
@@ -345,13 +333,9 @@ export class ContactUIController {
 
         // View toggle buttons
         if (this.elements.viewCardBtn) {
-            console.log('🎨 Found card view button, adding event listener');
             this.elements.viewCardBtn.addEventListener('click', () => {
-                console.log('🎨 Card view button clicked!');
                 try {
-                    console.log('🎨 About to call setViewMode("card")...');
                     this.setViewMode('card');
-                    console.log('🎨 setViewMode("card") completed');
                 } catch (error) {
                     console.error('❌ Error calling setViewMode("card"):', error);
                 }
@@ -360,13 +344,9 @@ export class ContactUIController {
             console.log('❌ Card view button not found!');
         }
         if (this.elements.viewListBtn) {
-            console.log('🎨 Found list view button, adding event listener');
             this.elements.viewListBtn.addEventListener('click', () => {
-                console.log('🎨 List view button clicked!');
                 try {
-                    console.log('🎨 About to call setViewMode("list")...');
                     this.setViewMode('list');
-                    console.log('🎨 setViewMode("list") completed');
                 } catch (error) {
                     console.error('❌ Error calling setViewMode("list"):', error);
                 }
@@ -381,7 +361,6 @@ export class ContactUIController {
         
         // Distribution list events
         if (this.elements.createListBtn) {
-            console.log('📋 Create List button found, adding event listener');
             this.elements.createListBtn.addEventListener('click', this.showCreateListModal.bind(this));
         } else {
             console.log('⚠️ Create List button not found');
@@ -407,9 +386,7 @@ export class ContactUIController {
         }
         
         if (this.elements.logoutBtn) {
-            console.log('🔧 Setting up logout button listener');
             this.elements.logoutBtn.addEventListener('click', this.handleSignOut.bind(this));
-            console.log('🔧 Logout button listener attached successfully');
         } else {
             console.error('🔧 Logout button not found during setup');
         }
@@ -531,8 +508,6 @@ export class ContactUIController {
         // Check if user is already authenticated
         const connectionStatus = this.contactManager.database.getConnectionStatus();
         
-        console.log('🔍 Checking authentication state:', connectionStatus);
-        
         if (connectionStatus.isAuthenticated) {
             console.log('✅ User already authenticated:', connectionStatus.currentUser);
             this.currentUser = { username: connectionStatus.currentUser };
@@ -550,7 +525,6 @@ export class ContactUIController {
         // Components will be created when UI components are implemented
         // This is a placeholder for component initialization
         console.log('Setting up UI components...');
-        console.log('🎨 Current viewMode before initialization:', this.viewMode);
         
         // Initialize default view mode
         this.initializeViewMode();
@@ -560,38 +534,24 @@ export class ContactUIController {
      * Initialize the default view mode
      */
     initializeViewMode() {
-        console.log('🔧 Initializing view mode...');
-        console.log('🔧 Current viewMode:', this.viewMode);
-        
         // Set initial view mode and update UI accordingly
         const container = this.elements.contactCards;
-        console.log('🔧 Container element found:', !!container);
-        console.log('🔧 Container element:', container);
         
         if (container) {
-            console.log('🔧 Container classes before:', container.className);
             container.classList.remove('card-view', 'list-view');
             container.classList.add(this.viewMode + '-view');
-            console.log('🔧 Container classes after:', container.className);
             
             // Update button states
-            console.log('🔧 Checking buttons...');
             if (this.elements.viewCardBtn) {
-                console.log('🔧 Found card button:', this.elements.viewCardBtn);
                 this.elements.viewCardBtn.classList.toggle('active', this.viewMode === 'card');
-            } else {
-                console.log('🔧 No card button found');
             }
             if (this.elements.viewListBtn) {
-                console.log('🔧 Found list button:', this.elements.viewListBtn);
                 this.elements.viewListBtn.classList.toggle('active', this.viewMode === 'list');
-            } else {
-                console.log('🔧 No list button found');
             }
             
-            this.log(`🎨 Initialized view mode: ${this.viewMode}`);
+            this.log(`Initialized view mode: ${this.viewMode}`);
         } else {
-            console.log('🔧 No container found - cannot initialize view mode');
+            console.error('No container found - cannot initialize view mode');
         }
     }
 
@@ -646,7 +606,6 @@ export class ContactUIController {
      */
     handleAuthenticated(data) {
         if (data && data.user && data.user.username) {
-            console.log('🎉 Authentication successful:', data.user.username);
             this.currentUser = data.user;
             this.updateUserInterface();
             this.hideAuthenticationModal();
@@ -766,9 +725,6 @@ export class ContactUIController {
             };
         }
         
-        console.log('🔧 Filter changed:', this.activeFilters);
-        console.log('🔧 Checkbox states:', { ownedChecked, sharedChecked, importedChecked, archivedChecked });
-        
         // Update mobile title if mobile navigation is active
         if (this.mobileNavigation && window.innerWidth <= 768) {
             this.mobileNavigation.updateMobileTitle();
@@ -814,14 +770,8 @@ export class ContactUIController {
      * Perform contact search
      */
     performSearch() {
-        console.log('🔍 UI: Performing search with query:', this.searchQuery, 'filters:', this.activeFilters);
-        console.log('🔍 UI: Contact manager has', this.contactManager?.contacts?.size || 0, 'total contacts');
-        
         const results = this.contactManager.searchContacts(this.searchQuery, this.activeFilters);
-        console.log('🔍 UI: Search results:', results.length, 'contacts');
-        
         const sortedResults = this.contactManager.sortContacts(results, this.getCurrentSort());
-        console.log('🔍 UI: Sorted results:', sortedResults.length, 'contacts');
         
         this.displayContactList(sortedResults);
         this.updateStats();
@@ -831,7 +781,6 @@ export class ContactUIController {
      * Refresh the contacts list by performing a new search
      */
     refreshContactsList() {
-        console.log('🔄 UI: Refreshing contacts list');
         this.performSearch();
     }
 
@@ -891,8 +840,6 @@ export class ContactUIController {
      * Handle contact list updates
      */
     handleContactsUpdated(data) {
-        console.log('🎨 UI: Received contactsUpdated event with', data?.contactCount || 0, 'contacts');
-        
         // Debounce rapid updates to prevent flickering
         if (this.updateTimeout) {
             clearTimeout(this.updateTimeout);
@@ -950,19 +897,15 @@ export class ContactUIController {
      * Render distribution lists in the sidebar
      */
     async renderDistributionLists() {
-        console.log('🎨 UI: Starting renderDistributionLists...');
         if (!this.elements.distributionListsContainer) {
             console.log('❌ UI: distributionListsContainer not found');
             return;
         }
 
         try {
-            console.log('📋 UI: Getting distribution lists from contact manager...');
             const distributionLists = await this.contactManager.getDistributionLists();
-            console.log('📋 UI: Received distribution lists:', distributionLists);
             
             if (distributionLists.length === 0) {
-                console.log('📋 UI: No distribution lists found, showing All Contacts option');
                 // Still show "All Contacts" option even when no lists exist
                 const isAllContactsActive = !this.activeFilters.distributionList; // Active when no distribution list filter
                 const allContactsItem = `
@@ -981,8 +924,6 @@ export class ContactUIController {
                 return;
             }
 
-            console.log('🎨 UI: Rendering', distributionLists.length, 'distribution lists...');
-            
             // Add "All Contacts" filter option at the top
             const isAllContactsActive = !this.activeFilters.distributionList; // Active when no distribution list filter
             const allContactsItem = `
@@ -1028,7 +969,6 @@ export class ContactUIController {
 
             // Combine "All Contacts" + sharing lists header + sharing lists
             this.elements.distributionListsContainer.innerHTML = allContactsItem + sharingListsHeader + listItems;
-            console.log('✅ UI: Distribution lists HTML updated successfully');
 
             // Add click listeners for manage buttons
             const manageButtons = this.elements.distributionListsContainer.querySelectorAll('.manage-list-btn');
@@ -1076,8 +1016,6 @@ export class ContactUIController {
         
         // Update the contact list
         this.performSearch();
-        
-        console.log('🎨 Distribution list selected:', listName || 'All Contacts');
     }
 
     /**
@@ -1132,13 +1070,6 @@ export class ContactUIController {
         // Convert form data to contact data object
         const contactData = this.formDataToContactData(formData);
         
-        // Debug extracted address data
-        if (contactData.addresses) {
-            console.log('🏠 DEBUG: Form extracted addresses:', contactData.addresses);
-        } else {
-            console.log('🏠 DEBUG: Form - no addresses extracted');
-        }
-        
         // Show loading state
         this.showFormLoading(true);
         
@@ -1175,51 +1106,38 @@ export class ContactUIController {
      * Set view mode (card or list)
      */
     setViewMode(mode) {
-        this.log(`🎨 setViewMode called with: ${mode}`);
         this.viewMode = mode;
-        this.log(`🎨 viewMode updated to: ${this.viewMode}`);
         
         // Update button states
         if (this.elements.viewCardBtn) {
             this.elements.viewCardBtn.classList.toggle('active', mode === 'card');
-            this.log('🎨 Card button updated:', this.elements.viewCardBtn.classList.contains('active'));
         }
         if (this.elements.viewListBtn) {
             this.elements.viewListBtn.classList.toggle('active', mode === 'list');
-            this.log('🎨 List button updated:', this.elements.viewListBtn.classList.contains('active'));
         }
         
         // Update container class
         const container = this.elements.contactCards;
         if (container) {
-            this.log('🎨 Container classes before update:', container.className);
             container.classList.remove('card-view', 'list-view');
             container.classList.add(mode + '-view');
-            this.log('🎨 Container classes after update:', container.className);
         } else {
             this.logError('❌ Container not found in setViewMode');
         }
         
         // Re-render current contacts with new view mode
         if (this.contactManager) {
-            this.log('🔄 setViewMode: Calling performSearch to refresh view with current filters');
             this.performSearch();
         } else {
             this.log('❌ setViewMode: ContactManager not available, cannot refresh view');
         }
-        
-        this.log(`🎨 View mode changed to: ${mode}`);
     }
 
     /**
      * Display contact list
      */
     displayContactList(contacts) {
-        this.log('🎨 DisplayContactList called with', contacts.length, 'contacts');
         const container = this.elements.contactCards;
-        this.log('🎨 Container element:', container);
-        this.log('🎨 Current viewMode:', this.viewMode);
-        this.log('🎨 Container classes before:', container?.className);
         
         if (!container) {
             this.logError('❌ Contact cards container not found!');
@@ -1234,10 +1152,8 @@ export class ContactUIController {
         
         // Clear existing contacts
         container.innerHTML = '';
-        this.log('🎨 Container cleared');
         
         if (contacts.length === 0) {
-            this.log('🎨 No contacts to display, showing empty state');
             // Show the existing empty state element from HTML
             const emptyStateElement = document.getElementById('empty-state');
             if (emptyStateElement) {
@@ -1252,7 +1168,6 @@ export class ContactUIController {
             }
         }
         
-        this.log('🎨 Creating', contacts.length, 'contact items...');
         // Set container view mode class
         container.classList.remove('card-view', 'list-view');
         
@@ -1261,13 +1176,8 @@ export class ContactUIController {
         const actualViewMode = isMobile ? 'list' : this.viewMode;
         container.classList.add(actualViewMode + '-view');
         
-        this.log('🎨 isMobile:', isMobile);
-        this.log('🎨 actualViewMode:', actualViewMode);
-        this.log('🎨 Container classes after:', container.className);
-        
         // Create contact items based on view mode
         contacts.forEach((contact, index) => {
-            this.log(`🎨 Creating ${actualViewMode} item ${index + 1}:`, contact.cardName);
             
             let contactElement;
             if (actualViewMode === 'list') {
@@ -1281,10 +1191,8 @@ export class ContactUIController {
             }
         });
         
-        this.log('🎨 Contact items created and appended');
         // Update contact count
         this.updateContactCount(contacts.length);
-        this.log('✅ DisplayContactList completed');
     }
 
     /**
@@ -1292,14 +1200,6 @@ export class ContactUIController {
      */
     createContactCard(contact) {
         try {
-            this.log('🎨 Creating contact card for:', {
-                contactId: contact.contactId,
-                cardName: contact.cardName,
-                hasVCard: !!contact.vcard,
-                vCardLength: contact.vcard ? contact.vcard.length : 'N/A',
-                metadata: contact.metadata
-            });
-            
             if (!contact.vcard) {
                 console.warn('⚠️ Contact has no vCard data, creating fallback card');
                 return this.createFallbackContactCard(contact);
@@ -1447,7 +1347,6 @@ export class ContactUIController {
      * Attach event listeners to contact card buttons
      */
     attachContactCardListeners(card, contact) {
-        console.log('🔗 Attaching listeners to contact card:', contact.contactId);
         
         // View contact button
         const viewBtn = card.querySelector('.view-contact');
@@ -1530,15 +1429,12 @@ export class ContactUIController {
                 this.selectContact(contact.contactId);
             }
         });
-        
-        console.log('✅ All listeners attached for contact card:', contact.contactId);
     }
 
     /**
      * Create contact list item for list view
      */
     createContactListItem(contact) {
-        console.log('📝 Creating list item for contact:', contact.contactId);
         
         const vCardData = this.contactManager.vCardStandard.parseVCard(contact.vcard);
         const fullName = vCardData.properties.get('FN') || 'Unnamed Contact';
@@ -1586,7 +1482,6 @@ export class ContactUIController {
      * Attach event listeners to contact list item buttons
      */
     attachContactListItemListeners(listItem, contact) {
-        console.log('🔗 Attaching listeners to contact list item:', contact.contactId);
         
         // View contact button
         const viewBtn = listItem.querySelector('.view-contact');
@@ -1645,8 +1540,6 @@ export class ContactUIController {
                 this.selectContact(contact.contactId);
             }
         });
-        
-        console.log('✅ All listeners attached for contact list item:', contact.contactId);
     }
 
     /**
@@ -1802,14 +1695,11 @@ export class ContactUIController {
         }
         
         // Addresses
-        console.log('🏠 DEBUG: Rendering addresses in detail view:', displayData.addresses);
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
-            console.log(`🏠 DEBUG: Found ${displayData.addresses.length} addresses to display`);
             html += `
                 <div class="field-group">
                     <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
                     ${displayData.addresses.map((address, index) => {
-                        console.log(`🏠 DEBUG: Rendering address ${index}:`, address);
                         return `
                         <div class="field-item address-item">
                             <div class="address-content">
@@ -1828,8 +1718,6 @@ export class ContactUIController {
                     }).join('')}
                 </div>
             `;
-        } else {
-            console.log('🏠 DEBUG: No addresses to display - data:', displayData.addresses);
         }
         
         // Notes
@@ -1904,7 +1792,6 @@ export class ContactUIController {
         const modal = this.elements.authModal;
         if (modal) {
             modal.style.display = 'flex';
-            console.log('✅ Authentication modal shown');
         } else {
             console.warn('⚠️ Authentication modal not found');
         }
@@ -1917,7 +1804,6 @@ export class ContactUIController {
         const modal = this.elements.authModal;
         if (modal) {
             modal.style.display = 'none';
-            console.log('✅ Authentication modal hidden');
         }
     }
 
@@ -1950,7 +1836,6 @@ export class ContactUIController {
     updateUserInterface() {
         if (this.currentUser && this.elements.currentUserDisplay) {
             this.elements.currentUserDisplay.textContent = this.currentUser.username;
-            console.log('✅ Updated user interface for:', this.currentUser.username);
         } else if (this.currentUser && !this.elements.currentUserDisplay) {
             console.warn('⚠️ Current user display element not found');
         }
@@ -3101,17 +2986,6 @@ export class ContactUIController {
             this.populateMultiFieldData('phone', displayData.phones);
             this.populateMultiFieldData('email', displayData.emails);
             this.populateMultiFieldData('url', displayData.urls);
-            
-            // Debug address data
-            console.log('🏠 DEBUG: Address data for population:', displayData.addresses);
-            console.log('🏠 DEBUG: Address data type:', typeof displayData.addresses);
-            console.log('🏠 DEBUG: Address data is array:', Array.isArray(displayData.addresses));
-            if (displayData.addresses) {
-                console.log('🏠 DEBUG: Address data length:', displayData.addresses.length);
-                displayData.addresses.forEach((addr, i) => {
-                    console.log(`🏠 DEBUG: Address ${i}:`, addr);
-                });
-            }
             
             this.populateMultiFieldData('address', displayData.addresses);
             this.populateNotesData(displayData.notes);
@@ -4376,10 +4250,8 @@ export class ContactUIController {
      * Populate multi-field data in form (for editing)
      */
     populateMultiFieldData(fieldType, data) {
-        console.log(`🔍 DEBUG: populateMultiFieldData called with fieldType: ${fieldType}, data:`, data);
         const container = document.getElementById(`${fieldType}-fields`);
         if (!container || !data || data.length === 0) {
-            console.log(`🔍 DEBUG: Early return - container: ${!!container}, data: ${!!data}, data.length: ${data ? data.length : 'N/A'}`);
             return;
         }
 
@@ -4427,10 +4299,8 @@ export class ContactUIController {
      * Populate address data specifically
      */
     populateAddressData(data) {
-        console.log('🏠 DEBUG: populateAddressData called with data:', data);
         const container = document.getElementById('address-fields');
         if (!container) {
-            console.log('🏠 DEBUG: No address-fields container found');
             return;
         }
 
@@ -4439,7 +4309,6 @@ export class ContactUIController {
 
         // Handle cases where data might be undefined or empty
         if (!data || !Array.isArray(data) || data.length === 0) {
-            console.log('🏠 DEBUG: No address data, adding empty field');
             // Add one empty field if no data
             const fieldItem = this.createMultiFieldItem('address');
             container.appendChild(fieldItem);

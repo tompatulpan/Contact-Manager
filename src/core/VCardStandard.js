@@ -72,12 +72,6 @@ export class VCardStandard {
      * @returns {string} RFC 9553 vCard string
      */
     generateVCard(contactData) {
-        // Debug address data during vCard generation
-        if (contactData.addresses) {
-            console.log('🏠 DEBUG: generateVCard received addresses:', contactData.addresses);
-        } else {
-            console.log('🏠 DEBUG: generateVCard - no addresses in contactData');
-        }
         
         let vcard = 'BEGIN:VCARD\n';
         vcard += 'VERSION:4.0\n';

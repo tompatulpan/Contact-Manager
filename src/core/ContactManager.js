@@ -4,7 +4,6 @@
  */
 export class ContactManager {
     constructor(eventBus, database, vCardStandard, validator) {
-        console.log('🚀 ContactManager constructor started');
         this.eventBus = eventBus;
         this.database = database;
         this.vCardStandard = vCardStandard;
@@ -24,15 +23,8 @@ export class ContactManager {
         this.contactsLoaded = false;
         this.distributionSharingLoaded = false;
         
-        console.log('📊 Initial state:', {
-            contactsLoaded: this.contactsLoaded,
-            distributionSharingLoaded: this.distributionSharingLoaded,
-            pendingDistributionSharing: this.pendingDistributionSharing
-        });
-        
         // Setup event listeners
         this.setupEventListeners();
-        console.log('✅ ContactManager constructor completed');
     }
 
     /**
@@ -41,8 +33,6 @@ export class ContactManager {
      */
     async initialize() {
         try {
-            console.log('🔄 ContactManager.initialize() started');
-            
             // Wait for database authentication
             if (!this.database.currentUser) {
                 console.log('⏳ Waiting for database authentication...');
@@ -54,20 +44,13 @@ export class ContactManager {
                     });
                 });
             } else {
-                console.log('✅ Database already authenticated:', this.database.currentUser.username);
             }
 
             // Load existing contacts and settings
-            console.log('📂 Loading contacts and settings...');
             await this.loadContacts();
             await this.loadSettings();
             
             this.isLoaded = true;
-            console.log('✅ ContactManager initialization completed', {
-                contactCount: this.contacts.size,
-                settingsLoaded: Object.keys(this.settings).length > 0,
-                isLoaded: this.isLoaded
-            });
             
             this.eventBus.emit('contactManager:initialized', {
                 contactCount: this.contacts.size,
@@ -248,13 +231,6 @@ export class ContactManager {
             // Sanitize and validate input data
             const sanitizedData = this.validator.sanitizeContactData(contactData);
             
-            // Debug address data before vCard generation
-            if (sanitizedData.addresses) {
-                console.log('🏠 DEBUG: ContactManager updateContact - sanitized addresses:', sanitizedData.addresses);
-            } else {
-                console.log('🏠 DEBUG: ContactManager updateContact - no addresses in sanitized data');
-            }
-            
             const validation = this.validator.validateContactData(sanitizedData);
             
             if (!validation.isValid) {
@@ -304,14 +280,12 @@ export class ContactManager {
             // 🔑 CRITICAL FIX: Update shared databases for cross-device sharing
             // If this contact is shared, we need to update the shared databases too
             if (updatedContact.metadata.sharing?.isShared && updatedContact.metadata.sharing.sharedWithUsers?.length > 0) {
-                console.log('🔄 Contact is shared, updating shared databases for cross-device synchronization...');
                 
                 // Update each shared database
                 const sharedDbName = `shared-contact-${contactId}`;
                 try {
                     const sharedUpdateResult = await this.database.updateSharedContactDatabase(updatedContact, sharedDbName);
                     if (sharedUpdateResult.success) {
-                        console.log('✅ Shared database updated successfully for cross-device sharing');
                     } else {
                         console.log('⚠️ Failed to update shared database:', sharedUpdateResult.error);
                         // Don't fail the main update, just log the warning
@@ -554,7 +528,6 @@ export class ContactManager {
                 action: 'shared_contact_archived'
             });
 
-            console.log('✅ Shared contact archived in user metadata:', contactId);
             return { success: true, contact: archivedContact };
 
         } catch (error) {
@@ -674,46 +647,25 @@ export class ContactManager {
             }
 
             let results = Array.from(this.contacts.values());
-            console.log('🔍 Starting search with', results.length, 'total contacts');
-
-            // Debug: Log contact states
-            results.forEach((contact, index) => {
-                console.log(`🔍 Contact ${index + 1}: ${contact.cardName}`, {
-                    isDeleted: contact.metadata.isDeleted,
-                    isArchived: contact.metadata.isArchived,
-                    contactId: contact.contactId
-                });
-            });
 
             // Filter out deleted contacts by default
             if (!filters.includeDeleted) {
-                const beforeCount = results.length;
                 results = results.filter(contact => !contact.metadata.isDeleted);
-                console.log('🔍 After deleted filter:', results.length, '(removed', beforeCount - results.length, 'deleted contacts)');
             }
 
             // Handle archive filtering with new logic
             if (filters.archiveOnly) {
                 // Show ONLY archived contacts
-                const beforeCount = results.length;
                 results = results.filter(contact => contact.metadata.isArchived);
-                console.log('🔍 Archive-only filter:', results.length, '(showing only archived from', beforeCount, 'total)');
             } else if (!filters.includeArchived) {
                 // Filter out archived contacts (default behavior)
-                const beforeCount = results.length;
                 results = results.filter(contact => !contact.metadata.isArchived);
-                console.log('🔍 After archived filter:', results.length, '(removed', beforeCount - results.length, 'archived contacts)');
-            } else {
-                // includeArchived is true and archiveOnly is false - show both archived and active
-                console.log('🔍 Including archived contacts - showing both active and archived contacts');
             }
             // If includeArchived is true but archiveOnly is false, show both archived and active
 
             // Text search
             if (query && query.trim()) {
                 const searchTerm = query.toLowerCase().trim();
-                console.log('🔍 Applying text search for:', searchTerm);
-                const beforeCount = results.length;
                 results = results.filter(contact => {
                     // Search in card name
                     if (contact.cardName.toLowerCase().includes(searchTerm)) return true;
@@ -727,9 +679,6 @@ export class ContactManager {
                     
                     return false;
                 });
-                console.log('🔍 After text search:', results.length, '(removed', beforeCount - results.length, 'non-matching contacts)');
-            } else {
-                console.log('🔍 No text search applied (empty query)');
             }
 
             // Apply additional filters
@@ -738,11 +687,6 @@ export class ContactManager {
             // Cache results
             this.searchCache.set(cacheKey, results);
             this.lastSearchQuery = query;
-
-            console.log('🔍 Final search results:', results.length, 'contacts');
-            results.forEach((contact, index) => {
-                console.log(`🔍 Result ${index + 1}: ${contact.cardName} (${contact.contactId})`);
-            });
 
             return results;
 
@@ -760,56 +704,39 @@ export class ContactManager {
      */
     applyFilters(contacts, filters) {
         let filtered = [...contacts];
-        console.log('🔍 ContactManager: Applying filters:', filters, 'to', filtered.length, 'contacts');
 
         // Handle imported-only filter first (special case)
+        // Shows only contacts that were imported from files by the current user
         if (filters.importedOnly) {
-            console.log('🔍 ContactManager: Filtering for imported-only contacts');
-            const beforeCount = filtered.length;
-            filtered = filtered.filter(contact => contact.metadata.isImported === true);
-            console.log('🔍 ContactManager: Imported-only filter reduced contacts from', beforeCount, 'to', filtered.length);
+            filtered = filtered.filter(contact => contact.metadata.isImported === true && contact.metadata.isOwned);
             return filtered; // Return early for imported-only filter
         }
 
         // Distribution list filter
         if (filters.distributionList) {
-            console.log('🔍 ContactManager: Filtering by distribution list:', filters.distributionList);
-            const beforeCount = filtered.length;
             filtered = filtered.filter(contact => {
                 const hasListAssignment = contact.metadata.distributionLists?.includes(filters.distributionList);
-                if (hasListAssignment) {
-                    console.log('🔍 ContactManager: Contact', contact.metadata.cardName, 'matches list', filters.distributionList);
-                }
                 return hasListAssignment;
             });
-            console.log('🔍 ContactManager: Distribution list filter reduced contacts from', beforeCount, 'to', filtered.length);
         }
 
         // Ownership filter
         if (filters.ownership === 'owned') {
-            const beforeCount = filtered.length;
+            // Shows contacts created/imported by the current user (excludes shared contacts)
             filtered = filtered.filter(contact => contact.metadata.isOwned && !contact.metadata.isImported);
-            console.log('🔍 ContactManager: Ownership filter (owned) reduced contacts from', beforeCount, 'to', filtered.length);
         } else if (filters.ownership === 'shared') {
-            const beforeCount = filtered.length;
+            // Shows contacts shared by other users (excludes owned and imported contacts)
             filtered = filtered.filter(contact => !contact.metadata.isOwned);
-            console.log('🔍 ContactManager: Ownership filter (shared) reduced contacts from', beforeCount, 'to', filtered.length);
-        } else {
-            console.log('🔍 ContactManager: No ownership filter applied');
         }
 
         // Include imported filter (combine imported with other filters)
         if (filters.includeImported) {
-            console.log('🔍 ContactManager: Including imported contacts with other filters');
-            const beforeCount = filtered.length;
             const importedContacts = contacts.filter(contact => contact.metadata.isImported === true);
             
             // Add imported contacts to current filtered results (avoid duplicates)
             const currentIds = new Set(filtered.map(c => c.contactId));
             const newImportedContacts = importedContacts.filter(c => !currentIds.has(c.contactId));
             filtered = [...filtered, ...newImportedContacts];
-            
-            console.log('🔍 ContactManager: Added', newImportedContacts.length, 'imported contacts. Total now:', filtered.length);
         }
 
         // Favorite filter
@@ -1048,53 +975,20 @@ export class ContactManager {
      * Debug wrapper for contacts.set to track itemId issues
      */
     setContactInCache(contactId, contact, source = 'unknown') {
-        console.log(`🔧 DEBUG: setContactInCache called from ${source}:`, {
-            contactId: contactId,
-            hasItemId: !!contact.itemId,
-            itemId: contact.itemId,
-            contactKeys: Object.keys(contact),
-            source: source
-        });
-        
         if (!contact.itemId) {
             console.error(`🚨 WARNING: Storing contact WITHOUT itemId from ${source}:`, contactId);
             console.trace(`🚨 CALL STACK for itemId-less storage from ${source}:`);
         }
         
         this.contacts.set(contactId, contact);
-        
-        // Verify storage
-        const stored = this.contacts.get(contactId);
-        console.log(`🔧 DEBUG: Verification after ${source} storage:`, {
-            contactId: contactId,
-            storedHasItemId: !!stored?.itemId,
-            storedItemId: stored?.itemId,
-            success: stored === contact
-        });
     }
     getContact(contactId) {
         const contact = this.contacts.get(contactId);
         
-        // Debug contact retrieval for itemId investigation
-        if (contact) {
-            console.log('🔍 DEBUG: getContact called for:', contactId);
-            console.log('🔍 DEBUG: Retrieved contact keys:', Object.keys(contact));
-            console.log('🔍 DEBUG: Retrieved contact itemId:', contact.itemId, typeof contact.itemId);
-            console.log('🔍 DEBUG: Retrieved contact structure:', {
-                contactId: contact.contactId,
-                cardName: contact.cardName,
-                hasItemId: !!contact.itemId,
-                itemIdValue: contact.itemId,
-                contactKeys: Object.keys(contact)
-            });
-            
-            // Check if contact is missing itemId and warn
-            if (!contact.itemId) {
-                console.error('🚨 CRITICAL: Contact retrieved from cache missing itemId!', contactId);
-                console.trace('🚨 CALL STACK for missing itemId retrieval:');
-            }
-        } else {
-            console.log('🔍 DEBUG: getContact - contact not found:', contactId);
+        // Check if contact is missing itemId and warn
+        if (contact && !contact.itemId) {
+            console.error('🚨 CRITICAL: Contact retrieved from cache missing itemId!', contactId);
+            console.trace('🚨 CALL STACK for missing itemId retrieval:');
         }
         
         return contact || null;
@@ -1121,15 +1015,8 @@ export class ContactManager {
      * @param {Object} data - Event data with contacts and metadata
      */
     async handleContactsChanged(data) {
-        console.log('📊 handleContactsChanged triggered with data:', {
-            isArray: Array.isArray(data),
-            dataKeys: Array.isArray(data) ? 'array' : Object.keys(data),
-            arrayLength: Array.isArray(data) ? data.length : 'not array'
-        });
-        
         // Handle both old format (array) and new format (object)
         if (Array.isArray(data)) {
-            console.log('📱 Processing old format (array) with', data.length, 'contacts');
             // Old format - just contacts array
             data = { contacts: data, isOwned: true };
         }
@@ -1139,9 +1026,6 @@ export class ContactManager {
         // Ensure contacts is an array
         const contactsArray = Array.isArray(contacts) ? contacts : [];
         
-        console.log(`📋 ContactManager: Received ${isOwned ? 'owned' : 'shared'} contacts changed event with`, 
-                   contactsArray.length, 'contacts:', contactsArray);
-        
         if (isOwned) {
             // Handle owned contacts - replace all owned contacts
             const ownedContactIds = Array.from(this.contacts.keys()).filter(id => {
@@ -1149,26 +1033,13 @@ export class ContactManager {
                 return contact.metadata.isOwned;
             });
             
-            console.log('📋 Found existing owned contacts to remove:', ownedContactIds.length);
-            console.log('📋 Existing total contacts before cleanup:', this.contacts.size);
-            
             // Remove old owned contacts
             ownedContactIds.forEach(id => this.contacts.delete(id));
-            
-            console.log('📋 Contacts after removing owned:', this.contacts.size);
             
             // Add new owned contacts
             contactsArray.forEach(contact => {
                 // CRITICAL: Preserve the Userbase itemId before any processing
                 const originalItemId = contact.itemId;
-                
-                console.log('🔍 DEBUG: Processing contact for cache:', {
-                    contactId: contact.contactId,
-                    originalItemId: originalItemId,
-                    cardName: contact.cardName,
-                    hasItemId: !!contact.itemId,
-                    contactKeys: Object.keys(contact)
-                });
                 
                 // Ensure owned contacts have correct metadata and preserve itemId
                 const processedContact = {
@@ -1187,38 +1058,21 @@ export class ContactManager {
                     console.error('❌ Contact missing itemId:', contact.contactId);
                     // For newly created contacts, itemId should equal contactId
                     processedContact.itemId = contact.contactId;
-                    console.log('🔧 Set itemId to contactId:', processedContact.itemId);
                 }
-                
-                console.log('📋 Adding owned contact to cache:', processedContact.contactId, processedContact.cardName || 'Unnamed', 'itemId:', processedContact.itemId);
-                console.log('🔍 DEBUG: Final processed contact structure:', {
-                    contactId: processedContact.contactId,
-                    itemId: processedContact.itemId,
-                    hasItemId: !!processedContact.itemId,
-                    processedKeys: Object.keys(processedContact)
-                });
                 
                 // Store the contact in cache
                 this.setContactInCache(processedContact.contactId, processedContact, 'handleContactsChanged');
                 
-                // Verify the contact was stored correctly
-                const storedContact = this.contacts.get(processedContact.contactId);
-                console.log('🔍 DEBUG: Verification - stored contact has itemId:', !!storedContact?.itemId, storedContact?.itemId);
-                console.log('🔍 DEBUG: Verification - stored contact keys:', Object.keys(storedContact || {}));
-                
-                // Deep verify storage by checking the same object reference
+                // Deep verify storage by checking the stored contact
+                const storedContact = this.getContact(processedContact.contactId);
                 if (storedContact === processedContact) {
-                    console.log('✅ Same object reference confirmed');
                 } else {
                     console.error('❌ Different object reference - possible mutation!');
                 }
             });
             
-            console.log('📋 Final contact count after adding owned:', this.contacts.size);
-            
             // Mark that contacts have been loaded
             this.contactsLoaded = true;
-            console.log('🔄 Owned contacts loaded, triggering sharing restoration check...');
             
         } else {
             // Handle shared contacts from a specific user
@@ -1256,6 +1110,7 @@ export class ContactManager {
                     metadata: {
                         ...contact.metadata,
                         isOwned: false,
+                        isImported: false, // Clear isImported flag for shared contacts
                         sharedBy: sharedBy,
                         databaseId: databaseId,
                         originalContactId: originalContactId  // Store original ID for reference
@@ -1278,9 +1133,6 @@ export class ContactManager {
         // Clear search cache
         this.clearSearchCache();
 
-        console.log('📋 ContactManager: Total contacts in cache:', this.contacts.size);
-        console.log('📋 ContactManager: Emitting contactsUpdated event');
-        
         // Emit update event
         this.eventBus.emit('contactManager:contactsUpdated', {
             contactCount: this.contacts.size,
@@ -1304,12 +1156,9 @@ export class ContactManager {
      * @param {Array} distributionSharing - Updated distribution sharing array
      */
     handleDistributionSharingChanged(distributionSharing) {
-        console.log('📋 Distribution sharing data updated:', distributionSharing.length, 'records');
-        
         // Store the distribution sharing data
         this.pendingDistributionSharing = distributionSharing;
         this.distributionSharingLoaded = true;
-        console.log('🔄 Distribution sharing loaded, triggering restoration check...');
         
         // Attempt to restore sharing metadata
         this.attemptDistributionSharingRestoration();
@@ -1321,20 +1170,10 @@ export class ContactManager {
      * Attempt to restore distribution sharing metadata if both contacts and sharing data are loaded
      */
     async attemptDistributionSharingRestoration() {
-        console.log('🔄 Attempting distribution sharing restoration...', {
-            contactsLoaded: this.contactsLoaded,
-            distributionSharingLoaded: this.distributionSharingLoaded,
-            contactCount: this.contacts.size,
-            pendingSharingRecords: this.pendingDistributionSharing?.length || 0
-        });
-        
         // Only proceed if both contacts and distribution sharing data are available
         if (!this.contactsLoaded || !this.distributionSharingLoaded || !this.pendingDistributionSharing) {
-            console.log('⏳ Not ready for restoration yet - waiting for all data to load');
             return;
         }
-        
-        console.log('✅ All data ready - proceeding with distribution sharing restoration');
         
         // Process sharing relationships to restore contact metadata
         await this.restoreContactSharingMetadata(this.pendingDistributionSharing);
@@ -1352,9 +1191,6 @@ export class ContactManager {
      * @param {Array} distributionSharing - Array of distribution sharing records
      */
     async restoreContactSharingMetadata(distributionSharing) {
-        console.log('🔄 Starting contact sharing metadata restoration...');
-        console.log(`📊 Input data: ${distributionSharing.length} sharing records, ${this.contacts.size} contacts in cache`);
-        
         try {
             // Group sharing records by contact ID
             const sharingByContact = new Map();
@@ -1362,15 +1198,7 @@ export class ContactManager {
             let invalidRecords = 0;
             
             distributionSharing.forEach((record, index) => {
-                console.log(`🔍 Processing sharing record ${index + 1}:`, {
-                    contactId: record.contactId,
-                    listName: record.listName,
-                    usernames: record.usernames?.length || 0,
-                    sharedAt: record.sharedAt
-                });
-                
                 if (!record.contactId) {
-                    console.log(`⚠️ Record ${index + 1} missing contactId, skipping`);
                     invalidRecords++;
                     return;
                 }
@@ -1382,28 +1210,20 @@ export class ContactManager {
                 validRecords++;
             });
             
-            console.log(`📊 Processed ${validRecords} valid records and ${invalidRecords} invalid records`);
-            console.log(`🔄 Found sharing records for ${sharingByContact.size} unique contacts`);
-            
             // Update contact metadata for each contact with sharing records
             let contactsFound = 0;
             let contactsNotFound = 0;
             let contactsUpdated = 0;
             
             for (const [contactId, records] of sharingByContact.entries()) {
-                console.log(`\n🔍 Processing contact: ${contactId}`);
-                
                 const contact = this.contacts.get(contactId);
                 
                 if (!contact) {
-                    console.log(`⚠️ Contact ${contactId} has sharing records but not found in cache`);
-                    console.log(`🔍 Available contact IDs:`, Array.from(this.contacts.keys()).slice(0, 5), '...');
                     contactsNotFound++;
                     continue;
                 }
                 
                 contactsFound++;
-                console.log(`✅ Found contact: "${contact.cardName}" (${contactId})`);
                 
                 // Restore the sharing metadata
                 const primaryRecord = records[0]; // Most recent record
@@ -1414,13 +1234,6 @@ export class ContactManager {
                     if (record.usernames && Array.isArray(record.usernames)) {
                         record.usernames.forEach(username => allUsernames.add(username));
                     }
-                });
-                
-                console.log(`🔄 Restoring sharing metadata for "${contact.cardName}":`, {
-                    listsSharedWith: listNames.length,
-                    totalUsers: allUsernames.size,
-                    lists: listNames,
-                    users: Array.from(allUsernames)
                 });
                 
                 // Ensure metadata structure exists
@@ -1461,20 +1274,7 @@ export class ContactManager {
                 // Update in cache (don't save to database to avoid loops)
                 this.contacts.set(contactId, updatedContact);
                 contactsUpdated++;
-                
-                console.log(`✅ Restored sharing metadata for "${contact.cardName}"`, {
-                    sharedWithLists: listNames.length,
-                    sharedWithUsers: allUsernames.size,
-                    isShared: updatedContact.metadata.sharing.isShared
-                });
             }
-            
-            console.log(`\n📊 Contact sharing metadata restoration summary:`);
-            console.log(`   📋 Total sharing records processed: ${validRecords}`);
-            console.log(`   👥 Unique contacts in sharing records: ${sharingByContact.size}`);
-            console.log(`   ✅ Contacts found and updated: ${contactsUpdated}`);
-            console.log(`   ❌ Contacts not found in cache: ${contactsNotFound}`);
-            console.log(`   📊 Total contacts in cache: ${this.contacts.size}`);
             
             // Emit events to notify UI of restoration
             this.eventBus.emit('contactManager:contactsUpdated', {
@@ -1483,11 +1283,8 @@ export class ContactManager {
                 sharingRestored: true
             });
             
-            console.log('✅ Contact sharing metadata restoration complete');
-            
         } catch (error) {
             console.error('❌ Error restoring contact sharing metadata:', error);
-            console.error('❌ Error stack:', error.stack);
         }
     }
 
@@ -1704,8 +1501,6 @@ export class ContactManager {
      */
     async createDistributionList(listData) {
         try {
-            console.log('📋 [DEBUG] Creating distribution list:', listData);
-            
             // Validate list data
             if (!listData.name || typeof listData.name !== 'string') {
                 return { success: false, error: 'List name is required' };
@@ -1717,16 +1512,9 @@ export class ContactManager {
             }
             
             // Get current settings and existing lists
-            console.log('📋 [DEBUG] Getting current settings...');
             const currentSettings = await this.database.getSettings() || {};
-            console.log('📋 [DEBUG] Current settings:', currentSettings);
-            console.log('📋 [DEBUG] Current settings type:', typeof currentSettings);
-            console.log('📋 [DEBUG] Current settings keys:', Object.keys(currentSettings));
             
             let distributionLists = currentSettings.distributionLists || {};
-            console.log('📋 [DEBUG] Current distribution lists:', distributionLists);
-            console.log('📋 [DEBUG] Distribution lists type:', typeof distributionLists);
-            console.log('📋 [DEBUG] Is distribution lists array:', Array.isArray(distributionLists));
             
             // Defensive programming: ensure distributionLists is an object
             if (Array.isArray(distributionLists)) {
@@ -1817,21 +1605,11 @@ export class ContactManager {
      */
     async getDistributionLists() {
         try {
-            console.log('📋 [DEBUG] getDistributionLists() called');
             const settings = await this.database.getSettings() || {};
-            console.log('📋 [DEBUG] Settings received:', settings);
-            console.log('📋 [DEBUG] Settings type:', typeof settings);
-            console.log('📋 [DEBUG] Settings keys:', Object.keys(settings));
-            
             const distributionLists = settings.distributionLists || {};
-            console.log('📋 [DEBUG] Distribution lists extracted:', distributionLists);
-            console.log('📋 [DEBUG] Distribution lists type:', typeof distributionLists);
-            console.log('📋 [DEBUG] Distribution lists is array:', Array.isArray(distributionLists));
-            console.log('📋 [DEBUG] Distribution lists keys:', Object.keys(distributionLists));
             
             // Convert to array with user counts (not contact counts)
             const lists = Object.values(distributionLists).map(list => {
-                console.log('📋 [DEBUG] Processing list:', list);
                 return {
                     ...list,
                     userCount: list.usernames ? list.usernames.length : 0, // Count usernames instead of contacts
@@ -1839,9 +1617,7 @@ export class ContactManager {
                 };
             });
             
-            console.log('📋 [DEBUG] Final lists array:', lists);
             const sortedLists = lists.sort((a, b) => a.name.localeCompare(b.name));
-            console.log('📋 [DEBUG] Sorted lists array:', sortedLists);
             
             return sortedLists;
             

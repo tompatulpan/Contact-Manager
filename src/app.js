@@ -41,41 +41,22 @@ class ContactManagementApp {
      */
     async initialize() {
         try {
-            console.log('🚀 Initializing Contact Management System...');
-            
-            // Show loading state
-            this.showLoadingState();
-
-            // Initialize core modules in dependency order
+            // Initialize core modules
             await this.initializeCoreModules();
-            
+
             // Initialize UI
             await this.initializeUI();
-            
-            // Setup global event handlers
+
+            // Setup event handlers
             this.setupGlobalEventHandlers();
-            
-            // Start background services
-            this.startBackgroundServices();
-            
-            this.isInitialized = true;
-            
-            // Hide loading state and show application
-            this.hideLoadingState();
-            
-            console.log('✅ Contact Management System initialized successfully');
-            
-            // Emit application ready event
-            this.eventBus.emit('app:ready', {
-                version: '1.0.0',
-                modules: Object.keys(this.modules),
-                timestamp: new Date().toISOString()
-            });
+
+            // Start the system
+            await this.startBackgroundServices();
 
         } catch (error) {
-            console.error('❌ Application initialization failed:', error);
-            this.handleError(error, 'initialization');
+            console.error('❌ Failed to initialize Contact Management System:', error);
             this.showErrorState(error);
+            throw error;
         }
     }
 
@@ -83,8 +64,6 @@ class ContactManagementApp {
      * Initialize core business logic modules
      */
     async initializeCoreModules() {
-        console.log('📦 Initializing core modules...');
-
         // Initialize VCard standard handler
         this.modules.vCardStandard = new VCardStandard();
         
@@ -102,25 +81,20 @@ class ContactManagementApp {
             this.modules.vCardStandard,
             this.modules.validator
         );
-
-        console.log('✅ Core modules initialized');
     }
 
     /**
      * Initialize user interface
      */
     async initializeUI() {
-        console.log('🎨 Initializing user interface...');
-
         // Initialize UI controller
         this.modules.uiController = new ContactUIController(
             this.eventBus,
             this.modules.contactManager
         );
 
+        // Initialize UI controller
         await this.modules.uiController.initialize();
-
-        console.log('✅ User interface initialized');
     }
 
     /**
@@ -411,47 +385,17 @@ class ContactManagementApp {
 function waitForUserbase() {
     return new Promise((resolve, reject) => {
         let attempts = 0;
-        const maxAttempts = 100; // 10 seconds max wait time
+        const maxAttempts = 50; // 5 seconds max
         
         const checkUserbase = () => {
             attempts++;
             
-            if (typeof window.userbase !== 'undefined') {
-                console.log('✅ Userbase SDK loaded successfully');
-                
-                // Verify Userbase has required methods
-                const requiredMethods = ['init', 'signUp', 'signIn', 'signOut', 'openDatabase', 'insertItem'];
-                const missingMethods = requiredMethods.filter(method => typeof window.userbase[method] !== 'function');
-                
-                if (missingMethods.length > 0) {
-                    console.error('❌ Userbase SDK incomplete, missing methods:', missingMethods);
-                    reject(new Error(`Userbase SDK incomplete. Missing methods: ${missingMethods.join(', ')}`));
-                    return;
-                }
-                
-                console.log('✅ Userbase SDK fully loaded and verified');
-                resolve();
+            if (typeof userbase !== 'undefined' && userbase && userbase.init) {
+                resolve(userbase);
             } else if (attempts >= maxAttempts) {
-                console.error('❌ Userbase SDK failed to load within timeout');
-                
-                // Try to reload the script as a last resort
-                console.log('🔄 Attempting to reload Userbase script...');
-                this.reloadUserbaseScript()
-                    .then(() => {
-                        console.log('✅ Userbase script reloaded, checking again...');
-                        setTimeout(() => {
-                            if (typeof window.userbase !== 'undefined') {
-                                resolve();
-                            } else {
-                                reject(new Error('Userbase SDK failed to load even after script reload'));
-                            }
-                        }, 1000);
-                    })
-                    .catch(error => {
-                        reject(new Error(`Userbase SDK failed to load: ${error.message}`));
-                    });
+                reject(new Error('Userbase SDK failed to load after 5 seconds'));
             } else {
-                setTimeout(checkUserbase, 100); // Check every 100ms
+                setTimeout(checkUserbase, 100);
             }
         };
         
@@ -499,12 +443,8 @@ function reloadUserbaseScript() {
  */
 async function initializeApp() {
     try {
-        console.log('⏳ Waiting for dependencies...');
-        
         // Wait for Userbase SDK to load
         await waitForUserbase();
-        
-        console.log('🚀 Starting application initialization...');
         
         const app = new ContactManagementApp();
         
