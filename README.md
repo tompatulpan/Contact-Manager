@@ -10,10 +10,10 @@ This project is not production-ready. Features, structure, and documentation are
 - What if YOUR contact card updated itself in everyone's phone?
 - That's what we built ✨
 - Never text the wrong number again.
-- Try  → https://e2econtacts.org
+- Try  → [it here](https://e2econtacts.org)
 
 A secure, modular contact management system with:
-- **End-to-end encrypted storage on userbase** (userbase.com)
+- **End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)**
 - **Real-time sharing and sync**
 - **Full RFC 9553 (vCard 4.0) compliance**
 - **Distribution lists for group sharing**
@@ -47,6 +47,7 @@ mobile.css
 - [ ] QR-code generation
 - [ ] Share your profile
 - [ ] Bulk operations (Delete, Export etc.)
+- [ ] List features (Rename, edit, etc)
 - [ ] Multi-language support
 - [ ] Contact backup/restore
 - [ ] Advanced sharing permissions (edit contacts)
