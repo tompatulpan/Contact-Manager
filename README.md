@@ -32,11 +32,9 @@ A secure, modular contact management system with:
 ```
 src/                # Core business logic and UI components
 lib/                # Third-party SDKs (e.g., userbase.js)
-config/             # App configuration
-tests/              # Automated tests
 index.html          # Main entry point
 style.css           # Styles
-production_zip.sh   # Production packaging script
+mobile.css
 ```
 
 ## Development
