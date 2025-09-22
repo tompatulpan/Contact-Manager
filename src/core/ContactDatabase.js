@@ -318,6 +318,7 @@ export class ContactDatabase {
                                 const item = userbaseItem.item || {};
                                 return {
                                     contactId: item.contactId || userbaseItem.itemId,
+                                    itemId: userbaseItem.itemId, // ✅ Preserve Userbase itemId
                                     cardName: item.cardName || 'Unnamed Contact',
                                     vcard: item.vcard || '',
                                     metadata: {

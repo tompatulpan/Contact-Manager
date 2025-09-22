@@ -1099,6 +1099,18 @@ export class ContactManager {
                 const originalItemId = contact.itemId;
                 const originalContactId = contact.contactId;
                 
+                // Validate that we have the essential identifiers
+                if (!originalItemId) {
+                    console.error('❌ CRITICAL: Shared contact missing itemId:', contact);
+                    console.error('❌ Contact data keys:', Object.keys(contact));
+                    return; // Skip this contact if it's missing itemId
+                }
+                
+                if (!originalContactId) {
+                    console.error('❌ CRITICAL: Shared contact missing contactId:', contact);
+                    return; // Skip this contact if it's missing contactId
+                }
+                
                 // Create unique ID for shared contacts to avoid conflicts
                 const sharedContactId = `shared_${sharedBy}_${originalContactId}`;
                 
@@ -1116,6 +1128,16 @@ export class ContactManager {
                         originalContactId: originalContactId  // Store original ID for reference
                     }
                 };
+                
+                // Final validation before storing
+                if (!processedContact.itemId) {
+                    console.error('❌ CRITICAL: Processed shared contact lost itemId during creation!', {
+                        sharedContactId,
+                        originalItemId,
+                        processedContact: Object.keys(processedContact)
+                    });
+                    return; // Skip storing this contact
+                }
                 
                 console.log('📋 Adding shared contact to cache:', sharedContactId, processedContact.cardName || 'Unnamed', `(from ${sharedBy}, original: ${originalContactId}, itemId: ${processedContact.itemId})`);
                 this.contacts.set(sharedContactId, processedContact);
@@ -1467,6 +1489,7 @@ export class ContactManager {
                     // Merge user-specific metadata with contact
                     const updatedContact = {
                         ...contact,
+                        itemId: contact.itemId, // Explicitly preserve itemId
                         metadata: {
                             ...contact.metadata,
                             // User-specific states
@@ -1482,6 +1505,14 @@ export class ContactManager {
                             lastAccessedAt: userMetadata.lastAccessedAt || contact.metadata.lastAccessedAt
                         }
                     };
+                    
+                    // Validate itemId is still present after merge
+                    if (!updatedContact.itemId) {
+                        console.error('❌ CRITICAL: Lost itemId during metadata merge for:', sharedContactId);
+                        console.error('❌ Original contact itemId:', contact.itemId);
+                        // Restore the itemId
+                        updatedContact.itemId = contact.itemId;
+                    }
                     
                     this.contacts.set(sharedContactId, updatedContact);
                 }

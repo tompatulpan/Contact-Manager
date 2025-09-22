@@ -158,11 +158,8 @@ export class VCardStandard {
     extractDisplayData(contact) {
         const vCardData = this.parseVCard(contact.vcard);
         
-        // Debug address extraction
+        // Extract address information
         const addresses = this.extractMultiValueProperty(vCardData, 'ADR');
-        if (contact.vcard.includes('ADR')) {
-            console.log('🏠 DEBUG: Found ADR in vCard, extracted addresses:', addresses);
-        }
         
         return {
             contactId: contact.contactId,
