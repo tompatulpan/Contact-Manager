@@ -56,3 +56,4 @@ mobile.css
 - [ ] Contact merge functionality
 - [ ] Mobile app (PWA improvements)
 - [ ] Integration with external services
+- [ ] Improve decentralization
