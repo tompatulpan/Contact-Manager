@@ -87,6 +87,16 @@ npm-debug.log*
 /tests
 /config
 
+# Project-specific files to ignore
+*.md
+!README.md
+!license.md
+!LICENSE.md
+*.yml
+*.json
+*package.json
+*package-lock.json
+
 # Ignore debug and test HTML pages
 *debug*.html
 *test*.html
