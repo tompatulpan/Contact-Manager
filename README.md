@@ -47,10 +47,16 @@ mobile.css
 ## Roadmap
 
 - [ ] QR-code generation
+- [ ] Share your profile
 - [ ] Bulk operations (Delete, Export etc.)
 - [ ] Multi-language support
 - [ ] Contact backup/restore
 - [ ] Advanced sharing permissions (edit contacts)
+- [ ] Set passwords rules
+- [ ] Change password
+- [ ] Dark mode
+- [ ] Create e-mail distrubution list
+- [ ] Icons improvments
 
 ### Ideas
 - [ ] Contact merge functionality
