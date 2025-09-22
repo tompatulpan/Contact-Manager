@@ -82,11 +82,26 @@ npm-debug.log*
 .pnp.*
 .pnp/
 
+# Project-specific folders to ignore
+/tools
+/tests
+/config
+
 # Ignore debug and test HTML pages
-debug-*.html
-test-*.html
-fix-*.html
-quick-*.html
+*debug*.html
+*test*.html
+*fix*.html
+*quick*.html
+*inspector*.html
+*database*.html
+*troubleshoot*.html
+*demo*.html
+*example*.html
+*sample*.html
+*template*.html
+*old*.html
+*backup*.html
+*temp*.html
 
 # Test environment files
 .env.test
