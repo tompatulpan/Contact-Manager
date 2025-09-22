@@ -83,30 +83,36 @@ export class VCardStandard {
 
         // Multi-value properties with RFC 9553 parameters
         if (contactData.phones && contactData.phones.length > 0) {
+            // Check if any phone is explicitly marked as primary
+            const hasPrimary = contactData.phones.some(phone => phone.primary);
             contactData.phones.forEach((phone, index) => {
                 const params = this.buildParameters({
                     type: phone.type,
-                    pref: index === 0 || phone.primary
+                    pref: phone.primary || (!hasPrimary && index === 0) // First item as fallback if no explicit primary
                 });
                 vcard += `TEL${params}:${this.escapeValue(phone.value)}\n`;
             });
         }
 
         if (contactData.emails && contactData.emails.length > 0) {
+            // Check if any email is explicitly marked as primary
+            const hasPrimary = contactData.emails.some(email => email.primary);
             contactData.emails.forEach((email, index) => {
                 const params = this.buildParameters({
                     type: email.type,
-                    pref: index === 0 || email.primary
+                    pref: email.primary || (!hasPrimary && index === 0) // First item as fallback if no explicit primary
                 });
                 vcard += `EMAIL${params}:${this.escapeValue(email.value)}\n`;
             });
         }
 
         if (contactData.urls && contactData.urls.length > 0) {
+            // Check if any URL is explicitly marked as primary
+            const hasPrimary = contactData.urls.some(url => url.primary);
             contactData.urls.forEach((url, index) => {
                 const params = this.buildParameters({
                     type: url.type,
-                    pref: index === 0 || url.primary
+                    pref: url.primary || (!hasPrimary && index === 0) // First item as fallback if no explicit primary
                 });
                 vcard += `URL${params}:${this.escapeValue(url.value)}\n`;
             });
@@ -114,13 +120,26 @@ export class VCardStandard {
 
         // Addresses (ADR)
         if (contactData.addresses && contactData.addresses.length > 0) {
+            // Check if any address is explicitly marked as primary
+            const hasPrimary = contactData.addresses.some(address => address.primary);
             contactData.addresses.forEach((address, index) => {
                 const params = this.buildParameters({
                     type: address.type,
-                    pref: index === 0 || address.primary
+                    pref: address.primary || (!hasPrimary && index === 0) // First item as fallback if no explicit primary
                 });
-                const adrValue = this.formatAddressValue(address);
-                vcard += `ADR${params}:${adrValue}\n`;
+                
+                // Build ADR value: postOfficeBox;;street;locality;region;postalCode;country
+                const adrParts = [
+                    address.postOfficeBox || '',
+                    '', // Extended address (typically empty)
+                    address.street || '',
+                    address.city || '',
+                    address.region || '',
+                    address.postalCode || '',
+                    address.country || ''
+                ];
+                
+                vcard += `ADR${params}:${adrParts.map(part => this.escapeValue(part)).join(';')}\n`;
             });
         }
 
