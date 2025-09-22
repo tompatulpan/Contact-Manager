@@ -13,7 +13,7 @@ This project is not production-ready. Features, structure, and documentation are
 - Try  → https://e2econtacts.org
 
 A secure, modular contact management system with:
-- **End-to-end encrypted storage** (userbase.com)
+- **End-to-end encrypted storage on userbase** (userbase.com)
 - **Real-time sharing and sync**
 - **Full RFC 9553 (vCard 4.0) compliance**
 - **Distribution lists for group sharing**
@@ -36,11 +36,9 @@ index.html          # Main entry point
 style.css           # Styles
 mobile.css
 ```
-
+---
 ## Development
 
-- **Install dependencies** as needed (see `package.json`)
-- **Do not use in production yet!**
 - Contributions and feedback are welcome.
 
 ---
