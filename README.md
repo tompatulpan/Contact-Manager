@@ -10,7 +10,7 @@ This project is not production-ready. Features, structure, and documentation are
 - What if YOUR contact card updated itself in everyone's phone?
 - That's what we built ✨
 - Never text the wrong number again.
-- Try  → https://e2econtacts
+- Try  → https://e2econtacts.org
 
 A secure, modular contact management system with:
 - **End-to-end encrypted storage** (Userbase)
