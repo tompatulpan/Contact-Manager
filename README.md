@@ -17,7 +17,7 @@ A secure, modular contact management system with:
 - **Real-time sharing and sync**
 - **Full RFC 9553 (vCard 4.0) compliance**
 - **Distribution lists for group sharing**
-- **Cross-device support** (webb app)
+- **Cross-device support** (web application)
 
 ## Key Features
 
@@ -60,6 +60,6 @@ mobile.css
 
 ### Ideas
 - [ ] Contact merge functionality
-- [ ] Mobile app (PWA improvements)
+- [ ] A Progressive Web App (PWA)
 - [ ] Integration with external services
 - [ ] Improve decentralization
