@@ -525,6 +525,19 @@ export class ContactValidator {
                 .slice(0, 5); // Limit to 5 notes
         }
 
+        // Sanitize boolean metadata fields
+        if (typeof contactData.isImported === 'boolean') {
+            sanitized.isImported = contactData.isImported;
+        }
+
+        // Sanitize distribution lists
+        if (contactData.distributionLists && Array.isArray(contactData.distributionLists)) {
+            sanitized.distributionLists = contactData.distributionLists
+                .filter(list => typeof list === 'string' && list.trim().length > 0)
+                .map(list => list.trim())
+                .slice(0, 10); // Limit to 10 distribution lists
+        }
+
         return sanitized;
     }
 

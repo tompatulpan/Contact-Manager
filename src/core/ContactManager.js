@@ -132,6 +132,7 @@ export class ContactManager {
                     isDeleted: false,
                     isFavorite: false,
                     isPinned: false,
+                    isImported: sanitizedData.isImported || false,
                     distributionLists: sanitizedData.distributionLists || [],
                     
                     // Sharing metadata
@@ -751,7 +752,7 @@ export class ContactManager {
             cutoffDate.setDate(cutoffDate.getDate() - days);
             
             filtered = filtered.filter(contact => {
-                const lastAccessed = contact.metadata.usage.lastAccessedAt;
+                const lastAccessed = contact.metadata.usage?.lastAccessedAt;
                 return lastAccessed && new Date(lastAccessed) > cutoffDate;
             });
         }
@@ -789,8 +790,8 @@ export class ContactManager {
                     break;
                 
                 case 'accessed':
-                    valueA = a.metadata.usage.lastAccessedAt ? new Date(a.metadata.usage.lastAccessedAt) : new Date(0);
-                    valueB = b.metadata.usage.lastAccessedAt ? new Date(b.metadata.usage.lastAccessedAt) : new Date(0);
+                    valueA = a.metadata.usage?.lastAccessedAt ? new Date(a.metadata.usage.lastAccessedAt) : new Date(0);
+                    valueB = b.metadata.usage?.lastAccessedAt ? new Date(b.metadata.usage.lastAccessedAt) : new Date(0);
                     break;
                 
                 default:
@@ -825,17 +826,39 @@ export class ContactManager {
      */
     getContactStatistics() {
         const allContacts = Array.from(this.contacts.values());
+        const activeContacts = allContacts.filter(c => !c.metadata.isDeleted && !c.metadata.isArchived);
         
         return {
-            total: allContacts.length,
-            active: allContacts.filter(c => !c.metadata.isDeleted && !c.metadata.isArchived).length,
+            total: activeContacts.length,
+            active: activeContacts.length,
             archived: allContacts.filter(c => c.metadata.isArchived && !c.metadata.isDeleted).length,
             deleted: allContacts.filter(c => c.metadata.isDeleted).length,
-            owned: allContacts.filter(c => c.metadata.isOwned).length,
-            shared: allContacts.filter(c => !c.metadata.isOwned).length,
+            owned: activeContacts.filter(c => c.metadata.isOwned).length,
+            shared: activeContacts.filter(c => !c.metadata.isOwned).length,
+            imported: activeContacts.filter(c => c.metadata.isImported === true).length,
+            recent: this.getRecentContactsCount(7), // Last 7 days
             favorites: allContacts.filter(c => c.metadata.isFavorite).length,
             distributionLists: this.getDistributionListCounts()
         };
+    }
+
+    /**
+     * Get count of contacts accessed within the last N days
+     * @param {number} days - Number of days to look back
+     * @returns {number} Count of recently accessed contacts
+     */
+    getRecentContactsCount(days = 7) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - days);
+        
+        const allContacts = Array.from(this.contacts.values());
+        return allContacts.filter(contact => {
+            // Skip deleted contacts
+            if (contact.metadata.isDeleted) return false;
+            
+            const lastAccessed = contact.metadata.usage?.lastAccessedAt;
+            return lastAccessed && new Date(lastAccessed) > cutoffDate;
+        }).length;
     }
 
     /**

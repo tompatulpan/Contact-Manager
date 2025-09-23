@@ -188,7 +188,36 @@ body {
     transform: scale(0.95) translateY(0);
 }
 
-/* FontAwesome icons are used instead of custom icon classes */
+/* Quick Stats */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 8px 4px;
+    background: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.stat-item:hover {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.stat-item[style*="cursor: pointer"] {
+    cursor: pointer !important;
+}
+
+.stat-item[style*="cursor: pointer"]:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
 
 /* Modals */
 .modal {
