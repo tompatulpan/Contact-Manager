@@ -1,41 +1,202 @@
-/* Mobile CSS - Page-based Navigation for Contact Management System */
+/* Mobile CSS - Consolidated Mobile Styles for Contact Management System */
 
-/* Mobile Detection and Base Styles */
 @media screen and (max-width: 768px) {
     
-    /* Hide desktop layout elements */
+    /* ===== LAYOUT & GRID SYSTEM ===== */
+    .main-content {
+        grid-template-columns: 1fr !important;
+        gap: var(--space-2) !important;
+    }
+    
+    .sidebar {
+        order: 2 !important;
+        border-right: none !important;
+        border-top: 1px solid var(--border-color) !important;
+        max-height: calc(100vh - 250px) !important;
+        height: calc(100vh - 250px) !important;
+    }
+
+    .contact-detail-panel {
+        order: 3 !important;
+        display: none !important; /* Hide on mobile, show modal instead */
+    }
+
+    .contact-list-panel {
+        max-height: calc(100vh - 250px) !important;
+        height: calc(100vh - 250px) !important;
+    }
+    
     .app-container {
+        padding: var(--space-2) !important;
         display: block !important;
-        padding: 0 !important;
         max-width: 100% !important;
     }
+    
+    .main-header {
+        flex-direction: column !important;
+        gap: var(--space-4) !important;
+    }
+    
+    /* ===== CONTACT DETAIL HEADER - BACKUP RULE (lower specificity) ===== */
+    /* This rule is kept as fallback but the more specific rule below takes precedence */
+    .contact-detail-header .contact-name {
+        font-size: 1.6rem !important; /* Backup size - should match the main rule below */
+        line-height: 1.1 !important; /* Tight line spacing */
+        font-weight: 700 !important; /* Bold for prominence */
+        margin-bottom: var(--space-3) !important;
+        color: var(--text-primary) !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    
+    /* High specificity selectors to ensure override - MAIN RULE FOR DETAIL VIEW FONT */
+    .contact-detail-section .contact-detail-header .contact-name,
+    .contact-detail-panel .contact-detail-header .contact-name,
+    .contact-detail-container .contact-detail-header .contact-name {
+        font-size: 1.6rem !important; /* Normalized size - 1.6rem (about 25-26px) - prominent but not huge */
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+        margin-bottom: var(--space-3) !important;
+        color: var(--text-primary) !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    
+    .contact-detail-actions {
+        gap: var(--space-3) !important;
+        padding: var(--space-4) var(--space-2) !important;
+    }
+    
+    .contact-detail-actions .btn-icon {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 18px !important;
+    }
+    
+    /* ===== CONTACT CARDS - INCREASED FONT SIZE ===== */
+    .contact-card .contact-name {
+        font-size: 18px !important; /* Increased from 16px to 18px for better readability */
+        font-weight: 600 !important;
+        color: #212529 !important;
+        margin: 0 0 4px 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    
+    /* ===== MODAL STYLES ===== */
+    .modal-content {
+        width: 98% !important;
+        max-width: 98vw !important;
+        margin: 1vh auto !important;
+        max-height: 98vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .modal-body {
+        padding: var(--space-4) !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    /* ===== HEADER & BUTTON STYLES ===== */
+    .header-right {
+        gap: 0.25rem !important;
+    }
+    
+    .header-right .btn {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.875rem !important;
+    }
+    
+    .header-right .btn i {
+        margin-right: 0.25rem !important;
+    }
+    
+    .btn span {
+        display: none !important;
+    }
+    
+    .btn i {
+        margin-right: 0 !important;
+    }
+    
+    /* ===== FORM FIELD STYLES ===== */
+    .multi-field-item {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+    }
+    
+    .field-type-select {
+        min-width: auto !important;
+        max-width: none !important;
+    }
+    
+    .primary-checkbox {
+        justify-content: center !important;
+    }
+    
+    .remove-field-btn {
+        align-self: center !important;
+    }
+    
+    /* Address field responsive */
+    .address-row {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+    
+    .address-field .remove-field-btn {
+        position: static !important;
+        align-self: center !important;
+        margin-top: 0.5rem !important;
+    }
+    
+    /* Note field responsive */
+    .note-field .remove-field-btn {
+        position: static !important;
+        align-self: center !important;
+        margin-top: 0.5rem !important;
+        background: var(--surface-color) !important;
+    }
+    
+    /* ===== UTILITY CLASSES ===== */
+    .mobile-only {
+        display: block !important;
+    }
+    
+    /* ===== PAGE-BASED NAVIGATION SYSTEM ===== */
     
     /* Transform columns into pages */
     .left-sidebar,
     .contact-list-section,
     .contact-detail-section {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100vh;
-        background: white;
-        z-index: 100;
-        transform: translateX(100%);
-        transition: transform 0.3s ease-in-out;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100vh !important;
+        background: white !important;
+        z-index: 100 !important;
+        transform: translateX(100%) !important;
+        transition: transform 0.3s ease-in-out !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
     
     /* Page visibility states */
     .page-active {
         transform: translateX(0) !important;
-        z-index: 200;
+        z-index: 200 !important;
     }
     
     .page-previous {
         transform: translateX(-100%) !important;
-        z-index: 150;
+        z-index: 150 !important;
     }
     
     /* All Contacts page - main focus page */
@@ -45,54 +206,54 @@
     
     /* Hide sidebar by default on mobile */
     .left-sidebar {
-        z-index: 300; /* Highest when shown */
+        z-index: 300 !important; /* Highest when shown */
     }
     
     /* Detail view as overlay page */
     .contact-detail-section {
-        z-index: 250;
+        z-index: 250 !important;
     }
     
     /* Mobile Navigation Header */
     .mobile-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        background: #f8f9fa;
-        border-bottom: 1px solid #dee2e6;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        min-height: 60px;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 12px 16px !important;
+        background: #f8f9fa !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 10 !important;
+        min-height: 60px !important;
     }
     
     .mobile-back-btn,
     .mobile-menu-btn {
-        background: none;
-        border: none;
-        font-size: 24px;
-        color: #007bff;
-        cursor: pointer;
-        padding: 8px;
-        border-radius: 4px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        background: none !important;
+        border: none !important;
+        font-size: 24px !important;
+        color: #007bff !important;
+        cursor: pointer !important;
+        padding: 8px !important;
+        border-radius: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
     }
     
     .mobile-back-btn:hover,
     .mobile-menu-btn:hover {
-        background: rgba(0, 123, 255, 0.1);
+        background: rgba(0, 123, 255, 0.1) !important;
     }
     
     .mobile-page-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #212529;
-        margin: 0;
-        flex: 1;
-        text-align: center;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        color: #212529 !important;
+        margin: 0 !important;
+        flex: 1 !important;
+        text-align: center !important;
     }
     
     /* Contact List - Mobile Optimized */
@@ -111,21 +272,30 @@
     }
     
     .contact-search-controls {
-        padding: 16px;
-        background: white;
-        border-bottom: 1px solid #dee2e6;
-        position: sticky;
-        top: 60px; /* Below mobile header */
-        z-index: 9;
+        padding: 16px !important;
+        background: white !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        position: sticky !important;
+        top: 60px !important; /* Below mobile header */
+        z-index: 9 !important;
     }
     
     .search-input {
         width: 100% !important;
         padding: 12px 16px !important;
         font-size: 16px !important; /* Prevent zoom on iOS */
-        border: 1px solid #ced4da !important;
+        border: 1px solid var(--primary-color) !important; /* Blue border always visible */
         border-radius: 8px !important;
         margin-bottom: 12px !important;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important; /* Subtle blue glow always visible */
+    }
+    
+    /* Enhanced blue focus frame for mobile search field when focused */
+    .search-input:focus {
+        outline: none !important;
+        border-color: var(--primary-color) !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important; /* Stronger glow when focused */
+        background: var(--bg-primary) !important;
     }
     
     /* Filter controls - simplified for mobile */
@@ -200,16 +370,6 @@
         min-width: 0 !important; /* Allow text truncation */
     }
     
-    .contact-card .contact-name {
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        color: #212529 !important;
-        margin: 0 0 4px 0 !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-    
     .contact-card .contact-organization {
         font-size: 14px !important;
         color: #6c757d !important;
@@ -277,102 +437,7 @@
         font-weight: 300;
     }
     
-    /* Contact Detail View - Mobile */
-    .contact-detail-container {
-        padding: 0 !important;
-        height: 100vh !important;
-        overflow-y: auto !important;
-    }
-    
-    .contact-detail-content {
-        padding: 20px !important;
-    }
-    
-    /* Action buttons - mobile friendly */
-    .contact-actions {
-        display: flex !important;
-        gap: 8px !important;
-        padding: 16px !important;
-        background: #f8f9fa !important;
-        border-top: 1px solid #dee2e6 !important;
-        position: sticky !important;
-        bottom: 0 !important;
-    }
-    
-    .contact-action-btn {
-        flex: 1 !important;
-        padding: 12px 16px !important;
-        font-size: 14px !important;
-        border-radius: 8px !important;
-        border: 1px solid #ced4da !important;
-        background: white !important;
-        color: #495057 !important;
-        cursor: pointer !important;
-        text-align: center !important;
-        min-height: 44px !important; /* Touch target */
-    }
-    
-    .contact-action-btn:hover,
-    .contact-action-btn:active {
-        background: #e9ecef !important;
-    }
-    
-    .btn-primary {
-        background: #007bff !important;
-        color: white !important;
-        border-color: #007bff !important;
-    }
-    
-    /* Sidebar - Mobile Menu */
-    .sidebar-content {
-        padding: 20px !important;
-    }
-    
-    .sidebar-section {
-        margin-bottom: 32px !important;
-    }
-    
-    .sidebar-section h3 {
-        font-size: 16px !important;
-        margin-bottom: 12px !important;
-        color: #495057 !important;
-    }
-    
-    .sidebar-item {
-        display: flex !important;
-        align-items: center !important;
-        padding: 12px 0 !important;
-        color: #495057 !important;
-        text-decoration: none !important;
-        border-bottom: 1px solid #f0f0f0 !important;
-        min-height: 44px !important; /* Touch target */
-    }
-    
-    .sidebar-item:hover,
-    .sidebar-item:active {
-        color: #007bff !important;
-        background: rgba(0, 123, 255, 0.05) !important;
-        margin: 0 -20px !important;
-        padding-left: 20px !important;
-        padding-right: 20px !important;
-    }
-    
-    /* Hide desktop-only elements */
-    .desktop-only {
-        display: none !important;
-    }
-    
-    /* Mobile-only elements */
-    .mobile-only {
-        display: block !important;
-    }
-    
-    /* Show mobile-only elements */
-    .mobile-only {
-        display: block !important;
-    }
-    
-    /* ========== AUTHENTICATION MODAL - MOBILE ========== */
+    /* ===== AUTHENTICATION MODAL - MOBILE ===== */
     
     /* Authentication Modal - Mobile specific styles */
     #auth-modal {
@@ -422,269 +487,6 @@
         font-weight: inherit !important;
     }
     
-    #auth-form .btn-primary {
-        background: #007bff !important;
-        color: white !important;
-        border: 2px solid #007bff !important;
-        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2) !important;
-    }
-    
-    #auth-form .btn-primary:hover,
-    #auth-form .btn-primary:active {
-        background: #0056b3 !important;
-        border-color: #0056b3 !important;
-        transform: none !important; /* Disable transform on mobile */
-    }
-    
-    #auth-form .btn-ghost {
-        background: transparent !important;
-        color: #007bff !important;
-        border: 2px solid #007bff !important;
-        text-decoration: none !important;
-    }
-    
-    #auth-form .btn-ghost:hover,
-    #auth-form .btn-ghost:active {
-        background: rgba(0, 123, 255, 0.1) !important;
-        color: #0056b3 !important;
-        border-color: #0056b3 !important;
-    }
-    
-    /* Authentication form inputs - mobile */
-    #auth-form .form-group {
-        margin-bottom: 20px !important;
-    }
-    
-    #auth-form .form-group label {
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        margin-bottom: 8px !important;
-        display: block !important;
-        color: #495057 !important;
-    }
-    
-    #auth-form .form-group input {
-        width: 100% !important;
-        padding: 16px !important;
-        font-size: 16px !important; /* Prevent iOS zoom */
-        border: 2px solid #ced4da !important;
-        border-radius: 8px !important;
-        box-sizing: border-box !important;
-        background: white !important;
-        color: #495057 !important;
-    }
-    
-    #auth-form .form-group input:focus {
-        outline: none !important;
-        border-color: #007bff !important;
-        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1) !important;
-    }
-    
-    /* Authentication welcome section - mobile */
-    .auth-welcome {
-        margin-bottom: 24px !important;
-        padding: 20px !important;
-        border-radius: 12px !important;
-    }
-    
-    .auth-welcome h3 {
-        font-size: 20px !important;
-        margin-bottom: 8px !important;
-    }
-    
-    .auth-welcome p {
-        font-size: 14px !important;
-        line-height: 1.5 !important;
-    }
-    
-    /* Error messages - mobile */
-    #auth-error {
-        padding: 12px !important;
-        font-size: 14px !important;
-        border-radius: 8px !important;
-        margin-bottom: 16px !important;
-        background: #f8d7da !important;
-        color: #721c24 !important;
-        border: 1px solid #f5c6cb !important;
-    }
-    
-    /* ========== GENERAL MODAL STYLES - MOBILE ========== */
-    
-    /* All modals - mobile optimizations */
-    .modal {
-        padding: 8px !important;
-        align-items: flex-start !important;
-        padding-top: 12px !important;
-    }
-    
-    .modal-content {
-        width: 100% !important;
-        max-width: 100% !important;
-        max-height: calc(100vh - 24px) !important;
-        margin: 0 !important;
-        border-radius: 12px !important;
-        overflow: hidden !important;
-    }
-    
-    .modal-header {
-        padding: 16px 20px !important;
-        flex-shrink: 0 !important;
-    }
-    
-    .modal-header h2 {
-        font-size: 18px !important;
-        margin: 0 !important;
-    }
-    
-    .modal-close {
-        font-size: 24px !important;
-        padding: 8px !important;
-        min-width: 44px !important;
-        min-height: 44px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-    
-    .modal-body {
-        padding: 20px !important;
-        overflow-y: auto !important;
-        flex: 1 !important;
-        min-height: 0 !important;
-    }
-    
-    /* Form buttons in modals - mobile */
-    .modal .form-actions {
-        flex-direction: column !important;
-        gap: 12px !important;
-        margin-top: 24px !important;
-        padding-top: 20px !important;
-        border-top: 1px solid #dee2e6 !important;
-    }
-    
-    .modal .form-actions .btn {
-        width: 100% !important;
-        padding: 16px 24px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-        min-height: 48px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 8px !important;
-        text-align: center !important;
-        box-sizing: border-box !important;
-    }
-    
-    /* IMPORTANT: Override global mobile span hiding for all modal buttons */
-    .modal .btn span {
-        display: inline !important;
-        color: inherit !important;
-        font-size: inherit !important;
-        font-weight: inherit !important;
-    }
-    
-    /* Primary buttons in modals */
-    .modal .btn-primary {
-        background: #007bff !important;
-        color: white !important;
-        border: 2px solid #007bff !important;
-        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2) !important;
-    }
-    
-    .modal .btn-primary:hover,
-    .modal .btn-primary:active,
-    .modal .btn-primary:focus {
-        background: #0056b3 !important;
-        border-color: #0056b3 !important;
-        transform: none !important;
-    }
-    
-    /* Secondary buttons in modals */
-    .modal .btn-secondary {
-        background: white !important;
-        color: #495057 !important;
-        border: 2px solid #ced4da !important;
-    }
-    
-    .modal .btn-secondary:hover,
-    .modal .btn-secondary:active,
-    .modal .btn-secondary:focus {
-        background: #e9ecef !important;
-        border-color: #adb5bd !important;
-        color: #495057 !important;
-    }
-    
-    /* Ghost buttons in modals */
-    .modal .btn-ghost {
-        background: transparent !important;
-        color: #007bff !important;
-        border: 2px solid transparent !important;
-        text-decoration: none !important;
-    }
-    
-    .modal .btn-ghost:hover,
-    .modal .btn-ghost:active,
-    .modal .btn-ghost:focus {
-        background: rgba(0, 123, 255, 0.1) !important;
-        color: #0056b3 !important;
-        border-color: transparent !important;
-    }
-    
-    /* Form inputs in modals - mobile */
-    .modal .form-group {
-        margin-bottom: 20px !important;
-    }
-    
-    .modal .form-group label {
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        margin-bottom: 8px !important;
-        display: block !important;
-        color: #495057 !important;
-    }
-    
-    .modal .form-group input,
-    .modal .form-group select,
-    .modal .form-group textarea {
-        width: 100% !important;
-        padding: 16px !important;
-        font-size: 16px !important; /* Prevent iOS zoom */
-        border: 2px solid #ced4da !important;
-        border-radius: 8px !important;
-        box-sizing: border-box !important;
-        background: white !important;
-        color: #495057 !important;
-    }
-    
-    .modal .form-group input:focus,
-    .modal .form-group select:focus,
-    .modal .form-group textarea:focus {
-        outline: none !important;
-        border-color: #007bff !important;
-        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1) !important;
-    }    /* Empty states */
-    .empty-state {
-        text-align: center !important;
-        padding: 60px 20px !important;
-        color: #6c757d !important;
-    }
-    
-    .empty-state-icon {
-        font-size: 48px !important;
-        margin-bottom: 16px !important;
-        color: #dee2e6 !important;
-    }
-    
-    /* Loading states */
-    .loading-spinner {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 40px !important;
-    }
-    
     /* Safe area handling for iOS */
     @supports (padding: max(0px)) {
         .mobile-header {
@@ -721,11 +523,11 @@
 /* Extra small devices (phones in portrait) */
 @media screen and (max-width: 375px) {
     .mobile-header {
-        padding: 8px 12px;
+        padding: 8px 12px !important;
     }
     
     .mobile-page-title {
-        font-size: 16px;
+        font-size: 16px !important;
     }
     
     .contact-item {
@@ -734,10 +536,76 @@
     }
     
     .contact-name {
-        font-size: 15px !important;
+        font-size: 18px !important; /* Increased from 15px to 18px for better readability */
+        font-weight: 600 !important; /* Make it slightly bolder */
+    }
+    
+    /* Specific override for list view contact names - targeting both h3 and div elements */
+    .contact-list.list-view .contact-list-item .contact-name,
+    .contact-list.list-view .contact-list-item h3.contact-name,
+    .contact-list.list-view .contact-list-item div.contact-name,
+    .contact-list-item .contact-name,
+    .contact-list-item h3.contact-name,
+    .contact-list-item div.contact-name {
+        font-size: 18px !important; /* Increased from base 0.875rem to 18px for better mobile readability */
+        font-weight: 600 !important;
+        line-height: 1.2 !important; /* Maintain reasonable line spacing */
     }
     
     .contact-details {
         font-size: 13px !important;
+    }
+    
+    /* REDUNDANT RULE - should be removed in cleanup, kept for consistency */
+    .contact-detail-header .contact-name {
+        font-size: 1.6rem !important; /* Matches main rule above */
+        line-height: 1.1 !important;
+    }
+    
+    /* Maximum specificity override for contact names in any list context on mobile */
+    body .contact-list-item .contact-name,
+    body .contact-list-item h3.contact-name,
+    body .contact-list-item div.contact-name,
+    body .contact-card .contact-name,
+    body .contact-card h3.contact-name,
+    body .contact-card div.contact-name {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+    }
+    
+    /* Ultra-specific override to match exact selector from style.css */
+    body .contact-list.list-view .contact-list-item .contact-name,
+    body .contact-list.list-view .contact-list-item h3.contact-name,
+    body .contact-list.list-view .contact-list-item div.contact-name {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+        color: #000000 !important;
+    }
+}
+
+/* Additional rules outside media query for stronger enforcement */
+@media screen and (max-width: 768px) {
+    html body .contact-list-item .contact-name,
+    html body .contact-list-item h3.contact-name,
+    html body .contact-list-item div.contact-name,
+    html body .contact-list.list-view .contact-list-item .contact-name,
+    html body .contact-list.list-view .contact-list-item h3.contact-name,
+    html body .contact-list.list-view .contact-list-item div.contact-name {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+        color: #000000 !important;
+    }
+}
+
+/* Nuclear option - maximum specificity override */
+@media (max-width: 768px) {
+    html body div.contact-list.list-view div.contact-list-item div.contact-name,
+    html body div.contact-list.list-view div.contact-list-item h3.contact-name {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
     }
 }

@@ -681,31 +681,6 @@ body {
     color: white;
 }
 
-@media (max-width: 768px) {
-    .main-content {
-        grid-template-columns: 1fr;
-        gap: var(--space-2);
-    }
-    
-    .sidebar {
-        order: 2;
-        border-right: none;
-        border-top: 1px solid var(--border-color);
-        max-height: calc(100vh - 250px); /* Match mobile responsive height */
-        height: calc(100vh - 250px);
-    }
-
-    .contact-detail-panel {
-        order: 3;
-        display: none; /* Hide on mobile, show modal instead */
-    }
-
-    .contact-list-panel {
-        max-height: calc(100vh - 250px); /* Account for mobile header/footer */
-        height: calc(100vh - 250px);
-    }
-}
-
 .main-header {
     display: flex;
     justify-content: space-between;
@@ -1091,19 +1066,6 @@ body {
 }
 
 /* Mobile responsive for contact detail actions */
-@media (max-width: 768px) {
-    .contact-detail-actions {
-        gap: var(--space-3);
-        padding: var(--space-4) var(--space-2);
-    }
-    
-    .contact-detail-actions .btn-icon {
-        width: 44px;
-        height: 44px;
-        font-size: 18px;
-    }
-}
-
 .contact-actions {
     display: flex;
     gap: var(--space-2);
@@ -1308,39 +1270,7 @@ body {
     }
 }
 
-@media (max-width: 768px) {
-    .contact-detail-panel {
-        display: none; /* Hide on mobile, show modal instead */
-    }
-}
-
 /* Responsive */
-@media (max-width: 768px) {
-    .modal-content {
-        width: 98%;
-        max-width: 98vw;
-        margin: 1vh auto;
-        max-height: 98vh;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .modal-body {
-        padding: var(--space-4);
-        flex: 1;
-        min-height: 0;
-    }
-    
-    .app-container {
-        padding: var(--space-2);
-    }
-    
-    .main-header {
-        flex-direction: column;
-        gap: var(--space-4);
-    }
-}
-
 /* Additional responsive breakpoints for better scaling */
 @media (max-width: 480px) {
     .modal-content {
@@ -2488,29 +2418,6 @@ body {
 }
 
 /* Responsive adjustments for smaller screens */
-@media (max-width: 768px) {
-    .header-right {
-        gap: 0.25rem;
-    }
-    
-    .header-right .btn {
-        padding: 0.5rem 0.75rem;
-        font-size: 0.875rem;
-    }
-    
-    .header-right .btn i {
-        margin-right: 0.25rem;
-    }
-    
-    .btn span {
-        display: none;
-    }
-    
-    .btn i {
-        margin-right: 0 !important;
-    }
-}
-
 /* ========== MULTI-FIELD FORM COMPONENTS ========== */
 
 /* Multi-field container */
@@ -2729,48 +2636,6 @@ body {
     background: rgba(239, 68, 68, 0.1);
     border-color: var(--error-color);
     color: var(--error-color);
-}
-
-/* Responsive adjustments for multi-fields */
-@media (max-width: 768px) {
-    .multi-field-item {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-    }
-    
-    .field-type-select {
-        min-width: auto;
-        max-width: none;
-    }
-    
-    .primary-checkbox {
-        justify-content: center;
-    }
-    
-    .remove-field-btn {
-        align-self: center;
-    }
-    
-    /* Address field responsive */
-    .address-row {
-        grid-template-columns: 1fr;
-        gap: 0.5rem;
-    }
-    
-    .address-field .remove-field-btn {
-        position: static;
-        align-self: center;
-        margin-top: 0.5rem;
-    }
-    
-    /* Note field responsive */
-    .note-field .remove-field-btn {
-        position: static;
-        align-self: center;
-        margin-top: 0.5rem;
-        background: var(--surface-color);
-    }
 }
 
 /* Format Badges for Export */
@@ -3017,12 +2882,6 @@ body {
 /* Mobile visibility classes */
 .mobile-only {
     display: none;
-}
-
-@media (max-width: 768px) {
-    .mobile-only {
-        display: block !important;
-    }
 }
 
 /* Footer Styles */
