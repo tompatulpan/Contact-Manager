@@ -16,7 +16,7 @@ export class ContactUIController {
         this.currentUser = null;
         this.selectedContactId = null;
         this.currentView = 'contacts'; // contacts, archived, shared
-        this.viewMode = 'list'; // card, list - default to list view for better functionality
+        this.viewMode = this.getDefaultViewMode(); // Responsive default: list for mobile, card for desktop
         this.searchQuery = '';
         this.activeFilters = {
             includeArchived: false,  // Don't show archived contacts by default
@@ -1135,6 +1135,16 @@ export class ContactUIController {
     }
 
     /**
+     * Get default view mode based on screen size
+     * Mobile: list view (more compact)
+     * Desktop: card view (more visual)
+     */
+    getDefaultViewMode() {
+        const isMobile = window.innerWidth <= 768;
+        return isMobile ? 'list' : 'card';
+    }
+
+    /**
      * Set view mode (card or list)
      */
     setViewMode(mode) {
@@ -1664,6 +1674,10 @@ export class ContactUIController {
             app.classList.add('authenticated');
         }
         this.updateUserInterface();
+        
+        // Initialize responsive view mode
+        this.setViewMode(this.viewMode);
+        
         this.renderDistributionLists(); // Render distribution lists on app start
         this.performSearch();
     }
@@ -3194,6 +3208,13 @@ export class ContactUIController {
         
         document.body.classList.toggle('mobile', isMobile);
         document.body.classList.toggle('tablet', isTablet);
+        
+        // Update view mode based on screen size
+        const optimalViewMode = this.getDefaultViewMode();
+        if (this.viewMode !== optimalViewMode) {
+            console.log(`🔄 Responsive view mode change: ${this.viewMode} → ${optimalViewMode}`);
+            this.setViewMode(optimalViewMode);
+        }
     }
 
     /**

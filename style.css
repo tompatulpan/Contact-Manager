@@ -188,31 +188,7 @@ body {
     transform: scale(0.95) translateY(0);
 }
 
-/* Icon Classes with better visibility */
-.icon-eye::before { 
-    content: '👁️'; 
-    font-size: 1.1em;
-}
-.icon-edit::before { 
-    content: '✏️'; 
-    font-size: 1.1em;
-}
-.icon-share::before { 
-    content: '📤'; 
-    font-size: 1.1em;
-}
-.icon-trash::before { 
-    content: '🗑️'; 
-    font-size: 1.1em;
-}
-.icon-archive::before { 
-    content: '📦'; 
-    font-size: 1.1em;
-}
-.icon-restore::before { 
-    content: '🔄'; 
-    font-size: 1.1em;
-}
+/* FontAwesome icons are used instead of custom icon classes */
 
 /* Modals */
 .modal {
@@ -1339,6 +1315,59 @@ body {
     .form-group textarea {
         font-size: 1.1rem; /* Slightly larger text for better readability */
         padding: 0.875rem;
+    }
+}
+
+/* Responsive Contact Layout Optimizations */
+@media (max-width: 768px) {
+    /* Mobile: Optimize both view modes for touch interaction */
+    .contact-list.card-view {
+        gap: 3px; /* Tighter spacing for mobile screens */
+        padding: 6px; /* Less padding on small screens */
+    }
+    
+    .contact-card {
+        padding: 6px; /* More compact cards on mobile */
+        gap: 6px;
+        border-radius: 6px;
+    }
+    
+    .contact-avatar {
+        width: 32px; /* Smaller avatars for mobile */
+        height: 32px;
+    }
+    
+    .contact-avatar .avatar-initial {
+        font-size: 0.75rem; /* Smaller text for smaller avatar */
+    }
+    
+    /* List view is already optimized for mobile, but ensure it's compact */
+    .contact-list.list-view .contact-list-item {
+        height: 32px; /* Slightly smaller touch targets */
+        padding: 6px 8px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (min-width: 769px) {
+    /* Desktop: Optimize for mouse interaction and visual appeal */
+    .contact-list.card-view {
+        gap: 4px; /* Standard spacing for desktop */
+        padding: 8px;
+    }
+    
+    .contact-card {
+        padding: 8px; /* More comfortable padding on desktop */
+        gap: 8px;
+    }
+    
+    .contact-avatar {
+        width: 36px; /* Standard size for desktop */
+        height: 36px;
+    }
+    
+    .contact-avatar .avatar-initial {
+        font-size: 0.875rem;
     }
 }
 
