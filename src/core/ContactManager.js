@@ -794,6 +794,17 @@ export class ContactManager {
                     valueB = b.metadata.usage?.lastAccessedAt ? new Date(b.metadata.usage.lastAccessedAt) : new Date(0);
                     break;
                 
+                case 'recent-activity':
+                    // Use the most recent of lastAccessedAt or lastUpdated
+                    const aAccessed = a.metadata.usage?.lastAccessedAt ? new Date(a.metadata.usage.lastAccessedAt) : new Date(0);
+                    const aUpdated = new Date(a.metadata.lastUpdated);
+                    valueA = aAccessed > aUpdated ? aAccessed : aUpdated;
+                    
+                    const bAccessed = b.metadata.usage?.lastAccessedAt ? new Date(b.metadata.usage.lastAccessedAt) : new Date(0);
+                    const bUpdated = new Date(b.metadata.lastUpdated);
+                    valueB = bAccessed > bUpdated ? bAccessed : bUpdated;
+                    break;
+                
                 default:
                     valueA = a.cardName.toLowerCase();
                     valueB = b.cardName.toLowerCase();
@@ -836,7 +847,7 @@ export class ContactManager {
             owned: activeContacts.filter(c => c.metadata.isOwned).length,
             shared: activeContacts.filter(c => !c.metadata.isOwned).length,
             imported: activeContacts.filter(c => c.metadata.isImported === true).length,
-            recent: this.getRecentContactsCount(7), // Last 7 days
+            recent: activeContacts.length, // All contacts (sorted by recent activity when filtered)
             favorites: allContacts.filter(c => c.metadata.isFavorite).length,
             distributionLists: this.getDistributionListCounts()
         };

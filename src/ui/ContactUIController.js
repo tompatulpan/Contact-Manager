@@ -326,6 +326,7 @@ export class ContactUIController {
         const filterOwned = document.getElementById('filter-owned');
         const filterShared = document.getElementById('filter-shared');
         const filterImported = document.getElementById('filter-imported');
+        const filterRecent = document.getElementById('filter-recent');
         const filterArchived = document.getElementById('filter-archived');
         
         if (filterOwned) {
@@ -336,6 +337,9 @@ export class ContactUIController {
         }
         if (filterImported) {
             filterImported.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+        if (filterRecent) {
+            filterRecent.addEventListener('change', this.handleFilterChange.bind(this));
         }
         if (filterArchived) {
             filterArchived.addEventListener('change', this.handleFilterChange.bind(this));
@@ -559,11 +563,13 @@ export class ContactUIController {
         const filterShared = document.getElementById('filter-shared');
         const filterOwned = document.getElementById('filter-owned');
         const filterImported = document.getElementById('filter-imported');
+        const filterRecent = document.getElementById('filter-recent');
         const filterArchived = document.getElementById('filter-archived');
         
         if (filterShared) filterShared.checked = true;
         if (filterOwned) filterOwned.checked = false;
         if (filterImported) filterImported.checked = false;
+        if (filterRecent) filterRecent.checked = false;
         if (filterArchived) filterArchived.checked = false;
         
         // Clear search
@@ -594,29 +600,21 @@ export class ContactUIController {
         if (filterImported) filterImported.checked = false;
         if (filterArchived) filterArchived.checked = false;
         
+        // Check the Recent filter
+        const filterRecent = document.getElementById('filter-recent');
+        if (filterRecent) filterRecent.checked = true;
+        
         // Clear search
         if (this.elements.searchInput) {
             this.elements.searchInput.value = '';
             this.searchQuery = '';
         }
         
-        // Set active filters for all contacts (no time constraint)
-        this.activeFilters = {
-            includeArchived: false,
-            includeDeleted: false
-            // Remove recentlyAccessed filter to show all contacts
-        };
-        
-        // Get filtered contacts and sort by most recent first
-        const results = this.contactManager.searchContacts(this.searchQuery, this.activeFilters);
-        const sortedResults = this.contactManager.sortContacts(results, 'accessed', 'desc');
-        
-        // Display the sorted results
-        this.displayContactList(sortedResults);
-        this.updateStats();
+        // Apply filters using the standard handleFilterChange method
+        this.handleFilterChange();
         
         // Show feedback
-        this.showStatusMessage('Showing recently accessed contacts (last 7 days)');
+        this.showStatusMessage('Showing all contacts sorted by most recent activity');
     }
 
     /**
@@ -627,11 +625,13 @@ export class ContactUIController {
         const filterShared = document.getElementById('filter-shared');
         const filterOwned = document.getElementById('filter-owned');
         const filterImported = document.getElementById('filter-imported');
+        const filterRecent = document.getElementById('filter-recent');
         const filterArchived = document.getElementById('filter-archived');
         
         if (filterShared) filterShared.checked = false;
         if (filterOwned) filterOwned.checked = false;
         if (filterImported) filterImported.checked = true;
+        if (filterRecent) filterRecent.checked = false;
         if (filterArchived) filterArchived.checked = false;
         
         // Clear search
@@ -655,11 +655,13 @@ export class ContactUIController {
         const filterShared = document.getElementById('filter-shared');
         const filterOwned = document.getElementById('filter-owned');
         const filterImported = document.getElementById('filter-imported');
+        const filterRecent = document.getElementById('filter-recent');
         const filterArchived = document.getElementById('filter-archived');
         
         if (filterShared) filterShared.checked = false;
         if (filterOwned) filterOwned.checked = false;
         if (filterImported) filterImported.checked = false;
+        if (filterRecent) filterRecent.checked = false;
         if (filterArchived) filterArchived.checked = false;
         
         // Clear search
@@ -907,15 +909,28 @@ export class ContactUIController {
         const filterOwned = document.getElementById('filter-owned');
         const filterShared = document.getElementById('filter-shared');
         const filterImported = document.getElementById('filter-imported');
+        const filterRecent = document.getElementById('filter-recent');
         const filterArchived = document.getElementById('filter-archived');
         
         const ownedChecked = filterOwned?.checked || false;
         const sharedChecked = filterShared?.checked || false;
         const importedChecked = filterImported?.checked || false;
+        const recentChecked = filterRecent?.checked || false;
         const archivedChecked = filterArchived?.checked || false;
         
+        // If only "Recent Activity" is checked, show all contacts sorted by recent activity
+        if (recentChecked && !ownedChecked && !sharedChecked && !importedChecked && !archivedChecked) {
+            this.activeFilters = {
+                includeArchived: false,
+                includeDeleted: false,
+                recentOnly: true, // Special flag for recent-only view
+                sortBy: 'recent-activity', // Sort by recent activity
+                sortDirection: 'desc',
+                distributionList: this.activeFilters.distributionList
+            };
+        }
         // If only "Archived" is checked, show only archived contacts
-        if (archivedChecked && !ownedChecked && !sharedChecked && !importedChecked) {
+        else if (archivedChecked && !ownedChecked && !sharedChecked && !importedChecked && !recentChecked) {
             this.activeFilters = {
                 includeArchived: true,
                 includeDeleted: false,
@@ -924,7 +939,7 @@ export class ContactUIController {
             };
         } 
         // If only "Imported Files" is checked, show only imported contacts
-        else if (importedChecked && !ownedChecked && !sharedChecked && !archivedChecked) {
+        else if (importedChecked && !ownedChecked && !sharedChecked && !archivedChecked && !recentChecked) {
             this.activeFilters = {
                 includeArchived: false,
                 includeDeleted: false,
@@ -933,7 +948,7 @@ export class ContactUIController {
             };
         }
         // If "Archived" + other filters are checked, show all types including archived
-        else if (archivedChecked && (ownedChecked || sharedChecked || importedChecked)) {
+        else if (archivedChecked && (ownedChecked || sharedChecked || importedChecked || recentChecked)) {
             const filters = {
                 includeArchived: true,
                 includeDeleted: false,
@@ -945,8 +960,8 @@ export class ContactUIController {
             
             this.activeFilters = filters;
         }
-        // If only ownership/import filters are checked (no archived), show active contacts only
-        else if (!archivedChecked && (ownedChecked || sharedChecked || importedChecked)) {
+        // If only ownership/import/recent filters are checked (no archived), show active contacts only
+        else if (!archivedChecked && (ownedChecked || sharedChecked || importedChecked || recentChecked)) {
             const filters = {
                 includeArchived: false,
                 includeDeleted: false,
@@ -955,6 +970,12 @@ export class ContactUIController {
             
             // Handle ownership and import filtering
             this.setOwnershipAndImportFilters(filters, ownedChecked, sharedChecked, importedChecked);
+            
+            // Handle recent filtering
+            if (recentChecked) {
+                filters.sortBy = 'recent-activity';
+                filters.sortDirection = 'desc';
+            }
             
             this.activeFilters = filters;
         }
@@ -1014,7 +1035,16 @@ export class ContactUIController {
      */
     performSearch() {
         const results = this.contactManager.searchContacts(this.searchQuery, this.activeFilters);
-        const sortedResults = this.contactManager.sortContacts(results, this.getCurrentSort());
+        
+        // Handle Recent filter sorting
+        let sortedResults;
+        if (this.activeFilters.recentOnly || this.activeFilters.sortBy === 'recent-activity') {
+            // Sort by recent activity descending
+            sortedResults = this.contactManager.sortContacts(results, 'recent-activity', 'desc');
+        } else {
+            // Use current sort setting
+            sortedResults = this.contactManager.sortContacts(results, this.getCurrentSort());
+        }
         
         this.displayContactList(sortedResults);
         this.updateStats();
