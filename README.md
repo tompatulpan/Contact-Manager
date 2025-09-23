@@ -21,10 +21,10 @@ A secure, modular contact management system with:
 
 ## Key Features
 
-- Create, edit, and organize contacts (vCard 4.0)
+- Create, edit, and organize contacts
 - Share contacts with users or groups (distribution lists)
 - Archive, delete, and manage received/shared contacts
-- Import/export contacts (vCard, QR code)
+- Import/export contacts (vCard)
 - Real-time updates and cross-device sync
 
 ## Project Structure
@@ -44,13 +44,13 @@ mobile.css
 ---
 ## Roadmap
 
-- [ ] QR-code generation
+- [ ] QR-code generation (for easy sharing)
 - [ ] Share your profile
 - [ ] Bulk operations (Delete, Export etc.)
-- [ ] List features (Rename, edit, etc)
-- [ ] Multi-language support
+- [ ] Sharing-List features (Rename, edit, etc)
+- [ ] Multi-language support (i18n)
 - [ ] Contact backup/restore
-- [ ] Advanced sharing permissions (edit contacts)
+- [ ] Advanced sharing permissions (X edit contacts)
 - [ ] Stay logged in feature
 - [ ] Change password
 - [ ] Set passwords rules

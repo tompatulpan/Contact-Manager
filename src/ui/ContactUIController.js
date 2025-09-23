@@ -1179,17 +1179,7 @@ export class ContactUIController {
             const distributionLists = await this.contactManager.getDistributionLists();
             
             if (distributionLists.length === 0) {
-                // Still show "All Contacts" option even when no lists exist
-                const isAllContactsActive = !this.activeFilters.distributionList; // Active when no distribution list filter
-                const allContactsItem = `
-                    <div class="distribution-list-item all-contacts-filter ${isAllContactsActive ? 'active' : ''}" data-list-name="">
-                        <div class="list-item-content" data-list-name="">
-                            <span class="distribution-list-name" style="color: #333"># All Contacts</span>
-                            <span class="distribution-list-count">show all</span>
-                        </div>
-                    </div>
-                `;
-                this.elements.distributionListsContainer.innerHTML = allContactsItem + `
+                this.elements.distributionListsContainer.innerHTML = `
                     <div class="no-lists-message">
                         <p style="margin-top: 10px; opacity: 0.7;">No sharing lists yet</p>
                     </div>
@@ -1197,17 +1187,6 @@ export class ContactUIController {
                 return;
             }
 
-            // Add "All Contacts" filter option at the top
-            const isAllContactsActive = !this.activeFilters.distributionList; // Active when no distribution list filter
-            const allContactsItem = `
-                <div class="distribution-list-item all-contacts-filter ${isAllContactsActive ? 'active' : ''}" data-list-name="">
-                    <div class="list-item-content" data-list-name="">
-                        <span class="distribution-list-name" style="color: #333"># All Contacts</span>
-                        <span class="distribution-list-count">show all</span>
-                    </div>
-                </div>
-            `;
-            
             // Add sharing lists section header
             const sharingListsHeader = distributionLists.length > 0 ? `
                 <div class="sharing-lists-header">
@@ -1240,8 +1219,8 @@ export class ContactUIController {
                 `;
             }).join('');
 
-            // Combine "All Contacts" + sharing lists header + sharing lists
-            this.elements.distributionListsContainer.innerHTML = allContactsItem + sharingListsHeader + listItems;
+            // Combine sharing lists header + sharing lists
+            this.elements.distributionListsContainer.innerHTML = sharingListsHeader + listItems;
 
             // Add click listeners for manage buttons
             const manageButtons = this.elements.distributionListsContainer.querySelectorAll('.manage-list-btn');
@@ -3623,21 +3602,15 @@ export class ContactUIController {
             
             const listItem = event.target.closest('.distribution-list-item');
             const listName = listItem?.dataset.listName;
-            const isAllContactsFilter = listItem?.classList.contains('all-contacts-filter');
             
             console.log('🎯 Distribution list clicked:', listName);
-            console.log('🎯 Is All Contacts filter:', isAllContactsFilter);
             console.log('🎯 Event target:', event.target);
             
-            // Only allow filtering for "All Contacts" option, not regular distribution lists
-            if (isAllContactsFilter && listName === '') {
-                console.log('🎯 Activating "All Contacts" filter (show all)');
-                this.filterByDistributionList(null); // Reset filter to show all contacts
-            } else if (!isAllContactsFilter) {
-                console.log('🎯 Regular distribution list clicked - no automatic filtering');
-                // Don't auto-filter for regular distribution lists
-                // User must use a different method to filter (like a separate filter button)
-            }
+            // Regular distribution list clicked - no automatic filtering
+            console.log('🎯 Regular distribution list clicked - no automatic filtering');
+            // Don't auto-filter for regular distribution lists
+            // User must use a different method to filter (like a separate filter button)
+            
             return;
         }
     }
@@ -3713,43 +3686,6 @@ export class ContactUIController {
     /**
      * Filter contacts by distribution list
      */
-    filterByDistributionList(listName) {
-        console.log('🎯 filterByDistributionList called with:', listName);
-        
-        // Update active filter
-        this.activeFilters.distributionList = listName || null;
-        console.log('🎯 Updated activeFilters:', this.activeFilters);
-        
-        // Update UI state
-        document.querySelectorAll('.distribution-list-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        
-        const activeItem = document.querySelector(`.distribution-list-item[data-list-name="${listName || ''}"]`);
-        if (activeItem) {
-            activeItem.classList.add('active');
-            console.log('🎯 Set active class on item:', activeItem);
-        } else {
-            console.log('🎯 No item found with data-list-name:', listName);
-        }
-        
-        // Apply filter
-        this.refreshContactsList();
-        
-        // Show appropriate message - only show "All Contacts" if explicitly null/undefined, not empty string
-        let listDisplayName;
-        if (listName === null || listName === undefined) {
-            listDisplayName = 'All Contacts';
-        } else {
-            listDisplayName = listName || 'Unnamed List';
-        }
-        
-        this.showToast({ 
-            message: `Showing: ${listDisplayName}`, 
-            type: 'info' 
-        });
-    }
-
     /**
      * Populate distribution list select options
      */
