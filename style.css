@@ -31,6 +31,7 @@
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     
     /* Spacing */
+    --space-1: 0.25rem;
     --space-2: 0.5rem;
     --space-4: 1rem;
     --space-6: 1.5rem;
@@ -211,24 +212,6 @@ body {
 .icon-restore::before { 
     content: '🔄'; 
     font-size: 1.1em;
-}
-
-/* Contact Actions Override */
-.contact-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding: 0.5rem;
-    opacity: 0.8; /* Always visible but slightly transparent */
-    transition: all 0.2s ease;
-    justify-content: flex-end;
-    align-items: center;
-}
-
-.contact-card:hover .contact-actions {
-    opacity: 1; /* Full opacity on hover */
-    background: rgba(59, 130, 246, 0.02);
-    border-radius: 6px;
 }
 
 /* Modals */
@@ -726,9 +709,10 @@ body {
 
 /* Contact List View Modes */
 .contact-list.card-view {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: 4px; /* Much smaller gap between cards */
+    padding: 8px; /* Reduce padding from var(--space-4) */
     overflow-y: auto;
     flex: 1;
     min-height: 0;
@@ -849,9 +833,15 @@ body {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: var(--space-4);
+    padding: 8px; /* Compact padding */
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px; /* Compact gap */
+    margin: 0; /* Remove all margins - container gap handles spacing */
+    min-height: auto; /* Remove fixed height for natural content sizing */
+    flex-shrink: 0; /* Prevent cards from shrinking */
 }
 
 .contact-card:hover {
@@ -885,6 +875,11 @@ body {
     color: var(--warning-color);
     font-size: 0.8rem;
     font-weight: 500;
+}
+
+/* Remove any bottom margins/padding that create empty space in cards */
+.contact-card * {
+    margin-bottom: 0;
 }
 
 /* Contact Detail Panel Styles */
@@ -940,6 +935,25 @@ body {
     padding: var(--space-6);
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-secondary);
+}
+
+/* Contact Avatar Styles */
+.contact-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.contact-avatar .avatar-initial {
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1;
 }
 
 .contact-avatar-large {
@@ -1380,48 +1394,64 @@ body {
 }
 
 .contact-info {
+    flex: 1;
+    min-width: 0; /* Allow text truncation */
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: 3px; /* Small but readable gaps */
 }
 
 .contact-info .contact-name {
     font-weight: 600;
-    font-size: 1.125rem;
+    font-size: 0.95rem; /* Slightly larger for readability */
     color: var(--text-primary);
     margin: 0;
+    line-height: 1.2; /* Balanced line height */
 }
 
 .contact-info .contact-card-name {
     font-weight: 500;
-    font-size: 0.875rem;
+    font-size: 0.825rem; /* Slightly larger */
     color: var(--primary-color);
     margin: 0;
     font-style: italic;
+    line-height: 1.2; /* Balanced line height */
 }
 
 .contact-info .contact-details {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
-    margin-top: var(--space-2);
+    gap: 2px; /* Small gap between contact details */
 }
 
 .contact-info .contact-phone,
 .contact-info .contact-email {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 6px; /* Reasonable gap between icon and text */
     color: var(--text-secondary);
-    font-size: 0.875rem;
+    font-size: 0.825rem; /* Slightly larger for readability */
+    line-height: 1.2; /* Balanced line height */
 }
 
 .contact-info .contact-phone i,
 .contact-info .contact-email i {
-    width: 14px;
+    width: 11px; /* Slightly larger icon width */
     text-align: center;
     color: var(--primary-color);
-    font-size: 0.75rem;
+    font-size: 0.75rem; /* Reasonable icon size */
+    opacity: 0.7;
+}
+
+.contact-info .contact-meta {
+    margin-top: 3px; /* Small top margin */
+}
+
+.contact-info .contact-meta .shared-indicator {
+    font-size: 0.75rem; /* Readable shared indicator */
+    color: var(--text-secondary);
+    font-style: italic;
+    line-height: 1.2;
 }
 
 .contact-info .contact-detail {
@@ -1511,35 +1541,6 @@ body {
 .success-container p {
     color: var(--text-secondary);
     margin-bottom: var(--space-6);
-}
-
-/* Contact Card Share Button */
-.contact-actions {
-    display: flex;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.contact-card:hover .contact-actions {
-    opacity: 1;
-}
-
-.contact-actions .btn {
-    padding: var(--space-1) var(--space-2);
-    font-size: 0.75rem;
-    border-radius: 4px;
-}
-
-.btn-share {
-    background: var(--primary-color);
-    color: white;
-    border: none;
-}
-
-.btn-share:hover {
-    background: var(--primary-dark);
 }
 
 /* Shared Contact Indicators */

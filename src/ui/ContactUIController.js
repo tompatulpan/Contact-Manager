@@ -1265,14 +1265,11 @@ export class ContactUIController {
                             </div>
                         ` : ''}
                     </div>
-                    <div class="contact-meta">
-                        ${!contact.metadata.isOwned ? `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : ''}
-                    </div>
-                </div>
-                <div class="contact-actions">
-                    <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View contact">
-                        <i class="icon-eye"></i>
-                    </button>
+                    ${!contact.metadata.isOwned ? `
+                        <div class="contact-meta">
+                            <span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>
+                        </div>
+                    ` : ''}
                 </div>
             `;
             
@@ -1298,7 +1295,7 @@ export class ContactUIController {
         
         const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
         const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
-            `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : '';
+            `<div class="contact-meta"><span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span></div>` : '';
         
         card.innerHTML = `
             <div class="contact-avatar">
@@ -1309,43 +1306,13 @@ export class ContactUIController {
                 <p class="contact-error">Invalid contact data</p>
                 ${sharedInfo}
             </div>
-            <div class="contact-actions">
-                <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View raw data">
-                    <i class="icon-eye"></i>
-                </button>
-            </div>
         `;
         
-        return card;
-    }
-
-    /**
-     * Create fallback contact card for contacts with invalid data
-     */
-    createFallbackContactCard(contact) {
-        const card = document.createElement('div');
-        card.className = 'contact-card contact-card-error';
-        card.dataset.contactId = contact.contactId || 'unknown';
-        
-        const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
-        const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
-            `<span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>` : '';
-        
-        card.innerHTML = `
-            <div class="contact-avatar">
-                <span class="avatar-initial">?</span>
-            </div>
-            <div class="contact-info">
-                <h3 class="contact-name">${this.escapeHtml(contactName)}</h3>
-                <p class="contact-error">Invalid contact data</p>
-                ${sharedInfo}
-            </div>
-            <div class="contact-actions">
-                <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View raw data">
-                    <i class="icon-eye"></i>
-                </button>
-            </div>
-        `;
+        // Attach click listener for selection
+        card.addEventListener('click', (event) => {
+            console.log('🎯 Fallback card clicked for:', contact.contactId);
+            this.selectContact(contact.contactId);
+        });
         
         return card;
     }
