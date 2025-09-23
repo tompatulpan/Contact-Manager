@@ -1273,31 +1273,6 @@ export class ContactUIController {
                     <button class="btn-icon view-contact" data-contact-id="${contact.contactId}" title="View contact">
                         <i class="icon-eye"></i>
                     </button>
-                    ${contact.metadata.isArchived ? `
-                        <!-- Restore button for archived contacts -->
-                        <button class="btn-icon restore-contact" data-contact-id="${contact.contactId}" title="Restore from archive">
-                            <i class="icon-restore"></i>
-                        </button>
-                    ` : `
-                        ${contact.metadata.isOwned ? `
-                            <button class="btn-icon share-contact" data-contact-id="${contact.contactId}" title="Share contact">
-                                <i class="icon-share"></i>
-                            </button>
-                            <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
-                                <i class="icon-edit"></i>
-                            </button>
-                            <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive contact">
-                                <i class="icon-archive"></i>
-                            </button>
-                            <button class="btn-icon delete-contact" data-contact-id="${contact.contactId}" title="Delete contact">
-                                <i class="icon-trash"></i>
-                            </button>
-                        ` : `
-                            <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive shared contact">
-                                <i class="icon-archive"></i>
-                            </button>
-                        `}
-                    `}
                 </div>
             `;
             
@@ -1380,86 +1355,10 @@ export class ContactUIController {
      */
     attachContactCardListeners(card, contact) {
         
-        // View contact button
-        const viewBtn = card.querySelector('.view-contact');
-        if (viewBtn) {
-            console.log('🔗 Adding view button listener');
-            viewBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('👁️ View button clicked for:', contact.contactId);
-                this.selectContact(contact.contactId);
-            });
-        }
-
-        // Edit contact button (only for owned contacts)
-        const editBtn = card.querySelector('.edit-contact');
-        if (editBtn) {
-            console.log('🔗 Adding edit button listener');
-            editBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('✏️ Edit button clicked for:', contact.contactId);
-                this.showEditContactModal(contact.contactId);
-            });
-        }
-
-        // Share contact button (only for owned contacts)
-        const shareBtn = card.querySelector('.share-contact');
-        if (shareBtn) {
-            console.log('🔗 Adding share button listener');
-            shareBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('📤 Share button clicked for:', contact.contactId);
-                this.showShareContactModal(contact.contactId);
-            });
-        }
-
-        // Delete contact button (only for owned contacts)
-        const deleteBtn = card.querySelector('.delete-contact');
-        if (deleteBtn) {
-            console.log('🔗 Adding delete button listener');
-            deleteBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('🗑️ Delete button clicked for:', contact.contactId);
-                this.showDeleteConfirmModal(contact.contactId);
-            });
-        }
-
-        // Archive contact button (both owned and shared contacts)
-        const archiveBtn = card.querySelector('.archive-contact');
-        if (archiveBtn) {
-            console.log('🔗 Adding archive button listener');
-            archiveBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('📦 Archive button clicked for:', contact.contactId);
-                this.archiveContact(contact.contactId);
-            });
-        }
-
-        // Restore contact button (for archived contacts)
-        const restoreBtn = card.querySelector('.restore-contact');
-        if (restoreBtn) {
-            console.log('🔗 Adding restore button listener');
-            restoreBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('🔄 Restore button clicked for:', contact.contactId);
-                this.restoreContact(contact.contactId);
-            });
-        }
-
-        // Click on card to select (but not on buttons)
+        // Click on card to select
         card.addEventListener('click', (event) => {
-            // On mobile, make entire card clickable
-            if (window.innerWidth <= 768) {
-                console.log('📱 Mobile card clicked for:', contact.contactId);
-                this.selectContact(contact.contactId);
-                return;
-            }
-            
-            // On desktop, only select if not clicking on action buttons
-            if (!event.target.closest('.contact-actions')) {
-                console.log('🎯 Card clicked (not on button) for:', contact.contactId);
-                this.selectContact(contact.contactId);
-            }
+            console.log('🎯 Card clicked for:', contact.contactId);
+            this.selectContact(contact.contactId);
         });
     }
 
@@ -1482,28 +1381,9 @@ export class ContactUIController {
             listItem.classList.add('shared-contact');
         }
         
-        // Simple structure: just name and minimal actions
+        // Simple structure: just name - clicking on item opens detail view
         listItem.innerHTML = `
             <div class="contact-name">${this.escapeHtml(fullName)}</div>
-            <div class="contact-actions">
-                <button class="action-btn view-contact" title="View Contact">
-                    👁️
-                </button>
-                ${contact.metadata?.isOwned ? `
-                    <button class="action-btn share-contact" title="Share Contact">
-                        📤
-                    </button>
-                    <button class="action-btn edit-contact" title="Edit Contact">
-                        ✏️
-                    </button>
-                    <button class="action-btn delete-contact" title="Delete Contact">
-                        🗑️
-                    </button>
-                ` : ''}
-                <button class="action-btn archive-contact" title="Archive Contact">
-                    📦
-                </button>
-            </div>
         `;
         
         this.attachContactListItemListeners(listItem, contact);
@@ -1515,62 +1395,10 @@ export class ContactUIController {
      */
     attachContactListItemListeners(listItem, contact) {
         
-        // View contact button
-        const viewBtn = listItem.querySelector('.view-contact');
-        if (viewBtn) {
-            viewBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('👁️ View button clicked for:', contact.contactId);
-                this.selectContact(contact.contactId);
-            });
-        }
-
-        // Share contact button (only for owned contacts)
-        const shareBtn = listItem.querySelector('.share-contact');
-        if (shareBtn) {
-            shareBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('🔗 Share button clicked for:', contact.contactId);
-                this.showShareContactModal(contact.contactId);
-            });
-        }
-
-        // Edit contact button (only for owned contacts)
-        const editBtn = listItem.querySelector('.edit-contact');
-        if (editBtn) {
-            editBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('✏️ Edit button clicked for:', contact.contactId);
-                this.showEditContactModal(contact.contactId);
-            });
-        }
-
-        // Delete contact button (only for owned contacts)
-        const deleteBtn = listItem.querySelector('.delete-contact');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('🗑️ Delete button clicked for:', contact.contactId);
-                this.showDeleteConfirmModal(contact.contactId);
-            });
-        }
-
-        // Archive contact button
-        const archiveBtn = listItem.querySelector('.archive-contact');
-        if (archiveBtn) {
-            archiveBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                console.log('📦 Archive button clicked for:', contact.contactId);
-                this.archiveContact(contact.contactId);
-            });
-        }
-
-        // Click on list item to select (but not on buttons)
+        // Click on list item to select
         listItem.addEventListener('click', (event) => {
-            if (!event.target.closest('.contact-actions')) {
-                console.log('🎯 List item clicked (not on button) for:', contact.contactId);
-                this.selectContact(contact.contactId);
-            }
+            console.log('🎯 List item clicked for:', contact.contactId);
+            this.selectContact(contact.contactId);
         });
     }
 
@@ -1643,12 +1471,33 @@ export class ContactUIController {
                     <p class="contact-organization">${this.escapeHtml(displayData.organization)}</p>
                     <p class="contact-title">${this.escapeHtml(displayData.title)}</p>
                 </div>
-                <div class="contact-actions">
-                    <button class="btn btn-primary edit-contact" data-contact-id="${contact.contactId}">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn btn-secondary export-contact" data-contact-id="${contact.contactId}">
-                        <i class="fas fa-download"></i> Export
+                <div class="contact-detail-actions">
+                    ${contact.metadata.isArchived ? `
+                        <button class="btn-icon restore-contact" data-contact-id="${contact.contactId}" title="Restore from archive">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    ` : `
+                        ${contact.metadata.isOwned ? `
+                            <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon share-contact" data-contact-id="${contact.contactId}" title="Share contact">
+                                <i class="fas fa-share"></i>
+                            </button>
+                            <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive contact">
+                                <i class="fas fa-archive"></i>
+                            </button>
+                            <button class="btn-icon delete-contact" data-contact-id="${contact.contactId}" title="Delete contact">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : `
+                            <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive shared contact">
+                                <i class="fas fa-archive"></i>
+                            </button>
+                        `}
+                    `}
+                    <button class="btn-icon export-contact" data-contact-id="${contact.contactId}" title="Export contact">
+                        <i class="fas fa-download"></i>
                     </button>
                 </div>
             </div>
@@ -3260,6 +3109,67 @@ export class ContactUIController {
 
     setupContactDetailListeners(container, contactId) {
         // Setup listeners for contact detail actions
+        console.log('🔗 Setting up contact detail listeners for:', contactId);
+        
+        // Edit contact button
+        const editBtn = container.querySelector('.edit-contact');
+        if (editBtn) {
+            editBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('✏️ Edit button clicked in detail view for:', contactId);
+                this.showEditContactModal(contactId);
+            });
+        }
+
+        // Share contact button
+        const shareBtn = container.querySelector('.share-contact');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('📤 Share button clicked in detail view for:', contactId);
+                this.showShareContactModal(contactId);
+            });
+        }
+
+        // Delete contact button
+        const deleteBtn = container.querySelector('.delete-contact');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('🗑️ Delete button clicked in detail view for:', contactId);
+                this.showDeleteConfirmModal(contactId);
+            });
+        }
+
+        // Export contact button
+        const exportBtn = container.querySelector('.export-contact');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('📄 Export button clicked in detail view for:', contactId);
+                this.exportContact(contactId);
+            });
+        }
+
+        // Archive contact button
+        const archiveBtn = container.querySelector('.archive-contact');
+        if (archiveBtn) {
+            archiveBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('📦 Archive button clicked in detail view for:', contactId);
+                this.archiveContact(contactId);
+            });
+        }
+
+        // Restore contact button
+        const restoreBtn = container.querySelector('.restore-contact');
+        if (restoreBtn) {
+            restoreBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                console.log('🔄 Restore button clicked in detail view for:', contactId);
+                this.restoreContact(contactId);
+            });
+        }
     }
 
     handleModalBackdropClick(event) {
@@ -3360,6 +3270,14 @@ export class ContactUIController {
                     message: 'Contact archived successfully', 
                     type: 'success' 
                 });
+                
+                // Update the detail view to show the new archived state
+                if (this.selectedContactId === contactId) {
+                    const updatedContact = this.contactManager.getContact(contactId);
+                    if (updatedContact) {
+                        this.displayContactDetail(updatedContact);
+                    }
+                }
             } else {
                 console.error('❌ Failed to archive contact:', result.error);
                 this.showToast({ 
@@ -3398,6 +3316,15 @@ export class ContactUIController {
                     message: 'Contact restored successfully', 
                     type: 'success' 
                 });
+                
+                // Update the detail view to show the new restored state
+                if (this.selectedContactId === contactId) {
+                    const updatedContact = this.contactManager.getContact(contactId);
+                    if (updatedContact) {
+                        this.displayContactDetail(updatedContact);
+                    }
+                }
+                
                 // Refresh the contact list to update the UI
                 this.performSearch();
             } else {

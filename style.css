@@ -1003,6 +1003,107 @@ body {
     font-size: 0.95rem;
 }
 
+/* Contact Detail Actions */
+.contact-detail-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-color);
+}
+
+.contact-detail-actions .btn-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 16px;
+}
+
+.contact-detail-actions .btn-icon:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.contact-detail-actions .btn-icon.edit-contact {
+    color: var(--primary-color);
+}
+
+.contact-detail-actions .btn-icon.edit-contact:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.contact-detail-actions .btn-icon.share-contact {
+    color: #10b981;
+}
+
+.contact-detail-actions .btn-icon.share-contact:hover {
+    background: #10b981;
+    color: white;
+}
+
+.contact-detail-actions .btn-icon.delete-contact {
+    color: #ef4444;
+}
+
+.contact-detail-actions .btn-icon.delete-contact:hover {
+    background: #ef4444;
+    color: white;
+}
+
+.contact-detail-actions .btn-icon.export-contact {
+    color: #8b5cf6;
+}
+
+.contact-detail-actions .btn-icon.export-contact:hover {
+    background: #8b5cf6;
+    color: white;
+}
+
+.contact-detail-actions .btn-icon.restore-contact {
+    color: #f59e0b;
+}
+
+.contact-detail-actions .btn-icon.restore-contact:hover {
+    background: #f59e0b;
+    color: white;
+}
+
+.contact-detail-actions .btn-icon.archive-contact {
+    color: #6b7280;
+}
+
+.contact-detail-actions .btn-icon.archive-contact:hover {
+    background: #6b7280;
+    color: white;
+}
+
+/* Mobile responsive for contact detail actions */
+@media (max-width: 768px) {
+    .contact-detail-actions {
+        gap: var(--space-3);
+        padding: var(--space-4) var(--space-2);
+    }
+    
+    .contact-detail-actions .btn-icon {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
+}
+
 .contact-actions {
     display: flex;
     gap: var(--space-2);
