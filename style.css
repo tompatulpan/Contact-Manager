@@ -49,6 +49,9 @@ body {
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     line-height: 1.6;
+    margin: 0; /* Ensure no margin */
+    padding: 0; /* Ensure no padding */
+    min-height: 100vh; /* Minimum full height */
 }
 
 /* Forms */
@@ -251,7 +254,7 @@ body {
     box-shadow: var(--shadow-lg);
     width: 95%;
     max-width: min(800px, 95vw); /* Flexible max-width based on viewport */
-    max-height: min(95vh, 800px); /* Flexible max-height with better scaling */
+    max-height: min(75vh, 700px); /* Reduced from 95vh, 800px */
     overflow: hidden;
     position: relative;
     margin: 2.5vh auto; /* Center with flexible margin */
@@ -384,7 +387,29 @@ body {
 .app-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: var(--space-4);
+    padding: var(--space-4) var(--space-4) 0; /* Remove bottom padding */
+}
+
+/* App Header Styles */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4) 0;
+    margin-bottom: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header-left .app-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.header-left .app-title i {
+    margin-right: var(--space-2);
+    color: var(--primary-color);
 }
 
 /* Sidebar Styles */
@@ -392,7 +417,8 @@ body {
     background: var(--bg-primary);
     border-right: 1px solid var(--border-color);
     padding: var(--space-4);
-    height: 100%;
+    max-height: calc(100vh - 220px); /* Match other columns */
+    height: calc(100vh - 220px); /* Fixed height to prevent extra space */
     overflow-y: auto;
 }
 
@@ -531,8 +557,8 @@ body {
 .search-input {
     width: 100%;
     padding: var(--space-2) var(--space-4);
-    padding-right: 2.5rem;
-    border: 1px solid var(--border-color);
+    padding-right: 4.5rem; /* More space for both icons */
+    border: 2px solid #3b82f6; /* Blue frame */
     border-radius: 6px;
     font-size: 0.875rem;
     background: var(--bg-secondary);
@@ -553,6 +579,26 @@ body {
     transform: translateY(-50%);
     color: var(--text-secondary);
     pointer-events: none;
+}
+
+.search-clear {
+    position: absolute;
+    right: 2.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px;
+    display: none;
+    transition: color 0.2s ease;
+}
+
+.search-clear:hover {
+    color: var(--text-primary);
+}
+
+.search-clear.visible {
+    display: block;
 }
 
 /* Stats Grid */
@@ -589,7 +635,8 @@ body {
     display: grid;
     grid-template-columns: 280px 1fr 400px;
     gap: var(--space-4);
-    min-height: calc(100vh - 120px);
+    min-height: calc(100vh - 200px); /* Account for header + footer + padding */
+    max-height: calc(100vh - 200px); /* Prevent excessive height */
 }
 
 .contact-list-panel {
@@ -599,7 +646,8 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 140px);
+    max-height: calc(100vh - 220px); /* Match main content height */
+    height: calc(100vh - 220px); /* Fixed height to prevent extra space */
 }
 
 .panel-header {
@@ -643,6 +691,8 @@ body {
         order: 2;
         border-right: none;
         border-top: 1px solid var(--border-color);
+        max-height: calc(100vh - 250px); /* Match mobile responsive height */
+        height: calc(100vh - 250px);
     }
 
     .contact-detail-panel {
@@ -651,7 +701,8 @@ body {
     }
 
     .contact-list-panel {
-        max-height: calc(100vh - 200px); /* Account for mobile header/footer */
+        max-height: calc(100vh - 250px); /* Account for mobile header/footer */
+        height: calc(100vh - 250px);
     }
 }
 
@@ -869,7 +920,8 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-height: 600px;
+    max-height: calc(100vh - 220px); /* Match other columns */
+    height: calc(100vh - 220px); /* Fixed height to prevent extra space */
 }
 
 .contact-detail-panel .detail-content {
@@ -1150,7 +1202,8 @@ body {
     }
 
     .contact-list-panel {
-        max-height: calc(100vh - 120px);
+        max-height: calc(100vh - 200px); /* Proper height for tablet */
+        height: calc(100vh - 200px);
     }
 }
 
@@ -2869,4 +2922,27 @@ body {
     .mobile-only {
         display: block !important;
     }
+}
+
+/* Footer Styles */
+.app-footer {
+    text-align: center;
+    padding: 8px 0; /* Reduced padding */
+    margin-top: 16px; /* Small margin from content above */
+    font-size: 0.875rem;
+    color: #6b7280;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    position: relative;
+    z-index: 1;
+}
+
+.app-footer a {
+    color: #6b7280;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+}
+
+.app-footer a:hover {
+    color: var(--primary-color);
 }

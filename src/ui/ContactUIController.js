@@ -170,6 +170,7 @@ export class ContactUIController {
             
             // Search and filter elements
             searchInput: document.getElementById('search-input'),
+            searchClear: document.getElementById('search-clear'),
             sortSelect: document.getElementById('sort-select'),
             
             // View toggle elements
@@ -310,6 +311,11 @@ export class ContactUIController {
         // Search and filter
         if (this.elements.searchInput) {
             this.elements.searchInput.addEventListener('input', this.handleSearchInput);
+        }
+        
+        // Search clear button
+        if (this.elements.searchClear) {
+            this.elements.searchClear.addEventListener('click', this.clearSearch.bind(this));
         }
         
         // Filter checkboxes
@@ -654,7 +660,33 @@ export class ContactUIController {
     handleSearchInput(event) {
         const query = event.target.value;
         this.searchQuery = query;
+        
+        // Toggle clear button visibility
+        if (this.elements.searchClear) {
+            if (query.length > 0) {
+                this.elements.searchClear.classList.add('visible');
+            } else {
+                this.elements.searchClear.classList.remove('visible');
+            }
+        }
+        
         this.performSearch();
+    }
+
+    /**
+     * Clear search input and hide clear button
+     */
+    clearSearch() {
+        if (this.elements.searchInput) {
+            this.elements.searchInput.value = '';
+            this.searchQuery = '';
+            
+            if (this.elements.searchClear) {
+                this.elements.searchClear.classList.remove('visible');
+            }
+            
+            this.performSearch();
+        }
     }
 
     /**

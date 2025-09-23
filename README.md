@@ -61,6 +61,7 @@ mobile.css
 ### Ideas
 - [ ] Contact merge functionality
 - [ ] A Progressive Web App (PWA)
+- [ ] An electron App
 - [ ] Improve decentralization
 
 ---
