@@ -8,7 +8,18 @@ backend/app_data/cards/
 backend/app_data/addressbooks/
 backend/app_data/index.json
 .github/copilot-instructions.md
+
+# Cache busting generated files
+cache-versions.json
+index.html.backup
+
+# Shell scripts (except cache busting ones)
 *.sh
+!cache-bust.sh
+!dev-cache-bust.sh  
+!restore-dev.sh
+!production_zip.sh
+
 *.zip
 
 # Compiled backend binary

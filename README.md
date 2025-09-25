@@ -26,6 +26,7 @@ A secure, modular contact management system with:
 - Archive, delete, and manage received/shared contacts
 - Import/export contacts (vCard)
 - Real-time updates and cross-device sync
+- **Automated cache busting** (no more manual cache clearing!)
 
 ## Project Structure
 
@@ -40,6 +41,20 @@ mobile.css
 ## Development
 
 - Contributions and feedback are welcome.
+
+### Cache Busting 
+
+# For development (after CSS/JS changes)
+./dev-cache-bust.sh
+
+# For production deployment  
+./production_zip.sh
+
+# Restore original files
+./restore-dev.sh
+```
+
+See [CACHE_BUSTING.md](CACHE_BUSTING.md) for detailed documentation.
 
 ---
 ## Roadmap
