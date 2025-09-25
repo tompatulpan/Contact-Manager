@@ -83,6 +83,11 @@ export class ContactManager {
         this.eventBus.on('distributionSharing:changed', (data) => {
             this.handleDistributionSharingChanged(data.distributionSharing);
         });
+
+        // Handle user sign out - clear all cached data
+        this.eventBus.on('database:signedOut', (data) => {
+            this.handleSignedOut(data);
+        });
     }
 
     /**
@@ -1110,9 +1115,6 @@ export class ContactManager {
             
         } else {
             // Handle shared contacts from a specific user
-            console.log(`📨 Processing shared contacts from: ${sharedBy} (databaseId: ${databaseId})`);
-            console.log('📨 Contacts before processing shared:', this.contacts.size);
-            
             // Remove old shared contacts from this same sharer/database
             const oldSharedContactIds = Array.from(this.contacts.keys()).filter(id => {
                 const contact = this.contacts.get(id);
@@ -1121,11 +1123,7 @@ export class ContactManager {
                        contact.metadata.databaseId === databaseId;
             });
             
-            console.log('📨 Found old shared contacts to remove:', oldSharedContactIds.length, oldSharedContactIds);
-            
             oldSharedContactIds.forEach(id => this.contacts.delete(id));
-            
-            console.log('📨 Contacts after removing old shared:', this.contacts.size);
             
             // Add new shared contacts
             contactsArray.forEach(contact => {
@@ -1173,14 +1171,11 @@ export class ContactManager {
                     return; // Skip storing this contact
                 }
                 
-                console.log('📋 Adding shared contact to cache:', sharedContactId, processedContact.cardName || 'Unnamed', `(from ${sharedBy}, original: ${originalContactId}, itemId: ${processedContact.itemId})`);
                 this.contacts.set(sharedContactId, processedContact);
             });
             
             // Load and merge user's metadata for shared contacts
             await this.loadAndMergeSharedContactMetadata();
-            
-            console.log('📨 Final contact count after adding shared:', this.contacts.size);
         }
 
         // 🔑 CRITICAL FIX: Check if we can now restore distribution sharing metadata
@@ -1205,6 +1200,37 @@ export class ContactManager {
             this.settings = settings[0]; // There should be only one settings object
             this.eventBus.emit('contactManager:settingsUpdated', { settings: this.settings });
         }
+    }
+
+    /**
+     * Handle user signed out event - clear all cached data
+     * @param {Object} data - Sign out event data
+     */
+    handleSignedOut(data) {
+        // Clear all cached contact data
+        this.contacts.clear();
+        
+        // Reset all state variables
+        this.settings = {};
+        this.isLoaded = false;
+        this.contactsLoaded = false;
+        this.distributionSharingLoaded = false;
+        this.pendingDistributionSharing = null;
+        
+        // Clear search cache
+        this.searchCache.clear();
+        this.lastSearchQuery = '';
+        
+        // Emit empty contacts changed event to update UI
+        this.eventBus.emit('contacts:changed', { 
+            contacts: [], 
+            reason: 'signed_out' 
+        });
+        
+        // Emit settings cleared event
+        this.eventBus.emit('contactManager:settingsUpdated', { 
+            settings: {} 
+        });
     }
 
     /**
@@ -1508,17 +1534,11 @@ export class ContactManager {
             console.log('📊 Loading shared contact metadata from user database...');
             
             const metadataMap = await this.database.getAllSharedContactMetadata();
-            console.log('📊 Found metadata for', metadataMap.size, 'shared contacts');
             
             // Merge metadata with shared contacts in cache
             for (const [sharedContactId, contact] of this.contacts.entries()) {
                 if (sharedContactId.startsWith('shared_') && metadataMap.has(sharedContactId)) {
                     const userMetadata = metadataMap.get(sharedContactId);
-                    
-                    console.log('📊 Merging metadata for shared contact:', sharedContactId, {
-                        isArchived: userMetadata.isArchived,
-                        accessCount: userMetadata.usage?.accessCount || 0
-                    });
                     
                     // Merge user-specific metadata with contact
                     const updatedContact = {
@@ -1551,8 +1571,6 @@ export class ContactManager {
                     this.contacts.set(sharedContactId, updatedContact);
                 }
             }
-            
-            console.log('✅ Shared contact metadata merged successfully');
             
         } catch (error) {
             console.error('❌ Failed to load shared contact metadata:', error);

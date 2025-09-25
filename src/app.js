@@ -70,17 +70,20 @@ class ContactManagementApp {
         // Initialize validator with VCard standard
         this.modules.validator = new ContactValidator(this.modules.vCardStandard);
         
-        // Initialize database
+        // Initialize database (but don't call initialize yet)
         this.modules.database = new ContactDatabase(this.eventBus);
-        await this.modules.database.initialize(this.config.userbaseAppId);
         
-        // Initialize contact manager
+        // Initialize contact manager BEFORE database.initialize()
+        // This ensures ContactManager's event listeners are ready for database events
         this.modules.contactManager = new ContactManager(
             this.eventBus,
             this.modules.database,
             this.modules.vCardStandard,
             this.modules.validator
         );
+        
+        // Now initialize database - ContactManager listeners are ready
+        await this.modules.database.initialize(this.config.userbaseAppId);
     }
 
     /**

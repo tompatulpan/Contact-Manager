@@ -24,6 +24,9 @@ export class ContactUIController {
             distributionList: null   // Current selected distribution list filter
         };
         
+        // Authentication timeout reference
+        this.authTimeoutId = null;
+        
         // DOM elements cache
         this.elements = {};
         
@@ -124,8 +127,27 @@ export class ContactUIController {
             // Setup event listeners
             this.setupEventListeners();
             
-            // Initialize authentication state
-            this.initializeAuthenticationState();
+            // DO NOT initialize authentication state immediately - wait for database
+            // The database will emit 'database:authenticated' event when ready
+            // If no session exists, we'll show auth modal after a brief delay
+            this.authTimeoutId = setTimeout(() => {
+                // Only show auth modal if we haven't received authentication event
+                // Check both currentUser and database status
+                const connectionStatus = this.contactManager.database.getConnectionStatus();
+                if (!this.currentUser && !connectionStatus.isAuthenticated) {
+                    this.log('🔐 No authentication found after initialization delay, showing login modal');
+                    this.showAuthenticationModal();
+                } else {
+                    this.log('✅ User already authenticated during delay period:', this.currentUser || connectionStatus.currentUser);
+                    if (!this.currentUser && connectionStatus.isAuthenticated) {
+                        // Set currentUser if database knows about authentication but UI doesn't
+                        this.currentUser = { username: connectionStatus.currentUser };
+                        this.updateUserInterface();
+                        this.hideAuthenticationModal();
+                        this.showMainApplication();
+                    }
+                }
+            }, 1000); // Increased delay to 1 second to give more time
             
             // Setup UI components
             this.setupComponents();
@@ -282,6 +304,24 @@ export class ContactUIController {
         this.eventBus.on('database:authenticated', this.handleAuthenticated.bind(this));
         this.eventBus.on('database:signedOut', this.handleSignedOut.bind(this));
         this.eventBus.on('database:error', this.handleDatabaseError.bind(this));
+        
+        // Check if user is already authenticated (in case we missed the initial event)
+        const connectionStatus = this.contactManager.database.getConnectionStatus();
+        if (connectionStatus.isAuthenticated) {
+            console.log('🎯 User already authenticated during event listener setup:', connectionStatus.currentUser);
+            this.currentUser = { username: connectionStatus.currentUser };
+            // Cancel any pending auth timeout since user is authenticated
+            if (this.authTimeoutId) {
+                clearTimeout(this.authTimeoutId);
+                this.authTimeoutId = null;
+                console.log('⏰ Cancelled auth timeout - user was already authenticated');
+            }
+            // Show main application immediately
+            console.log('🚀 Showing main application - user already authenticated');
+            this.updateUserInterface();
+            this.hideAuthenticationModal();
+            this.showMainApplication();
+        }
         
         // Contact events
         this.eventBus.on('contactManager:contactsUpdated', this.handleContactsUpdated.bind(this));
@@ -790,7 +830,10 @@ export class ContactUIController {
         const formData = new FormData(event.target);
         const username = formData.get('username');
         const password = formData.get('password');
+        const keepSignedIn = formData.get('keepSignedIn') === 'on'; // Checkbox value
         const isSignUp = event.target.dataset.mode === 'signup';
+        
+        console.log('📝 Form submission data:', { username, keepSignedIn, isSignUp });
         
         // Show loading state
         this.showAuthLoading(true);
@@ -801,7 +844,7 @@ export class ContactUIController {
             if (isSignUp) {
                 result = await this.contactManager.database.signUp(username, password);
             } else {
-                result = await this.contactManager.database.signIn(username, password);
+                result = await this.contactManager.database.signIn(username, password, keepSignedIn);
             }
             
             if (result.success) {
@@ -824,8 +867,18 @@ export class ContactUIController {
      * Handle authentication success
      */
     handleAuthenticated(data) {
+        console.log('🔐 Authentication event received:', data);
+        
+        // Cancel the auth timeout since we received authentication
+        if (this.authTimeoutId) {
+            clearTimeout(this.authTimeoutId);
+            this.authTimeoutId = null;
+            console.log('⏰ Cancelled auth timeout - user is authenticated');
+        }
+        
         if (data && data.user && data.user.username) {
             this.currentUser = data.user;
+            this.log(`✅ User authenticated: ${data.user.username}`);
             this.updateUserInterface();
             this.hideAuthenticationModal();
             this.showMainApplication();
@@ -840,13 +893,31 @@ export class ContactUIController {
      */
     async handleSignOut() {
         try {
+            // Show loading state
+            this.showToast({ message: 'Signing out...', type: 'info' });
+            
             const result = await this.contactManager.database.signOut();
             if (result.success) {
+                // Clear UI state
                 this.currentUser = null;
+                this.selectedContactId = null;
+                this.searchQuery = '';
+                
+                // Clear authentication form completely
+                this.clearAuthenticationForm();
+                
+                // Reset UI
                 this.showAuthenticationModal();
                 this.hideMainApplication();
+                this.clearContactDetail();
+                
+                // Show success message
+                this.showToast({ message: 'Signed out successfully', type: 'success' });
+            } else {
+                this.showToast({ message: `Sign out failed: ${result.error}`, type: 'error' });
             }
         } catch (error) {
+            console.error('Sign out error:', error);
             this.showToast({ message: 'Sign out failed', type: 'error' });
         }
     }
@@ -854,8 +925,40 @@ export class ContactUIController {
     /**
      * Handle signed out event
      */
-    handleSignedOut() {
+    handleSignedOut(data) {
+        // Clear user state
         this.currentUser = null;
+        
+        // Clear contact-related UI state
+        this.selectedContactId = null;
+        this.searchQuery = '';
+        
+        // Clear any form data
+        this.resetContactForm();
+        this.clearAuthenticationForm();
+        
+        // Clear current filter state
+        this.currentFilter = 'all';
+        
+        // Update UI to show "no contacts" state
+        const contactList = document.getElementById('contact-list');
+        if (contactList) {
+            contactList.innerHTML = '<div class="no-contacts">No contacts available. Sign in to view your contacts.</div>';
+        }
+        
+        // Clear search input
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // Reset filter buttons
+        const filterButtons = document.querySelectorAll('.filter-button');
+        filterButtons.forEach(btn => btn.classList.remove('active'));
+        const allButton = document.querySelector('[data-filter="all"]');
+        if (allButton) allButton.classList.add('active');
+        
+        // Show authentication modal and hide main app
         this.showAuthenticationModal();
         this.hideMainApplication();
     }
@@ -1647,11 +1750,10 @@ export class ContactUIController {
      * Display contact details
      */
     displayContactDetail(contact) {
-        console.log('🎯 displayContactDetail called with:', contact?.cardName);
         
         const container = this.elements.contactDetail;
         if (!container) {
-            console.log('❌ No contact detail container found!');
+            console.error('❌ No contact detail container found!');
             return;
         }
         
@@ -1870,6 +1972,14 @@ export class ContactUIController {
         const modal = this.elements.authModal;
         if (modal) {
             modal.style.display = 'flex';
+            
+            // Ensure "Keep me signed in" checkbox is visible for sign-in mode
+            const keepSignedInContainer = document.getElementById('keep-signed-in-group');
+            const form = this.elements.authForm;
+            if (keepSignedInContainer && form) {
+                const isSignIn = form.dataset.mode === 'signin';
+                keepSignedInContainer.style.display = isSignIn ? 'block' : 'none';
+            }
         } else {
             console.warn('⚠️ Authentication modal not found');
         }
@@ -3246,6 +3356,55 @@ export class ContactUIController {
         console.log('Highlight form errors:', errors);
     }
 
+    /**
+     * Clear authentication form completely
+     */
+    clearAuthenticationForm() {
+        if (this.elements.authForm) {
+            // Reset the entire form
+            this.elements.authForm.reset();
+            
+            // Specifically clear username and password fields
+            const usernameField = this.elements.authForm.querySelector('input[name="username"]');
+            const passwordField = this.elements.authForm.querySelector('input[name="password"]');
+            const keepSignedInField = this.elements.authForm.querySelector('input[name="keepSignedIn"]');
+            
+            if (usernameField) {
+                usernameField.value = '';
+                usernameField.removeAttribute('value');
+            }
+            
+            if (passwordField) {
+                passwordField.value = '';
+                passwordField.removeAttribute('value');
+            }
+            
+            // Uncheck "Keep me signed in"
+            if (keepSignedInField) {
+                keepSignedInField.checked = false;
+            }
+            
+            // Clear any form errors
+            this.clearAuthError();
+            
+            // Reset to login mode (not signup)
+            const authTitle = document.getElementById('auth-title');
+            const authSubmit = document.getElementById('auth-submit');
+            const authToggleText = document.getElementById('auth-toggle-text');
+            const authToggle = document.getElementById('toggle-auth-mode');
+            
+            if (authTitle) authTitle.textContent = 'Sign In';
+            if (authSubmit) authSubmit.textContent = 'Sign In';
+            if (authToggleText) authToggleText.textContent = "Don't have an account?";
+            if (authToggle) authToggle.textContent = 'Create Account';
+            
+            // Reset form mode
+            if (this.elements.authForm) {
+                this.elements.authForm.dataset.mode = 'signin';
+            }
+        }
+    }
+
     clearAuthError() {
         if (this.elements.authError) {
             this.elements.authError.style.display = 'none';
@@ -3280,6 +3439,7 @@ export class ContactUIController {
         const form = this.elements.authForm;
         const submitText = document.getElementById('auth-submit-text');
         const toggleText = document.getElementById('auth-toggle-text');
+        const keepSignedInContainer = document.getElementById('keep-signed-in-group');
         
         if (form && submitText && toggleText) {
             const isSignUp = form.dataset.mode === 'signup';
@@ -3289,11 +3449,21 @@ export class ContactUIController {
                 form.dataset.mode = 'signin';
                 submitText.textContent = 'Sign In';
                 toggleText.textContent = 'Need an account? Sign Up';
+                
+                // Show "Keep me signed in" checkbox for sign-in
+                if (keepSignedInContainer) {
+                    keepSignedInContainer.style.display = 'block';
+                }
             } else {
                 // Switch to sign up
                 form.dataset.mode = 'signup';
                 submitText.textContent = 'Sign Up';
                 toggleText.textContent = 'Already have an account? Sign In';
+                
+                // Hide "Keep me signed in" checkbox for sign-up
+                if (keepSignedInContainer) {
+                    keepSignedInContainer.style.display = 'none';
+                }
             }
         }
     }

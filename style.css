@@ -519,9 +519,9 @@ body {
 
 .checkbox-item {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2);
+    align-items: baseline; /* Changed from center to baseline for better text alignment */
+    gap: 0.375rem; /* Reduced from var(--space-2) which is 0.5rem */
+    padding: 0.25rem 0.5rem; /* Reduced vertical padding for tighter appearance */
     cursor: pointer;
     border-radius: 4px;
     transition: background-color 0.2s ease;
@@ -532,8 +532,45 @@ body {
 }
 
 .checkbox-item input[type="checkbox"] {
+    width: 0.875rem; /* Set explicit size for consistency */
+    height: 0.875rem; /* Set explicit size for consistency */
     margin: 0;
     accent-color: var(--primary-color);
+    cursor: pointer;
+    flex-shrink: 0; /* Prevent checkbox from shrinking */
+    position: relative;
+    top: 0.1rem; /* Move checkbox down slightly to align with text baseline */
+}
+
+.checkbox-item span {
+    line-height: 1.2; /* Better line height for text alignment */
+    font-size: 0.875rem; /* Consistent font size */
+}
+
+/* Keep me signed in checkbox styling */
+#keep-signed-in-group {
+    margin-bottom: 1rem; /* Reduced margin for better spacing */
+}
+
+#keep-signed-in-group .checkbox-item {
+    padding: 0.125rem 0; /* Even less padding for auth form */
+    background: transparent; /* No background in auth form */
+    gap: 0.5rem; /* Slightly larger gap for readability in auth context */
+    align-items: baseline; /* Ensure baseline alignment like general checkbox-item */
+}
+
+#keep-signed-in-group .checkbox-item input[type="checkbox"] {
+    width: 0.875rem !important; /* Override form-group input width */
+    height: 0.875rem !important; /* Override form-group input height */
+    min-height: auto !important; /* Override form-group input min-height */
+    padding: 0 !important; /* Override form-group input padding */
+    position: relative;
+    top: 0.1rem; /* Fine-tune alignment */
+}
+
+#keep-signed-in-group .checkbox-item span {
+    font-size: 0.9rem; /* Slightly larger font for important auth option */
+    color: var(--text-primary); /* Make text more prominent */
 }
 
 /* Search Container */
@@ -2546,8 +2583,8 @@ body {
 /* Primary checkbox */
 .primary-checkbox {
     display: flex;
-    align-items: center;
-    gap: 0.25rem;
+    align-items: baseline; /* Changed from center to baseline for better text alignment */
+    gap: 0.375rem; /* Slightly increased gap for better visual balance */
     font-size: 0.8rem;
     color: var(--text-secondary);
     cursor: pointer;
@@ -2555,9 +2592,13 @@ body {
 }
 
 .primary-checkbox input[type="checkbox"] {
-    width: 1rem;
-    height: 1rem;
+    width: 0.875rem; /* Reduced from 1rem to 0.875rem (14px) */
+    height: 0.875rem; /* Reduced from 1rem to 0.875rem (14px) */
     margin: 0;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    position: relative;
+    top: 0.1rem; /* Move checkbox down slightly to align with text baseline */
 }
 
 .checkmark {
