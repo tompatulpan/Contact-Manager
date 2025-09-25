@@ -765,8 +765,14 @@ export class VCardStandard {
 
         const parameters = this.parseAppleParameters(parametersString);
 
+        // Handle Apple item prefixes (e.g., "item3.ADR" -> "ADR")
+        let cleanProperty = property.toUpperCase();
+        if (cleanProperty.match(/^ITEM\d+\./)) {
+            cleanProperty = cleanProperty.replace(/^ITEM\d+\./, '');
+        }
+
         return {
-            property: property.toUpperCase(),
+            property: cleanProperty,
             parameters,
             value: this.unescapeValue(value)
         };
@@ -853,7 +859,19 @@ export class VCardStandard {
         // Address (ADR)
         const addresses = appleContact.properties.get('ADR') || [];
         addresses.forEach(addr => {
-            vcard += `ADR:${this.escapeValue(addr.value || addr)}\n`;
+            const addressValue = addr.value || addr;
+            const type = this.convertAppleAddressType(addr.parameters?.TYPE);
+            const pref = addr.parameters?.PREF ? ';PREF=1' : '';
+            
+            // Convert Apple newline format to proper vCard format
+            const formattedAddress = typeof addressValue === 'string' ? 
+                addressValue.replace(/\\n/g, '\\,') : addressValue;
+            
+            if (type && type !== 'other') {
+                vcard += `ADR;TYPE=${type}${pref}:${this.escapeValue(formattedAddress)}\n`;
+            } else {
+                vcard += `ADR${pref}:${this.escapeValue(formattedAddress)}\n`;
+            }
         });
 
         // Organization
@@ -1050,6 +1068,24 @@ export class VCardStandard {
             case 'social': return 'other';
             case 'other': return 'other';
             default: return 'other';
+        }
+    }
+
+    /**
+     * Convert Apple address type to standard
+     * @param {string} appleType - Apple address type
+     * @returns {string} Standard address type
+     */
+    convertAppleAddressType(appleType) {
+        if (!appleType) return 'home';
+        
+        const type = appleType.toLowerCase();
+        switch (type) {
+            case 'work': return 'work';
+            case 'home': return 'home';
+            case 'pref': return 'home'; // Apple uses pref as a type sometimes
+            case 'other': return 'other';
+            default: return 'home';
         }
     }
 
