@@ -42,15 +42,15 @@ mobile.css
 
 - Contributions and feedback are welcome.
 
-### Cache Busting 
+## Cache Busting 
 
-# For development (after CSS/JS changes)
+### For development (after CSS/JS changes)
 ./dev-cache-bust.sh
 
-# For production deployment  
+### For production deployment  
 ./production_zip.sh
 
-# Restore original files
+### Restore original files
 ./restore-dev.sh
 ```
 
