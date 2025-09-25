@@ -528,6 +528,43 @@ export class ContactDatabase {
     }
 
     /**
+     * Update contact metadata only (for access tracking) without updating lastUpdated timestamp
+     * This preserves the lastUpdated field to only reflect actual content changes
+     * @param {Object} contact - Contact object with metadata updates
+     * @returns {Promise<Object>} Update result
+     */
+    async updateContactMetadataOnly(contact) {
+        try {
+            const itemId = contact.itemId || contact.contactId;
+            
+            if (!itemId) {
+                throw new Error('No itemId or contactId provided for metadata update');
+            }
+            
+            // Update in main contacts database WITHOUT changing lastUpdated
+            await userbase.updateItem({
+                databaseName: this.databases.contacts,
+                item: {
+                    ...contact
+                    // Note: Explicitly NOT updating lastUpdated timestamp
+                },
+                itemId
+            });
+
+            // Don't update shared databases for metadata-only changes (access tracking)
+            // This is typically only used for usage tracking which is user-specific
+
+            // Emit a different event to avoid confusion with content updates
+            this.eventBus.emit('contact:metadataUpdated', { contact });
+            return { success: true, itemId };
+        } catch (error) {
+            console.error('Update contact metadata failed:', error);
+            this.eventBus.emit('database:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Update contact in all shared databases (for real-time sync)
      * @param {Object} contact - Updated contact object
      */

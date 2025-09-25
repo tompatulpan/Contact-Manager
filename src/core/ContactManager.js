@@ -912,8 +912,8 @@ export class ContactManager {
                         lastAccessedAt: now,
                         viewDuration,
                         interactionHistory: [...limitedHistory, newInteraction]
-                    },
-                    lastUpdated: now
+                    }
+                    // Note: lastUpdated is NOT updated for access tracking - only for content changes
                 }
             };
 
@@ -944,17 +944,18 @@ export class ContactManager {
                     // Validate again after cleanup
                     const newValidation = this.validateContactSize(cleanedContact);
                     if (newValidation.isValid) {
-                        await this.database.updateContact(cleanedContact);
+                        await this.database.updateContactMetadataOnly(cleanedContact);
                         this.contacts.set(contactId, cleanedContact);
-                        console.log('✅ Contact saved after cleanup, size:', newValidation.sizeInKB + 'KB');
+                        console.log('✅ Contact metadata saved after cleanup, size:', newValidation.sizeInKB + 'KB');
                     } else {
                         console.error('❌ Contact still too large after cleanup:', newValidation);
                         // Still update cache but don't save to database
                         this.contacts.set(contactId, cleanedContact);
                     }
                 } else {
-                    // For owned contacts, update both database and cache
-                    await this.database.updateContact(updatedContact);
+                    // For owned contacts, update both database and cache using metadata-only method
+                    // This preserves the original lastUpdated timestamp (only content changes should update it)
+                    await this.database.updateContactMetadataOnly(updatedContact);
                     this.contacts.set(contactId, updatedContact);
                     
                     if (sizeValidation.warning) {
