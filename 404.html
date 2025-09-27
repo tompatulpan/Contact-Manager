@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Management System</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -32,6 +33,10 @@
                     <i class="fas fa-plus"></i>
                     New Contact
                 </button>
+                <button id="share-profile-btn" class="btn btn-secondary" title="Share your profile">
+                    <i class="fas fa-user-plus"></i>
+                    Share Profile
+                </button>
                 <button id="logout-btn" class="btn btn-ghost">
                     <i class="fas fa-sign-out-alt"></i>
                     Log Out (<span id="current-user">Guest</span>)
@@ -43,7 +48,7 @@
         <main class="main-content">
             
             <!-- Sidebar Navigation -->
-            <aside class="sidebar">
+            <aside class="sidebar left-sidebar">
                 <div class="sidebar-section">
                     <h3>Menu</h3>
                     

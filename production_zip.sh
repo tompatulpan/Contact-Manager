@@ -21,31 +21,33 @@ else
     echo ""
 end
 
-echo "📦 Packaging files...
+echo "📦 Packaging files..."
 
 # Clean up any existing temp files before packaging
-find . -name "*.tmp" -delete 2>/dev/null || true"
+find . -name "*.tmp" -delete 2>/dev/null || true
 
 # Create core application files
 zip -r $zipname \
     index.html \
     style.css \
+    mobile.css \
     favicon.ico \
     src/ \
     lib/userbase.js \
-    config/ \
-    cache-versions.json
+    cache-versions.json \
+    --exclude="src/**/*.tmp" \
+    --exclude="*.tmp"
 
-# Optionally include mobile.css if present
-if test -f mobile.css
-    zip -u $zipname mobile.css
-    echo "Added mobile.css"
+# Include tests for debugging if present
+if test -d tests
+    zip -r $zipname tests/
+    echo "Added tests directory for production debugging"
 end
 
 # Create 404.html if it doesn't exist (required for Cloudflare Pages SPA routing)
 if not test -f 404.html
     echo "Creating 404.html for SPA routing..."
-    cp index.html 404.html
+    cp index.html 404.htmltml
     zip -u $zipname 404.html
     echo "Added 404.html (copy of index.html for SPA routing)"
 else
