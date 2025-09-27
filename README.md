@@ -1,6 +1,6 @@
 # Contact Management System
 
-**Status:** 🚧 Very much in development!  
+**Status:** 🚧 In development!  
 This project is not production-ready. Features, structure, and documentation are subject to rapid change.
 
 ## Overview
@@ -42,19 +42,25 @@ mobile.css
 
 - Contributions and feedback are welcome.
 
-## Cache Busting 
+### Setup
+```bash
+# Install development dependencies (testing framework, dev server)
+npm install
 
-### For development (after CSS/JS changes)
+# Start development server with live reload
+npm run serve
+```
+### Cache Busting 
+```bash
+# For development (after CSS/JS changes)
 ./dev-cache-bust.sh
 
-### For production deployment  
+# For production deployment  
 ./production_zip.sh
 
-### Restore original files
+# Restore original files
 ./restore-dev.sh
 ```
-
-See [CACHE_BUSTING.md](CACHE_BUSTING.md) for detailed documentation.
 
 ---
 ## Roadmap
