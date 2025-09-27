@@ -42,6 +42,10 @@ export class ContactDatabase {
             return;
         }
 
+        // CRITICAL: Clear page load flag at the start of every page load
+        // This ensures we can detect page refreshes vs same-page navigation
+        sessionStorage.removeItem('userbase-page-loaded');
+
         const maxRetries = 3;
         let retryCount = 0;
         
@@ -70,47 +74,55 @@ export class ContactDatabase {
                     }
                 });
                 
-                // Check user's persistence preferences regardless of session state
-                const persistentPreference = localStorage.getItem('auth_persist_preference');
-                const sessionPreference = sessionStorage.getItem('auth_persist_preference');
+                // Check user's persistence preferences
+                const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+                const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
                 
-                // CRITICAL: If user has no persistence preference, they should not stay logged in
-                // This handles both cases: session.user exists OR Userbase has hidden session data
-                const shouldForceLogout = !persistentPreference && !sessionPreference;
-                
-                if (shouldForceLogout) {
-                    console.log('⚠️ No auth persistence preference found - forcing logout');
-                    try {
-                        // Force sign out to clear any hidden Userbase session data
-                        await userbase.signOut();
-                    } catch (error) {
-                        // Ignore "not signed in" errors
-                        if (!error.message.includes('Not signed in')) {
-                            console.warn('Warning during forced signOut:', error);
-                        }
-                    }
-                    
-                    // Clear our state and emit signed out event
-                    this.currentUser = null;
-                    this.eventBus.emit('database:signedOut', { reason: 'no_persistence_preference' });
-                    
-                    // Don't process session.user even if it exists
-                } else if (session.user) {
-                    if (persistentPreference === 'persistent') {
+                // CRITICAL: Handle session restoration based on user preference
+                if (session.user) {
+                    if (hasRememberMe) {
                         // User wants to stay signed in across refreshes
+                        console.log('✅ Restoring persistent session for user:', session.user.username);
                         this.currentUser = session.user;
                         await this.setupDatabases();
                         this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                    } else if (sessionPreference === 'session-only') {
-                        // User is OK with session persistence within the same browser session
-                        this.currentUser = session.user;
-                        await this.setupDatabases();
-                        this.eventBus.emit('database:authenticated', { user: this.currentUser });
+                    } else if (hasSessionOnly) {
+                        // Check if this is a page refresh - session-only auth should NOT persist across page loads
+                        // We use a flag that gets cleared on every page load to detect refreshes
+                        const pageLoadFlag = sessionStorage.getItem('userbase-page-loaded');
+                        
+                        if (pageLoadFlag === 'true') {
+                            // Page was already loaded in this session, this is NOT a refresh - continue session
+                            console.log('✅ Continuing session-only authentication for user:', session.user.username);
+                            this.currentUser = session.user;
+                            await this.setupDatabases();
+                            this.eventBus.emit('database:authenticated', { user: this.currentUser });
+                        } else {
+                            // This is a fresh page load (refresh or new tab) - session should expire
+                            console.log('⚠️ Page refresh/new tab detected with session-only auth, forcing logout');
+                            try {
+                                await userbase.signOut();
+                            } catch (error) {
+                                if (!error.message.includes('Not signed in')) {
+                                    console.warn('Warning during session cleanup:', error);
+                                }
+                            }
+                            this.currentUser = null;
+                            this.clearSessionData();
+                            this.eventBus.emit('database:signedOut', { reason: 'session_expired_on_refresh' });
+                        }
                     } else {
-                        // Unknown preference state - log out for security
-                        await userbase.signOut();
+                        // No clear preference - user should sign in again for security
+                        console.log('⚠️ No session preference found, clearing session for security');
+                        try {
+                            await userbase.signOut();
+                        } catch (error) {
+                            if (!error.message.includes('Not signed in')) {
+                                console.warn('Warning during cleanup signOut:', error);
+                            }
+                        }
                         this.currentUser = null;
-                        this.eventBus.emit('database:signedOut', { reason: 'unknown_preference_state' });
+                        this.eventBus.emit('database:signedOut', { reason: 'no_session_preference' });
                     }
                 }
                 
@@ -208,7 +220,7 @@ export class ContactDatabase {
     }
 
     /**
-     * Sign in existing user
+     * Sign in existing user with proper session management
      * @param {string} username - Username
      * @param {string} password - Password
      * @param {boolean} rememberMe - Whether to keep the user signed in
@@ -216,30 +228,44 @@ export class ContactDatabase {
      */
     async signIn(username, password, rememberMe = false) {
         try {
-            // Store the user's preference for session persistence
-            if (rememberMe) {
-                localStorage.setItem('auth_persist_preference', 'persistent');
-            } else {
-                // Use sessionStorage for non-persistent sessions
-                sessionStorage.setItem('auth_persist_preference', 'session-only');
-                // Clear any persistent preference
-                localStorage.removeItem('auth_persist_preference');
-            }
+            console.log('🔐 Database: Signing in with rememberMe:', rememberMe);
             
-            const userbaseOptions = {
+            // Use Userbase signIn with proper session configuration
+            // Userbase expects "local", "session", or "none" as rememberMe values
+            const rememberMeValue = rememberMe ? 'local' : 'session';
+            
+            const result = await userbase.signIn({
                 username,
                 password,
-                rememberMe: rememberMe ? 'local' : 'session' // 'local' = persistent, 'session' = session only
-            };
+                rememberMe: rememberMeValue // "local" = persistent, "session" = session only
+            });
             
-            const result = await userbase.signIn(userbaseOptions);
+            console.log('✅ Database: Sign in successful, storing session preference');
+            
+            // Store the session preference for our own reference
+            if (rememberMe) {
+                localStorage.setItem('userbase-remember-me', 'true');
+                sessionStorage.removeItem('userbase-session-only');
+                sessionStorage.removeItem('userbase-page-loaded');
+            } else {
+                // For session-only, ensure we don't have persistent storage
+                localStorage.removeItem('userbase-remember-me');
+                // Store in sessionStorage to track this session
+                sessionStorage.setItem('userbase-session-only', 'true');
+                // Set flag to indicate page is loaded and session is active
+                sessionStorage.setItem('userbase-page-loaded', 'true');
+            }
 
-            // Userbase signIn returns the user object directly, not wrapped in { user: ... }
-            this.currentUser = result.user || result; // Handle both wrapped and unwrapped formats
+            this.currentUser = result.user || result;
             await this.setupDatabases();
             
             this.eventBus.emit('database:authenticated', { user: this.currentUser });
-            return { success: true, user: this.currentUser };
+            
+            return { 
+                success: true, 
+                user: this.currentUser,
+                sessionType: rememberMe ? 'persistent' : 'session'
+            };
         } catch (error) {
             console.error('Sign in failed:', error);
             
@@ -267,16 +293,23 @@ export class ContactDatabase {
     }
 
     /**
-     * Sign out current user
+     * Sign out current user with proper cleanup
      * @returns {Promise<Object>} Signout result
      */
     async signOut() {
         try {
+            console.log('🔐 Database: Signing out...');
+            
             // Sign out from Userbase
             await userbase.signOut();
             
+            // Clear our session tracking
+            localStorage.removeItem('userbase-remember-me');
+            sessionStorage.removeItem('userbase-session-only');
+            sessionStorage.removeItem('userbase-page-loaded');
+            
             // Clear all application state
-            this.currentUser = null;
+            this.clearSessionData();
             this.changeHandlers.clear();
             
             // Clear localStorage and sessionStorage to ensure complete logout
@@ -1396,16 +1429,42 @@ export class ContactDatabase {
     }
 
     /**
-     * Get database connection status
+     * Get database connection status with session awareness
      * @returns {Object} Connection status
      */
     getConnectionStatus() {
+        // Check if we have an active session
+        const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+        const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+        
+        // If page was refreshed and we had session-only auth, consider it expired
+        if (hasSessionOnly && !this.currentUser) {
+            console.log('🔄 Session-only authentication expired on refresh');
+            this.clearSessionData();
+            return {
+                isAuthenticated: false,
+                currentUser: null,
+                sessionExpired: true
+            };
+        }
+        
         return {
             isInitialized: this.isInitialized,
             isAuthenticated: !!this.currentUser,
             currentUser: this.currentUser?.username,
+            sessionType: hasRememberMe ? 'persistent' : 'session',
             activeDatabases: Array.from(this.changeHandlers.keys())
         };
+    }
+
+    /**
+     * Clear session-specific data
+     */
+    clearSessionData() {
+        sessionStorage.removeItem('userbase-session-only');
+        sessionStorage.removeItem('userbase-page-loaded');
+        this.currentUser = null;
+        this.isInitialized = false;
     }
 
     /**
