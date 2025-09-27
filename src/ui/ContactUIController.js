@@ -3,11 +3,16 @@
  * Manages all UI components and handles user interactions
  */
 import { MobileNavigation } from './MobileNavigation.js';
+import { profileRouter } from '../utils/ProfileRouter.js';
 
 export class ContactUIController {
     constructor(eventBus, contactManager) {
         this.eventBus = eventBus;
         this.contactManager = contactManager;
+        
+        // Initialize profile router
+        this.profileRouter = profileRouter;
+        this.currentProfileInfo = null;
         
         // Debug mode - set to false to reduce logging
         this.debugMode = true; // Temporarily re-enable to debug view switching
@@ -120,6 +125,12 @@ export class ContactUIController {
     async initialize() {
         return this.handleAsync(async () => {
             this.log('Initializing UI Controller...');
+            
+            // Initialize profile router and check for profile links
+            this.currentProfileInfo = this.profileRouter.initialize();
+            if (this.currentProfileInfo) {
+                this.log('🔗 Profile link detected:', this.currentProfileInfo);
+            }
             
             // Cache DOM elements
             this.cacheElements();
@@ -241,6 +252,7 @@ export class ContactUIController {
             
             // UI controls
             newContactBtn: document.getElementById('new-contact-btn'),
+            shareProfileBtn: document.getElementById('share-profile-btn'),
             importContactsBtn: document.getElementById('import-contacts-btn'),
             exportContactsBtn: document.getElementById('export-contacts-btn'),
             currentUserDisplay: document.getElementById('current-user'),
@@ -269,6 +281,13 @@ export class ContactUIController {
             // Loading states
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingSpinner: document.querySelector('.loading-spinner'),
+            
+            // Profile sharing modal elements
+            profileShareModal: document.getElementById('profile-share-modal'),
+            profileUsernameDisplay: document.getElementById('profile-username-display'),
+            profileShareUrl: document.getElementById('profile-share-url'),
+            copyProfileUrlBtn: document.getElementById('copy-profile-url-btn'),
+            shareViaEmail: document.getElementById('share-via-email'),
             
             // Stats elements
             contactCount: document.getElementById('contact-count'),
@@ -428,6 +447,11 @@ export class ContactUIController {
         // Contact actions
         if (this.elements.newContactBtn) {
             this.elements.newContactBtn.addEventListener('click', this.showNewContactModal.bind(this));
+        }
+        
+        // Profile sharing
+        if (this.elements.shareProfileBtn) {
+            this.elements.shareProfileBtn.addEventListener('click', this.showProfileShareModal.bind(this));
         }
         
         // Import/Export actions
@@ -1973,6 +1997,9 @@ export class ContactUIController {
         if (modal) {
             modal.style.display = 'flex';
             
+            // Update modal content with profile information if available
+            this.updateAuthModalWithProfileInfo();
+            
             // Ensure "Keep me signed in" checkbox is visible for sign-in mode
             const keepSignedInContainer = document.getElementById('keep-signed-in-group');
             const form = this.elements.authForm;
@@ -1982,6 +2009,42 @@ export class ContactUIController {
             }
         } else {
             console.warn('⚠️ Authentication modal not found');
+        }
+    }
+
+    /**
+     * Update authentication modal with profile information when accessed via profile link
+     */
+    updateAuthModalWithProfileInfo() {
+        const welcomeSection = document.querySelector('#auth-modal .auth-welcome');
+        
+        if (this.currentProfileInfo && welcomeSection) {
+            // Show profile-specific welcome message
+            welcomeSection.innerHTML = `
+                <div class="profile-info">
+                    <div class="profile-icon">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <h3>Connect with ${this.currentProfileInfo.username}</h3>
+                    <p>You've been invited to connect with <strong>${this.currentProfileInfo.username}</strong> on Contact Manager.</p>
+                    
+                    <div class="profile-instructions">
+                        <div class="info-box">
+                            <i class="fas fa-info-circle"></i>
+                            <div>
+                                <p><strong>New user?</strong> Sign up to connect with ${this.currentProfileInfo.username} and manage your contacts securely.</p>
+                                <p><strong>Existing user?</strong> Sign in to view shared contacts and manage your network.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (!this.currentProfileInfo && welcomeSection) {
+            // Show regular welcome message
+            welcomeSection.innerHTML = `
+                <h3>Welcome!</h3>
+                <p>Your contacts are protected with secure, end-to-end encryption.</p>
+            `;
         }
     }
 
@@ -5167,6 +5230,113 @@ export class ContactUIController {
         if (errorElement) {
             errorElement.textContent = message;
             errorElement.style.display = 'block';
+        }
+    }
+
+    // ========== PROFILE SHARING METHODS ==========
+
+    /**
+     * Show profile sharing modal
+     */
+    showProfileShareModal() {
+        if (!this.currentUser) {
+            this.showToast({ message: 'Please sign in to share your profile', type: 'error' });
+            return;
+        }
+
+        const modal = this.elements.profileShareModal;
+        if (!modal) {
+            this.showToast({ message: 'Profile sharing modal not found', type: 'error' });
+            return;
+        }
+
+        try {
+            // Generate profile URL
+            const profileURL = this.profileRouter.generateProfileURL(this.currentUser.username);
+            
+            // Update modal content
+            if (this.elements.profileUsernameDisplay) {
+                this.elements.profileUsernameDisplay.textContent = this.currentUser.username;
+            }
+            
+            if (this.elements.profileShareUrl) {
+                this.elements.profileShareUrl.value = profileURL;
+            }
+
+            // Setup profile sharing event listeners if not already done
+            this.setupProfileSharingEventListeners();
+
+            // Show modal
+            modal.style.display = 'flex';
+
+        } catch (error) {
+            this.logError('Failed to show profile share modal:', error);
+            this.showToast({ message: 'Failed to generate profile link', type: 'error' });
+        }
+    }
+
+    /**
+     * Setup profile sharing modal event listeners
+     */
+    setupProfileSharingEventListeners() {
+        // Copy profile URL button
+        if (this.elements.copyProfileUrlBtn && !this.elements.copyProfileUrlBtn._profileListenerAdded) {
+            this.elements.copyProfileUrlBtn.addEventListener('click', this.copyProfileURL.bind(this));
+            this.elements.copyProfileUrlBtn._profileListenerAdded = true;
+        }
+
+        // Share via email
+        if (this.elements.shareViaEmail && !this.elements.shareViaEmail._profileListenerAdded) {
+            this.elements.shareViaEmail.addEventListener('click', this.shareViaEmail.bind(this));
+            this.elements.shareViaEmail._profileListenerAdded = true;
+        }
+    }
+
+    /**
+     * Copy profile URL to clipboard
+     */
+    async copyProfileURL() {
+        if (!this.elements.profileShareUrl) return;
+        
+        try {
+            await navigator.clipboard.writeText(this.elements.profileShareUrl.value);
+            
+            // Update button text temporarily
+            const button = this.elements.copyProfileUrlBtn;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            button.disabled = true;
+            
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 2000);
+            
+        } catch (error) {
+            this.logError('Failed to copy profile URL:', error);
+            this.showToast({ message: 'Failed to copy link to clipboard', type: 'error' });
+        }
+    }
+
+    /**
+     * Share profile via email
+     */
+    shareViaEmail() {
+        if (!this.currentUser) return;
+        
+        const profileMetadata = this.profileRouter.getProfileMetadata(this.currentUser.username);
+        const subject = encodeURIComponent(`Connect with ${this.currentUser.username} on Contact Manager`);
+        const body = encodeURIComponent(profileMetadata.shareText);
+        
+        window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+    }
+
+    /**
+     * Clear profile state when user signs out
+     */
+    clearProfileState() {
+        if (this.profileRouter.hasProfileLink()) {
+            this.profileRouter.clearProfileState();
         }
     }
 }/* Cache bust: tor 18 sep 2025 08:55:36 CEST */

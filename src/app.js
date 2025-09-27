@@ -9,6 +9,7 @@ import { VCardStandard } from './core/VCardStandard.js';
 import { ContactValidator } from './core/ContactValidator.js';
 import { ContactManager } from './core/ContactManager.js';
 import { ContactUIController } from './ui/ContactUIController.js';
+import { profileRouter } from './utils/ProfileRouter.js';
 
 /**
  * Main Application Class

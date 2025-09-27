@@ -6,30 +6,47 @@
     .main-content {
         grid-template-columns: 1fr !important;
         gap: var(--space-2) !important;
+        min-height: calc(100vh - 80px) !important; /* Expand to fill most of viewport */
+        height: auto !important;
+        flex: 1 !important; /* Allow it to grow and fill available space */
+        display: flex !important;
+        flex-direction: column !important;
     }
     
     .sidebar {
         order: 2 !important;
         border-right: none !important;
         border-top: 1px solid var(--border-color) !important;
-        max-height: calc(100vh - 250px) !important;
-        height: calc(100vh - 250px) !important;
+        max-height: calc(100vh - 120px) !important; /* Match contact-list-panel */
+        height: calc(100vh - 120px) !important; /* Match contact-list-panel */
     }
 
     .contact-detail-panel {
         order: 3 !important;
         display: none !important; /* Hide on mobile, show modal instead */
     }
+    
+    /* When detail panel is shown as section (modal), give it full height */
+    .contact-detail-panel.contact-detail-section {
+        max-height: calc(100vh - 120px) !important; /* Match contact-list-panel */
+        height: calc(100vh - 120px) !important; /* Match contact-list-panel */
+        min-height: calc(100vh - 120px) !important; /* Ensure it takes up space */
+        overflow-y: auto !important; /* Allow scrolling if needed */
+    }
 
     .contact-list-panel {
-        max-height: calc(100vh - 250px) !important;
-        height: calc(100vh - 250px) !important;
+        max-height: calc(100vh - 120px) !important; /* Increased from 250px to 120px - more space */
+        height: calc(100vh - 120px) !important; /* Increased from 250px to 120px - more space */
+        min-height: calc(100vh - 120px) !important; /* Ensure it takes up space */
     }
     
     .app-container {
         padding: var(--space-2) !important;
         display: block !important;
         max-width: 100% !important;
+        min-height: calc(100vh - 60px) !important; /* Take up most of screen height minus small margin */
+        margin-bottom: 0 !important; /* Remove any bottom margin */
+        padding-bottom: var(--space-1) !important; /* Minimal bottom padding */
     }
     
     .main-header {
@@ -78,9 +95,10 @@
     /* ===== CONTACT CARDS - INCREASED FONT SIZE ===== */
     .contact-card .contact-name {
         font-size: 18px !important; /* Increased from 16px to 18px for better readability */
-        font-weight: 600 !important;
+        font-weight: 500 !important; /* Lightened from 600 to 500 */
         color: #212529 !important;
         margin: 0 0 4px 0 !important;
+        padding: 5px 0 !important; /* Increased padding top/bottom by ~20% (was 4px equivalent) */
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -212,6 +230,12 @@
     /* Detail view as overlay page */
     .contact-detail-section {
         z-index: 250 !important;
+    }
+    
+    /* Ensure the contact detail section itself uses full height */
+    .contact-detail-panel.contact-detail-section {
+        display: flex !important;
+        flex-direction: column !important;
     }
     
     /* Mobile Navigation Header */
@@ -537,7 +561,8 @@
     
     .contact-name {
         font-size: 18px !important; /* Increased from 15px to 18px for better readability */
-        font-weight: 600 !important; /* Make it slightly bolder */
+        font-weight: 500 !important; /* Lightened from 600 to 500 */
+        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
     }
     
     /* Specific override for list view contact names - targeting both h3 and div elements */
@@ -570,8 +595,9 @@
     body .contact-card h3.contact-name,
     body .contact-card div.contact-name {
         font-size: 18px !important;
-        font-weight: 600 !important;
+        font-weight: 500 !important; /* Lightened from 600 to 500 */
         line-height: 1.2 !important;
+        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
     }
     
     /* Ultra-specific override to match exact selector from style.css */
@@ -579,8 +605,9 @@
     body .contact-list.list-view .contact-list-item h3.contact-name,
     body .contact-list.list-view .contact-list-item div.contact-name {
         font-size: 18px !important;
-        font-weight: 600 !important;
+        font-weight: 500 !important; /* Lightened from 600 to 500 */
         line-height: 1.2 !important;
+        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
         color: #000000 !important;
     }
 }
@@ -594,8 +621,9 @@
     html body .contact-list.list-view .contact-list-item h3.contact-name,
     html body .contact-list.list-view .contact-list-item div.contact-name {
         font-size: 18px !important;
-        font-weight: 600 !important;
+        font-weight: 500 !important; /* Lightened from 600 to 500 */
         line-height: 1.2 !important;
+        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
         color: #000000 !important;
     }
 }
@@ -605,7 +633,8 @@
     html body div.contact-list.list-view div.contact-list-item div.contact-name,
     html body div.contact-list.list-view div.contact-list-item h3.contact-name {
         font-size: 18px !important;
-        font-weight: 600 !important;
+        font-weight: 500 !important; /* Lightened from 600 to 500 */
         line-height: 1.2 !important;
+        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
     }
 }
