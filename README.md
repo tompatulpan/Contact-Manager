@@ -13,11 +13,11 @@ This project is not production-ready. Features, structure, and documentation are
 - Try  → [it here](https://e2econtacts.org)
 
 A secure, modular contact management system with:
-- **End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)**
-- **Real-time sharing and sync**
-- **Full RFC 9553 (vCard 4.0) compliance**
-- **Distribution lists for group sharing**
-- **Cross-device support** (web application)
+- End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)
+- Real-time sharing and sync
+- Using RFC9553 for storage
+- Distribution lists for group sharing
+- Cross-device support (web application)
 
 ## Key Features
 
@@ -60,7 +60,7 @@ See [CACHE_BUSTING.md](CACHE_BUSTING.md) for detailed documentation.
 ## Roadmap
 
 - [ ] QR-code generation (for easy sharing)
-- [ ] Share your profile
+- [x] Share your profile
 - [ ] Bulk operations (Delete, Export etc.)
 - [ ] Sharing-List features (Rename, edit, etc)
 - [ ] Multi-language support (i18n)

@@ -271,6 +271,56 @@
         background: rgba(0, 123, 255, 0.1) !important;
     }
     
+    /* Mobile Header Actions Container */
+    .mobile-header-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    
+    /* Mobile Action Buttons - smaller icons for logout/share profile */
+    .mobile-action-btn {
+        background: none !important;
+        border: none !important;
+        font-size: 18px !important;
+        color: #6c757d !important;
+        cursor: pointer !important;
+        padding: 8px !important;
+        border-radius: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 40px !important;
+        height: 40px !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .mobile-action-btn:hover,
+    .mobile-action-btn:active {
+        background: rgba(108, 117, 125, 0.1) !important;
+        color: #495057 !important;
+    }
+    
+    /* Share profile button - subtle blue */
+    #mobile-share-profile {
+        color: #17a2b8 !important;
+    }
+    
+    #mobile-share-profile:hover {
+        background: rgba(23, 162, 184, 0.1) !important;
+        color: #138496 !important;
+    }
+    
+    /* Logout button - subtle red */
+    #mobile-logout {
+        color: #dc3545 !important;
+    }
+    
+    #mobile-logout:hover {
+        background: rgba(220, 53, 69, 0.1) !important;
+        color: #c82333 !important;
+    }
+    
     .mobile-page-title {
         font-size: 18px !important;
         font-weight: 600 !important;

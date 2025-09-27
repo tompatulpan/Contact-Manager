@@ -142,14 +142,25 @@ export class ContactUIController {
             // The database will emit 'database:authenticated' event when ready
             // If no session exists, we'll show auth modal after a brief delay
             this.authTimeoutId = setTimeout(() => {
-                // Only show auth modal if we haven't received authentication event
-                // Check both currentUser and database status
+                // Check both currentUser and database status with session awareness
                 const connectionStatus = this.contactManager.database.getConnectionStatus();
+                
+                // Handle session expiration
+                if (connectionStatus.sessionExpired) {
+                    this.log('⏰ Session-only authentication expired, showing login modal');
+                    this.showAuthenticationModal();
+                    this.showToast({ 
+                        message: 'Your session has expired. Please sign in again.', 
+                        type: 'info' 
+                    });
+                    return;
+                }
+                
                 if (!this.currentUser && !connectionStatus.isAuthenticated) {
                     this.log('🔐 No authentication found after initialization delay, showing login modal');
                     this.showAuthenticationModal();
                 } else {
-                    this.log('✅ User already authenticated during delay period:', this.currentUser || connectionStatus.currentUser);
+                    this.log('✅ User authenticated:', connectionStatus.currentUser, `(${connectionStatus.sessionType} session)`);
                     if (!this.currentUser && connectionStatus.isAuthenticated) {
                         // Set currentUser if database knows about authentication but UI doesn't
                         this.currentUser = { username: connectionStatus.currentUser };
@@ -295,7 +306,11 @@ export class ContactUIController {
             statsShared: document.getElementById('stat-shared'),
             statsRecent: document.getElementById('stat-recent'),
             statsImported: document.getElementById('stat-imported'),
-            statsContainer: document.querySelector('.stats-grid')
+            statsContainer: document.querySelector('.stats-grid'),
+            
+            // Mobile action buttons
+            mobileShareProfile: document.getElementById('mobile-share-profile'),
+            mobileLogout: document.getElementById('mobile-logout')
         };
         
         // Cache DOM elements complete
@@ -454,6 +469,11 @@ export class ContactUIController {
             this.elements.shareProfileBtn.addEventListener('click', this.showProfileShareModal.bind(this));
         }
         
+        // Mobile share profile button
+        if (this.elements.mobileShareProfile) {
+            this.elements.mobileShareProfile.addEventListener('click', this.showProfileShareModal.bind(this));
+        }
+        
         // Import/Export actions
         if (this.elements.importContactsBtn) {
             this.elements.importContactsBtn.addEventListener('click', this.showImportModal.bind(this));
@@ -467,6 +487,11 @@ export class ContactUIController {
             this.elements.logoutBtn.addEventListener('click', this.handleSignOut.bind(this));
         } else {
             console.error('🔧 Logout button not found during setup');
+        }
+        
+        // Mobile logout button
+        if (this.elements.mobileLogout) {
+            this.elements.mobileLogout.addEventListener('click', this.handleMobileSignOut.bind(this));
         }
         
         // Contact form
@@ -909,6 +934,18 @@ export class ContactUIController {
         } else {
             console.error('Invalid user data in authentication event:', data);
             this.showAuthError('Authentication failed - invalid user data');
+        }
+    }
+
+    /**
+     * Handle mobile sign out with confirmation
+     */
+    async handleMobileSignOut() {
+        // Show confirmation dialog for mobile logout
+        const confirmed = confirm('Sign Out\n\nAre you sure you want to sign out?\n\nYou will need to sign in again to access your contacts.');
+        
+        if (confirmed) {
+            await this.handleSignOut();
         }
     }
 
@@ -2032,8 +2069,8 @@ export class ContactUIController {
                         <div class="info-box">
                             <i class="fas fa-info-circle"></i>
                             <div>
-                                <p><strong>New user?</strong> Sign up to connect with ${this.currentProfileInfo.username} and manage your contacts securely.</p>
-                                <p><strong>Existing user?</strong> Sign in to view shared contacts and manage your network.</p>
+                                <p><strong>New user?</strong> Sign up to share your contact information with ${this.currentProfileInfo.username} and manage your contacts securely.</p>
+                                <p><strong>Existing user?</strong> Sign in to access contacts shared by ${this.currentProfileInfo.username} or share your own contacts with ${this.currentProfileInfo.username}.</p>
                             </div>
                         </div>
                     </div>
