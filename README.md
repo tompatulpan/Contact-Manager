@@ -64,9 +64,9 @@ See [CACHE_BUSTING.md](CACHE_BUSTING.md) for detailed documentation.
 - [ ] Bulk operations (Delete, Export etc.)
 - [ ] Sharing-List features (Rename, edit, etc)
 - [ ] Multi-language support (i18n)
-- [ ] Contact backup/restore
+- [ ] Better integration on phones
 - [ ] Advanced sharing permissions (X edit contacts)
-- [ ] Stay logged in feature
+- [x] Stay logged in feature
 - [ ] Change password
 - [ ] Set passwords rules
 - [ ] Dark mode

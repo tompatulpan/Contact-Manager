@@ -184,7 +184,7 @@ export class VCardStandard {
             contactId: contact.contactId,
             cardName: contact.cardName,
             fullName: vCardData.properties.get('FN') || 'Unnamed Contact',
-            organization: vCardData.properties.get('ORG') || '',
+            organization: this.normalizeOrganizationValue(vCardData.properties.get('ORG')) || '',
             title: vCardData.properties.get('TITLE') || '',
             phones: this.extractMultiValueProperty(vCardData, 'TEL'),
             emails: this.extractMultiValueProperty(vCardData, 'EMAIL'),
@@ -260,8 +260,9 @@ export class VCardStandard {
         }
         
         const baseObj = {
-            type: value.parameters?.TYPE || 'other',
-            primary: value.parameters?.PREF === '1' || value.parameters?.PREF === 1
+            type: this.normalizeTypeValue(value.parameters?.TYPE || 'other'),
+            primary: value.parameters?.PREF === '1' || value.parameters?.PREF === 1 || 
+                     (value.parameters?.TYPE && value.parameters.TYPE.toLowerCase().includes('pref'))
         };
 
         // Handle ADR (address) property specially
@@ -276,6 +277,61 @@ export class VCardStandard {
             value: value.value || '',
             ...baseObj
         };
+    }
+
+    /**
+     * Normalize type value, handling special cases like TYPE=PREF (Thunderbird)
+     * @param {string} type - Type parameter value
+     * @returns {string} Normalized type
+     */
+    normalizeTypeValue(type) {
+        if (!type) return 'other';
+        
+        const lowerType = type.toLowerCase();
+        
+        // Handle Thunderbird/Evolution special case where TYPE=PREF means primary preference
+        if (lowerType === 'pref') {
+            return 'other'; // Use 'other' as default type when TYPE=PREF
+        }
+        
+        // Handle comma-separated types (e.g., "OTHER,VOICE,pref" from Apple/iOS vCards)
+        if (lowerType.includes(',')) {
+            const types = lowerType.split(',').map(t => t.trim());
+            
+            // Look for specific phone types in order of preference
+            if (types.includes('mobile') || types.includes('cell')) return 'cell';
+            if (types.includes('home')) return 'home';
+            if (types.includes('work')) return 'work';
+            
+            // Fallback to other
+            return 'other';
+        }
+        
+        return type.toLowerCase();
+    }
+
+    /**
+     * Normalize organization value, handling trailing semicolons and structured values
+     * @param {string} orgValue - Raw organization value from vCard
+     * @returns {string} Normalized organization
+     */
+    normalizeOrganizationValue(orgValue) {
+        if (!orgValue || typeof orgValue !== 'string') {
+            return '';
+        }
+        
+        // Handle structured ORG values: Organization;Department;SubDepartment
+        // For display purposes, we usually want just the main organization
+        const parts = orgValue.split(';');
+        const mainOrganization = parts[0]?.trim() || '';
+        
+        // If there's a meaningful department, include it
+        const department = parts[1]?.trim();
+        if (department && mainOrganization) {
+            return `${mainOrganization} - ${department}`;
+        }
+        
+        return mainOrganization;
     }
 
     /**
@@ -393,8 +449,14 @@ export class VCardStandard {
 
         const parameters = this.parseParameters(parametersString);
 
+        // Handle ITEM prefixes (e.g., "ITEM1.TEL" -> "TEL") - common in Thunderbird/Evolution
+        let cleanProperty = property.toUpperCase();
+        if (cleanProperty.match(/^ITEM\d+\./)) {
+            cleanProperty = cleanProperty.replace(/^ITEM\d+\./, '');
+        }
+
         return {
-            property: property.toUpperCase(),
+            property: cleanProperty,
             parameters,
             value: this.unescapeValue(value)
         };
@@ -836,7 +898,8 @@ export class VCardStandard {
         const phones = appleContact.properties.get('TEL') || [];
         phones.forEach(phone => {
             const type = this.convertApplePhoneType(phone.parameters?.TYPE);
-            const pref = phone.parameters?.PREF ? ';PREF=1' : '';
+            const isPref = this.isApplePref(phone.parameters);
+            const pref = isPref ? ';PREF=1' : '';
             vcard += `TEL;TYPE=${type}${pref}:${this.escapeValue(phone.value)}\n`;
         });
 
@@ -844,7 +907,8 @@ export class VCardStandard {
         const emails = appleContact.properties.get('EMAIL') || [];
         emails.forEach(email => {
             const type = this.convertAppleEmailType(email.parameters?.TYPE);
-            const pref = email.parameters?.PREF ? ';PREF=1' : '';
+            const isPref = this.isApplePref(email.parameters);
+            const pref = isPref ? ';PREF=1' : '';
             vcard += `EMAIL;TYPE=${type}${pref}:${this.escapeValue(email.value)}\n`;
         });
 
@@ -992,14 +1056,36 @@ export class VCardStandard {
     convertApplePhoneType(appleType) {
         if (!appleType) return 'other';
         
-        const type = appleType.toLowerCase();
-        switch (type) {
-            case 'work': return 'work';
-            case 'home': return 'home';
-            case 'mobile': return 'cell';
-            case 'cell': return 'cell';
-            default: return 'other';
+        // Handle comma-separated types (e.g., "OTHER,VOICE,pref")
+        const types = appleType.toLowerCase().split(',').map(t => t.trim());
+        
+        // Look for specific phone types in order of preference
+        if (types.includes('mobile') || types.includes('cell')) return 'cell';
+        if (types.includes('home')) return 'home';
+        if (types.includes('work')) return 'work';
+        
+        // Fallback to other
+        return 'other';
+    }
+
+    /**
+     * Check if Apple vCard property has preference indicator
+     * @param {Object} parameters - Property parameters
+     * @returns {boolean} Is preferred
+     */
+    isApplePref(parameters) {
+        if (!parameters) return false;
+        
+        // Check explicit PREF parameter
+        if (parameters.PREF) return true;
+        
+        // Check for 'pref' in TYPE parameter (Apple style)
+        const type = parameters.TYPE;
+        if (type && typeof type === 'string') {
+            return type.toLowerCase().includes('pref');
         }
+        
+        return false;
     }
 
     /**

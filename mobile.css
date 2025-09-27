@@ -561,6 +561,28 @@
         font-weight: inherit !important;
     }
     
+    /* ===== FIELD BADGE LAYOUT FIX ===== */
+    
+    /* Ensure badges remain inline on mobile screens */
+    .field-item {
+        flex-wrap: nowrap !important; /* Prevent wrapping to new lines */
+        align-items: center !important; /* Keep items vertically centered */
+        gap: var(--space-2) !important; /* Consistent spacing */
+    }
+    
+    /* Optimize badges for mobile */
+    .field-type,
+    .field-primary {
+        flex-shrink: 0 !important; /* Don't shrink badges */
+        white-space: nowrap !important; /* Keep text on one line */
+    }
+    
+    /* Allow field value to take available space */
+    .field-value {
+        flex: 1 1 auto !important; /* Grow and shrink as needed */
+        min-width: 0 !important; /* Allow text truncation if needed */
+    }
+
     /* Safe area handling for iOS */
     @supports (padding: max(0px)) {
         .mobile-header {
@@ -659,6 +681,17 @@
         line-height: 1.2 !important;
         padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
         color: #000000 !important;
+    }
+    
+    /* ===== CRITICAL: Badge layout optimizations for very small screens ===== */
+    .field-item {
+        gap: var(--space-1) !important; /* Tighter spacing on very small screens */
+    }
+    
+    .field-type,
+    .field-primary {
+        font-size: 0.7rem !important; /* Smaller text on very small screens */
+        padding: 0.2rem 0.4rem !important; /* Smaller padding */
     }
 }
 
