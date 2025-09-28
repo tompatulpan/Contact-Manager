@@ -1,126 +1,75 @@
-/* Mobile CSS - Consolidated Mobile Styles for Contact Management System */
+/* ========================================
+   CONTACT MANAGEMENT SYSTEM - MOBILE CSS
+   ======================================== */
 
+/* ========== DESKTOP - HIDE MOBILE ELEMENTS ========== */
+@media screen and (min-width: 769px) {
+    .mobile-only,
+    .mobile-header,
+    .mobile-back-btn,
+    .mobile-menu-btn,
+    .mobile-action-btn,
+    .mobile-page-title,
+    .mobile-header-actions {
+        display: none !important;
+    }
+}
+
+/* ========== MOBILE STYLES ========== */
 @media screen and (max-width: 768px) {
+    
+    /* Show mobile-only elements */
+    .mobile-only {
+        display: block !important;
+    }
     
     /* ===== LAYOUT & GRID SYSTEM ===== */
     .main-content {
         grid-template-columns: 1fr !important;
         gap: var(--space-2) !important;
-        min-height: calc(100vh - 80px) !important; /* Expand to fill most of viewport */
+        min-height: calc(100vh - 80px) !important;
         height: auto !important;
-        flex: 1 !important; /* Allow it to grow and fill available space */
+        flex: 1 !important;
         display: flex !important;
         flex-direction: column !important;
-    }
-    
-    .sidebar {
-        order: 2 !important;
-        border-right: none !important;
-        border-top: 1px solid var(--border-color) !important;
-        max-height: calc(100vh - 120px) !important; /* Match contact-list-panel */
-        height: calc(100vh - 120px) !important; /* Match contact-list-panel */
-    }
-
-    .contact-detail-panel {
-        order: 3 !important;
-        display: none !important; /* Hide on mobile, show modal instead */
-    }
-    
-    /* When detail panel is shown as section (modal), give it full height */
-    .contact-detail-panel.contact-detail-section {
-        max-height: calc(100vh - 120px) !important; /* Match contact-list-panel */
-        height: calc(100vh - 120px) !important; /* Match contact-list-panel */
-        min-height: calc(100vh - 120px) !important; /* Ensure it takes up space */
-        overflow-y: auto !important; /* Allow scrolling if needed */
-    }
-
-    .contact-list-panel {
-        max-height: calc(100vh - 120px) !important; /* Increased from 250px to 120px - more space */
-        height: calc(100vh - 120px) !important; /* Increased from 250px to 120px - more space */
-        min-height: calc(100vh - 120px) !important; /* Ensure it takes up space */
     }
     
     .app-container {
         padding: var(--space-2) !important;
         display: block !important;
         max-width: 100% !important;
-        min-height: calc(100vh - 60px) !important; /* Take up most of screen height minus small margin */
-        margin-bottom: 0 !important; /* Remove any bottom margin */
-        padding-bottom: var(--space-1) !important; /* Minimal bottom padding */
+        min-height: calc(100vh - 60px) !important;
+        margin-bottom: 0 !important;
+        padding-bottom: var(--space-1) !important;
     }
     
-    .main-header {
-        flex-direction: column !important;
-        gap: var(--space-4) !important;
+    .sidebar {
+        order: 2 !important;
+        border-right: none !important;
+        border-top: 1px solid var(--border-color) !important;
+        max-height: calc(100vh - 120px) !important;
+        height: calc(100vh - 120px) !important;
+    }
+
+    .contact-detail-panel {
+        order: 3 !important;
+        display: none !important;
     }
     
-    /* ===== CONTACT DETAIL HEADER - BACKUP RULE (lower specificity) ===== */
-    /* This rule is kept as fallback but the more specific rule below takes precedence */
-    .contact-detail-header .contact-name {
-        font-size: 1.6rem !important; /* Backup size - should match the main rule below */
-        line-height: 1.1 !important; /* Tight line spacing */
-        font-weight: 700 !important; /* Bold for prominence */
-        margin-bottom: var(--space-3) !important;
-        color: var(--text-primary) !important;
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: unset !important;
+    .contact-detail-panel.contact-detail-section {
+        max-height: calc(100vh - 120px) !important;
+        height: calc(100vh - 120px) !important;
+        min-height: calc(100vh - 120px) !important;
+        overflow-y: auto !important;
+    }
+
+    .contact-list-panel {
+        max-height: calc(100vh - 120px) !important;
+        height: calc(100vh - 120px) !important;
+        min-height: calc(100vh - 120px) !important;
     }
     
-    /* High specificity selectors to ensure override - MAIN RULE FOR DETAIL VIEW FONT */
-    .contact-detail-section .contact-detail-header .contact-name,
-    .contact-detail-panel .contact-detail-header .contact-name,
-    .contact-detail-container .contact-detail-header .contact-name {
-        font-size: 1.6rem !important; /* Normalized size - 1.6rem (about 25-26px) - prominent but not huge */
-        line-height: 1.1 !important;
-        font-weight: 700 !important;
-        margin-bottom: var(--space-3) !important;
-        color: var(--text-primary) !important;
-        white-space: normal !important;
-        overflow: visible !important;
-        text-overflow: unset !important;
-    }
-    
-    .contact-detail-actions {
-        gap: var(--space-3) !important;
-        padding: var(--space-4) var(--space-2) !important;
-    }
-    
-    .contact-detail-actions .btn-icon {
-        width: 44px !important;
-        height: 44px !important;
-        font-size: 18px !important;
-    }
-    
-    /* ===== CONTACT CARDS - INCREASED FONT SIZE ===== */
-    .contact-card .contact-name {
-        font-size: 18px !important; /* Increased from 16px to 18px for better readability */
-        font-weight: 500 !important; /* Lightened from 600 to 500 */
-        color: #212529 !important;
-        margin: 0 0 4px 0 !important;
-        padding: 5px 0 !important; /* Increased padding top/bottom by ~20% (was 4px equivalent) */
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-    
-    /* ===== MODAL STYLES ===== */
-    .modal-content {
-        width: 98% !important;
-        max-width: 98vw !important;
-        margin: 1vh auto !important;
-        max-height: 98vh !important;
-        display: flex !important;
-        flex-direction: column !important;
-    }
-    
-    .modal-body {
-        padding: var(--space-4) !important;
-        flex: 1 !important;
-        min-height: 0 !important;
-    }
-    
-    /* ===== HEADER & BUTTON STYLES ===== */
+    /* ===== HEADER & BUTTONS ===== */
     .header-right {
         gap: 0.25rem !important;
     }
@@ -130,115 +79,15 @@
         font-size: 0.875rem !important;
     }
     
-    .header-right .btn i {
-        margin-right: 0.25rem !important;
-    }
-    
-    .btn span {
+    .header-right .btn span {
         display: none !important;
     }
     
-    .btn i {
+    .header-right .btn i {
         margin-right: 0 !important;
     }
     
-    /* ===== FORM FIELD STYLES ===== */
-    .multi-field-item {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 0.5rem !important;
-    }
-    
-    .field-type-select {
-        min-width: auto !important;
-        max-width: none !important;
-    }
-    
-    .primary-checkbox {
-        justify-content: center !important;
-    }
-    
-    .remove-field-btn {
-        align-self: center !important;
-    }
-    
-    /* Address field responsive */
-    .address-row {
-        grid-template-columns: 1fr !important;
-        gap: 0.5rem !important;
-    }
-    
-    .address-field .remove-field-btn {
-        position: static !important;
-        align-self: center !important;
-        margin-top: 0.5rem !important;
-    }
-    
-    /* Note field responsive */
-    .note-field .remove-field-btn {
-        position: static !important;
-        align-self: center !important;
-        margin-top: 0.5rem !important;
-        background: var(--surface-color) !important;
-    }
-    
-    /* ===== UTILITY CLASSES ===== */
-    .mobile-only {
-        display: block !important;
-    }
-    
-    /* ===== PAGE-BASED NAVIGATION SYSTEM ===== */
-    
-    /* Transform columns into pages */
-    .left-sidebar,
-    .contact-list-section,
-    .contact-detail-section {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: 100vh !important;
-        background: white !important;
-        z-index: 100 !important;
-        transform: translateX(100%) !important;
-        transition: transform 0.3s ease-in-out !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-    
-    /* Page visibility states */
-    .page-active {
-        transform: translateX(0) !important;
-        z-index: 200 !important;
-    }
-    
-    .page-previous {
-        transform: translateX(-100%) !important;
-        z-index: 150 !important;
-    }
-    
-    /* All Contacts page - main focus page */
-    .contact-list-section.page-active {
-        display: block !important;
-    }
-    
-    /* Hide sidebar by default on mobile */
-    .left-sidebar {
-        z-index: 300 !important; /* Highest when shown */
-    }
-    
-    /* Detail view as overlay page */
-    .contact-detail-section {
-        z-index: 250 !important;
-    }
-    
-    /* Ensure the contact detail section itself uses full height */
-    .contact-detail-panel.contact-detail-section {
-        display: flex !important;
-        flex-direction: column !important;
-    }
-    
-    /* Mobile Navigation Header */
+    /* ===== MOBILE NAVIGATION ===== */
     .mobile-header {
         display: flex !important;
         align-items: center !important;
@@ -271,14 +120,12 @@
         background: rgba(0, 123, 255, 0.1) !important;
     }
     
-    /* Mobile Header Actions Container */
     .mobile-header-actions {
         display: flex !important;
         align-items: center !important;
         gap: 4px !important;
     }
     
-    /* Mobile Action Buttons - smaller icons for logout/share profile */
     .mobile-action-btn {
         background: none !important;
         border: none !important;
@@ -295,13 +142,11 @@
         transition: all 0.2s ease !important;
     }
     
-    .mobile-action-btn:hover,
-    .mobile-action-btn:active {
+    .mobile-action-btn:hover {
         background: rgba(108, 117, 125, 0.1) !important;
         color: #495057 !important;
     }
     
-    /* Share profile button - subtle blue */
     #mobile-share-profile {
         color: #17a2b8 !important;
     }
@@ -311,7 +156,6 @@
         color: #138496 !important;
     }
     
-    /* Logout button - subtle red */
     #mobile-logout {
         color: #dc3545 !important;
     }
@@ -330,17 +174,55 @@
         text-align: center !important;
     }
     
-    /* Contact List - Mobile Optimized */
-    .contact-list-container {
-        padding: 0 !important;
+    /* ===== PAGE-BASED NAVIGATION ===== */
+    .left-sidebar,
+    .contact-list-section,
+    .contact-detail-section {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100vh !important;
+        background: white !important;
+        z-index: 100 !important;
+        transform: translateX(100%) !important;
+        transition: transform 0.3s ease-in-out !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
     
-    /* Hide view controls on mobile */
+    .page-active {
+        transform: translateX(0) !important;
+        z-index: 200 !important;
+    }
+    
+    .page-previous {
+        transform: translateX(-100%) !important;
+        z-index: 150 !important;
+    }
+    
+    .contact-list-section.page-active {
+        display: block !important;
+    }
+    
+    .left-sidebar {
+        z-index: 300 !important;
+    }
+    
+    .contact-detail-section {
+        z-index: 250 !important;
+    }
+    
+    .contact-detail-panel.contact-detail-section {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    /* ===== CONTACT LIST ===== */
     .view-controls {
         display: none !important;
     }
     
-    /* Hide panel header view controls */
     .panel-header .view-controls {
         display: none !important;
     }
@@ -350,49 +232,28 @@
         background: white !important;
         border-bottom: 1px solid #dee2e6 !important;
         position: sticky !important;
-        top: 60px !important; /* Below mobile header */
+        top: 60px !important;
         z-index: 9 !important;
     }
     
     .search-input {
         width: 100% !important;
         padding: 12px 16px !important;
-        font-size: 16px !important; /* Prevent zoom on iOS */
-        border: 1px solid var(--primary-color) !important; /* Blue border always visible */
+        font-size: 16px !important;
+        border: 1px solid var(--primary-color) !important;
         border-radius: 8px !important;
         margin-bottom: 12px !important;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important; /* Subtle blue glow always visible */
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
     }
     
-    /* Enhanced blue focus frame for mobile search field when focused */
     .search-input:focus {
         outline: none !important;
         border-color: var(--primary-color) !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important; /* Stronger glow when focused */
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
         background: var(--bg-primary) !important;
     }
     
-    /* Filter controls - simplified for mobile */
-    .filter-controls {
-        display: flex !important;
-        gap: 8px !important;
-        flex-wrap: wrap !important;
-    }
-    
-    .filter-checkbox {
-        display: flex !important;
-        align-items: center !important;
-        gap: 6px !important;
-        font-size: 14px !important;
-        white-space: nowrap !important;
-    }
-    
-    /* Contact Items - Touch Friendly */
-    .contact-list {
-        padding: 0 !important;
-        list-style: none !important;
-    }
-    
+    /* ===== CONTACT CARDS ===== */
     .contact-card {
         display: flex !important;
         align-items: center !important;
@@ -405,8 +266,7 @@
         position: relative !important;
     }
     
-    .contact-card:hover,
-    .contact-card:active {
+    .contact-card:hover {
         background: #f8f9fa !important;
     }
     
@@ -414,49 +274,42 @@
         border-bottom: none !important;
     }
     
-    /* Hide action buttons on mobile - contact will be clickable */
     .contact-card .contact-actions {
         display: none !important;
     }
     
-    /* Contact avatar - mobile */
     .contact-card .contact-avatar {
         flex-shrink: 0 !important;
         margin-right: 12px !important;
+        width: 32px !important;
+        height: 32px !important;
     }
     
-    .contact-card .avatar-initial {
-        width: 48px !important;
-        height: 48px !important;
-        border-radius: 50% !important;
-        background: #007bff !important;
-        color: white !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-size: 20px !important;
-        font-weight: 600 !important;
+    .contact-card .contact-avatar .avatar-initial {
+        font-size: 0.75rem !important;
     }
     
-    /* Contact item content */
-    .contact-card .contact-info {
-        flex: 1 !important;
-        min-width: 0 !important; /* Allow text truncation */
-    }
-    
-    .contact-card .contact-organization {
-        font-size: 14px !important;
-        color: #6c757d !important;
-        margin: 0 0 2px 0 !important;
+    .contact-card .contact-name {
+        font-size: 18px !important;
+        font-weight: 500 !important;
+        color: #212529 !important;
+        margin: 0 0 4px 0 !important;
+        padding: 5px 0 !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
     }
     
+    .contact-card .contact-info {
+        flex: 1 !important;
+        min-width: 0 !important;
+    }
+    
+    .contact-card .contact-organization,
     .contact-card .contact-title {
         font-size: 14px !important;
         color: #6c757d !important;
-        margin: 0 0 4px 0 !important;
+        margin: 0 0 2px 0 !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
@@ -467,11 +320,6 @@
         color: #868e96 !important;
     }
     
-    .contact-card .contact-phone {
-        margin-right: 8px !important;
-    }
-    
-    /* Contact badges */
     .contact-card .contact-badges {
         display: flex !important;
         flex-direction: column !important;
@@ -482,8 +330,7 @@
         right: 12px !important;
     }
     
-    .contact-card .shared-indicator,
-    .contact-card .contact-badge {
+    .contact-card .shared-indicator {
         font-size: 11px !important;
         padding: 2px 6px !important;
         border-radius: 12px !important;
@@ -492,28 +339,83 @@
         background: #17a2b8 !important;
     }
     
-    .contact-card .badge-shared {
-        background: #17a2b8 !important;
-    }
-    
-    .contact-card .badge-archived {
-        background: #6c757d !important;
-    }
-    
-    /* Chevron indicator */
     .contact-card::after {
-        content: "›";
-        position: absolute;
-        right: 16px;
-        bottom: 16px;
-        color: #ced4da;
-        font-size: 20px;
-        font-weight: 300;
+        content: "›" !important;
+        position: absolute !important;
+        right: 16px !important;
+        bottom: 16px !important;
+        color: #ced4da !important;
+        font-size: 20px !important;
+        font-weight: 300 !important;
     }
     
-    /* ===== AUTHENTICATION MODAL - MOBILE ===== */
+    /* ===== LIST VIEW ===== */
+    .contact-list.list-view .contact-list-item {
+        height: 32px !important;
+        padding: 6px 8px !important;
+        font-size: 0.8rem !important;
+    }
     
-    /* Authentication Modal - Mobile specific styles */
+    .contact-list.list-view .contact-list-item .contact-name {
+        font-size: 18px !important;
+        font-weight: 500 !important;
+        line-height: 1.2 !important;
+        padding: 5px 0 !important;
+        color: #000000 !important;
+    }
+    
+    .contact-list.list-view .contact-list-item .contact-meta {
+        padding-right: 16px !important;
+        padding-left: 8px !important;
+    }
+    
+    .contact-list.list-view .contact-list-item .shared-indicator {
+        background: #17a2b8 !important;
+        color: white !important;
+        padding: 3px 8px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        white-space: nowrap !important;
+    }
+    
+    /* ===== CONTACT DETAIL VIEW ===== */
+    .contact-detail-header .contact-name {
+        font-size: 1.6rem !important;
+        line-height: 1.1 !important;
+        font-weight: 700 !important;
+        margin-bottom: var(--space-3) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .contact-detail-actions {
+        gap: var(--space-3) !important;
+        padding: var(--space-4) var(--space-2) !important;
+    }
+    
+    .contact-detail-actions .btn-icon {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 18px !important;
+    }
+    
+    /* ===== MODALS ===== */
+    .modal-content {
+        width: 98% !important;
+        max-width: 98vw !important;
+        margin: 1vh auto !important;
+        max-height: 98vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    .modal-body {
+        padding: var(--space-4) !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    /* ===== AUTHENTICATION ===== */
     #auth-modal {
         padding: 12px !important;
         align-items: flex-start !important;
@@ -529,7 +431,6 @@
         overflow-y: auto !important;
     }
     
-    /* Authentication form buttons - mobile */
     #auth-form .form-actions {
         flex-direction: column !important;
         gap: 12px !important;
@@ -543,17 +444,14 @@
         font-size: 16px !important;
         font-weight: 600 !important;
         border-radius: 8px !important;
-        min-height: 48px !important; /* Touch target size */
+        min-height: 48px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         gap: 8px !important;
         text-align: center !important;
-        white-space: nowrap !important;
-        box-sizing: border-box !important;
     }
     
-    /* IMPORTANT: Override global mobile span hiding for auth buttons */
     #auth-form .btn span {
         display: inline !important;
         color: inherit !important;
@@ -561,62 +459,134 @@
         font-weight: inherit !important;
     }
     
-    /* ===== FIELD BADGE LAYOUT FIX ===== */
-    
-    /* Ensure badges remain inline on mobile screens */
-    .field-item {
-        flex-wrap: nowrap !important; /* Prevent wrapping to new lines */
-        align-items: center !important; /* Keep items vertically centered */
-        gap: var(--space-2) !important; /* Consistent spacing */
+    /* ===== FORMS & RADIO BUTTONS ===== */
+    .radio-group {
+        gap: 1rem !important; /* Larger gap for touch-friendly mobile interface */
     }
     
-    /* Optimize badges for mobile */
+    .radio-item {
+        padding: 0.75rem !important; /* Larger padding for better touch targets */
+        border-radius: 8px !important; /* Slightly more rounded for mobile */
+    }
+    
+    .radio-item input[type="radio"] {
+        width: 1.25rem !important; /* Larger radio buttons for mobile */
+        height: 1.25rem !important;
+    }
+    
+    .radio-item span {
+        font-size: 1rem !important; /* Slightly larger text for mobile readability */
+        line-height: 1.5 !important;
+    }
+    
+    .radio-item .help-text {
+        font-size: 0.875rem !important; /* Larger help text for mobile */
+        margin-left: 2rem !important; /* Adjusted margin for larger radio buttons */
+    }
+    
+    /* ===== OTHER FORM ELEMENTS ===== */
+    .multi-field-item {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+    }
+    
+    .field-type-select {
+        min-width: auto !important;
+        max-width: none !important;
+    }
+    
+    .primary-checkbox {
+        justify-content: center !important;
+        gap: 0.5rem !important; /* Increased gap for consistency */
+        align-items: center !important; /* Changed from baseline to center */
+    }
+    
+    .primary-checkbox input[type="checkbox"] {
+        width: 1rem !important; /* Increased size for consistency */
+        height: 1rem !important; /* Increased size for consistency */
+    }
+    
+    .remove-field-btn {
+        align-self: center !important;
+    }
+    
+    .address-row {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+    
+    .address-field .remove-field-btn,
+    .note-field .remove-field-btn {
+        position: static !important;
+        align-self: center !important;
+        margin-top: 0.5rem !important;
+    }
+    
+    .note-field .remove-field-btn {
+        background: var(--surface-color) !important;
+    }
+    
+    /* ===== FIELD LAYOUT FIXES ===== */
+    .field-item {
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: var(--space-2) !important;
+    }
+    
     .field-type,
     .field-primary {
-        flex-shrink: 0 !important; /* Don't shrink badges */
-        white-space: nowrap !important; /* Keep text on one line */
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
     }
     
-    /* Allow field value to take available space */
     .field-value {
-        flex: 1 1 auto !important; /* Grow and shrink as needed */
-        min-width: 0 !important; /* Allow text truncation if needed */
-    }
-
-    /* Safe area handling for iOS */
-    @supports (padding: max(0px)) {
-        .mobile-header {
-            padding-top: max(12px, env(safe-area-inset-top));
-        }
-        
-        .contact-actions {
-            padding-bottom: max(16px, env(safe-area-inset-bottom));
-        }
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
     }
     
-    /* Force single column layout */
-    .three-column-layout,
-    .two-column-layout {
-        display: block !important;
+    /* ===== FILTER CONTROLS ===== */
+    .filter-controls {
+        display: flex !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
     }
     
-    /* Hide all columns initially except the active one */
+    .filter-checkbox {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        font-size: 14px !important;
+        white-space: nowrap !important;
+    }
+    
+    /* ===== PAGE NAVIGATION ===== */
     .left-sidebar,
     .contact-list-section,
     .contact-detail-section {
-        display: none;
+        display: none !important;
     }
     
-    /* Show only the active page */
     .mobile-page-contacts .contact-list-section,
     .mobile-page-menu .left-sidebar,
     .mobile-page-detail .contact-detail-section {
         display: block !important;
         transform: translateX(0) !important;
     }
+    
+    /* ===== SAFE AREA HANDLING ===== */
+    @supports (padding: max(0px)) {
+        .mobile-header {
+            padding-top: max(12px, env(safe-area-inset-top)) !important;
+        }
+        
+        .contact-actions {
+            padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+        }
+    }
 }
 
-/* Extra small devices (phones in portrait) */
+/* ========== SMALL MOBILE (375px and below) ========== */
 @media screen and (max-width: 375px) {
     .mobile-header {
         padding: 8px 12px !important;
@@ -626,130 +596,24 @@
         font-size: 16px !important;
     }
     
-    .contact-item {
+    .contact-card {
         padding: 12px !important;
         min-height: 72px !important;
     }
     
-    .contact-name {
-        font-size: 18px !important; /* Increased from 15px to 18px for better readability */
-        font-weight: 500 !important; /* Lightened from 600 to 500 */
-        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
-    }
-    
-    /* Specific override for list view contact names - targeting both h3 and div elements */
-    .contact-list.list-view .contact-list-item .contact-name,
-    .contact-list.list-view .contact-list-item h3.contact-name,
-    .contact-list.list-view .contact-list-item div.contact-name,
-    .contact-list-item .contact-name,
-    .contact-list-item h3.contact-name,
-    .contact-list-item div.contact-name {
-        font-size: 18px !important; /* Increased from base 0.875rem to 18px for better mobile readability */
-        font-weight: 600 !important;
-        line-height: 1.2 !important; /* Maintain reasonable line spacing */
-    }
-    
-    .contact-details {
-        font-size: 13px !important;
-    }
-    
-    /* REDUNDANT RULE - should be removed in cleanup, kept for consistency */
-    .contact-detail-header .contact-name {
-        font-size: 1.6rem !important; /* Matches main rule above */
-        line-height: 1.1 !important;
-    }
-    
-    /* Maximum specificity override for contact names in any list context on mobile */
-    body .contact-list-item .contact-name,
-    body .contact-list-item h3.contact-name,
-    body .contact-list-item div.contact-name,
-    body .contact-card .contact-name,
-    body .contact-card h3.contact-name,
-    body .contact-card div.contact-name {
+    .contact-card .contact-name {
         font-size: 18px !important;
-        font-weight: 500 !important; /* Lightened from 600 to 500 */
-        line-height: 1.2 !important;
-        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
-    }
-    
-    /* Ultra-specific override to match exact selector from style.css */
-    body .contact-list.list-view .contact-list-item .contact-name,
-    body .contact-list.list-view .contact-list-item h3.contact-name,
-    body .contact-list.list-view .contact-list-item div.contact-name {
-        font-size: 18px !important;
-        font-weight: 500 !important; /* Lightened from 600 to 500 */
-        line-height: 1.2 !important;
-        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
-        color: #000000 !important;
-    }
-
-    /* Mobile List View Badge Styles */
-    .contact-list.list-view .contact-list-item .contact-meta {
-        margin-left: auto !important;
-        padding-left: 8px !important;
-    }
-
-    .contact-list.list-view .contact-list-item .shared-indicator {
-        background: #17a2b8 !important;
-        color: white !important;
-        padding: 3px 8px !important;
-        border-radius: 12px !important;
-        font-size: 12px !important;
         font-weight: 500 !important;
-        white-space: nowrap !important;
+        padding: 5px 0 !important;
     }
     
-    /* ===== List View Shared Badge Styles - Mobile ===== */
-    .contact-list.list-view .contact-list-item .contact-meta {
-        padding-right: 16px !important; /* Extra right padding on mobile */
-        padding-left: 8px !important;
-    }
-    
-    .contact-list.list-view .contact-list-item .shared-indicator {
-        background: #17a2b8 !important; /* Consistent with mobile card badge color */
-        color: white !important;
-        padding: 3px 8px !important;
-        border-radius: 12px !important;
-        font-size: 12px !important;
-        font-weight: 500 !important;
-        white-space: nowrap !important;
-    }
-
-    /* ===== CRITICAL: Badge layout optimizations for very small screens ===== */
     .field-item {
-        gap: var(--space-1) !important; /* Tighter spacing on very small screens */
+        gap: var(--space-1) !important;
     }
     
     .field-type,
     .field-primary {
-        font-size: 0.7rem !important; /* Smaller text on very small screens */
-        padding: 0.2rem 0.4rem !important; /* Smaller padding */
-    }
-}
-
-/* Additional rules outside media query for stronger enforcement */
-@media screen and (max-width: 768px) {
-    html body .contact-list-item .contact-name,
-    html body .contact-list-item h3.contact-name,
-    html body .contact-list-item div.contact-name,
-    html body .contact-list.list-view .contact-list-item .contact-name,
-    html body .contact-list.list-view .contact-list-item h3.contact-name,
-    html body .contact-list.list-view .contact-list-item div.contact-name {
-        font-size: 18px !important;
-        font-weight: 500 !important; /* Lightened from 600 to 500 */
-        line-height: 1.2 !important;
-        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
-        color: #000000 !important;
-    }
-}
-
-/* Nuclear option - maximum specificity override */
-@media (max-width: 768px) {
-    html body div.contact-list.list-view div.contact-list-item div.contact-name,
-    html body div.contact-list.list-view div.contact-list-item h3.contact-name {
-        font-size: 18px !important;
-        font-weight: 500 !important; /* Lightened from 600 to 500 */
-        line-height: 1.2 !important;
-        padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
+        font-size: 0.7rem !important;
+        padding: 0.2rem 0.4rem !important;
     }
 }

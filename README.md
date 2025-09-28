@@ -6,7 +6,7 @@ This project is not production-ready. Features, structure, and documentation are
 ## Overview
 
 - Your contacts are broken 🤯
-- You have 500 contacts. When you change your number, 500 people have the wrong one.
+- You have 200 contacts. When you change your number, 200 people then might have the wrong one.
 - What if YOUR contact card updated itself in everyone's phone?
 - That's what we built ✨
 - Never text the wrong number again.

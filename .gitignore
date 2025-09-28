@@ -121,7 +121,7 @@ npm-debug.log*
 *sample*.html
 *template*.html
 *old*.html
-*backup*.html
+*backup*
 *temp*.html
 *cleanup*.html
 *debug*.js
