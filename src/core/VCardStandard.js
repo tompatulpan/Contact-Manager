@@ -635,6 +635,109 @@ export class VCardStandard {
     }
 
     /**
+     * Filter out photo and other large binary properties from vCard string
+     * @param {string} vCardString - Raw vCard string
+     * @returns {string} Filtered vCard string without photos
+     */
+    filterPhotosFromVCard(vCardString) {
+        console.log('🚫 Filtering photos and large binary data from vCard...');
+        
+        const lines = vCardString.split(/\r?\n/);
+        const filteredLines = [];
+        let skipMultilineProperty = false;
+        let skippedPhotoCount = 0;
+        let skippedDataSize = 0;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines but preserve them in output
+            if (!trimmedLine) {
+                filteredLines.push(line);
+                continue;
+            }
+            
+            // Check if we're in the middle of a multiline property that should be skipped
+            if (skipMultilineProperty) {
+                // Multiline properties continue with space or tab
+                if (line.startsWith(' ') || line.startsWith('\t')) {
+                    skippedDataSize += line.length;
+                    console.log(`📸 Skipping continuation line: ${line.substring(0, 50)}...`);
+                    continue; // Skip continuation line
+                } else {
+                    // New property started, stop skipping
+                    skipMultilineProperty = false;
+                }
+            }
+            
+            // Check if this is a photo property or other binary data
+            const isPhotoProperty = this.isPhotoOrBinaryProperty(trimmedLine);
+            
+            if (isPhotoProperty) {
+                skippedPhotoCount++;
+                skipMultilineProperty = true;
+                
+                // Estimate data size from the line
+                skippedDataSize += line.length;
+                console.log(`📸 Skipping photo property: ${trimmedLine.substring(0, 50)}...`);
+                continue;
+            }
+            
+            // Keep this line
+            filteredLines.push(line);
+        }
+        
+        if (skippedPhotoCount > 0) {
+            const sizeKB = Math.round(skippedDataSize / 1024);
+            console.log(`✂️ Filtered out ${skippedPhotoCount} photo(s) (≈${sizeKB}KB of binary data)`);
+        }
+        
+        return filteredLines.join('\n');
+    }
+    
+    /**
+     * Check if a vCard line contains photo or binary data that should be filtered
+     * @param {string} line - vCard property line
+     * @returns {boolean} True if line contains photo/binary data
+     */
+    isPhotoOrBinaryProperty(line) {
+        const upperLine = line.toUpperCase();
+        
+        // Photo properties
+        if (upperLine.includes('PHOTO:') || upperLine.includes('PHOTO;')) {
+            return true;
+        }
+        
+        // Base64 encoded data (ENCODING=b or ENCODING=BASE64)
+        if (upperLine.includes('ENCODING=B;') || upperLine.includes('ENCODING=BASE64;')) {
+            return true;
+        }
+        
+        // Apple-specific sensitive content properties
+        if (upperLine.includes('VND-63-SENSITIVE-CONTENT')) {
+            return true;
+        }
+        
+        // Photo display preferences (Apple)
+        if (upperLine.includes('X-SHARED-PHOTO-DISPLAY-PREF')) {
+            return true;
+        }
+        
+        // Large base64-looking data (heuristic check)
+        const colonIndex = line.indexOf(':');
+        if (colonIndex !== -1) {
+            const value = line.substring(colonIndex + 1).trim();
+            // If the value looks like base64 and is very long, filter it
+            if (value.length > 500 && /^[A-Za-z0-9+/=]+$/.test(value.substring(0, 100))) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * Import vCard from string and create contact object
      * @param {string} vCardString - vCard string
      * @param {string} cardName - User-friendly card name
@@ -642,26 +745,30 @@ export class VCardStandard {
      * @returns {Object} Contact object
      */
     importFromVCard(vCardString, cardName = null, markAsImported = true) {
+        // Filter out photos and binary data before processing
+        const filteredVCardString = this.filterPhotosFromVCard(vCardString);
+        
         // Auto-detect Apple/iCloud vCard 3.0 format
-        if (this.isAppleVCard(vCardString)) {
+        if (this.isAppleVCard(filteredVCardString)) {
             console.log('🍎 Detected Apple/iCloud vCard 3.0 format - using Apple import');
-            return this.importFromAppleVCard(vCardString, cardName, markAsImported);
+            return this.importFromAppleVCard(filteredVCardString, cardName, markAsImported);
         }
 
         // Standard vCard 4.0 validation and import
-        const validation = this.validateVCard(vCardString);
+        const validation = this.validateVCard(filteredVCardString);
         if (!validation.isValid) {
             throw new Error(`Invalid vCard: ${validation.errors.join(', ')}`);
         }
 
-        const displayData = this.extractDisplayData({ vcard: vCardString });
+        const displayData = this.extractDisplayData({ vcard: filteredVCardString });
         
         const metadata = {
             createdAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             isOwned: true,
             isArchived: false,
-            sharedWith: []
+            sharedWith: [],
+            photosFiltered: filteredVCardString !== vCardString // Track if photos were removed
         };
 
         // Only add isImported flag if markAsImported is true
@@ -672,7 +779,7 @@ export class VCardStandard {
         return {
             contactId: this.generateContactId(),
             cardName: cardName || displayData.fullName || 'Imported Contact',
-            vcard: vCardString,
+            vcard: filteredVCardString, // Use filtered vCard without photos
             metadata
         };
     }
@@ -714,8 +821,11 @@ export class VCardStandard {
     importFromAppleVCard(vCardString, cardName = null, markAsImported = true) {
         console.log('🍎 Importing Apple/iCloud vCard 3.0...');
         
+        // Filter out photos and binary data before processing
+        const filteredVCardString = this.filterPhotosFromVCard(vCardString);
+        
         // Parse the Apple vCard 3.0
-        const appleContact = this.parseAppleVCard(vCardString);
+        const appleContact = this.parseAppleVCard(filteredVCardString);
         
         // Convert to vCard 4.0 format
         const vCard40String = this.convertAppleToStandard(appleContact);
@@ -729,7 +839,8 @@ export class VCardStandard {
             isOwned: true,
             isArchived: false,
             sharedWith: [],
-            importSource: 'apple_icloud_3.0'
+            importSource: 'apple_icloud_3.0',
+            photosFiltered: filteredVCardString !== vCardString // Track if photos were removed
         };
 
         // Only add isImported flag if markAsImported is true

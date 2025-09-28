@@ -4954,7 +4954,8 @@ export class ContactUIController {
             const results = {
                 imported: 0,
                 failed: 0,
-                errors: []
+                errors: [],
+                photosFiltered: 0 // Track how many contacts had photos filtered
             };
             
             for (let i = 0; i < vCardBlocks.length; i++) {
@@ -4966,6 +4967,12 @@ export class ContactUIController {
                     
                     // Import via ContactManager with markAsImported option
                     const contact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, markAsImported);
+                    
+                    // Track if photos were filtered for this contact
+                    if (contact.metadata.photosFiltered) {
+                        results.photosFiltered++;
+                    }
+                    
                     const saveResult = await this.contactManager.database.saveContact(contact);
                     
                     if (saveResult.success) {
@@ -4991,7 +4998,8 @@ export class ContactUIController {
                 imported: results.imported,
                 failed: results.failed,
                 errors: results.errors,
-                total: vCardBlocks.length
+                total: vCardBlocks.length,
+                photosFiltered: results.photosFiltered // Include photo filtering info
             };
             
         } catch (error) {
@@ -5040,8 +5048,14 @@ export class ContactUIController {
         this.setImportModalState('success');
         
         if (this.elements.importSuccessMessage) {
-            this.elements.importSuccessMessage.textContent = 
-                `Successfully imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}`;
+            let successMessage = `Successfully imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}`;
+            
+            // Add photo filtering info if applicable
+            if (result.photosFiltered > 0) {
+                successMessage += ` (photos filtered from ${result.photosFiltered} contact${result.photosFiltered !== 1 ? 's' : ''})`;
+            }
+            
+            this.elements.importSuccessMessage.textContent = successMessage;
         }
         
         if (this.elements.importResults) {
@@ -5051,6 +5065,14 @@ export class ContactUIController {
                 resultsHtml += `<div class="import-stat success">
                     <i class="fas fa-check-circle"></i>
                     <span>${result.imported} imported successfully</span>
+                </div>`;
+            }
+            
+            // Show photo filtering information
+            if (result.photosFiltered > 0) {
+                resultsHtml += `<div class="import-stat warning">
+                    <i class="fas fa-camera"></i>
+                    <span>Photos removed from ${result.photosFiltered} contact${result.photosFiltered !== 1 ? 's' : ''} (file size optimization)</span>
                 </div>`;
             }
             
@@ -5071,9 +5093,14 @@ export class ContactUIController {
             this.elements.importResults.innerHTML = resultsHtml;
         }
         
-        // Show success toast
+        // Show success toast with photo filtering info
+        let toastMessage = `Imported ${result.imported} contact${result.imported !== 1 ? 's' : ''} successfully`;
+        if (result.photosFiltered > 0) {
+            toastMessage += ` (${result.photosFiltered} photo${result.photosFiltered !== 1 ? 's' : ''} filtered)`;
+        }
+        
         this.showToast({
-            message: `Imported ${result.imported} contact${result.imported !== 1 ? 's' : ''} successfully`,
+            message: toastMessage,
             type: 'success'
         });
         

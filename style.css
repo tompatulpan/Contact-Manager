@@ -2483,6 +2483,11 @@ body {
     color: var(--success-color);
 }
 
+.import-stat.warning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
 .import-stat.error {
     background-color: rgba(239, 68, 68, 0.1);
     color: var(--error-color);
