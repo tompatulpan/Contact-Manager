@@ -987,21 +987,184 @@ export class ContactManager {
     }
 
     /**
-     * Import contact from vCard
+     * Find similar contacts based on name and primary contact info
+     * Used for duplicate detection during import
+     * @param {Object} newContact - Contact to check for duplicates
+     * @returns {Array} Array of similar contacts
+     */
+    findSimilarContacts(newContact) {
+        const similar = [];
+        const newData = this.vCardStandard.extractDisplayData(newContact);
+        
+        // Extract comparison data
+        const newName = newData.fullName?.toLowerCase().trim() || '';
+        const newPhone = newData.phones?.[0]?.value?.replace(/[^\d]/g, '') || '';
+        const newEmail = newData.emails?.[0]?.value?.toLowerCase().trim() || '';
+        
+        if (!newName && !newPhone && !newEmail) {
+            return []; // Not enough data to compare
+        }
+        
+        for (const [contactId, existingContact] of this.contacts.entries()) {
+            if (existingContact.isDeleted || existingContact.isArchived) {
+                continue; // Skip deleted/archived contacts
+            }
+            
+            const existingData = this.vCardStandard.extractDisplayData(existingContact);
+            const existingName = existingData.fullName?.toLowerCase().trim() || '';
+            const existingPhone = existingData.phones?.[0]?.value?.replace(/[^\d]/g, '') || '';
+            const existingEmail = existingData.emails?.[0]?.value?.toLowerCase().trim() || '';
+            
+            let matchScore = 0;
+            let possibleMatches = 0;
+            
+            // Name matching
+            if (newName && existingName) {
+                possibleMatches++;
+                if (newName === existingName) {
+                    matchScore++;
+                } else if (this.namesAreSimilar(newName, existingName)) {
+                    matchScore += 0.8;
+                }
+            }
+            
+            // Phone matching (most reliable)
+            if (newPhone && existingPhone) {
+                possibleMatches++;
+                if (newPhone.length >= 7 && existingPhone.length >= 7) {
+                    const newPhoneLast7 = newPhone.slice(-7);
+                    const existingPhoneLast7 = existingPhone.slice(-7);
+                    if (newPhoneLast7 === existingPhoneLast7) {
+                        matchScore += 1.5; // Phone match is weighted higher
+                    }
+                }
+            }
+            
+            // Email matching
+            if (newEmail && existingEmail) {
+                possibleMatches++;
+                if (newEmail === existingEmail) {
+                    matchScore += 1.2; // Email match is also weighted higher
+                }
+            }
+            
+            // Consider it a potential duplicate if match score is high enough
+            const matchPercentage = possibleMatches > 0 ? matchScore / possibleMatches : 0;
+            if (matchPercentage >= 0.8) { // 80% similarity threshold
+                similar.push({
+                    contact: existingContact,
+                    matchScore: matchScore,
+                    matchPercentage: matchPercentage,
+                    matchedFields: {
+                        name: newName && existingName && (newName === existingName || this.namesAreSimilar(newName, existingName)),
+                        phone: newPhone && existingPhone && newPhone.slice(-7) === existingPhone.slice(-7),
+                        email: newEmail && existingEmail && newEmail === existingEmail
+                    }
+                });
+            }
+        }
+        
+        // Sort by match score (highest first)
+        return similar.sort((a, b) => b.matchScore - a.matchScore);
+    }
+    
+    /**
+     * Check if two names are similar (handles variations)
+     * @param {string} name1 - First name
+     * @param {string} name2 - Second name
+     * @returns {boolean} True if names are similar
+     */
+    namesAreSimilar(name1, name2) {
+        // Simple similarity checks
+        const words1 = name1.split(/\s+/).filter(w => w.length > 1);
+        const words2 = name2.split(/\s+/).filter(w => w.length > 1);
+        
+        // Check if any significant words match
+        for (const word1 of words1) {
+            for (const word2 of words2) {
+                if (word1 === word2 && word1.length >= 3) {
+                    return true;
+                }
+                // Check for common name variations
+                if (this.isNameVariation(word1, word2)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check for common name variations
+     * @param {string} name1 - First name
+     * @param {string} name2 - Second name
+     * @returns {boolean} True if names are variations
+     */
+    isNameVariation(name1, name2) {
+        const variations = {
+            'john': ['jon', 'johnny', 'jack'],
+            'michael': ['mike', 'mick'],
+            'william': ['bill', 'will', 'billy'],
+            'robert': ['rob', 'bob', 'bobby'],
+            'richard': ['rick', 'dick', 'rich'],
+            'james': ['jim', 'jimmy'],
+            'thomas': ['tom', 'tommy'],
+            'anthony': ['tony'],
+            'elizabeth': ['liz', 'beth', 'betty'],
+            'katherine': ['kate', 'katie', 'kathy'],
+            'patricia': ['pat', 'patty', 'tricia'],
+            'jennifer': ['jen', 'jenny']
+        };
+        
+        for (const [full, shorts] of Object.entries(variations)) {
+            if ((name1 === full && shorts.includes(name2)) || 
+                (name2 === full && shorts.includes(name1))) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Import contact from vCard with duplicate detection
      * @param {string} vCardString - vCard string
      * @param {string} cardName - Optional card name
      * @param {boolean} markAsImported - Whether to mark contact as imported (default: true)
-     * @returns {Promise<Object>} Import result
+     * @returns {Promise<Object>} Import result with duplicate information
      */
     async importContactFromVCard(vCardString, cardName = null, markAsImported = true) {
         try {
             const contact = this.vCardStandard.importFromVCard(vCardString, cardName, markAsImported);
+            
+            // Check for duplicates before saving
+            const similarContacts = this.findSimilarContacts(contact);
+            
+            if (similarContacts.length > 0) {
+                const bestMatch = similarContacts[0];
+                console.log(`⚠️ Potential duplicate detected for ${contact.cardName}:`);
+                console.log(`   Existing: ${bestMatch.contact.cardName} (${Math.round(bestMatch.matchPercentage * 100)}% match)`);
+                console.log(`   Matched fields:`, bestMatch.matchedFields);
+                
+                return {
+                    success: false,
+                    isDuplicate: true,
+                    duplicateOf: bestMatch.contact,
+                    matchScore: bestMatch.matchScore,
+                    matchPercentage: bestMatch.matchPercentage,
+                    matchedFields: bestMatch.matchedFields,
+                    error: `Potential duplicate of existing contact: ${bestMatch.contact.cardName}`
+                };
+            }
+            
             const saveResult = await this.database.saveContact(contact);
             
             if (saveResult.success) {
                 this.contacts.set(contact.contactId, contact);
                 this.clearSearchCache();
                 this.eventBus.emit('contact:imported', { contact });
+                return { ...saveResult, contact }; // Include contact in success result
             }
 
             return saveResult;

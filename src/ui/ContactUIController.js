@@ -4954,7 +4954,9 @@ export class ContactUIController {
             const results = {
                 imported: 0,
                 failed: 0,
+                duplicates: 0, // Track duplicates
                 errors: [],
+                duplicateDetails: [], // Store duplicate information
                 photosFiltered: 0 // Track how many contacts had photos filtered
             };
             
@@ -4965,19 +4967,37 @@ export class ContactUIController {
                     // Use the provided card name only for single contact imports
                     const contactCardName = vCardBlocks.length === 1 ? cardName : null;
                     
-                    // Import via ContactManager with markAsImported option
-                    const contact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, markAsImported);
+                    // Import via ContactManager with duplicate detection
+                    const saveResult = await this.contactManager.importContactFromVCard(vCardString, contactCardName, markAsImported);
                     
                     // Track if photos were filtered for this contact
-                    if (contact.metadata.photosFiltered) {
+                    if (saveResult.contact && saveResult.contact.metadata.photosFiltered) {
                         results.photosFiltered++;
                     }
                     
-                    const saveResult = await this.contactManager.database.saveContact(contact);
-                    
                     if (saveResult.success) {
                         results.imported++;
-                        console.log(`✅ Imported contact: ${contact.cardName}`);
+                        console.log(`✅ Imported contact: ${saveResult.contact ? saveResult.contact.cardName : 'Unknown'}`);
+                    } else if (saveResult.isDuplicate) {
+                        results.duplicates++;
+                        
+                        // Try to get the contact name from vCard for duplicate display
+                        let contactName = 'New Contact';
+                        try {
+                            const tempContact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, false);
+                            const displayData = this.contactManager.vCardStandard.extractDisplayData(tempContact);
+                            contactName = displayData.fullName || tempContact.cardName || 'New Contact';
+                        } catch (e) {
+                            // If we can't parse it, use generic name
+                        }
+                        
+                        results.duplicateDetails.push({
+                            contactName: contactName,
+                            duplicateOf: saveResult.duplicateOf.cardName,
+                            matchPercentage: saveResult.matchPercentage,
+                            matchedFields: saveResult.matchedFields
+                        });
+                        console.log(`⚠️ Skipped duplicate: ${contactName} (${Math.round(saveResult.matchPercentage * 100)}% match with ${saveResult.duplicateOf.cardName})`);
                     } else {
                         results.failed++;
                         results.errors.push(`Contact ${i + 1}: ${saveResult.error}`);
@@ -4994,10 +5014,12 @@ export class ContactUIController {
             await this.contactManager.loadContacts();
             
             return {
-                success: results.imported > 0,
+                success: results.imported > 0 || results.duplicates > 0, // Success if we processed anything
                 imported: results.imported,
                 failed: results.failed,
+                duplicates: results.duplicates,
                 errors: results.errors,
+                duplicateDetails: results.duplicateDetails,
                 total: vCardBlocks.length,
                 photosFiltered: results.photosFiltered // Include photo filtering info
             };
@@ -5048,7 +5070,16 @@ export class ContactUIController {
         this.setImportModalState('success');
         
         if (this.elements.importSuccessMessage) {
-            let successMessage = `Successfully imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}`;
+            let successMessage = '';
+            
+            if (result.imported > 0) {
+                successMessage += `Successfully imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}`;
+            }
+            
+            if (result.duplicates > 0) {
+                if (successMessage) successMessage += ', ';
+                successMessage += `skipped ${result.duplicates} duplicate${result.duplicates !== 1 ? 's' : ''}`;
+            }
             
             // Add photo filtering info if applicable
             if (result.photosFiltered > 0) {
@@ -5066,6 +5097,30 @@ export class ContactUIController {
                     <i class="fas fa-check-circle"></i>
                     <span>${result.imported} imported successfully</span>
                 </div>`;
+            }
+            
+            // Show duplicate information
+            if (result.duplicates > 0) {
+                resultsHtml += `<div class="import-stat info">
+                    <i class="fas fa-copy"></i>
+                    <span>${result.duplicates} duplicate${result.duplicates !== 1 ? 's' : ''} skipped</span>
+                </div>`;
+                
+                // Show duplicate details
+                if (result.duplicateDetails && result.duplicateDetails.length > 0) {
+                    resultsHtml += `<div class="duplicate-details">
+                        <h5>Duplicates Found:</h5>
+                        <ul>`;
+                    result.duplicateDetails.forEach(dup => {
+                        const matchFields = [];
+                        if (dup.matchedFields.name) matchFields.push('name');
+                        if (dup.matchedFields.phone) matchFields.push('phone');
+                        if (dup.matchedFields.email) matchFields.push('email');
+                        
+                        resultsHtml += `<li>${this.escapeHtml(dup.contactName)} → similar to ${this.escapeHtml(dup.duplicateOf)} (${Math.round(dup.matchPercentage * 100)}% match: ${matchFields.join(', ')})</li>`;
+                    });
+                    resultsHtml += `</ul></div>`;
+                }
             }
             
             // Show photo filtering information
@@ -5093,10 +5148,25 @@ export class ContactUIController {
             this.elements.importResults.innerHTML = resultsHtml;
         }
         
-        // Show success toast with photo filtering info
-        let toastMessage = `Imported ${result.imported} contact${result.imported !== 1 ? 's' : ''} successfully`;
+        // Show success toast with duplicate and photo filtering info
+        let toastMessage = '';
+        
+        if (result.imported > 0) {
+            toastMessage += `Imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}`;
+        }
+        
+        if (result.duplicates > 0) {
+            if (toastMessage) toastMessage += ', ';
+            toastMessage += `skipped ${result.duplicates} duplicate${result.duplicates !== 1 ? 's' : ''}`;
+        }
+        
         if (result.photosFiltered > 0) {
-            toastMessage += ` (${result.photosFiltered} photo${result.photosFiltered !== 1 ? 's' : ''} filtered)`;
+            if (toastMessage) toastMessage += ' ';
+            toastMessage += `(${result.photosFiltered} photo${result.photosFiltered !== 1 ? 's' : ''} filtered)`;
+        }
+        
+        if (!toastMessage) {
+            toastMessage = 'Import completed';
         }
         
         this.showToast({
@@ -5104,11 +5174,11 @@ export class ContactUIController {
             type: 'success'
         });
         
-        // Auto-close after 3 seconds if no errors
+        // Auto-close after 4 seconds if no errors (longer to read duplicate info)
         if (result.failed === 0) {
             setTimeout(() => {
                 this.hideModal({ modalId: 'import-modal' });
-            }, 3000);
+            }, 4000);
         }
     }
 
