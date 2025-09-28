@@ -264,8 +264,37 @@ body {
     color: var(--text-primary);
 }
 
+/* Modal Content and Header Fixes */
+.modal-large {
+    /* Reset any potential inherited styles from undefined CSS class */
+    position: static !important;
+    overflow: visible !important;
+}
+
+/* Field Error Positioning - Prevent misplacement in modal header */
+.modal-header .field-error,
+.modal-header .field-error-highlight,
+.modal-content > .field-error,
+.modal-header ~ .field-error,
+.modal-content > .modal-body > .field-error:first-child {
+    display: none !important;
+}
+
+.modal .field-error {
+    position: static !important;
+    float: none !important;
+    margin: 0.25rem 0 0 0 !important;
+    display: block;
+}
+
+/* Modal Close Button - Prevent duplicates and ensure proper styling */
+.modal-header .modal-close:not(:first-of-type),
+.modal-close .fas.fa-times:not(:first-child) {
+    display: none !important;
+}
+
 .modal-close {
-    background: none;
+    background: none !important;
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
@@ -273,6 +302,9 @@ body {
     border-radius: 4px;
     transition: all 0.2s;
     font-size: 1.5rem;
+    position: relative;
+    z-index: 10;
+    overflow: hidden;
 }
 
 .modal-close:hover {
@@ -852,6 +884,40 @@ body {
 .contact-list.list-view .contact-list-item[data-archived="true"] .contact-name {
     color: var(--text-secondary);
     text-decoration: line-through;
+}
+
+/* List View Shared Badge Styles */
+.contact-list.list-view .contact-list-item .contact-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+}
+
+.contact-list.list-view .contact-list-item .shared-indicator {
+    background: var(--warning-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Mobile-specific adjustments for list view badges */
+@media (max-width: 768px) {
+    .contact-list.list-view .contact-list-item .contact-meta {
+        padding-right: 16px;
+        padding-left: 8px;
+    }
+    
+    .contact-list.list-view .contact-list-item .shared-indicator {
+        background: #17a2b8; /* Consistent with mobile card badge color */
+        padding: 3px 8px;
+        font-size: 12px;
+    }
 }
 
 /* Default styles for list items when NOT in list view */
@@ -1552,9 +1618,14 @@ body {
 }
 
 .contact-info .contact-meta .shared-indicator {
-    font-size: 0.75rem; /* Readable shared indicator */
-    color: var(--text-secondary);
-    font-style: italic;
+    background: var(--warning-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    font-style: normal; /* Remove italic */
     line-height: 1.2;
 }
 

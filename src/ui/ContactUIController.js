@@ -1742,9 +1742,14 @@ export class ContactUIController {
             listItem.classList.add('shared-contact');
         }
         
-        // Simple structure: just name - clicking on item opens detail view
+        // Structure with name and shared indicator for non-owned contacts
         listItem.innerHTML = `
             <div class="contact-name">${this.escapeHtml(fullName)}</div>
+            ${!contact.metadata.isOwned ? `
+                <div class="contact-meta">
+                    <span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>
+                </div>
+            ` : ''}
         `;
         
         this.attachContactListItemListeners(listItem, contact);

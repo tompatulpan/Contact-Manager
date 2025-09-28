@@ -682,7 +682,39 @@
         padding: 5px 0 !important; /* Added padding top/bottom ~20% increase */
         color: #000000 !important;
     }
+
+    /* Mobile List View Badge Styles */
+    .contact-list.list-view .contact-list-item .contact-meta {
+        margin-left: auto !important;
+        padding-left: 8px !important;
+    }
+
+    .contact-list.list-view .contact-list-item .shared-indicator {
+        background: #17a2b8 !important;
+        color: white !important;
+        padding: 3px 8px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        white-space: nowrap !important;
+    }
     
+    /* ===== List View Shared Badge Styles - Mobile ===== */
+    .contact-list.list-view .contact-list-item .contact-meta {
+        padding-right: 16px !important; /* Extra right padding on mobile */
+        padding-left: 8px !important;
+    }
+    
+    .contact-list.list-view .contact-list-item .shared-indicator {
+        background: #17a2b8 !important; /* Consistent with mobile card badge color */
+        color: white !important;
+        padding: 3px 8px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        white-space: nowrap !important;
+    }
+
     /* ===== CRITICAL: Badge layout optimizations for very small screens ===== */
     .field-item {
         gap: var(--space-1) !important; /* Tighter spacing on very small screens */
