@@ -1006,7 +1006,7 @@ export class ContactManager {
         }
         
         for (const [contactId, existingContact] of this.contacts.entries()) {
-            if (existingContact.isDeleted || existingContact.isArchived) {
+            if (existingContact.metadata?.isDeleted || existingContact.metadata?.isArchived) {
                 continue; // Skip deleted/archived contacts
             }
             
@@ -1016,21 +1016,21 @@ export class ContactManager {
             const existingEmail = existingData.emails?.[0]?.value?.toLowerCase().trim() || '';
             
             let matchScore = 0;
-            let possibleMatches = 0;
+            let maxPossibleScore = 0;
             
-            // Name matching
+            // Name matching (weight: 1.0)
             if (newName && existingName) {
-                possibleMatches++;
+                maxPossibleScore += 1.0;
                 if (newName === existingName) {
-                    matchScore++;
+                    matchScore += 1.0;
                 } else if (this.namesAreSimilar(newName, existingName)) {
                     matchScore += 0.8;
                 }
             }
             
-            // Phone matching (most reliable)
+            // Phone matching (most reliable, weight: 1.5)
             if (newPhone && existingPhone) {
-                possibleMatches++;
+                maxPossibleScore += 1.5;
                 if (newPhone.length >= 7 && existingPhone.length >= 7) {
                     const newPhoneLast7 = newPhone.slice(-7);
                     const existingPhoneLast7 = existingPhone.slice(-7);
@@ -1040,16 +1040,16 @@ export class ContactManager {
                 }
             }
             
-            // Email matching
+            // Email matching (weight: 1.2)
             if (newEmail && existingEmail) {
-                possibleMatches++;
+                maxPossibleScore += 1.2;
                 if (newEmail === existingEmail) {
                     matchScore += 1.2; // Email match is also weighted higher
                 }
             }
             
-            // Consider it a potential duplicate if match score is high enough
-            const matchPercentage = possibleMatches > 0 ? matchScore / possibleMatches : 0;
+            // Calculate proper percentage (never exceeds 100%)
+            const matchPercentage = maxPossibleScore > 0 ? Math.min(1.0, matchScore / maxPossibleScore) : 0;
             if (matchPercentage >= 0.8) { // 80% similarity threshold
                 similar.push({
                     contact: existingContact,
@@ -2043,7 +2043,7 @@ export class ContactManager {
         const contacts = [];
         
         for (const contact of this.contacts.values()) {
-            if (!contact.isDeleted && 
+            if (!contact.metadata?.isDeleted && 
                 contact.metadata && 
                 contact.metadata.distributionLists && 
                 contact.metadata.distributionLists.includes(listName)) {
@@ -2062,7 +2062,7 @@ export class ContactManager {
         const contacts = [];
         
         for (const contact of this.contacts.values()) {
-            if (!contact.isDeleted) {
+            if (!contact.metadata?.isDeleted) {
                 contacts.push({
                     ...contact,
                     assignedLists: contact.metadata?.distributionLists || []
