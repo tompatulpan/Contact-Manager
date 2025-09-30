@@ -515,6 +515,13 @@ export class ContactUIController {
             this.elements.shareDistributionListSelect.addEventListener('change', this.handleDistributionListSelectChange.bind(this));
         }
         
+        // Share with list select change
+        if (this.elements.shareWithListSelect) {
+            this.elements.shareWithListSelect.addEventListener('change', (e) => {
+                this.showShareListPreview(e.target.value);
+            });
+        }
+        
         // Create list form
         if (this.elements.createListForm) {
             this.elements.createListForm.addEventListener('submit', this.handleCreateListSubmit.bind(this));
@@ -2011,6 +2018,65 @@ export class ContactUIController {
                             <span class="metadata-value">${metadata.usage.accessCount}</span>
                         </div>
                     ` : ''}
+                    ${this.renderSharingInfo(contact)}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Render sharing information for a contact
+     */
+    renderSharingInfo(contact) {
+        const sharing = contact.metadata?.sharing;
+        
+        // Only show sharing info for owned contacts that are shared
+        if (!contact.metadata?.isOwned || !sharing?.isShared || !sharing?.sharedWithUsers?.length) {
+            return '';
+        }
+        
+        const sharedUsers = sharing.sharedWithUsers || [];
+        const sharePermissions = sharing.sharePermissions || {};
+        
+        // Deduplicate users and create a clean user list
+        const uniqueUsers = [...new Set(sharedUsers)];
+        
+        // If no unique users after deduplication, don't show sharing info
+        if (uniqueUsers.length === 0) {
+            return '';
+        }
+        
+        // Create user list with permissions
+        const userList = uniqueUsers.map(username => {
+            const permissions = sharePermissions[username];
+            const permissionText = permissions?.level === 'write' ? 'Can edit' : 'Read only';
+            const sharedDate = permissions?.sharedAt ? 
+                new Date(permissions.sharedAt).toLocaleDateString() : 
+                'Unknown date';
+            
+            return `
+                <div class="shared-user-item">
+                    <div class="shared-user-info">
+                        <span class="shared-username">${this.escapeHtml(username)}</span>
+                        <span class="shared-permission">${permissionText}</span>
+                    </div>
+                    <div class="shared-date">Shared: ${sharedDate}</div>
+                </div>
+            `;
+        }).join('');
+        
+        return `
+            <div class="metadata-item metadata-sharing">
+                <div class="metadata-label">
+                    <i class="fas fa-share"></i> Shared with:
+                </div>
+                <div class="metadata-value">
+                    <div class="shared-users-list">
+                        ${userList}
+                    </div>
+                    <div class="share-summary">
+                        ${uniqueUsers.length} user${uniqueUsers.length !== 1 ? 's' : ''}
+                    </div>
                 </div>
             </div>
         `;
@@ -2442,10 +2508,8 @@ export class ContactUIController {
                 this.elements.shareWithListSelect.appendChild(option);
             });
             
-            // Add change listener to show preview
-            this.elements.shareWithListSelect.addEventListener('change', (e) => {
-                this.showShareListPreview(e.target.value);
-            });
+            // NOTE: Event listener is already attached in setupDOMEventListeners() 
+            // to avoid duplicate listeners being added each time modal opens
             
         } catch (error) {
             console.error('Error populating share dropdown:', error);
@@ -2459,8 +2523,9 @@ export class ContactUIController {
     async showShareListPreview(listName) {
         if (!this.elements.shareListPreview || !this.elements.shareListUsers) return;
         
-        if (!listName) {
+        if (!listName || listName === '') {
             this.elements.shareListPreview.style.display = 'none';
+            this.elements.shareListUsers.innerHTML = '';
             return;
         }
         
@@ -2541,6 +2606,42 @@ export class ContactUIController {
         
         // Clear any errors
         this.clearShareFormErrors();
+        
+        // Reset share tabs to default (contact tab)
+        const contactTab = document.querySelector('.share-type-tab[data-type="contact"]');
+        const shareWithListTab = document.querySelector('.share-type-tab[data-type="share-with-list"]');
+        
+        if (contactTab && shareWithListTab) {
+            // Reset tab states
+            document.querySelectorAll('.share-type-tab').forEach(tab => tab.classList.remove('active'));
+            contactTab.classList.add('active');
+            
+            // Reset section visibility
+            document.querySelectorAll('.share-section').forEach(section => section.classList.remove('active'));
+            const contactSection = document.getElementById('contact-share-section');
+            if (contactSection) {
+                contactSection.classList.add('active');
+            }
+        }
+        
+        // Clear share list preview
+        if (this.elements.shareListPreview) {
+            this.elements.shareListPreview.style.display = 'none';
+        }
+        
+        if (this.elements.shareListUsers) {
+            this.elements.shareListUsers.innerHTML = '';
+        }
+        
+        // Reset dropdown selection
+        if (this.elements.shareWithListSelect) {
+            this.elements.shareWithListSelect.value = '';
+        }
+        
+        // Clear username input
+        if (this.elements.shareUsernameInput) {
+            this.elements.shareUsernameInput.value = '';
+        }
     }
 
     /**

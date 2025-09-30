@@ -1205,6 +1205,96 @@ body {
     font-weight: 400;
 }
 
+/* Sharing Information Styles */
+.metadata-sharing {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.metadata-sharing .metadata-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-bottom: var(--space-2);
+}
+
+.metadata-sharing .metadata-label i {
+    color: var(--primary-color);
+}
+
+.shared-users-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.shared-user-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: var(--space-2);
+    transition: background-color 0.2s ease;
+}
+
+.shared-user-item:hover {
+    background: var(--hover-color);
+}
+
+.shared-user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-1);
+}
+
+.shared-username {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.shared-permission {
+    font-size: 0.75rem;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.shared-date {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.share-summary {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-color);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* Mobile Responsive Sharing Styles */
+@media (max-width: 768px) {
+    .shared-user-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+    
+    .shared-permission {
+        align-self: flex-start;
+    }
+    
+    .metadata-sharing .metadata-label {
+        font-size: 0.8rem;
+    }
+}
+
 /* ========== FORMS & INPUT COMPONENTS ========== */
 
 /* Radio Button Groups */

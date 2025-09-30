@@ -2468,10 +2468,50 @@ export class ContactManager {
                 throw new Error('Cannot share contacts that were shared with you');
             }
             
+            // Check if already shared with this user
+            const currentSharedUsers = contact.metadata.sharing?.sharedWithUsers || [];
+            const isAlreadyShared = currentSharedUsers.includes(username);
+            
+            if (isAlreadyShared) {
+                console.log('ℹ️ Contact already shared with user:', username, '- updating permissions only');
+                // Update permissions only without re-sharing
+                const updatedContact = {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        sharing: {
+                            ...contact.metadata.sharing,
+                            sharePermissions: {
+                                ...contact.metadata.sharing?.sharePermissions,
+                                [username]: {
+                                    ...contact.metadata.sharing?.sharePermissions?.[username],
+                                    level: readOnly ? 'readOnly' : 'write',
+                                    lastUpdated: new Date().toISOString(),
+                                    canReshare: resharingAllowed
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                // Update in database
+                await this.updateContact(contactId, updatedContact);
+                
+                return {
+                    success: true,
+                    message: `Permissions updated for ${username}`,
+                    action: 'updated'
+                };
+            }
+            
             // Share using the database's new individual sharing method
             const result = await this.database.shareContact(contact, username, readOnly, resharingAllowed);
             
             if (result.success) {
+                // Get current shared users and deduplicate
+                const currentSharedUsers = contact.metadata.sharing?.sharedWithUsers || [];
+                const uniqueSharedUsers = [...new Set([...currentSharedUsers, username])];
+                
                 // Update contact metadata to track sharing
                 const updatedContact = {
                     ...contact,
@@ -2480,10 +2520,7 @@ export class ContactManager {
                         sharing: {
                             ...contact.metadata.sharing,
                             isShared: true,
-                            sharedWithUsers: [
-                                ...(contact.metadata.sharing?.sharedWithUsers || []),
-                                username
-                            ],
+                            sharedWithUsers: uniqueSharedUsers,
                             sharePermissions: {
                                 ...contact.metadata.sharing?.sharePermissions,
                                 [username]: {
@@ -2764,5 +2801,53 @@ export class ContactManager {
         }
         
         return cleaned;
+    }
+
+    /**
+     * Clean up duplicate sharing entries across all contacts
+     * This method fixes any existing duplicate entries in the database
+     */
+    async cleanupSharingDuplicates() {
+        console.log('🧹 Starting sharing duplicates cleanup...');
+        let fixedCount = 0;
+        
+        try {
+            for (const [contactId, contact] of this.contacts.entries()) {
+                if (!contact.metadata?.sharing?.sharedWithUsers?.length) {
+                    continue; // Skip contacts with no sharing
+                }
+                
+                const originalUsers = contact.metadata.sharing.sharedWithUsers;
+                const uniqueUsers = [...new Set(originalUsers)];
+                
+                // Check if there were duplicates
+                if (originalUsers.length !== uniqueUsers.length) {
+                    console.log(`🔧 Fixing duplicates in contact ${contact.cardName}: ${originalUsers.length} → ${uniqueUsers.length} users`);
+                    
+                    // Update the contact with deduplicated users
+                    const updatedContact = {
+                        ...contact,
+                        metadata: {
+                            ...contact.metadata,
+                            sharing: {
+                                ...contact.metadata.sharing,
+                                sharedWithUsers: uniqueUsers
+                            }
+                        }
+                    };
+                    
+                    // Save the cleaned contact
+                    await this.updateContact(contactId, updatedContact);
+                    fixedCount++;
+                }
+            }
+            
+            console.log(`✅ Sharing cleanup complete. Fixed ${fixedCount} contacts.`);
+            return { success: true, fixedCount };
+            
+        } catch (error) {
+            console.error('❌ Error during sharing cleanup:', error);
+            return { success: false, error: error.message };
+        }
     }
 }
