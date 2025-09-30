@@ -1083,6 +1083,7 @@ body {
 .field-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-2);
     padding: var(--space-3);
     margin-bottom: var(--space-2);
@@ -1139,6 +1140,14 @@ body {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.025em;
+}
+
+/* Field metadata container */
+.field-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
 }
 
 /* Address Fields */

@@ -4,6 +4,8 @@
  */
 import { MobileNavigation } from './MobileNavigation.js';
 import { profileRouter } from '../utils/ProfileRouter.js';
+import { ContactUIHelpers } from './ContactUIHelpers.js';
+import { ContactRenderer } from './ContactRenderer.js';
 
 export class ContactUIController {
     constructor(eventBus, contactManager) {
@@ -1370,9 +1372,9 @@ export class ContactUIController {
             const listItems = distributionLists.map(list => {
                 const userCount = list.usernames ? list.usernames.length : 0;
                 return `
-                    <div class="distribution-list-item" data-list-name="${this.escapeHtml(list.name)}">
-                        <div class="list-item-content" data-list-name="${this.escapeHtml(list.name)}">
-                            <span class="distribution-list-name" style="color: ${list.color || '#007bff'}" data-list-name="${this.escapeHtml(list.name)}">${this.escapeHtml(list.name)}</span>
+                    <div class="distribution-list-item" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">
+                        <div class="list-item-content" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">
+                            <span class="distribution-list-name" style="color: ${list.color || '#007bff'}" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">${ContactUIHelpers.escapeHtml(list.name)}</span>
                             <span class="distribution-list-count">${userCount}</span>
                         </div>
                         <div class="distribution-list-users">
@@ -1650,8 +1652,8 @@ export class ContactUIController {
                     <span class="avatar-initial">${displayData.fullName.charAt(0).toUpperCase()}</span>
                 </div>
                 <div class="contact-info">
-                    <h3 class="contact-name">${this.escapeHtml(displayData.fullName)}</h3>
-                    ${contact.cardName ? `<p class="contact-card-name">${this.escapeHtml(contact.cardName)}</p>` : ''}
+                    <h3 class="contact-name">${ContactUIHelpers.escapeHtml(displayData.fullName)}</h3>
+                    ${contact.cardName ? `<p class="contact-card-name">${ContactUIHelpers.escapeHtml(contact.cardName)}</p>` : ''}
                     <div class="contact-details">
                         ${displayData.phones.length > 0 ? `
                             <div class="contact-phone">
@@ -1703,7 +1705,7 @@ export class ContactUIController {
                 <span class="avatar-initial">?</span>
             </div>
             <div class="contact-info">
-                <h3 class="contact-name">${this.escapeHtml(contactName)}</h3>
+                <h3 class="contact-name">${ContactUIHelpers.escapeHtml(contactName)}</h3>
                 <p class="contact-error">Invalid contact data</p>
                 ${sharedInfo}
             </div>
@@ -1894,60 +1896,25 @@ export class ContactUIController {
     }
 
     /**
-     * Render contact fields
+     * Render contact fields using ContactRenderer helper
      */
     renderContactFields(displayData) {
         let html = '';
         
-        // Phone numbers
+        // Use ContactRenderer helper for individual field types
         if (displayData.phones.length > 0) {
-            html += `
-                <div class="field-group">
-                    <h4><i class="fas fa-phone"></i> Phone Numbers</h4>
-                    ${displayData.phones.map(phone => `
-                        <div class="field-item">
-                            <a href="tel:${phone.value}" class="field-value">${this.escapeHtml(phone.value)}</a>
-                            <span class="field-type">${phone.type}</span>
-                            ${phone.primary ? '<span class="field-primary">Primary</span>' : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            html += ContactRenderer.renderContactFields('phone', displayData.phones);
         }
         
-        // Email addresses
         if (displayData.emails.length > 0) {
-            html += `
-                <div class="field-group">
-                    <h4><i class="fas fa-envelope"></i> Email Addresses</h4>
-                    ${displayData.emails.map(email => `
-                        <div class="field-item">
-                            <a href="mailto:${email.value}" class="field-value">${this.escapeHtml(email.value)}</a>
-                            <span class="field-type">${email.type}</span>
-                            ${email.primary ? '<span class="field-primary">Primary</span>' : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            html += ContactRenderer.renderContactFields('email', displayData.emails);
         }
         
-        // URLs
         if (displayData.urls.length > 0) {
-            html += `
-                <div class="field-group">
-                    <h4><i class="fas fa-globe"></i> Websites</h4>
-                    ${displayData.urls.map(url => `
-                        <div class="field-item">
-                            <a href="${url.value}" target="_blank" class="field-value">${this.escapeHtml(url.value)}</a>
-                            <span class="field-type">${url.type}</span>
-                            ${url.primary ? '<span class="field-primary">Primary</span>' : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
+            html += ContactRenderer.renderContactFields('url', displayData.urls);
         }
         
-        // Addresses
+        // Keep address rendering for now (more complex structure)
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
             html += `
                 <div class="field-group">
@@ -1956,11 +1923,11 @@ export class ContactUIController {
                         return `
                         <div class="field-item address-item">
                             <div class="address-content">
-                                ${address.street ? `<div class="address-line">${this.escapeHtml(address.street)}</div>` : ''}
+                                ${address.street ? `<div class="address-line">${ContactUIHelpers.escapeHtml(address.street)}</div>` : ''}
                                 <div class="address-line">
-                                    ${[address.city, address.state, address.postalCode].filter(Boolean).map(part => this.escapeHtml(part)).join(', ')}
+                                    ${[address.city, address.state, address.postalCode].filter(Boolean).map(part => ContactUIHelpers.escapeHtml(part)).join(', ')}
                                 </div>
-                                ${address.country ? `<div class="address-line">${this.escapeHtml(address.country)}</div>` : ''}
+                                ${address.country ? `<div class="address-line">${ContactUIHelpers.escapeHtml(address.country)}</div>` : ''}
                             </div>
                             <div class="address-meta">
                                 <span class="field-type">${address.type || 'other'}</span>
@@ -1980,7 +1947,7 @@ export class ContactUIController {
                     <h4><i class="fas fa-sticky-note"></i> Notes</h4>
                     ${displayData.notes.map(note => `
                         <div class="field-item">
-                            <p class="field-value">${this.escapeHtml(note)}</p>
+                            <p class="field-value">${ContactUIHelpers.escapeHtml(note)}</p>
                         </div>
                     `).join('')}
                 </div>
@@ -1991,37 +1958,19 @@ export class ContactUIController {
     }
 
     /**
-     * Render contact metadata
+     * Render contact metadata using ContactRenderer helper
      */
     renderContactMetadata(contact) {
-        const metadata = contact.metadata;
+        // Use ContactRenderer helper for basic metadata
+        let html = ContactRenderer.renderContactMetadata(contact.metadata);
         
-        return `
-            <div class="metadata-section">
-                <h4><i class="fas fa-info-circle"></i> Information</h4>
-                <div class="metadata-grid">
-                    <div class="metadata-item">
-                        <span class="metadata-label">Created:</span>
-                        <span class="metadata-value">${new Date(metadata.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <div class="metadata-item">
-                        <span class="metadata-label">Updated:</span>
-                        <span class="metadata-value">${new Date(metadata.lastUpdated).toLocaleDateString()}</span>
-                    </div>
-                    <div class="metadata-item">
-                        <span class="metadata-label">Type:</span>
-                        <span class="metadata-value">${metadata.isOwned ? 'Owned' : 'Shared'}</span>
-                    </div>
-                    ${metadata.usage?.accessCount > 0 ? `
-                        <div class="metadata-item">
-                            <span class="metadata-label">Views:</span>
-                            <span class="metadata-value">${metadata.usage.accessCount}</span>
-                        </div>
-                    ` : ''}
-                    ${this.renderSharingInfo(contact)}
-                </div>
-            </div>
-        `;
+        // Add sharing info (custom to this app)
+        const sharingInfo = this.renderSharingInfo(contact);
+        if (sharingInfo) {
+            html = html.replace('</div>\n            </div>', sharingInfo + '\n                </div>\n            </div>');
+        }
+        
+        return html;
     }
 
     /**
@@ -2264,22 +2213,13 @@ export class ContactUIController {
      */
     
     escapeHtml(text) {
-        if (typeof text !== 'string') return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        // Delegate to ContactUIHelpers
+        return ContactUIHelpers.escapeHtml(text);
     }
 
     debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
+        // Delegate to ContactUIHelpers
+        return ContactUIHelpers.debounce(func, wait);
     }
 
     getCurrentSort() {

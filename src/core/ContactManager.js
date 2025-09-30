@@ -989,7 +989,7 @@ export class ContactManager {
 
     /**
      * Find similar contacts based on name and primary contact info
-     * Used for duplicate detection during import
+     * Used for duplicate detection during import with improved algorithm
      * @param {Object} newContact - Contact to check for duplicates
      * @returns {Array} Array of similar contacts
      */
@@ -1002,6 +1002,10 @@ export class ContactManager {
         const newName = newData.fullName?.toLowerCase().trim() || '';
         const newPhone = newData.phones?.[0]?.value?.replace(/[^\d]/g, '') || '';
         const newEmail = newData.emails?.[0]?.value?.toLowerCase().trim() || '';
+        
+        // Extract additional data for better matching
+        const newOrg = newData.organization?.toLowerCase().trim() || '';
+        const newTitle = newData.title?.toLowerCase().trim() || '';
         
         if (!newName && !newPhone && !newEmail) {
             return []; // Not enough data to compare
@@ -1016,51 +1020,30 @@ export class ContactManager {
             const existingName = existingData.fullName?.toLowerCase().trim() || '';
             const existingPhone = existingData.phones?.[0]?.value?.replace(/[^\d]/g, '') || '';
             const existingEmail = existingData.emails?.[0]?.value?.toLowerCase().trim() || '';
+            const existingOrg = existingData.organization?.toLowerCase().trim() || '';
+            const existingTitle = existingData.title?.toLowerCase().trim() || '';
             
-            let matchScore = 0;
-            let maxPossibleScore = 0;
+            // Calculate individual field matches
+            const matches = this.calculateFieldMatches(
+                { name: newName, phone: newPhone, email: newEmail, org: newOrg, title: newTitle },
+                { name: existingName, phone: existingPhone, email: existingEmail, org: existingOrg, title: existingTitle }
+            );
             
-            // Name matching (weight: 1.0)
-            if (newName && existingName) {
-                maxPossibleScore += 1.0;
-                if (newName === existingName) {
-                    matchScore += 1.0;
-                } else if (this.namesAreSimilar(newName, existingName)) {
-                    matchScore += 0.8;
-                }
-            }
-            
-            // Phone matching (most reliable, weight: 1.5)
-            if (newPhone && existingPhone) {
-                maxPossibleScore += 1.5;
-                if (newPhone.length >= 7 && existingPhone.length >= 7) {
-                    const newPhoneLast7 = newPhone.slice(-7);
-                    const existingPhoneLast7 = existingPhone.slice(-7);
-                    if (newPhoneLast7 === existingPhoneLast7) {
-                        matchScore += 1.5; // Phone match is weighted higher
-                    }
-                }
-            }
-            
-            // Email matching (weight: 1.2)
-            if (newEmail && existingEmail) {
-                maxPossibleScore += 1.2;
-                if (newEmail === existingEmail) {
-                    matchScore += 1.2; // Email match is also weighted higher
-                }
-            }
-            
-            // Calculate proper percentage (never exceeds 100%)
-            const matchPercentage = maxPossibleScore > 0 ? Math.min(1.0, matchScore / maxPossibleScore) : 0;
-            if (matchPercentage >= 0.8) { // 80% similarity threshold
+            // Apply strict duplicate detection rules
+            if (this.isDuplicateContact(matches, newName, existingName)) {
+                const matchScore = matches.totalScore;
+                const matchPercentage = matches.percentage;
+                
                 similar.push({
                     contact: existingContact,
                     matchScore: matchScore,
                     matchPercentage: matchPercentage,
                     matchedFields: {
-                        name: newName && existingName && (newName === existingName || this.namesAreSimilar(newName, existingName)),
-                        phone: newPhone && existingPhone && newPhone.slice(-7) === existingPhone.slice(-7),
-                        email: newEmail && existingEmail && newEmail === existingEmail
+                        name: matches.nameMatch,
+                        phone: matches.phoneMatch,
+                        email: matches.emailMatch,
+                        organization: matches.orgMatch,
+                        title: matches.titleMatch
                     }
                 });
             }
@@ -1068,6 +1051,171 @@ export class ContactManager {
         
         // Sort by match score (highest first)
         return similar.sort((a, b) => b.matchScore - a.matchScore);
+    }
+
+    /**
+     * Calculate field matches with scoring focused on available strong identifiers
+     * @param {Object} newData - New contact data
+     * @param {Object} existingData - Existing contact data
+     * @returns {Object} Match results with scores
+     */
+    calculateFieldMatches(newData, existingData) {
+        const matches = {
+            nameMatch: false,
+            phoneMatch: false,
+            emailMatch: false,
+            orgMatch: false,
+            titleMatch: false,
+            totalScore: 0,
+            maxPossibleScore: 0,
+            percentage: 0
+        };
+
+        // Only calculate scores for fields that both contacts have
+        // This prevents dilution from missing data
+        
+        // Name matching (weight: 2.0 - most important for identification)
+        if (newData.name && existingData.name) {
+            matches.maxPossibleScore += 2.0;
+            if (newData.name === existingData.name) {
+                matches.nameMatch = true;
+                matches.totalScore += 2.0;
+            } else if (this.namesAreSimilar(newData.name, existingData.name)) {
+                // Calculate word overlap for partial name matches
+                const nameWords1 = newData.name.split(/\s+/).filter(w => w.length > 1);
+                const nameWords2 = existingData.name.split(/\s+/).filter(w => w.length > 1);
+                
+                let matchingWords = 0;
+                let totalWords = Math.max(nameWords1.length, nameWords2.length);
+                
+                for (const word1 of nameWords1) {
+                    for (const word2 of nameWords2) {
+                        if (word1 === word2 && word1.length >= 2) {
+                            matchingWords++;
+                            break;
+                        }
+                    }
+                }
+                
+                const wordOverlap = matchingWords / totalWords;
+                if (wordOverlap >= 0.5) { // At least 50% of words must match
+                    matches.nameMatch = true;
+                    matches.totalScore += 2.0 * wordOverlap;
+                }
+            }
+        }
+
+        // Phone matching (weight: 3.0 - highest reliability)
+        if (newData.phone && existingData.phone) {
+            matches.maxPossibleScore += 3.0;
+            if (newData.phone.length >= 7 && existingData.phone.length >= 7) {
+                const newPhoneLast7 = newData.phone.slice(-7);
+                const existingPhoneLast7 = existingData.phone.slice(-7);
+                if (newPhoneLast7 === existingPhoneLast7) {
+                    matches.phoneMatch = true;
+                    matches.totalScore += 3.0;
+                }
+            }
+        }
+
+        // Email matching (weight: 2.5 - high reliability)
+        if (newData.email && existingData.email) {
+            matches.maxPossibleScore += 2.5;
+            if (newData.email === existingData.email) {
+                matches.emailMatch = true;
+                matches.totalScore += 2.5;
+            }
+        }
+
+        // Organization matching (supporting evidence - only if we have other matches)
+        if (newData.org && existingData.org && (matches.nameMatch || matches.phoneMatch || matches.emailMatch)) {
+            matches.maxPossibleScore += 1.0;
+            if (newData.org === existingData.org) {
+                matches.orgMatch = true;
+                matches.totalScore += 1.0;
+            }
+        }
+
+        // Title matching (weak supporting evidence - only if we have other matches)
+        if (newData.title && existingData.title && (matches.nameMatch || matches.phoneMatch || matches.emailMatch)) {
+            matches.maxPossibleScore += 0.5;
+            if (newData.title === existingData.title) {
+                matches.titleMatch = true;
+                matches.totalScore += 0.5;
+            }
+        }
+
+        // Calculate percentage - only based on what we can actually compare
+        if (matches.maxPossibleScore === 0) {
+            matches.percentage = 0;
+        } else {
+            matches.percentage = Math.min(1.0, matches.totalScore / matches.maxPossibleScore);
+        }
+
+        return matches;
+    }
+
+    /**
+     * Determine if contacts are duplicates using strict rules
+     * @param {Object} matches - Field match results
+     * @param {string} newName - New contact name  
+     * @param {string} existingName - Existing contact name
+     * @returns {boolean} True if likely duplicate
+     */
+    isDuplicateContact(matches, newName, existingName) {
+        // Special rule: Phone match + name similarity = very likely duplicate
+        if (matches.phoneMatch && matches.nameMatch) {
+            return true; // Phone + name is strong evidence regardless of other fields
+        }
+        
+        // Special rule: Email match + name similarity = very likely duplicate  
+        if (matches.emailMatch && matches.nameMatch) {
+            return true; // Email + name is strong evidence regardless of other fields
+        }
+
+        // Rule 1: Strong phone match alone (different names might be nicknames/variations)
+        if (matches.phoneMatch && matches.percentage >= 0.6) {
+            return true; // Phone match is very strong evidence
+        }
+        
+        // Rule 2: Strong email match alone  
+        if (matches.emailMatch && matches.percentage >= 0.6) {
+            return true; // Email match is very strong evidence
+        }
+
+        // Rule 3: Exact name match with supporting evidence
+        if (newName === existingName && (matches.orgMatch || matches.titleMatch)) {
+            return matches.percentage >= 0.70;
+        }
+
+        // Rule 4: Very high overall match
+        if (matches.percentage >= 0.90) {
+            return true;
+        }
+
+        // Rule 5: Multiple strong matches
+        const strongMatches = [matches.phoneMatch, matches.emailMatch, matches.nameMatch].filter(Boolean).length;
+        if (strongMatches >= 2 && matches.percentage >= 0.70) {
+            return true;
+        }
+
+        // Rule 6: Don't consider duplicate if only partial name match without strong evidence
+        if (matches.nameMatch && !matches.phoneMatch && !matches.emailMatch) {
+            // Check if it's just a shared first name or single word
+            const nameWords1 = newName.split(/\s+/).filter(w => w.length > 1);
+            const nameWords2 = existingName.split(/\s+/).filter(w => w.length > 1);
+            
+            if (nameWords1.length <= 2 && nameWords2.length <= 2) {
+                // For short names, require very high similarity
+                return matches.percentage >= 0.95;
+            }
+            
+            // For longer names, still require high similarity if only name matches
+            return matches.percentage >= 0.85;
+        }
+
+        // Default: Not a duplicate
+        return false;
     }
     
     /**

@@ -534,6 +534,13 @@
         gap: var(--space-2) !important;
     }
     
+    .field-meta {
+        display: flex !important;
+        align-items: center !important;
+        gap: var(--space-1) !important;
+        flex-shrink: 0 !important;
+    }
+    
     .field-type,
     .field-primary {
         flex-shrink: 0 !important;
@@ -609,6 +616,10 @@
     
     .field-item {
         gap: var(--space-1) !important;
+    }
+    
+    .field-meta {
+        gap: 4px !important;
     }
     
     .field-type,
