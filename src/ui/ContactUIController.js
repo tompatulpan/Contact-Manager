@@ -4985,7 +4985,7 @@ export class ContactUIController {
                         let contactName = 'New Contact';
                         try {
                             const tempContact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, false);
-                            const displayData = this.contactManager.vCardStandard.extractDisplayData(tempContact);
+                            const displayData = this.contactManager.vCardStandard.extractDisplayData(tempContact, true, true);
                             contactName = displayData.fullName || tempContact.cardName || 'New Contact';
                         } catch (e) {
                             // If we can't parse it, use generic name

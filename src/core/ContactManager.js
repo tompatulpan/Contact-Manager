@@ -778,8 +778,9 @@ export class ContactManager {
 
             switch (sortBy) {
                 case 'name':
-                    const aData = this.vCardStandard.extractDisplayData(a);
-                    const bData = this.vCardStandard.extractDisplayData(b);
+                    // Suppress itemId warnings during sorting operations
+                    const aData = this.vCardStandard.extractDisplayData(a, true, true);
+                    const bData = this.vCardStandard.extractDisplayData(b, true, true);
                     valueA = aData.fullName.toLowerCase();
                     valueB = bData.fullName.toLowerCase();
                     break;
@@ -994,7 +995,8 @@ export class ContactManager {
      */
     findSimilarContacts(newContact) {
         const similar = [];
-        const newData = this.vCardStandard.extractDisplayData(newContact);
+        // Suppress itemId warning during import operations (contact hasn't been saved yet)
+        const newData = this.vCardStandard.extractDisplayData(newContact, true, true);
         
         // Extract comparison data
         const newName = newData.fullName?.toLowerCase().trim() || '';
@@ -1161,7 +1163,10 @@ export class ContactManager {
             const saveResult = await this.database.saveContact(contact);
             
             if (saveResult.success) {
-                this.contacts.set(contact.contactId, contact);
+                // NOTE: Don't add to local cache here - let the database change handler
+                // handle it to ensure itemId is properly set by Userbase
+                // The database change handler will receive the contact with proper itemId
+                
                 this.clearSearchCache();
                 this.eventBus.emit('contact:imported', { contact });
                 return { ...saveResult, contact }; // Include contact in success result
