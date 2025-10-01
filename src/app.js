@@ -443,10 +443,29 @@ function reloadUserbaseScript() {
 }
 
 /**
+ * Clear URL parameters on app startup for security
+ * SECURITY: Prevents credential exposure in browser history
+ */
+function clearURLParametersOnStartup() {
+    const currentUrl = new URL(window.location);
+    const hasParams = currentUrl.search || currentUrl.hash.includes('?');
+    
+    if (hasParams) {
+        // Clear all URL parameters and hash parameters
+        const cleanUrl = `${currentUrl.origin}${currentUrl.pathname}${currentUrl.hash.split('?')[0]}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+        console.log('🔒 SECURITY: Cleared URL parameters on startup');
+    }
+}
+
+/**
  * Initialize the application when DOM and Userbase are ready
  */
 async function initializeApp() {
     try {
+        // SECURITY: Clear any URL parameters on app startup to prevent credential exposure
+        clearURLParametersOnStartup();
+        
         // Wait for Userbase SDK to load
         await waitForUserbase();
         

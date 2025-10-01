@@ -126,6 +126,9 @@ export class ContactUIController {
      */
     async initialize() {
         return this.handleAsync(async () => {
+            // SECURITY: Clear any URL parameters on page load to prevent credential exposure
+            this.clearURLParameters();
+            
             this.log('Initializing UI Controller...');
             
             // Initialize profile router and check for profile links
@@ -885,11 +888,20 @@ export class ContactUIController {
     async handleAuthSubmit(event) {
         event.preventDefault();
         
+        // SECURITY: Ensure we never expose credentials in URL
+        this.clearURLParameters();
+        
         const formData = new FormData(event.target);
-        const username = formData.get('username');
+        const username = formData.get('username')?.trim();
         const password = formData.get('password');
         const keepSignedIn = formData.get('keepSignedIn') === 'on'; // Checkbox value
         const isSignUp = event.target.dataset.mode === 'signup';
+        
+        // SECURITY: Validate that this is a proper form submission
+        if (!username || !password) {
+            this.showAuthError('Please enter both username and password');
+            return;
+        }
         
         console.log('📝 Form submission data:', { username, keepSignedIn, isSignUp });
         
@@ -3500,6 +3512,22 @@ export class ContactUIController {
         });
         
         console.log('Highlight form errors:', errors);
+    }
+
+    /**
+     * Clear URL parameters to prevent credential exposure
+     * SECURITY: Ensures no sensitive data appears in browser history
+     */
+    clearURLParameters() {
+        const currentUrl = new URL(window.location);
+        const hasParams = currentUrl.search || currentUrl.hash.includes('?');
+        
+        if (hasParams) {
+            // Clear all URL parameters and hash parameters
+            const cleanUrl = `${currentUrl.origin}${currentUrl.pathname}${currentUrl.hash.split('?')[0]}`;
+            window.history.replaceState({}, document.title, cleanUrl);
+            console.log('🧹 Cleared URL parameters for security');
+        }
     }
 
     /**
