@@ -83,8 +83,9 @@ class ContactManagementApp {
             this.modules.validator
         );
         
-        // Now initialize database - ContactManager listeners are ready
-        await this.modules.database.initialize(this.config.userbaseAppId);
+        // IMPORTANT: Do NOT initialize database here - let UI Controller handle it optimally
+        // The optimizedAuthenticationCheck() will decide when/how to initialize database
+        // Core modules ready, database initialization deferred to UI Controller
     }
 
     /**
@@ -116,7 +117,7 @@ class ContactManagementApp {
 
         // Handle authentication events
         this.eventBus.on('database:authenticated', (data) => {
-            console.log('User authenticated:', data.user?.username);
+            // User authenticated: ${data.user?.username}
             this.showToast(`Welcome back, ${data.user?.username}!`, 'success');
         });
 
@@ -127,23 +128,23 @@ class ContactManagementApp {
 
         // Handle contact operations
         this.eventBus.on('contact:created', (data) => {
-            console.log('Contact created:', data.contact?.cardName);
+            // Contact created: ${data.contact?.cardName}
             this.showToast('Contact created successfully', 'success');
         });
 
         this.eventBus.on('contact:updated', (data) => {
-            console.log('Contact updated:', data.contact?.cardName);
+            // Contact updated: ${data.contact?.cardName}
             this.showToast('Contact updated successfully', 'success');
         });
 
         this.eventBus.on('contact:deleted', (data) => {
-            console.log('Contact deleted:', data.contactId);
+            // Contact deleted: ${data.contactId}
             this.showToast('Contact deleted successfully', 'success');
         });
 
         // Handle contact manager initialization
         this.eventBus.on('contactManager:initialized', (data) => {
-            console.log(`Contact manager ready with ${data.contactCount} contacts`);
+            // Contact manager ready with ${data.contactCount} contacts
         });
 
         // Handle window events
@@ -162,9 +163,9 @@ class ContactManagementApp {
         // Handle visibility changes (tab switching)
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                console.log('Application hidden');
+                // Application hidden
             } else {
-                console.log('Application visible');
+                // Application visible
                 // Could trigger data refresh here
             }
         });
@@ -199,7 +200,7 @@ class ContactManagementApp {
             }
 
             // Log maintenance
-            console.log('🧹 Maintenance tasks completed');
+            // Maintenance tasks completed
         } catch (error) {
             console.error('Maintenance task failed:', error);
         }
@@ -370,14 +371,14 @@ class ContactManagementApp {
      */
     enableDebugMode() {
         this.config.enableDebugMode = true;
-        console.log('🐛 Debug mode enabled');
+        // Debug mode enabled
         
         // Add debug information to window for console access
         window.contactApp = this;
         
         // Enable verbose logging
         this.eventBus.on('*', (eventName, data) => {
-            console.log(`Debug: ${eventName}`, data);
+            // Debug: ${eventName} (data available)
         });
     }
 }

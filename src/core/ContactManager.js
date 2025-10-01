@@ -33,6 +33,12 @@ export class ContactManager {
      */
     async initialize() {
         try {
+            // Prevent double initialization
+            if (this.isLoaded) {
+                console.log('✅ ContactManager already initialized, skipping...');
+                return { success: true, contactCount: this.contacts.size, alreadyLoaded: true };
+            }
+            
             // Wait for database authentication
             if (!this.database.currentUser) {
                 console.log('⏳ Waiting for database authentication...');
@@ -44,6 +50,7 @@ export class ContactManager {
                     });
                 });
             } else {
+                console.log('✅ Database already authenticated, proceeding with initialization...');
             }
 
             // Load existing contacts and settings
@@ -62,6 +69,51 @@ export class ContactManager {
             console.error('ContactManager initialization failed:', error);
             this.eventBus.emit('contactManager:error', { error: error.message });
             return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Initialize with existing session - optimized for page refreshes
+     * Skips database re-initialization when session is already active
+     * @returns {Promise<Object>} Initialization result
+     */
+    async initializeWithExistingSession() {
+        try {
+            console.log('⚡ Initializing ContactManager with existing session...');
+            
+            // Prevent double initialization
+            if (this.isLoaded) {
+                console.log('✅ ContactManager already initialized, using cached data');
+                return { success: true, contactCount: this.contacts.size, fromCache: true };
+            }
+            
+            // Database should already be authenticated, so we can set up databases and load data
+            console.log('📊 Loading contacts with existing database connection...');
+            
+            // Set up databases to register change handlers (this will trigger contact loading)
+            await this.database.setupDatabases();
+            
+            // The actual contact loading happens via change handlers triggered by setupDatabases()
+            // Give it a moment to load
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            this.isLoaded = true;
+            
+            this.eventBus.emit('contactManager:initialized', {
+                contactCount: this.contacts.size,
+                isReady: true,
+                fastLoad: true
+            });
+
+            console.log(`✅ Fast initialization complete: ${this.contacts.size} contacts loaded`);
+            return { success: true, contactCount: this.contacts.size, fastLoad: true };
+            
+        } catch (error) {
+            console.error('Fast ContactManager initialization failed:', error);
+            
+            // Fallback to full initialization
+            console.log('🔄 Falling back to full initialization...');
+            return await this.initialize();
         }
     }
 

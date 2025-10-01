@@ -29,6 +29,149 @@ export class ContactDatabase {
     }
 
     /**
+     * Check if there's a stored session that can be restored
+     * @returns {Promise<boolean>} True if stored session exists
+     */
+    async hasStoredSession() {
+        try {
+            console.log('🔍 Checking for stored session...');
+            
+            // Check if Userbase has session data in localStorage
+            if (typeof localStorage !== 'undefined') {
+                // Look for Userbase session indicators
+                const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+                
+                // Check for Userbase-specific storage keys that indicate an active session
+                const keys = Object.keys(localStorage);
+                const hasUserbaseSession = keys.some(key => 
+                    (key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')) &&
+                    localStorage.getItem(key) !== null
+                );
+                
+                // List all userbase-related keys for debugging
+                const userbaseKeys = keys.filter(key => 
+                    key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')
+                );
+                console.log('🔍 Userbase keys found:', userbaseKeys);
+                console.log('🔍 Remember me flag:', hasRememberMe);
+                console.log('🔍 Has userbase session data:', hasUserbaseSession);
+                
+                const result = hasRememberMe && hasUserbaseSession;
+                console.log('🔍 Final session check result:', result);
+                return result;
+            }
+            console.log('🔍 localStorage not available');
+            return false;
+        } catch (error) {
+            console.error('Error checking stored session:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Attempt to restore a stored session silently and initialize database
+     * @returns {Promise<Object>} Restoration result
+     */
+    async restoreSession() {
+        try {
+            console.log('🔄 Attempting silent session restoration...');
+            
+            // Check session preferences first
+            const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+            const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+            
+            if (!hasRememberMe && !hasSessionOnly) {
+                console.log('⚠️ No session preference found');
+                return {
+                    success: false,
+                    error: 'No session preference found'
+                };
+            }
+            
+            // For session-only auth, check if this is a page refresh
+            if (hasSessionOnly) {
+                const pageLoadFlag = sessionStorage.getItem('userbase-page-loaded');
+                if (!pageLoadFlag) {
+                    console.log('⚠️ Session-only auth expired on page refresh');
+                    return {
+                        success: false,
+                        error: 'Session expired on page refresh'
+                    };
+                }
+            }
+            
+            // Store the appId (required parameter)
+            this.appId = appId;
+            
+            // Try to initialize Userbase and check for existing session
+            return new Promise((resolve) => {
+                userbase.init({
+                    appId: this.appId,
+                    updateUserHandler: (user) => {
+                        this.currentUser = user;
+                        this.eventBus.emit('database:userUpdated', { user });
+                    }
+                }).then(async (session) => {
+                    if (session.user) {
+                        console.log('✅ Session restored for user:', session.user.username);
+                        this.currentUser = session.user;
+                        this.isInitialized = true;
+                        
+                        // Update page load flag for session-only auth
+                        if (hasSessionOnly) {
+                            sessionStorage.setItem('userbase-page-loaded', 'true');
+                        }
+                        
+                        // 🚀 CRITICAL: Initialize databases immediately during restoration
+                        try {
+                            console.log('📊 Setting up databases during restoration...');
+                            await this.setupDatabases();
+                            console.log('✅ Databases setup complete during restoration');
+                            
+                            // Emit authentication event
+                            this.eventBus.emit('database:authenticated', { user: this.currentUser });
+                            
+                            resolve({
+                                success: true,
+                                user: { username: session.user.username },
+                                sessionType: hasRememberMe ? 'persistent' : 'session',
+                                databasesReady: true
+                            });
+                        } catch (dbError) {
+                            console.error('❌ Database setup failed during restoration:', dbError);
+                            resolve({
+                                success: true, // Session restored but database setup failed
+                                user: { username: session.user.username },
+                                sessionType: hasRememberMe ? 'persistent' : 'session',
+                                databasesReady: false,
+                                dbError: dbError.message
+                            });
+                        }
+                    } else {
+                        console.log('⚠️ No valid session found during restoration');
+                        resolve({
+                            success: false,
+                            error: 'No valid session found'
+                        });
+                    }
+                }).catch((error) => {
+                    console.error('Session restoration failed:', error);
+                    resolve({
+                        success: false,
+                        error: error.message
+                    });
+                });
+            });
+        } catch (error) {
+            console.error('Error during session restoration:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Initialize Userbase connection with retry logic
      * @param {string} appId - Userbase application ID
      */
@@ -66,13 +209,40 @@ export class ContactDatabase {
                 }
                 
                 // Initialize Userbase - this can restore previous sessions
-                const session = await window.userbase.init({ 
-                    appId,
-                    updateUserHandler: (user) => {
-                        this.currentUser = user;
-                        this.eventBus.emit('database:userUpdated', { user });
+                // Check if userbase has already been initialized (e.g., by checkExistingSession)
+                let session;
+                if (this.currentUser && this.isInitialized) {
+                    console.log('🔄 Userbase already initialized, using existing session for:', this.currentUser.username);
+                    session = { user: this.currentUser };
+                } else {
+                    try {
+                        session = await window.userbase.init({ 
+                            appId,
+                            updateUserHandler: (user) => {
+                                this.currentUser = user;
+                                this.eventBus.emit('database:userUpdated', { user });
+                            }
+                        });
+                    } catch (initError) {
+                        if (initError.message.includes('AppIdAlreadySet') || 
+                            initError.message.includes('Application ID already set')) {
+                            console.log('🔄 Userbase already initialized by another process, checking current state...');
+                            
+                            // Try to get current user from userbase state
+                            if (window.userbase.user) {
+                                console.log('✅ Found existing userbase user:', window.userbase.user.username);
+                                session = { user: window.userbase.user };
+                                this.currentUser = window.userbase.user;
+                                this.isInitialized = true;
+                            } else {
+                                console.log('⚠️ Userbase initialized but no user found');
+                                session = { user: null };
+                            }
+                        } else {
+                            throw initError; // Re-throw other errors
+                        }
                     }
-                });
+                }
                 
                 // Check user's persistence preferences
                 const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
@@ -1668,6 +1838,110 @@ export class ContactDatabase {
             defaultViewMode: 'card',
             createdAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString()
+        };
+    }
+
+    /**
+     * Check if userbase already has an active session without re-initializing
+     * @returns {Promise<Object|null>} Current session or null
+     */
+    async checkExistingSession(appId = null) {
+        try {
+            console.log('🔍 Checking for existing userbase session...');
+            
+            // Check if userbase is available
+            if (typeof window.userbase === 'undefined') {
+                console.log('⚠️ Userbase not available');
+                return null;
+            }
+
+            // STEP 1: Quick check for session persistence indicators
+            const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+            const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+            
+            // If no session preferences, unlikely to have an active session
+            if (!hasRememberMe && !hasSessionOnly) {
+                console.log('📝 No session preferences found');
+                return null;
+            }
+
+            // Determine which App ID to use
+            const targetAppId = appId || this.appId;
+            
+            if (!targetAppId || typeof targetAppId !== 'string') {
+                console.log('⚠️ No valid App ID available for session check');
+                return null;
+            }
+
+            // STEP 2: Try a minimal userbase init to restore session WITHOUT full database setup
+            try {
+                const sessionResult = await window.userbase.init({ 
+                    appId: targetAppId
+                });
+                
+                if (sessionResult && sessionResult.user && sessionResult.user.username) {
+                    console.log('✅ Active userbase session found for:', sessionResult.user.username);
+                    
+                    // Store the user and mark as initialized
+                    this.currentUser = sessionResult.user;
+                    this.isInitialized = true;
+                    this.appId = targetAppId; // Store the App ID
+                    
+                    return { user: sessionResult.user };
+                } else {
+                    console.log('📝 No active userbase session after init');
+                    // Mark as initialized even if no user found to prevent double init
+                    this.isInitialized = true;
+                    this.appId = targetAppId; // Store the App ID
+                    return null;
+                }
+                
+            } catch (error) {
+                if (error.message.includes('Not signed in') || 
+                    error.message.includes('UserNotSignedIn') ||
+                    error.message === 'Not signed in.') {
+                    console.log('📝 No active userbase session');
+                    return null;
+                } else {
+                    console.log('⚠️ Session check error:', error.message);
+                    throw error;
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error checking existing session:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get connection status with enhanced session checking
+     * @returns {Object} Enhanced connection status
+     */
+    getConnectionStatus() {
+        // Enhanced status with session persistence info
+        const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+        const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+        
+        // Check if we have an active session but need to avoid page reload for session-only
+        if (hasSessionOnly && !this.currentUser) {
+            console.log('🔄 Session-only authentication expired on refresh');
+            this.clearSessionData();
+            return {
+                isAuthenticated: false,
+                currentUser: null,
+                sessionExpired: true,
+                sessionType: 'expired'
+            };
+        }
+        
+        return {
+            isInitialized: this.isInitialized,
+            isAuthenticated: !!this.currentUser,
+            currentUser: this.currentUser?.username,
+            sessionType: hasRememberMe ? 'persistent' : 'session',
+            activeDatabases: Array.from(this.changeHandlers.keys()),
+            canSkipReload: hasRememberMe && !!this.currentUser // Can skip database reload
         };
     }
 }

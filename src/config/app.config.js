@@ -20,18 +20,56 @@ export const APP_CONFIG = {
 // Userbase Configuration
 export const USERBASE_CONFIG = {
     // Replace with your actual Userbase App ID
-    appId: 'contact-management-system-demo',
+    appId: '77e5016f-285d-4678-a31a-3718479a638a',
     
     // Database names
     databases: {
         contacts: 'contacts',
         settings: 'user-settings',
-        activity: 'activity-log'
+        activity: 'activity-log',
+        sharedContactMeta: 'shared-contact-metadata',
+        distributionSharing: 'distribution-sharing'
     },
     
     // Connection settings
     connectionTimeout: 10000,
     retryAttempts: 3
+};
+
+// Authentication Configuration
+export const AUTH_CONFIG = {
+    // Performance Thresholds (milliseconds)
+    PERFORMANCE_THRESHOLDS: {
+        ULTRA_FAST: 500,     // Session detection only
+        FAST: 2000,          // Session detection + minimal setup
+        NORMAL: 5000,        // Session detection + full database setup + contact loading
+        SLOW: 8000           // Full authentication flow with retries
+    },
+    
+    // Authentication Method Names
+    METHODS: {
+        EXISTING_SESSION: 'existing-session',
+        DATABASE_INIT: 'database-init', 
+        SESSION_RESTORE: 'session-restore',
+        MANUAL_LOGIN: 'manual-login'
+    },
+    
+    // Authentication Error Types
+    ERRORS: {
+        NOT_SIGNED_IN: 'Not signed in.',
+        SDK_NOT_LOADED: 'Userbase SDK not loaded',
+        SESSION_EXPIRED: 'Session expired',
+        INIT_FAILED: 'Database initialization failed',
+        NETWORK_ERROR: 'Network connection failed',
+        INVALID_SESSION: 'Invalid session data'
+    },
+    
+    // Session Storage Keys
+    STORAGE_KEYS: {
+        REMEMBER_ME: 'userbase-remember-me',
+        SESSION_ONLY: 'userbase-session-only',
+        PAGE_LOADED: 'userbase-page-loaded'
+    }
 };
 
 // Contact Management Settings
@@ -257,6 +295,7 @@ export const DEFAULT_CONTACT_TEMPLATE = {
 export const CONFIG = {
     app: APP_CONFIG,
     userbase: USERBASE_CONFIG,
+    auth: AUTH_CONFIG,
     contact: CONTACT_CONFIG,
     ui: UI_CONFIG,
     features: FEATURE_FLAGS,

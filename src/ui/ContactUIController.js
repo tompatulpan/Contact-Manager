@@ -6,6 +6,8 @@ import { MobileNavigation } from './MobileNavigation.js';
 import { profileRouter } from '../utils/ProfileRouter.js';
 import { ContactUIHelpers } from './ContactUIHelpers.js';
 import { ContactRenderer } from './ContactRenderer.js';
+import { USERBASE_CONFIG, AUTH_CONFIG } from '../config/app.config.js';
+import { authPerformanceTracker } from '../utils/AuthPerformanceTracker.js';
 
 export class ContactUIController {
     constructor(eventBus, contactManager) {
@@ -16,8 +18,8 @@ export class ContactUIController {
         this.profileRouter = profileRouter;
         this.currentProfileInfo = null;
         
-        // Debug mode - set to false to reduce logging
-        this.debugMode = true; // Temporarily re-enable to debug view switching
+        // Debug mode - set to false for production
+        this.debugMode = false; // Production mode - minimal logging
         
         // UI state
         this.currentUser = null;
@@ -30,9 +32,6 @@ export class ContactUIController {
             includeDeleted: false,   // Don't show deleted contacts by default
             distributionList: null   // Current selected distribution list filter
         };
-        
-        // Authentication timeout reference
-        this.authTimeoutId = null;
         
         // DOM elements cache
         this.elements = {};
@@ -143,38 +142,8 @@ export class ContactUIController {
             // Setup event listeners
             this.setupEventListeners();
             
-            // DO NOT initialize authentication state immediately - wait for database
-            // The database will emit 'database:authenticated' event when ready
-            // If no session exists, we'll show auth modal after a brief delay
-            this.authTimeoutId = setTimeout(() => {
-                // Check both currentUser and database status with session awareness
-                const connectionStatus = this.contactManager.database.getConnectionStatus();
-                
-                // Handle session expiration
-                if (connectionStatus.sessionExpired) {
-                    this.log('⏰ Session-only authentication expired, showing login modal');
-                    this.showAuthenticationModal();
-                    this.showToast({ 
-                        message: 'Your session has expired. Please sign in again.', 
-                        type: 'info' 
-                    });
-                    return;
-                }
-                
-                if (!this.currentUser && !connectionStatus.isAuthenticated) {
-                    this.log('🔐 No authentication found after initialization delay, showing login modal');
-                    this.showAuthenticationModal();
-                } else {
-                    this.log('✅ User authenticated:', connectionStatus.currentUser, `(${connectionStatus.sessionType} session)`);
-                    if (!this.currentUser && connectionStatus.isAuthenticated) {
-                        // Set currentUser if database knows about authentication but UI doesn't
-                        this.currentUser = { username: connectionStatus.currentUser };
-                        this.updateUserInterface();
-                        this.hideAuthenticationModal();
-                        this.showMainApplication();
-                    }
-                }
-            }, 1000); // Increased delay to 1 second to give more time
+            // ⭐ OPTIMIZED: Check authentication immediately and efficiently
+            await this.optimizedAuthenticationCheck();
             
             // Setup UI components
             this.setupComponents();
@@ -190,6 +159,291 @@ export class ContactUIController {
 
             return { success: true };
         }, 'UI Controller initialization failed');
+    }
+
+    /**
+     * Optimized authentication check with fast path for existing sessions
+     */
+    async optimizedAuthenticationCheck() {
+        authPerformanceTracker.start('optimized-auth-check');
+        
+        try {
+            this.log('🚀 Starting optimized authentication check...');
+            
+            // Step 0: FIRST check if userbase is even available
+            if (typeof window.userbase === 'undefined') {
+                this.log(`⚠️ ${AUTH_CONFIG.ERRORS.SDK_NOT_LOADED}, showing auth modal`);
+                this.showAuthenticationModal();
+                authPerformanceTracker.end(false, { error: 'sdk-not-loaded' });
+                return;
+            }
+
+            // Step 1: Try to detect existing userbase session WITHOUT initializing database
+            // This is the fastest possible check - directly call userbase
+            const existingSessionResult = await this.tryExistingSession();
+            if (existingSessionResult.success) {
+                authPerformanceTracker.end(true, { 
+                    method: AUTH_CONFIG.METHODS.EXISTING_SESSION,
+                    databases: existingSessionResult.databases 
+                });
+                return;
+            }
+            
+            // Step 2: Try database initialization to check for sessions
+            const databaseInitResult = await this.tryDatabaseInit();
+            if (databaseInitResult.success) {
+                authPerformanceTracker.end(true, { 
+                    method: AUTH_CONFIG.METHODS.DATABASE_INIT,
+                    user: databaseInitResult.user 
+                });
+                return;
+            }
+            
+            // Step 3: Try manual session restoration
+            const sessionRestoreResult = await this.trySessionRestore();
+            if (sessionRestoreResult.success) {
+                authPerformanceTracker.end(true, { 
+                    method: AUTH_CONFIG.METHODS.SESSION_RESTORE,
+                    user: sessionRestoreResult.user 
+                });
+                return;
+            }
+            
+            // Step 4: No valid session found - show auth modal
+            this.log('🔐 No valid session found, showing authentication modal');
+            this.showAuthenticationModal();
+            authPerformanceTracker.end(false, { 
+                method: AUTH_CONFIG.METHODS.MANUAL_LOGIN,
+                reason: 'no-session-found' 
+            });
+            
+        } catch (error) {
+            this.logError('Error during authentication check:', error);
+            this.showAuthenticationModal();
+            authPerformanceTracker.end(false, { error: error.message });
+        }
+    }
+
+    /**
+     * Try existing userbase session detection (fastest path)
+     * @returns {Object} Result object with success flag
+     */
+    async tryExistingSession() {
+        try {
+            this.log('⚡ Checking for active userbase session (direct call)...');
+            
+            // Use the database's optimized session check method
+            const sessionResult = await this.contactManager.database.checkExistingSession(USERBASE_CONFIG.appId);
+            
+            if (sessionResult && sessionResult.user) {
+                this.log(`✅ Fast Path: Active userbase session detected for user: ${sessionResult.user.username}`);
+                this.currentUser = sessionResult.user;
+                
+                // Initialize ContactManager with existing session (optimized path)
+                const result = await this.contactManager.initializeWithExistingSession(this.currentUser);
+                
+                if (result.success) {
+                    this.log('✅ Fast authentication complete');
+                    
+                    // Show main app immediately - no delays
+                    this.hideAuthenticationModal();
+                    this.updateUserInterface();
+                    this.showMainApplication();
+                    this.refreshContactsList();
+                    
+                    return { success: true, user: sessionResult.user.username, method: 'session-check' };
+                }
+            } else {
+                this.log('📝 No active userbase session detected');
+            }
+            
+            return { success: false, error: 'no-session-found' };
+            
+        } catch (sessionError) {
+            // Better error detection - userbase throws various error messages
+            const errorMessage = sessionError.message || sessionError.toString();
+            this.log(`🔍 Session init failed with error: "${errorMessage}"`);
+            
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    /**
+     * Try database initialization path
+     * @returns {Object} Result object with success flag
+     */
+    async tryDatabaseInit() {
+        try {
+            this.log('📊 Trying database initialization...');
+            await this.contactManager.database.initialize(USERBASE_CONFIG.appId);
+            
+            const connectionStatus = this.contactManager.database.getConnectionStatus();
+            if (connectionStatus.isAuthenticated) {
+                this.log('⚡ User authenticated during database init:', connectionStatus.currentUser);
+                this.currentUser = { username: connectionStatus.currentUser };
+                
+                // Show main app immediately - database is already ready
+                this.hideAuthenticationModal();
+                this.updateUserInterface();
+                this.showMainApplication();
+                
+                // Initialize ContactManager since database is ready
+                this.contactManager.initialize().then(() => {
+                    this.log('🎉 ContactManager ready, contacts should be loading!');
+                    this.refreshContactsList();
+                }).catch(error => {
+                    this.logError('Error initializing ContactManager:', error);
+                });
+                
+                return { success: true, user: connectionStatus.currentUser };
+            }
+            
+            return { success: false, error: 'not-authenticated' };
+            
+        } catch (dbError) {
+            this.log('⚠️ Database initialization failed:', dbError.message);
+            return { success: false, error: dbError.message };
+        }
+    }
+
+    /**
+     * Try session restoration path
+     * @returns {Object} Result object with success flag
+     */
+    async trySessionRestore() {
+        try {
+            const hasStoredSession = await this.contactManager.database.hasStoredSession();
+            
+            if (!hasStoredSession) {
+                return { success: false, error: 'no-stored-session' };
+            }
+
+            this.log('⚡ Found stored session, attempting restoration...');
+            this.showSilentLoadingIndicator();
+            
+            const restoreResult = await this.contactManager.database.restoreSession();
+            
+            if (restoreResult.success) {
+                this.log('✅ Session restored for:', restoreResult.user.username);
+                this.currentUser = restoreResult.user;
+                
+                // Show the main app immediately
+                this.hideAuthenticationModal();
+                this.updateUserInterface();
+                this.showMainApplication();
+                this.hideSilentLoadingIndicator();
+                
+                // Handle ContactManager initialization based on database state
+                if (restoreResult.databasesReady) {
+                    this.log('🎉 Databases already initialized during restoration!');
+                } else {
+                    this.log('📊 Initializing ContactManager...');
+                    this.contactManager.initialize().then(() => {
+                        this.log('🎉 Contacts loaded and ready!');
+                        this.refreshContactsList();
+                    }).catch(error => {
+                        this.logError('Error loading contacts:', error);
+                    });
+                }
+                
+                return { success: true, user: restoreResult.user };
+            } else {
+                this.log('⚠️ Session restoration failed:', restoreResult.error);
+                this.hideSilentLoadingIndicator();
+                return { success: false, error: restoreResult.error };
+            }
+            
+        } catch (error) {
+            this.logError('⚠️ Session restoration error:', error);
+            this.hideSilentLoadingIndicator();
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Show subtle loading indicator for silent authentication
+     */
+    showSilentLoadingIndicator() {
+        // Create or show a minimal loading indicator
+        let indicator = document.getElementById('silent-auth-loading');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'silent-auth-loading';
+            indicator.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--primary-color, #007bff);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 14px;
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                transition: opacity 0.3s ease;
+                max-width: 300px;
+            `;
+            indicator.innerHTML = `
+                <div class="spinner" style="
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid rgba(255,255,255,0.3);
+                    border-top: 2px solid white;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                "></div>
+                <span id="loading-text">Restoring session...</span>
+            `;
+            document.body.appendChild(indicator);
+            
+            // Add spinner animation if not already defined
+            if (!document.getElementById('spinner-styles')) {
+                const style = document.createElement('style');
+                style.id = 'spinner-styles';
+                style.textContent = `
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+        indicator.style.display = 'flex';
+        indicator.style.opacity = '1';
+        
+        // Update the text to show what's happening
+        const textEl = indicator.querySelector('#loading-text');
+        if (textEl) textEl.textContent = 'Restoring session...';
+    }
+
+    /**
+     * Update the loading indicator text
+     */
+    updateSilentLoadingText(text) {
+        const indicator = document.getElementById('silent-auth-loading');
+        const textEl = indicator?.querySelector('#loading-text');
+        if (textEl) {
+            textEl.textContent = text;
+        }
+    }
+
+    /**
+     * Hide silent loading indicator
+     */
+    hideSilentLoadingIndicator() {
+        const indicator = document.getElementById('silent-auth-loading');
+        if (indicator) {
+            indicator.style.opacity = '0';
+            setTimeout(() => {
+                if (indicator.parentNode) {
+                    indicator.style.display = 'none';
+                }
+            }, 300); // Wait for transition
+        }
     }
 
     /**
@@ -344,23 +598,9 @@ export class ContactUIController {
         this.eventBus.on('database:signedOut', this.handleSignedOut.bind(this));
         this.eventBus.on('database:error', this.handleDatabaseError.bind(this));
         
-        // Check if user is already authenticated (in case we missed the initial event)
-        const connectionStatus = this.contactManager.database.getConnectionStatus();
-        if (connectionStatus.isAuthenticated) {
-            console.log('🎯 User already authenticated during event listener setup:', connectionStatus.currentUser);
-            this.currentUser = { username: connectionStatus.currentUser };
-            // Cancel any pending auth timeout since user is authenticated
-            if (this.authTimeoutId) {
-                clearTimeout(this.authTimeoutId);
-                this.authTimeoutId = null;
-                console.log('⏰ Cancelled auth timeout - user was already authenticated');
-            }
-            // Show main application immediately
-            console.log('🚀 Showing main application - user already authenticated');
-            this.updateUserInterface();
-            this.hideAuthenticationModal();
-            this.showMainApplication();
-        }
+        // IMPORTANT: Do NOT check authentication status here to avoid triggering database init
+        // The optimizedAuthenticationCheck() method will handle this properly
+        this.log('✅ Event listeners registered, waiting for authentication check...');
         
         // Contact events
         this.eventBus.on('contactManager:contactsUpdated', this.handleContactsUpdated.bind(this));
@@ -822,23 +1062,6 @@ export class ContactUIController {
     }
 
     /**
-     * Initialize authentication state
-     */
-    initializeAuthenticationState() {
-        // Check if user is already authenticated
-        const connectionStatus = this.contactManager.database.getConnectionStatus();
-        
-        if (connectionStatus.isAuthenticated) {
-            console.log('✅ User already authenticated:', connectionStatus.currentUser);
-            this.currentUser = { username: connectionStatus.currentUser };
-            this.showMainApplication();
-        } else {
-            console.log('🔐 No authentication found, showing login modal');
-            this.showAuthenticationModal();
-        }
-    }
-
-    /**
      * Setup UI components
      */
     setupComponents() {
@@ -939,13 +1162,6 @@ export class ContactUIController {
     handleAuthenticated(data) {
         console.log('🔐 Authentication event received:', data);
         
-        // Cancel the auth timeout since we received authentication
-        if (this.authTimeoutId) {
-            clearTimeout(this.authTimeoutId);
-            this.authTimeoutId = null;
-            console.log('⏰ Cancelled auth timeout - user is authenticated');
-        }
-        
         if (data && data.user && data.user.username) {
             this.currentUser = data.user;
             this.log(`✅ User authenticated: ${data.user.username}`);
@@ -962,6 +1178,12 @@ export class ContactUIController {
      * Handle mobile sign out with confirmation
      */
     async handleMobileSignOut() {
+        // Check if user is already signed out
+        if (!this.currentUser) {
+            console.log('ℹ️ User already signed out, skipping mobile logout');
+            return;
+        }
+
         // Show confirmation dialog for mobile logout
         const confirmed = confirm('Sign Out\n\nAre you sure you want to sign out?\n\nYou will need to sign in again to access your contacts.');
         
@@ -975,6 +1197,12 @@ export class ContactUIController {
      */
     async handleSignOut() {
         try {
+            // Check if user is already signed out
+            if (!this.currentUser) {
+                console.log('ℹ️ User already signed out, skipping logout process');
+                return;
+            }
+
             // Show loading state
             this.showToast({ message: 'Signing out...', type: 'info' });
             
@@ -992,15 +1220,34 @@ export class ContactUIController {
                 this.showAuthenticationModal();
                 this.hideMainApplication();
                 this.clearContactDetail();
+                this.clearDistributionLists(); // Clear sharing lists on logout
                 
                 // Show success message
                 this.showToast({ message: 'Signed out successfully', type: 'success' });
             } else {
-                this.showToast({ message: `Sign out failed: ${result.error}`, type: 'error' });
+                // Handle case where user is already signed out
+                if (result.error && result.error.includes('Not signed in')) {
+                    console.log('ℹ️ User was already signed out, updating UI state');
+                    this.currentUser = null;
+                    this.showAuthenticationModal();
+                    this.hideMainApplication();
+                    this.clearDistributionLists();
+                } else {
+                    this.showToast({ message: `Sign out failed: ${result.error}`, type: 'error' });
+                }
             }
         } catch (error) {
             console.error('Sign out error:', error);
-            this.showToast({ message: 'Sign out failed', type: 'error' });
+            // Handle "Not signed in" error gracefully
+            if (error.message && error.message.includes('Not signed in')) {
+                console.log('ℹ️ User was already signed out, updating UI state');
+                this.currentUser = null;
+                this.showAuthenticationModal();
+                this.hideMainApplication();
+                this.clearDistributionLists();
+            } else {
+                this.showToast({ message: 'Sign out failed', type: 'error' });
+            }
         }
     }
 
@@ -1043,6 +1290,8 @@ export class ContactUIController {
         // Show authentication modal and hide main app
         this.showAuthenticationModal();
         this.hideMainApplication();
+        this.clearDistributionLists(); // Clear sharing lists on sign out
+        this.updateLogoutButtonState(); // Update logout button state
     }
 
     /**
@@ -1357,6 +1606,12 @@ export class ContactUIController {
     async renderDistributionLists() {
         if (!this.elements.distributionListsContainer) {
             console.log('❌ UI: distributionListsContainer not found');
+            return;
+        }
+
+        // Don't render distribution lists if user is not authenticated
+        if (!this.currentUser) {
+            this.clearDistributionLists();
             return;
         }
 
@@ -2136,6 +2391,7 @@ export class ContactUIController {
             app.classList.add('authenticated');
         }
         this.updateUserInterface();
+        this.updateLogoutButtonState();
         
         // Initialize responsive view mode
         this.setViewMode(this.viewMode);
@@ -2151,6 +2407,27 @@ export class ContactUIController {
         const app = this.elements.app;
         if (app) {
             app.classList.remove('authenticated');
+        }
+        this.updateLogoutButtonState();
+    }
+
+    /**
+     * Update logout button state based on authentication
+     */
+    updateLogoutButtonState() {
+        const logoutBtn = this.elements.logoutBtn;
+        const mobileLogout = this.elements.mobileLogout;
+        
+        const isAuthenticated = this.currentUser !== null;
+        
+        if (logoutBtn) {
+            logoutBtn.disabled = !isAuthenticated;
+            logoutBtn.style.opacity = isAuthenticated ? '1' : '0.5';
+        }
+        
+        if (mobileLogout) {
+            mobileLogout.disabled = !isAuthenticated;
+            mobileLogout.style.opacity = isAuthenticated ? '1' : '0.5';
         }
     }
 
@@ -2299,6 +2576,19 @@ export class ContactUIController {
             }
         }
         this.selectedContactId = null;
+    }
+
+    /**
+     * Clear distribution lists UI - called during logout
+     */
+    clearDistributionLists() {
+        if (this.elements.distributionListsContainer) {
+            this.elements.distributionListsContainer.innerHTML = `
+                <div class="no-lists-message">
+                    <p style="margin-top: 10px; opacity: 0.7;">No sharing lists</p>
+                </div>
+            `;
+        }
     }
 
     // Placeholder methods - to be implemented with specific components
