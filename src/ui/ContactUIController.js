@@ -225,44 +225,43 @@ export class ContactUIController {
     }
 
     /**
-     * Try existing userbase session detection (fastest path)
+     * Try existing userbase session detection - SDK compliant
      * @returns {Object} Result object with success flag
      */
     async tryExistingSession() {
         try {
-            this.log('⚡ Checking for active userbase session (direct call)...');
+            this.log('⚡ Checking current authentication status...');
             
-            // Use the database's optimized session check method
-            const sessionResult = await this.contactManager.database.checkExistingSession(USERBASE_CONFIG.appId);
+            // Check if user is already authenticated
+            const status = this.contactManager.database.getConnectionStatus();
             
-            if (sessionResult && sessionResult.user) {
-                this.log(`✅ Fast Path: Active userbase session detected for user: ${sessionResult.user.username}`);
-                this.currentUser = sessionResult.user;
+            if (status.isAuthenticated && status.currentUser) {
+                this.log(`✅ Fast Path: User already authenticated: ${status.currentUser}`);
+                this.currentUser = this.contactManager.database.currentUser;
                 
-                // Initialize ContactManager with existing session (optimized path)
+                // Initialize ContactManager with existing session
                 const result = await this.contactManager.initializeWithExistingSession(this.currentUser);
                 
                 if (result.success) {
                     this.log('✅ Fast authentication complete');
                     
-                    // Show main app immediately - no delays
+                    // Show main app immediately
                     this.hideAuthenticationModal();
                     this.updateUserInterface();
                     this.showMainApplication();
                     this.refreshContactsList();
                     
-                    return { success: true, user: sessionResult.user.username, method: 'session-check' };
+                    return { success: true, user: status.currentUser, method: 'existing-session' };
                 }
             } else {
-                this.log('📝 No active userbase session detected');
+                this.log('📝 No authenticated user found');
             }
             
             return { success: false, error: 'no-session-found' };
             
         } catch (sessionError) {
-            // Better error detection - userbase throws various error messages
             const errorMessage = sessionError.message || sessionError.toString();
-            this.log(`🔍 Session init failed with error: "${errorMessage}"`);
+            this.log(`🔍 Session check failed with error: "${errorMessage}"`);
             
             return { success: false, error: errorMessage };
         }
@@ -1135,7 +1134,8 @@ export class ContactUIController {
         try {
             let result;
             if (isSignUp) {
-                result = await this.contactManager.database.signUp(username, password);
+                // Pass rememberMe parameter to signUp for SDK compliance
+                result = await this.contactManager.database.signUp(username, password, null, null, keepSignedIn);
             } else {
                 result = await this.contactManager.database.signIn(username, password, keepSignedIn);
             }
@@ -1161,16 +1161,32 @@ export class ContactUIController {
      */
     handleAuthenticated(data) {
         console.log('🔐 Authentication event received:', data);
+        console.log('📋 User data structure:', data?.user); // Debug log
         
-        if (data && data.user && data.user.username) {
-            this.currentUser = data.user;
-            this.log(`✅ User authenticated: ${data.user.username}`);
+        // More robust user data validation
+        const user = data?.user;
+        if (user && (user.username || user.userId)) {
+            this.currentUser = user;
+            const displayName = user.username || user.userId || 'Unknown User';
+            this.log(`✅ User authenticated: ${displayName}`);
             this.updateUserInterface();
             this.hideAuthenticationModal();
             this.showMainApplication();
         } else {
             console.error('Invalid user data in authentication event:', data);
-            this.showAuthError('Authentication failed - invalid user data');
+            console.error('Expected user object with username or userId, got:', user);
+            
+            // Try to recover by checking database connection status
+            const status = this.contactManager?.database?.getConnectionStatus();
+            if (status?.isAuthenticated && status?.currentUser) {
+                console.log('🔄 Recovering from database connection status');
+                this.currentUser = { username: status.currentUser };
+                this.updateUserInterface();
+                this.hideAuthenticationModal();
+                this.showMainApplication();
+            } else {
+                this.showAuthError('Authentication failed - invalid user data');
+            }
         }
     }
 

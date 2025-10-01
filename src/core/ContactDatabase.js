@@ -176,7 +176,7 @@ export class ContactDatabase {
      * @param {string} appId - Userbase application ID
      */
     /**
-     * Initialize the database connection
+     * Initialize the database connection - follows Userbase SDK specification exactly
      * @param {string} appId - Userbase app ID
      * @returns {Promise<void>}
      */
@@ -185,175 +185,89 @@ export class ContactDatabase {
             return;
         }
 
-        // CRITICAL: Clear page load flag at the start of every page load
-        // This ensures we can detect page refreshes vs same-page navigation
-        sessionStorage.removeItem('userbase-page-loaded');
+        try {
+            console.log('🚀 Initializing database with appId:', appId);
+            
+            // Check if Userbase SDK is available
+            if (typeof window.userbase === 'undefined') {
+                console.error('❌ Userbase SDK not loaded!');
+                throw new Error('Userbase SDK not loaded. Make sure userbase.js is loaded before app.js');
+            }
 
-        const maxRetries = 3;
-        let retryCount = 0;
-        
-        while (retryCount <= maxRetries) {
+            this.appId = appId;
+            
+            // Follow SDK specification exactly - let Userbase handle session resumption
+            let session;
             try {
-                // Check if Userbase SDK is available
-                if (typeof window.userbase === 'undefined') {
-                    console.error('❌ Userbase SDK not loaded!');
-                    throw new Error('Userbase SDK not loaded. Make sure userbase.js is loaded before app.js');
-                }
-
-                this.appId = appId;
-                
-                // Clear any corrupted storage on retry
-                if (retryCount > 0) {
-                    this.clearCorruptedStorage();
-                    await this.sleep(1000); // Wait 1 second before retry
-                }
-                
-                // Initialize Userbase - this can restore previous sessions
-                // Check if userbase has already been initialized (e.g., by checkExistingSession)
-                let session;
-                if (this.currentUser && this.isInitialized) {
-                    console.log('🔄 Userbase already initialized, using existing session for:', this.currentUser.username);
-                    session = { user: this.currentUser };
-                } else {
-                    try {
-                        session = await window.userbase.init({ 
-                            appId,
-                            updateUserHandler: (user) => {
-                                this.currentUser = user;
-                                this.eventBus.emit('database:userUpdated', { user });
-                            }
-                        });
-                    } catch (initError) {
-                        if (initError.message.includes('AppIdAlreadySet') || 
-                            initError.message.includes('Application ID already set')) {
-                            console.log('🔄 Userbase already initialized by another process, checking current state...');
-                            
-                            // Try to get current user from userbase state
-                            if (window.userbase.user) {
-                                console.log('✅ Found existing userbase user:', window.userbase.user.username);
-                                session = { user: window.userbase.user };
-                                this.currentUser = window.userbase.user;
-                                this.isInitialized = true;
-                            } else {
-                                console.log('⚠️ Userbase initialized but no user found');
-                                session = { user: null };
-                            }
-                        } else {
-                            throw initError; // Re-throw other errors
-                        }
-                    }
-                }
-                
-                // Check user's persistence preferences
-                const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-                const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-                
-                // CRITICAL: Handle session restoration based on user preference
-                if (session.user) {
-                    if (hasRememberMe) {
-                        // User wants to stay signed in across refreshes
-                        console.log('✅ Restoring persistent session for user:', session.user.username);
-                        this.currentUser = session.user;
-                        await this.setupDatabases();
-                        this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                    } else if (hasSessionOnly) {
-                        // Check if this is a page refresh - session-only auth should NOT persist across page loads
-                        // We use a flag that gets cleared on every page load to detect refreshes
-                        const pageLoadFlag = sessionStorage.getItem('userbase-page-loaded');
-                        
-                        if (pageLoadFlag === 'true') {
-                            // Page was already loaded in this session, this is NOT a refresh - continue session
-                            console.log('✅ Continuing session-only authentication for user:', session.user.username);
-                            this.currentUser = session.user;
-                            await this.setupDatabases();
-                            this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                        } else {
-                            // This is a fresh page load (refresh or new tab) - session should expire
-                            console.log('⚠️ Page refresh/new tab detected with session-only auth, forcing logout');
-                            try {
-                                await userbase.signOut();
-                            } catch (error) {
-                                if (!error.message.includes('Not signed in')) {
-                                    console.warn('Warning during session cleanup:', error);
-                                }
-                            }
-                            this.currentUser = null;
-                            this.clearSessionData();
-                            this.eventBus.emit('database:signedOut', { reason: 'session_expired_on_refresh' });
-                        }
-                    } else {
-                        // No clear preference - user should sign in again for security
-                        console.log('⚠️ No session preference found, clearing session for security');
-                        try {
-                            await userbase.signOut();
-                        } catch (error) {
-                            if (!error.message.includes('Not signed in')) {
-                                console.warn('Warning during cleanup signOut:', error);
-                            }
-                        }
-                        this.currentUser = null;
-                        this.eventBus.emit('database:signedOut', { reason: 'no_session_preference' });
-                    }
-                }
-                
-                this.isInitialized = true;
-                
-                this.eventBus.emit('database:initialized', { 
+                session = await window.userbase.init({
                     appId,
-                    timestamp: new Date().toISOString() 
+                    sessionLength: 24,  // Hours - extend session if resuming
+                    updateUserHandler: (user) => {
+                        this.currentUser = user;
+                        this.eventBus.emit('database:userUpdated', { user });
+                    }
                 });
-
-                // Start periodic check for new shared databases
-                this.startSharedDatabaseMonitoring();
-                
-                return; // Success, exit retry loop
-                
-            } catch (error) {
-                console.error(`Database initialization failed (attempt ${retryCount + 1}):`, error);
-                
-                retryCount++;
-                
-                if (retryCount <= maxRetries) {
-                    await this.sleep(2000);
+            } catch (initError) {
+                if (initError.message.includes('AppIdAlreadySet') || 
+                    initError.message.includes('Application ID already set')) {
+                    console.log('🔄 Userbase already initialized, checking current state...');
+                    
+                    // Use existing session if available
+                    if (window.userbase.user) {
+                        session = { user: window.userbase.user };
+                    } else {
+                        session = { user: null };
+                    }
                 } else {
-                    console.error('❌ Max retry attempts reached for database initialization');
-                    this.eventBus.emit('database:error', { 
-                        error: `Initialization failed after ${maxRetries + 1} attempts: ${error.message}`,
-                        phase: 'initialization',
-                        retryCount: maxRetries + 1
-                    });
-                    throw error;
+                    throw initError;
                 }
             }
+            
+            // Simple session check - trust Userbase's session management completely
+            if (session.user) {
+                console.log('✅ Resuming session for user:', session.user.username);
+                this.currentUser = session.user;
+                await this.setupDatabases();
+                this.eventBus.emit('database:authenticated', { user: this.currentUser });
+            } else {
+                console.log('ℹ️ No active session found');
+                this.currentUser = null;
+            }
+            
+            this.isInitialized = true;
+            
+            this.eventBus.emit('database:initialized', { 
+                appId,
+                hasSession: !!session.user,
+                timestamp: new Date().toISOString() 
+            });
+
+            // Start periodic check for new shared databases
+            this.startSharedDatabaseMonitoring();
+            
+        } catch (error) {
+            console.error('❌ Database initialization failed:', error);
+            this.eventBus.emit('database:error', { 
+                error: error.message,
+                phase: 'initialization'
+            });
+            throw error;
         }
     }
 
     /**
-     * Clear potentially corrupted storage
+     * Clear application session data - SDK compliant
      */
-    clearCorruptedStorage() {
-        try {
-            // Clear Userbase-related storage
-            if (typeof localStorage !== 'undefined') {
-                const keys = Object.keys(localStorage);
-                keys.forEach(key => {
-                    if (key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')) {
-                        localStorage.removeItem(key);
-                    }
-                });
-            }
-            
-            if (typeof sessionStorage !== 'undefined') {
-                const keys = Object.keys(sessionStorage);
-                keys.forEach(key => {
-                    if (key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')) {
-                        sessionStorage.removeItem(key);
-                    }
-                });
-            }
-        } catch (error) {
-            console.error('Error clearing corrupted storage:', error);
-        }
+    clearSessionData() {
+        this.currentUser = null;
+        this.contacts.clear();
+        this.sharedContacts.clear();
+        this.sharedContactMetadata.clear();
+        this.distributionSharing.clear();
+        this.userSettings.clear();
+        this.activityLog.clear();
+        
+        console.log('✅ Application session data cleared');
     }
 
     /**
@@ -365,19 +279,35 @@ export class ContactDatabase {
     }
 
     /**
-     * Sign up new user
+     * Sign up new user - follows Userbase SDK specification exactly
      * @param {string} username - Username
      * @param {string} password - Password
+     * @param {string} [email] - Optional email address
+     * @param {Object} [profile] - Optional user profile data
+     * @param {boolean} [rememberMe=false] - Session persistence preference
      * @returns {Promise<Object>} Signup result
      */
-    async signUp(username, password) {
+    async signUp(username, password, email = null, profile = null, rememberMe = false) {
         try {
-            const result = await userbase.signUp({
+            console.log('🔐 Database: Signing up new user with SDK spec parameters');
+            
+            const signUpParams = {
                 username,
-                password
-            });
+                password,
+                rememberMe: rememberMe ? 'local' : 'session',
+                sessionLength: 24 // Hours - SDK default
+            };
+            
+            // Add optional parameters if provided
+            if (email) signUpParams.email = email;
+            if (profile) signUpParams.profile = profile;
+            
+            const result = await userbase.signUp(signUpParams);
 
-            this.currentUser = result.user || result; // Handle both wrapped and unwrapped formats
+            console.log('✅ Database: Sign up successful');
+            console.log('📋 Sign up result:', result); // Debug log
+
+            this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
             await this.setupDatabases();
             
             this.eventBus.emit('database:authenticated', { user: this.currentUser });
@@ -390,43 +320,28 @@ export class ContactDatabase {
     }
 
     /**
-     * Sign in existing user with proper session management
+     * Sign in existing user - follows Userbase SDK specification exactly
      * @param {string} username - Username
      * @param {string} password - Password
-     * @param {boolean} rememberMe - Whether to keep the user signed in
+     * @param {boolean} [rememberMe=false] - Session persistence preference
      * @returns {Promise<Object>} Signin result
      */
     async signIn(username, password, rememberMe = false) {
         try {
-            console.log('🔐 Database: Signing in with rememberMe:', rememberMe);
+            console.log('🔐 Database: Signing in with SDK spec parameters');
             
-            // Use Userbase signIn with proper session configuration
-            // Userbase expects "local", "session", or "none" as rememberMe values
-            const rememberMeValue = rememberMe ? 'local' : 'session';
-            
+            // Follow SDK specification exactly - no custom session tracking
             const result = await userbase.signIn({
                 username,
                 password,
-                rememberMe: rememberMeValue // "local" = persistent, "session" = session only
+                rememberMe: rememberMe ? 'local' : 'session',
+                sessionLength: 24 // Hours - SDK default
             });
             
-            console.log('✅ Database: Sign in successful, storing session preference');
+            console.log('✅ Database: Sign in successful');
+            console.log('📋 Sign in result:', result); // Debug log
             
-            // Store the session preference for our own reference
-            if (rememberMe) {
-                localStorage.setItem('userbase-remember-me', 'true');
-                sessionStorage.removeItem('userbase-session-only');
-                sessionStorage.removeItem('userbase-page-loaded');
-            } else {
-                // For session-only, ensure we don't have persistent storage
-                localStorage.removeItem('userbase-remember-me');
-                // Store in sessionStorage to track this session
-                sessionStorage.setItem('userbase-session-only', 'true');
-                // Set flag to indicate page is loaded and session is active
-                sessionStorage.setItem('userbase-page-loaded', 'true');
-            }
-
-            this.currentUser = result.user || result;
+            this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
             await this.setupDatabases();
             
             this.eventBus.emit('database:authenticated', { user: this.currentUser });
@@ -439,22 +354,15 @@ export class ContactDatabase {
         } catch (error) {
             console.error('Sign in failed:', error);
             
-            // Handle case where user is already signed in
+            // Handle UserAlreadySignedIn gracefully
             if (error.name === 'UserAlreadySignedIn') {
+                console.log('ℹ️ User already signed in, setting up databases');
                 
-                // If currentUser is null but Userbase says user is signed in,
-                // we need to restore from what Userbase already knows
-                if (!this.currentUser) {
-                    // Check if the app was already initialized with a user session
-                    // The user should already be in this.currentUser from initialization
-                    console.log('❌ currentUser is null but should have been set during init');
-                    this.eventBus.emit('database:error', { error: 'Session state mismatch - please reload page' });
-                    return { success: false, error: 'Session state error - please reload page' };
+                if (this.currentUser) {
+                    await this.setupDatabases();
+                    this.eventBus.emit('database:authenticated', { user: this.currentUser });
+                    return { success: true, user: this.currentUser };
                 }
-                
-                await this.setupDatabases();
-                this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                return { success: true, user: this.currentUser };
             }
             
             this.eventBus.emit('database:error', { error: error.message });
@@ -463,53 +371,34 @@ export class ContactDatabase {
     }
 
     /**
-     * Sign out current user with proper cleanup
+     * Sign out current user - follows Userbase SDK specification exactly
      * @returns {Promise<Object>} Signout result
      */
     async signOut() {
         try {
             console.log('🔐 Database: Signing out...');
             
-            // Sign out from Userbase
+            // Let Userbase handle the logout completely - no manual storage clearing
             await userbase.signOut();
             
-            // Clear our session tracking
-            localStorage.removeItem('userbase-remember-me');
-            sessionStorage.removeItem('userbase-session-only');
-            sessionStorage.removeItem('userbase-page-loaded');
-            
-            // Clear all application state
+            // Only clear application-specific state
+            this.currentUser = null;
             this.clearSessionData();
             this.changeHandlers.clear();
-            
-            // Clear localStorage and sessionStorage to ensure complete logout
-            try {
-                // Clear our app storage
-                localStorage.clear();
-                sessionStorage.clear();
-                
-                // Also try to clear IndexedDB databases that might be used by Userbase
-                if ('indexedDB' in window) {
-                    try {
-                        const databases = await indexedDB.databases();
-                        for (const db of databases) {
-                            if (db.name && (db.name.includes('userbase') || db.name.includes('Userbase'))) {
-                                indexedDB.deleteDatabase(db.name);
-                            }
-                        }
-                    } catch (idbError) {
-                        console.warn('⚠️ Could not clear IndexedDB:', idbError);
-                    }
-                }
-            } catch (storageError) {
-                console.warn('⚠️ Could not clear storage:', storageError);
-                // Continue with logout even if storage clearing fails
-            }
             
             this.eventBus.emit('database:signedOut', {});
             console.log('✅ User signed out successfully');
             return { success: true };
         } catch (error) {
+            // Handle "Not signed in" gracefully per SDK docs
+            if (error.message && error.message.includes('Not signed in')) {
+                console.log('ℹ️ User was already signed out');
+                this.currentUser = null;
+                this.clearSessionData();
+                this.eventBus.emit('database:signedOut', {});
+                return { success: true };
+            }
+            
             console.error('❌ Sign out failed:', error);
             this.eventBus.emit('database:error', { error: error.message });
             return { success: false, error: error.message };
@@ -1842,106 +1731,15 @@ export class ContactDatabase {
     }
 
     /**
-     * Check if userbase already has an active session without re-initializing
-     * @returns {Promise<Object|null>} Current session or null
-     */
-    async checkExistingSession(appId = null) {
-        try {
-            console.log('🔍 Checking for existing userbase session...');
-            
-            // Check if userbase is available
-            if (typeof window.userbase === 'undefined') {
-                console.log('⚠️ Userbase not available');
-                return null;
-            }
-
-            // STEP 1: Quick check for session persistence indicators
-            const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-            const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-            
-            // If no session preferences, unlikely to have an active session
-            if (!hasRememberMe && !hasSessionOnly) {
-                console.log('📝 No session preferences found');
-                return null;
-            }
-
-            // Determine which App ID to use
-            const targetAppId = appId || this.appId;
-            
-            if (!targetAppId || typeof targetAppId !== 'string') {
-                console.log('⚠️ No valid App ID available for session check');
-                return null;
-            }
-
-            // STEP 2: Try a minimal userbase init to restore session WITHOUT full database setup
-            try {
-                const sessionResult = await window.userbase.init({ 
-                    appId: targetAppId
-                });
-                
-                if (sessionResult && sessionResult.user && sessionResult.user.username) {
-                    console.log('✅ Active userbase session found for:', sessionResult.user.username);
-                    
-                    // Store the user and mark as initialized
-                    this.currentUser = sessionResult.user;
-                    this.isInitialized = true;
-                    this.appId = targetAppId; // Store the App ID
-                    
-                    return { user: sessionResult.user };
-                } else {
-                    console.log('📝 No active userbase session after init');
-                    // Mark as initialized even if no user found to prevent double init
-                    this.isInitialized = true;
-                    this.appId = targetAppId; // Store the App ID
-                    return null;
-                }
-                
-            } catch (error) {
-                if (error.message.includes('Not signed in') || 
-                    error.message.includes('UserNotSignedIn') ||
-                    error.message === 'Not signed in.') {
-                    console.log('📝 No active userbase session');
-                    return null;
-                } else {
-                    console.log('⚠️ Session check error:', error.message);
-                    throw error;
-                }
-            }
-            
-        } catch (error) {
-            console.error('Error checking existing session:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get connection status with enhanced session checking
-     * @returns {Object} Enhanced connection status
+     * Get connection status - SDK compliant
+     * @returns {Object} Connection status
      */
     getConnectionStatus() {
-        // Enhanced status with session persistence info
-        const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-        const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-        
-        // Check if we have an active session but need to avoid page reload for session-only
-        if (hasSessionOnly && !this.currentUser) {
-            console.log('🔄 Session-only authentication expired on refresh');
-            this.clearSessionData();
-            return {
-                isAuthenticated: false,
-                currentUser: null,
-                sessionExpired: true,
-                sessionType: 'expired'
-            };
-        }
-        
         return {
             isInitialized: this.isInitialized,
             isAuthenticated: !!this.currentUser,
             currentUser: this.currentUser?.username,
-            sessionType: hasRememberMe ? 'persistent' : 'session',
-            activeDatabases: Array.from(this.changeHandlers.keys()),
-            canSkipReload: hasRememberMe && !!this.currentUser // Can skip database reload
+            activeDatabases: Array.from(this.changeHandlers.keys())
         };
     }
 }

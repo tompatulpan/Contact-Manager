@@ -110,18 +110,18 @@ npm-debug.log*
 
 # Ignore debug and test HTML pages
 *debug*.html
-*test*.html
 *fix*.html
 *quick*.html
 *inspector*.html
 *database*.html
 *troubleshoot*.html
-*demo*.html
-*example*.html
+*demo*
+*example*
 *sample*.html
 *template*.html
-*old*.html
+*old*
 *backup*
+*test*
 *temp*.html
 *cleanup*.html
 *debug*.js
