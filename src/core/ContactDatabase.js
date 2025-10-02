@@ -615,7 +615,7 @@ export class ContactDatabase {
         }
         
         // Required: databaseName
-        if (!params.databaseName) {
+        if (params.databaseName === undefined || params.databaseName === null) {
             errors.push('DatabaseNameMissing: databaseName is required');
         } else if (typeof params.databaseName !== 'string') {
             errors.push('DatabaseNameMustBeString: databaseName must be a string');
@@ -687,7 +687,7 @@ export class ContactDatabase {
         }
         
         // Required: databaseName
-        if (!params.databaseName) {
+        if (params.databaseName === undefined || params.databaseName === null) {
             errors.push('DatabaseNameMissing: databaseName is required');
         } else if (typeof params.databaseName !== 'string') {
             errors.push('DatabaseNameMustBeString: databaseName must be a string');
@@ -714,7 +714,7 @@ export class ContactDatabase {
         }
         
         // Required: itemId (unlike insertItem, updateItem requires itemId)
-        if (!params.itemId) {
+        if (params.itemId === undefined || params.itemId === null) {
             errors.push('ItemIdMissing: itemId is required for updateItem');
         } else if (typeof params.itemId !== 'string') {
             errors.push('ItemIdMustBeString: itemId must be a string');
@@ -765,6 +765,62 @@ export class ContactDatabase {
                     }
                 }
             }
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Validate deleteItem parameters before SDK call
+     * @param {Object} params - Parameters to validate
+     * @returns {Object} Validation result
+     */
+    validateDeleteItemParams(params) {
+        const errors = [];
+        
+        // Check if params is object
+        if (!params || typeof params !== 'object') {
+            errors.push('ParamsMustBeObject: Parameters must be an object');
+            return { isValid: false, errors };
+        }
+        
+        // Required: databaseName
+        if (params.databaseName === undefined || params.databaseName === null) {
+            errors.push('DatabaseNameMissing: databaseName is required');
+        } else if (typeof params.databaseName !== 'string') {
+            errors.push('DatabaseNameMustBeString: databaseName must be a string');
+        } else if (params.databaseName.trim() === '') {
+            errors.push('DatabaseNameCannotBeBlank: databaseName cannot be blank');
+        } else if (params.databaseName.length > 100) {
+            errors.push('DatabaseNameTooLong: databaseName cannot exceed 100 characters');
+        }
+        
+        // Required: itemId (deleteItem always requires itemId)
+        if (params.itemId === undefined || params.itemId === null) {
+            errors.push('ItemIdMissing: itemId is required for deleteItem');
+        } else if (typeof params.itemId !== 'string') {
+            errors.push('ItemIdMustBeString: itemId must be a string');
+        } else if (params.itemId.trim() === '') {
+            errors.push('ItemIdCannotBeBlank: itemId cannot be blank');
+        } else if (params.itemId.length > 100) {
+            errors.push('ItemIdTooLong: itemId cannot exceed 100 characters');
+        }
+        
+        // Optional: databaseId validation
+        if (params.databaseId !== undefined) {
+            if (typeof params.databaseId !== 'string') {
+                errors.push('DatabaseIdMustBeString: databaseId must be a string');
+            } else if (params.databaseId.trim() === '') {
+                errors.push('DatabaseIdCannotBeBlank: databaseId cannot be blank');
+            }
+        }
+        
+        // Optional: shareToken validation
+        if (params.shareToken !== undefined && typeof params.shareToken !== 'string') {
+            errors.push('ShareTokenMustBeString: shareToken must be a string');
         }
         
         return {
@@ -957,6 +1013,81 @@ export class ContactDatabase {
                 this.handleSDKError(error, context);
         }
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Handle deleteItem-specific errors per SDK specification
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleDeleteItemError(error, context) {
+        console.log(`🔍 deleteItem Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'ParamsMustBeObject':
+                console.error(`❌ Invalid parameters in ${context}: Must be an object`);
+                break;
+            case 'DatabaseNotOpen':
+                console.error(`❌ Database not open in ${context}: Database must be opened first`);
+                this.eventBus.emit('database:notOpen', { context });
+                break;
+            case 'DatabaseNameMissing':
+            case 'DatabaseNameMustBeString':
+            case 'DatabaseNameCannotBeBlank':
+            case 'DatabaseNameTooLong':
+            case 'DatabaseNameRestricted':
+                console.error(`❌ Invalid database name in ${context}:`, error.message);
+                break;
+            case 'DatabaseIdMustBeString':
+            case 'DatabaseIdCannotBeBlank':
+            case 'DatabaseIdInvalidLength':
+            case 'DatabaseIdNotAllowed':
+                console.error(`❌ Invalid database ID in ${context}:`, error.message);
+                break;
+            case 'DatabaseIsReadOnly':
+                console.error(`❌ Database is read-only in ${context}: Cannot delete items`);
+                this.eventBus.emit('database:readOnly', { context });
+                break;
+            case 'ItemIdMissing':
+                console.error(`❌ Item ID missing in ${context}: itemId is required for deleteItem`);
+                break;
+            case 'ItemIdMustBeString':
+            case 'ItemIdCannotBeBlank':
+            case 'ItemIdTooLong':
+                console.error(`❌ Invalid item ID in ${context}:`, error.message);
+                break;
+            case 'ItemDoesNotExist':
+                console.error(`❌ Item does not exist in ${context}: Cannot delete non-existent item`);
+                this.eventBus.emit('database:itemNotFound', { context });
+                break;
+            case 'ItemUpdateConflict':
+                console.warn(`⚠️ Update conflict in ${context}: Item was modified by another operation during deletion`);
+                this.eventBus.emit('database:updateConflict', { context });
+                break;
+            case 'TransactionUnauthorized':
+                console.error(`❌ Unauthorized transaction in ${context}: Check delete permissions`);
+                this.eventBus.emit('database:unauthorized', { context });
+                break;
+            case 'UserNotSignedIn':
+                console.log('🔐 User not signed in, emitting auth required event');
+                this.eventBus.emit('auth:required', { context });
+                break;
+            case 'UserNotFound':
+                console.error(`❌ User not found in ${context}`);
+                this.eventBus.emit('auth:userNotFound', { context });
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in ${context}, backing off`);
+                this.eventBus.emit('database:rateLimited', { context });
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context });
+                break;
+            default:
+                // Fall back to general SDK error handling
+                this.handleSDKError(error, context);
+        }
+    }
     
     /**
      * ✅ SDK COMPLIANT: Safe insertItem wrapper with full validation
@@ -1004,6 +1135,31 @@ export class ContactDatabase {
             
         } catch (error) {
             this.handleUpdateItemError(error, context);
+            throw error;
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Safe deleteItem wrapper with full validation
+     * @param {Object} params - deleteItem parameters
+     * @param {string} context - Context for error reporting
+     * @returns {Promise<Object>} Delete result
+     */
+    async safeDeleteItem(params, context) {
+        try {
+            // Pre-validate parameters
+            const validation = this.validateDeleteItemParams(params);
+            if (!validation.isValid) {
+                const error = new Error(validation.errors[0]);
+                error.name = validation.errors[0].split(':')[0];
+                throw error;
+            }
+            
+            // Call SDK deleteItem
+            return await userbase.deleteItem(params);
+            
+        } catch (error) {
+            this.handleDeleteItemError(error, context);
             throw error;
         }
     }
@@ -1403,10 +1559,11 @@ export class ContactDatabase {
         try {
             const itemId = `sharing_${contactId}_${listName}`;
 
-            await userbase.deleteItem({
+            // ✅ SDK COMPLIANT: Use safe deleteItem with validation
+            await this.safeDeleteItem({
                 databaseName: this.databases.distributionSharing,
                 itemId: itemId
-            });
+            }, 'deleteDistributionListSharing');
 
             return { success: true, deleted: true };
 
@@ -1553,10 +1710,11 @@ export class ContactDatabase {
      */
     async deleteSharedContactMetadata(sharedContactId) {
         try {
-            await userbase.deleteItem({
+            // ✅ SDK COMPLIANT: Use safe deleteItem with validation
+            await this.safeDeleteItem({
                 databaseName: this.databases.sharedContactMeta,
                 itemId: sharedContactId
-            });
+            }, 'deleteSharedContactMetadata');
 
             return { success: true };
         } catch (error) {
@@ -1572,10 +1730,11 @@ export class ContactDatabase {
      */
     async deleteContact(itemId) {
         try {
-            await userbase.deleteItem({
+            // ✅ SDK COMPLIANT: Use safe deleteItem with validation
+            await this.safeDeleteItem({
                 databaseName: this.databases.contacts,
                 itemId
-            });
+            }, 'deleteContact');
 
             this.eventBus.emit('contact:deleted', { itemId });
             return { success: true };
