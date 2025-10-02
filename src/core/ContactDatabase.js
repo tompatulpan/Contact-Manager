@@ -17,7 +17,12 @@ export class ContactDatabase {
         this.changeHandlers = new Map();
         this.lastKnownSharedCount = 0;
         this.sharedDatabaseMonitor = null;
+        
+        // ✅ SDK COMPLIANT: State management for real-time updates
         this.settingsItems = []; // Initialize settings items array
+        this.distributionSharingItems = null; // Cache for distribution sharing
+        this.sharedContactMetaItems = null; // Cache for shared contact metadata
+        this.databaseStates = new Map(); // Track database initialization states
     }
 
     /**
@@ -422,7 +427,7 @@ export class ContactDatabase {
             console.log('🔍 Performing initial shared database check...');
             await this.checkForNewSharedDatabases();
 
-            // Setup settings database
+            // Setup settings database with proper state management
             await this.openDatabase('user-settings', (items) => {
                 this.settingsItems = items; // Store settings locally
                 this.eventBus.emit('settings:changed', { settings: items });
@@ -433,10 +438,9 @@ export class ContactDatabase {
                 this.eventBus.emit('activity:changed', { activities: items });
             });
 
-            // Setup distribution sharing database
-            await this.openDatabase('distribution-sharing', (items) => {
-                this.eventBus.emit('distributionSharing:changed', { distributionSharing: items });
-            });
+            // ✅ SDK COMPLIANT: Initialize state management databases
+            await this.ensureDistributionSharingDatabase();
+            await this.ensureSharedContactMetaDatabase();
 
         } catch (error) {
             console.error('❌ Database setup failed:', error);
@@ -482,7 +486,7 @@ export class ContactDatabase {
                     await userbase.openDatabase({
                         databaseId: db.databaseId,
                         changeHandler: (items) => {
-                            // Transform individual contact
+                            // ✅ SDK COMPLIANT: Transform individual contacts with full attribution data
                             const contacts = items.map(userbaseItem => {
                                 const item = userbaseItem.item || {};
                                 return {
@@ -490,6 +494,18 @@ export class ContactDatabase {
                                     itemId: userbaseItem.itemId, // ✅ Preserve Userbase itemId
                                     cardName: item.cardName || 'Unnamed Contact',
                                     vcard: item.vcard || '',
+                                    
+                                    // ✅ SDK Attribution data
+                                    createdBy: userbaseItem.createdBy,
+                                    updatedBy: userbaseItem.updatedBy,
+                                    fileUploadedBy: userbaseItem.fileUploadedBy,
+                                    writeAccess: userbaseItem.writeAccess,
+                                    
+                                    // ✅ File data if present
+                                    fileId: userbaseItem.fileId,
+                                    fileName: userbaseItem.fileName,
+                                    fileSize: userbaseItem.fileSize,
+                                    
                                     metadata: {
                                         ...item.metadata,
                                         isOwned: false,
@@ -529,15 +545,27 @@ export class ContactDatabase {
             await userbase.openDatabase({
                 databaseName,
                 changeHandler: (items) => {
-                    // Process items and emit appropriate events
-                    const processedItems = items.map((item, index) => {
-                        const processed = {
-                            ...item.item,
-                            itemId: item.itemId,
-                            contactId: item.item.contactId || item.itemId // Ensure contactId is available
+                    // ✅ SDK COMPLIANT: Preserve all SDK-provided attribution data
+                    const processedItems = items.map(userbaseItem => {
+                        return {
+                            // Core item data
+                            ...userbaseItem.item,
+                            itemId: userbaseItem.itemId,
+                            
+                            // ✅ SDK Attribution data (fully compliant)
+                            createdBy: userbaseItem.createdBy,
+                            updatedBy: userbaseItem.updatedBy,
+                            fileUploadedBy: userbaseItem.fileUploadedBy,
+                            writeAccess: userbaseItem.writeAccess,
+                            
+                            // ✅ File data if present
+                            fileId: userbaseItem.fileId,
+                            fileName: userbaseItem.fileName,
+                            fileSize: userbaseItem.fileSize,
+                            
+                            // Custom contact-specific data
+                            contactId: userbaseItem.item.contactId || userbaseItem.itemId
                         };
-                        
-                        return processed;
                     });
                     
                     changeHandler(processedItems);
@@ -546,8 +574,93 @@ export class ContactDatabase {
 
             this.changeHandlers.set(databaseName, changeHandler);
         } catch (error) {
-            console.error(`Failed to open database ${databaseName}:`, error);
+            // ✅ SDK COMPLIANT: Handle specific SDK error types
+            this.handleSDKError(error, `openDatabase(${databaseName})`);
             throw error;
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Handle specific Userbase SDK error types
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleSDKError(error, context) {
+        console.log(`🔍 SDK Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'DatabaseAlreadyOpening':
+                console.log('ℹ️ Database already opening, skipping...');
+                break;
+            case 'DatabaseNameMissing':
+            case 'DatabaseNameMustBeString':
+            case 'DatabaseNameCannotBeBlank':
+            case 'DatabaseNameTooLong':
+                console.error(`❌ Invalid database name in ${context}:`, error.message);
+                break;
+            case 'ChangeHandlerMissing':
+            case 'ChangeHandlerMustBeFunction':
+                console.error(`❌ Invalid change handler in ${context}:`, error.message);
+                break;
+            case 'UserNotSignedIn':
+                console.log('🔐 User not signed in, emitting auth required event');
+                this.eventBus.emit('auth:required', { context });
+                break;
+            case 'DatabaseNotFound':
+                console.log(`📭 Database not found in ${context}, may need creation`);
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in ${context}, backing off`);
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context });
+                break;
+            default:
+                console.error(`❌ Unknown SDK error in ${context}:`, error.name, error.message);
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Ensure distribution sharing database is ready
+     */
+    async ensureDistributionSharingDatabase() {
+        if (!this.databaseStates.get('distributionSharing')) {
+            await userbase.openDatabase({
+                databaseName: this.databases.distributionSharing,
+                changeHandler: (items) => {
+                    this.distributionSharingItems = items.map(userbaseItem => ({
+                        ...userbaseItem.item,
+                        itemId: userbaseItem.itemId,
+                        createdBy: userbaseItem.createdBy,
+                        updatedBy: userbaseItem.updatedBy
+                    }));
+                    this.eventBus.emit('distributionSharing:changed', { 
+                        distributionSharing: this.distributionSharingItems 
+                    });
+                }
+            });
+            this.databaseStates.set('distributionSharing', true);
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Ensure shared contact metadata database is ready
+     */
+    async ensureSharedContactMetaDatabase() {
+        if (!this.databaseStates.get('sharedContactMeta')) {
+            await userbase.openDatabase({
+                databaseName: this.databases.sharedContactMeta,
+                changeHandler: (items) => {
+                    this.sharedContactMetaItems = items.map(userbaseItem => ({
+                        ...userbaseItem.item,
+                        itemId: userbaseItem.itemId,
+                        createdBy: userbaseItem.createdBy,
+                        updatedBy: userbaseItem.updatedBy
+                    }));
+                }
+            });
+            this.databaseStates.set('sharedContactMeta', true);
         }
     }
 
@@ -784,17 +897,14 @@ export class ContactDatabase {
      */
     async getDistributionListSharingForContact(contactId) {
         try {
-            return new Promise((resolve, reject) => {
-                userbase.openDatabase({
-                    databaseName: this.databases.distributionSharing,
-                    changeHandler: (items) => {
-                        const contactSharings = items
-                            .filter(item => item.item && item.item.contactId === contactId)
-                            .map(item => item.item);
-                        resolve(contactSharings);
-                    },
-                }).catch(reject);
-            });
+            // ✅ SDK COMPLIANT: Use proper state management instead of Promise anti-pattern
+            if (!this.distributionSharingItems) {
+                await this.ensureDistributionSharingDatabase();
+            }
+            
+            return this.distributionSharingItems
+                .filter(item => item.contactId === contactId)
+                .map(item => item);
         } catch (error) {
             console.error('❌ Get distribution list sharing for contact failed:', error);
             return [];
@@ -807,15 +917,12 @@ export class ContactDatabase {
      */
     async getAllDistributionListSharings() {
         try {
-            return new Promise((resolve, reject) => {
-                userbase.openDatabase({
-                    databaseName: this.databases.distributionSharing,
-                    changeHandler: (items) => {
-                        const sharings = items.map(item => item.item).filter(Boolean);
-                        resolve(sharings);
-                    },
-                }).catch(reject);
-            });
+            // ✅ SDK COMPLIANT: Use proper state management instead of Promise anti-pattern
+            if (!this.distributionSharingItems) {
+                await this.ensureDistributionSharingDatabase();
+            }
+            
+            return this.distributionSharingItems.filter(Boolean);
         } catch (error) {
             console.error('❌ Get all distribution list sharings failed:', error);
             return [];
@@ -958,20 +1065,18 @@ export class ContactDatabase {
      */
     async getAllSharedContactMetadata() {
         try {
-            return new Promise((resolve, reject) => {
-                userbase.openDatabase({
-                    databaseName: this.databases.sharedContactMeta,
-                    changeHandler: (items) => {
-                        const metadataMap = new Map();
-                        items.forEach(item => {
-                            if (item.item && item.item.sharedContactId) {
-                                metadataMap.set(item.item.sharedContactId, item.item);
-                            }
-                        });
-                        resolve(metadataMap);
-                    },
-                }).catch(reject);
+            // ✅ SDK COMPLIANT: Use proper state management instead of Promise anti-pattern
+            if (!this.sharedContactMetaItems) {
+                await this.ensureSharedContactMetaDatabase();
+            }
+            
+            const metadataMap = new Map();
+            this.sharedContactMetaItems.forEach(item => {
+                if (item.sharedContactId) {
+                    metadataMap.set(item.sharedContactId, item);
+                }
             });
+            return metadataMap;
         } catch (error) {
             console.error('❌ Get all shared contact metadata failed:', error);
             return new Map();
@@ -1646,40 +1751,18 @@ export class ContactDatabase {
      */
     async getSettings() {
         try {
-            // Try to get existing settings from cache first
+            // ✅ SDK COMPLIANT: Use cached settings from real-time updates
             if (this.settingsItems && this.settingsItems.length > 0) {
                 const settings = this.settingsItems[0] || this.getDefaultSettings();
                 return settings;
             }
             
-            // FALLBACK: If cache is empty, fetch fresh data from database
-            try {
-                const freshItems = await new Promise((resolve, reject) => {
-                    userbase.openDatabase({
-                        databaseName: 'user-settings',
-                        changeHandler: (items) => {
-                            resolve(items);
-                        }
-                    }).catch(reject);
-                });
-
-                if (freshItems && freshItems.length > 0) {
-                    const freshSettings = freshItems[0].item;  // Fix: need .item property
-                    
-                    // Update cache for future calls
-                    this.settingsItems = freshItems;
-                    
-                    return freshSettings;
-                } else {
-                    return this.getDefaultSettings();
-                }
-            } catch (freshError) {
-                console.error('💾 Fresh data fetch failed:', freshError);
-                return this.getDefaultSettings();
-            }
+            // Return default settings if no settings exist yet
+            console.log('📋 No settings found, returning defaults');
+            return this.getDefaultSettings();
             
         } catch (error) {
-            console.error('💾 Error getting settings:', error);
+            console.error('❌ Get settings failed:', error);
             return this.getDefaultSettings();
         }
     }
