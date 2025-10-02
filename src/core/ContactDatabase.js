@@ -671,6 +671,107 @@ export class ContactDatabase {
             errors
         };
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Validate updateItem parameters before SDK call
+     * @param {Object} params - Parameters to validate
+     * @returns {Object} Validation result
+     */
+    validateUpdateItemParams(params) {
+        const errors = [];
+        
+        // Check if params is object
+        if (!params || typeof params !== 'object') {
+            errors.push('ParamsMustBeObject: Parameters must be an object');
+            return { isValid: false, errors };
+        }
+        
+        // Required: databaseName
+        if (!params.databaseName) {
+            errors.push('DatabaseNameMissing: databaseName is required');
+        } else if (typeof params.databaseName !== 'string') {
+            errors.push('DatabaseNameMustBeString: databaseName must be a string');
+        } else if (params.databaseName.trim() === '') {
+            errors.push('DatabaseNameCannotBeBlank: databaseName cannot be blank');
+        } else if (params.databaseName.length > 100) {
+            errors.push('DatabaseNameTooLong: databaseName cannot exceed 100 characters');
+        }
+        
+        // Required: item
+        if (params.item === undefined) {
+            errors.push('ItemMissing: item parameter is required');
+        } else {
+            // Check item size (10KB limit)
+            const itemSize = this.calculateItemSize(params.item);
+            if (itemSize > 10240) { // 10KB in bytes
+                errors.push(`ItemTooLarge: item size (${itemSize} bytes) exceeds 10KB limit`);
+            }
+            
+            // Check item type validity
+            if (!this.isValidItemType(params.item)) {
+                errors.push('ItemInvalid: item must be object, string, number, boolean, or null');
+            }
+        }
+        
+        // Required: itemId (unlike insertItem, updateItem requires itemId)
+        if (!params.itemId) {
+            errors.push('ItemIdMissing: itemId is required for updateItem');
+        } else if (typeof params.itemId !== 'string') {
+            errors.push('ItemIdMustBeString: itemId must be a string');
+        } else if (params.itemId.trim() === '') {
+            errors.push('ItemIdCannotBeBlank: itemId cannot be blank');
+        } else if (params.itemId.length > 100) {
+            errors.push('ItemIdTooLong: itemId cannot exceed 100 characters');
+        }
+        
+        // Optional: databaseId validation
+        if (params.databaseId !== undefined) {
+            if (typeof params.databaseId !== 'string') {
+                errors.push('DatabaseIdMustBeString: databaseId must be a string');
+            } else if (params.databaseId.trim() === '') {
+                errors.push('DatabaseIdCannotBeBlank: databaseId cannot be blank');
+            }
+        }
+        
+        // Optional: shareToken validation
+        if (params.shareToken !== undefined && typeof params.shareToken !== 'string') {
+            errors.push('ShareTokenMustBeString: shareToken must be a string');
+        }
+        
+        // Optional: writeAccess validation
+        if (params.writeAccess !== undefined) {
+            if (params.writeAccess !== null && params.writeAccess !== false && typeof params.writeAccess !== 'object') {
+                errors.push('WriteAccessInvalid: writeAccess must be object, null, undefined, or false');
+            } else if (typeof params.writeAccess === 'object' && params.writeAccess !== null) {
+                // Validate writeAccess object structure
+                if (params.writeAccess.onlyCreator !== undefined && typeof params.writeAccess.onlyCreator !== 'boolean') {
+                    errors.push('WriteAccessOnlyCreatorMustBeBoolean: writeAccess.onlyCreator must be boolean');
+                }
+                
+                if (params.writeAccess.users !== undefined) {
+                    if (!Array.isArray(params.writeAccess.users)) {
+                        errors.push('WriteAccessUsersMustBeArray: writeAccess.users must be an array');
+                    } else if (params.writeAccess.users.length > 10) {
+                        errors.push('WriteAccessUsersTooMany: writeAccess.users cannot exceed 10 users');
+                    } else {
+                        // Validate each user object
+                        params.writeAccess.users.forEach((user, index) => {
+                            if (!user || typeof user !== 'object') {
+                                errors.push(`WriteAccessUserInvalid: writeAccess.users[${index}] must be an object`);
+                            } else if (!user.username || typeof user.username !== 'string') {
+                                errors.push(`WriteAccessUsernameInvalid: writeAccess.users[${index}].username must be a string`);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
     
     /**
      * ✅ SDK COMPLIANT: Calculate item size in bytes
@@ -772,6 +873,90 @@ export class ContactDatabase {
                 this.handleSDKError(error, context);
         }
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Handle updateItem-specific errors per SDK specification
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleUpdateItemError(error, context) {
+        console.log(`🔍 updateItem Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'ParamsMustBeObject':
+                console.error(`❌ Invalid parameters in ${context}: Must be an object`);
+                break;
+            case 'DatabaseNotOpen':
+                console.error(`❌ Database not open in ${context}: Database must be opened first`);
+                this.eventBus.emit('database:notOpen', { context });
+                break;
+            case 'DatabaseNameMissing':
+            case 'DatabaseNameMustBeString':
+            case 'DatabaseNameCannotBeBlank':
+            case 'DatabaseNameTooLong':
+            case 'DatabaseNameRestricted':
+                console.error(`❌ Invalid database name in ${context}:`, error.message);
+                break;
+            case 'DatabaseIdMustBeString':
+            case 'DatabaseIdCannotBeBlank':
+            case 'DatabaseIdInvalidLength':
+            case 'DatabaseIdNotAllowed':
+                console.error(`❌ Invalid database ID in ${context}:`, error.message);
+                break;
+            case 'DatabaseIsReadOnly':
+                console.error(`❌ Database is read-only in ${context}: Cannot update items`);
+                this.eventBus.emit('database:readOnly', { context });
+                break;
+            case 'ItemIdMissing':
+                console.error(`❌ Item ID missing in ${context}: itemId is required for updateItem`);
+                break;
+            case 'ItemIdMustBeString':
+            case 'ItemIdCannotBeBlank':
+            case 'ItemIdTooLong':
+                console.error(`❌ Invalid item ID in ${context}:`, error.message);
+                break;
+            case 'ItemMissing':
+                console.error(`❌ Item missing in ${context}: item parameter is required`);
+                break;
+            case 'ItemInvalid':
+                console.error(`❌ Invalid item in ${context}: item must be object, string, number, boolean, or null`);
+                break;
+            case 'ItemTooLarge':
+                console.error(`❌ Item too large in ${context}: item exceeds 10KB limit`);
+                break;
+            case 'ItemDoesNotExist':
+                console.error(`❌ Item does not exist in ${context}: Use insertItem to create new items`);
+                this.eventBus.emit('database:itemNotFound', { context });
+                break;
+            case 'ItemUpdateConflict':
+                console.warn(`⚠️ Update conflict in ${context}: Item was modified by another operation`);
+                this.eventBus.emit('database:updateConflict', { context });
+                break;
+            case 'TransactionUnauthorized':
+                console.error(`❌ Unauthorized transaction in ${context}: Check write permissions`);
+                this.eventBus.emit('database:unauthorized', { context });
+                break;
+            case 'UserNotSignedIn':
+                console.log('🔐 User not signed in, emitting auth required event');
+                this.eventBus.emit('auth:required', { context });
+                break;
+            case 'UserNotFound':
+                console.error(`❌ User not found in ${context}`);
+                this.eventBus.emit('auth:userNotFound', { context });
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in ${context}, backing off`);
+                this.eventBus.emit('database:rateLimited', { context });
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context });
+                break;
+            default:
+                // Fall back to general SDK error handling
+                this.handleSDKError(error, context);
+        }
+    }
     
     /**
      * ✅ SDK COMPLIANT: Safe insertItem wrapper with full validation
@@ -794,6 +979,31 @@ export class ContactDatabase {
             
         } catch (error) {
             this.handleInsertItemError(error, context);
+            throw error;
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Safe updateItem wrapper with full validation
+     * @param {Object} params - updateItem parameters
+     * @param {string} context - Context for error reporting
+     * @returns {Promise<Object>} Update result
+     */
+    async safeUpdateItem(params, context) {
+        try {
+            // Pre-validate parameters
+            const validation = this.validateUpdateItemParams(params);
+            if (!validation.isValid) {
+                const error = new Error(validation.errors[0]);
+                error.name = validation.errors[0].split(':')[0];
+                throw error;
+            }
+            
+            // Call SDK updateItem
+            return await userbase.updateItem(params);
+            
+        } catch (error) {
+            this.handleUpdateItemError(error, context);
             throw error;
         }
     }
@@ -959,7 +1169,7 @@ export class ContactDatabase {
             }
             
             // Update in main contacts database
-            await userbase.updateItem({
+            await this.safeUpdateItem({
                 databaseName: this.databases.contacts,
                 item: {
                     ...contact,
@@ -969,7 +1179,7 @@ export class ContactDatabase {
                     }
                 },
                 itemId
-            });
+            }, 'updateContact');
 
             // If this contact has been shared individually, update all shared databases
             if (contact.metadata?.isOwned !== false) { // Only for owned contacts
@@ -1000,14 +1210,14 @@ export class ContactDatabase {
             }
             
             // Update in main contacts database WITHOUT changing lastUpdated
-            await userbase.updateItem({
+            await this.safeUpdateItem({
                 databaseName: this.databases.contacts,
                 item: {
                     ...contact
                     // Note: Explicitly NOT updating lastUpdated timestamp
                 },
                 itemId
-            });
+            }, 'updateContactMetadataOnly');
 
             // Don't update shared databases for metadata-only changes (access tracking)
             // This is typically only used for usage tracking which is user-specific
@@ -1033,7 +1243,7 @@ export class ContactDatabase {
             // Try to update the shared database
             // Note: We can't easily check if the database exists, so we try to update and catch errors
             try {
-                await userbase.updateItem({
+                await this.safeUpdateItem({
                     databaseName: sharedDbName,
                     itemId: contact.contactId,
                     item: {
@@ -1045,7 +1255,7 @@ export class ContactDatabase {
                             sharedBy: contact.metadata?.sharedBy // Preserve sharing info
                         }
                     }
-                });
+                }, 'updateSharedContactDatabases');
                 
             } catch (error) {
                 // If the shared database doesn't exist, not open, or we don't have access, that's okay
@@ -1124,11 +1334,11 @@ export class ContactDatabase {
                 lastUpdated: new Date().toISOString()
             };
 
-            await userbase.updateItem({
+            await this.safeUpdateItem({
                 databaseName: this.databases.distributionSharing,
                 itemId: itemId,
                 item: sharingRecord
-            });
+            }, 'updateDistributionListSharing');
 
             return { success: true, itemId, sharingRecord };
 
@@ -1271,11 +1481,11 @@ export class ContactDatabase {
                 lastUpdated: new Date().toISOString()
             };
 
-            await userbase.updateItem({
+            await this.safeUpdateItem({
                 databaseName: this.databases.sharedContactMeta,
                 itemId: sharedContactId,
                 item: metadataItem
-            });
+            }, 'updateSharedContactMetadata');
 
             return { success: true, metadata: metadataItem };
         } catch (error) {
@@ -1566,7 +1776,7 @@ export class ContactDatabase {
             console.log('🔄 Updating contact in shared database:', sharedDbName);
             
             // Update the contact in the shared database to ensure recipients get updates
-            await userbase.updateItem({
+            await this.safeUpdateItem({
                 databaseName: sharedDbName,
                 item: {
                     ...contact,
@@ -1577,7 +1787,7 @@ export class ContactDatabase {
                     }
                 },
                 itemId: contact.contactId
-            });
+            }, 'updateSharedContactDatabase');
             
             console.log('✅ Contact updated in shared database:', sharedDbName);
             return { success: true };
@@ -1679,11 +1889,11 @@ export class ContactDatabase {
 
             // Update the contact item in the shared database
             // Use contactId as itemId since that's how it was originally inserted
-            await userbase.updateItem({
+            await this.safeUpdateItem({
                 databaseName: sharedDbName,
                 itemId: contact.contactId,
                 item: contact
-            });
+            }, 'updateSharedContactDatabase');
 
             console.log(`✅ Successfully updated contact in shared database: ${sharedDbName}`);
             return { success: true };
@@ -2056,11 +2266,11 @@ export class ContactDatabase {
 
             if (this.settingsItems.length > 0 && this.settingsItems[0] && this.settingsItems[0].itemId) {
                 // Update existing settings
-                await userbase.updateItem({
+                await this.safeUpdateItem({
                     databaseName: 'user-settings',
                     itemId: this.settingsItems[0].itemId,
                     item: settingsToSave
-                });
+                }, 'updateSettings');
                 
                 // Update local cache
                 this.settingsItems[0] = { ...this.settingsItems[0], ...settingsToSave };
