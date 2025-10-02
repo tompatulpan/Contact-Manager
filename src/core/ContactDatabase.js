@@ -601,6 +601,204 @@ export class ContactDatabase {
     }
 
     /**
+     * ✅ SDK COMPLIANT: Validate insertItem parameters before SDK call
+     * @param {Object} params - Parameters to validate
+     * @returns {Object} Validation result
+     */
+    validateInsertItemParams(params) {
+        const errors = [];
+        
+        // Check if params is object
+        if (!params || typeof params !== 'object') {
+            errors.push('ParamsMustBeObject: Parameters must be an object');
+            return { isValid: false, errors };
+        }
+        
+        // Required: databaseName
+        if (!params.databaseName) {
+            errors.push('DatabaseNameMissing: databaseName is required');
+        } else if (typeof params.databaseName !== 'string') {
+            errors.push('DatabaseNameMustBeString: databaseName must be a string');
+        } else if (params.databaseName.trim() === '') {
+            errors.push('DatabaseNameCannotBeBlank: databaseName cannot be blank');
+        } else if (params.databaseName.length > 100) {
+            errors.push('DatabaseNameTooLong: databaseName cannot exceed 100 characters');
+        }
+        
+        // Required: item
+        if (params.item === undefined) {
+            errors.push('ItemMissing: item parameter is required');
+        } else {
+            // Check item size (10KB limit)
+            const itemSize = this.calculateItemSize(params.item);
+            if (itemSize > 10240) { // 10KB in bytes
+                errors.push(`ItemTooLarge: item size (${itemSize} bytes) exceeds 10KB limit`);
+            }
+            
+            // Check item type validity
+            if (!this.isValidItemType(params.item)) {
+                errors.push('ItemInvalid: item must be object, string, number, boolean, or null');
+            }
+        }
+        
+        // Optional: itemId validation
+        if (params.itemId !== undefined) {
+            if (typeof params.itemId !== 'string') {
+                errors.push('ItemIdMustBeString: itemId must be a string');
+            } else if (params.itemId.trim() === '') {
+                errors.push('ItemIdCannotBeBlank: itemId cannot be blank');
+            } else if (params.itemId.length > 100) {
+                errors.push('ItemIdTooLong: itemId cannot exceed 100 characters');
+            }
+        }
+        
+        // Optional: databaseId validation
+        if (params.databaseId !== undefined) {
+            if (typeof params.databaseId !== 'string') {
+                errors.push('DatabaseIdMustBeString: databaseId must be a string');
+            } else if (params.databaseId.trim() === '') {
+                errors.push('DatabaseIdCannotBeBlank: databaseId cannot be blank');
+            }
+        }
+        
+        // Optional: shareToken validation
+        if (params.shareToken !== undefined && typeof params.shareToken !== 'string') {
+            errors.push('ShareTokenMustBeString: shareToken must be a string');
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+    
+    /**
+     * ✅ SDK COMPLIANT: Calculate item size in bytes
+     * @param {*} item - Item to calculate size for
+     * @returns {number} Size in bytes
+     */
+    calculateItemSize(item) {
+        try {
+            return new Blob([JSON.stringify(item)]).size;
+        } catch (error) {
+            // Fallback calculation
+            return JSON.stringify(item).length * 2; // Rough estimate (UTF-16)
+        }
+    }
+    
+    /**
+     * ✅ SDK COMPLIANT: Check if item type is valid per SDK spec
+     * @param {*} item - Item to validate
+     * @returns {boolean} True if valid type
+     */
+    isValidItemType(item) {
+        const type = typeof item;
+        return type === 'object' || type === 'string' || type === 'number' || type === 'boolean' || item === null;
+    }
+    
+    /**
+     * ✅ SDK COMPLIANT: Handle insertItem-specific errors per SDK specification
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleInsertItemError(error, context) {
+        console.log(`🔍 insertItem Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'ParamsMustBeObject':
+                console.error(`❌ Invalid parameters in ${context}: Must be an object`);
+                break;
+            case 'DatabaseNotOpen':
+                console.error(`❌ Database not open in ${context}: Database must be opened first`);
+                this.eventBus.emit('database:notOpen', { context });
+                break;
+            case 'DatabaseNameMissing':
+            case 'DatabaseNameMustBeString':
+            case 'DatabaseNameCannotBeBlank':
+            case 'DatabaseNameTooLong':
+            case 'DatabaseNameRestricted':
+                console.error(`❌ Invalid database name in ${context}:`, error.message);
+                break;
+            case 'DatabaseIdMustBeString':
+            case 'DatabaseIdCannotBeBlank':
+            case 'DatabaseIdInvalidLength':
+            case 'DatabaseIdNotAllowed':
+                console.error(`❌ Invalid database ID in ${context}:`, error.message);
+                break;
+            case 'DatabaseIsReadOnly':
+                console.error(`❌ Database is read-only in ${context}: Cannot insert items`);
+                this.eventBus.emit('database:readOnly', { context });
+                break;
+            case 'ItemIdMustBeString':
+            case 'ItemIdCannotBeBlank':
+            case 'ItemIdTooLong':
+                console.error(`❌ Invalid item ID in ${context}:`, error.message);
+                break;
+            case 'ItemMissing':
+                console.error(`❌ Item missing in ${context}: item parameter is required`);
+                break;
+            case 'ItemInvalid':
+                console.error(`❌ Invalid item in ${context}: item must be object, string, number, boolean, or null`);
+                break;
+            case 'ItemTooLarge':
+                console.error(`❌ Item too large in ${context}: item exceeds 10KB limit`);
+                break;
+            case 'ItemAlreadyExists':
+                console.warn(`⚠️ Item already exists in ${context}: Use updateItem instead`);
+                this.eventBus.emit('database:itemExists', { context });
+                break;
+            case 'TransactionUnauthorized':
+                console.error(`❌ Unauthorized transaction in ${context}: Check write permissions`);
+                this.eventBus.emit('database:unauthorized', { context });
+                break;
+            case 'UserNotSignedIn':
+                console.log('🔐 User not signed in, emitting auth required event');
+                this.eventBus.emit('auth:required', { context });
+                break;
+            case 'UserNotFound':
+                console.error(`❌ User not found in ${context}`);
+                this.eventBus.emit('auth:userNotFound', { context });
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in ${context}, backing off`);
+                this.eventBus.emit('database:rateLimited', { context });
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context });
+                break;
+            default:
+                // Fall back to general SDK error handling
+                this.handleSDKError(error, context);
+        }
+    }
+    
+    /**
+     * ✅ SDK COMPLIANT: Safe insertItem wrapper with full validation
+     * @param {Object} params - insertItem parameters
+     * @param {string} context - Context for error reporting
+     * @returns {Promise<Object>} Insert result
+     */
+    async safeInsertItem(params, context) {
+        try {
+            // Pre-validate parameters
+            const validation = this.validateInsertItemParams(params);
+            if (!validation.isValid) {
+                const error = new Error(validation.errors[0]);
+                error.name = validation.errors[0].split(':')[0];
+                throw error;
+            }
+            
+            // Call SDK insertItem
+            return await userbase.insertItem(params);
+            
+        } catch (error) {
+            this.handleInsertItemError(error, context);
+            throw error;
+        }
+    }
+    
+    /**
      * ✅ SDK COMPLIANT: Handle specific Userbase SDK error types
      * @param {Error} error - The error object
      * @param {string} context - Context where error occurred
@@ -714,23 +912,29 @@ export class ContactDatabase {
     }
 
     /**
-     * Save contact to database
+     * Save contact to database - ✅ SDK COMPLIANT
      * @param {Object} contact - Contact object
      * @returns {Promise<Object>} Save result
      */
     async saveContact(contact) {
         try {
+            // Validate input
+            if (!contact || !contact.contactId) {
+                throw new Error('Valid contact with contactId is required');
+            }
+            
             // Use contactId as itemId to ensure we can reference it later
             const itemId = contact.contactId;
             
-            await userbase.insertItem({
+            // ✅ SDK COMPLIANT: Use safe insertItem with validation
+            await this.safeInsertItem({
                 databaseName: this.databases.contacts,
                 itemId: itemId, // Specify the itemId explicitly
                 item: {
                     ...contact,
                     contactId: contact.contactId // Keep contactId for clarity
                 }
-            });
+            }, 'saveContact');
 
             this.eventBus.emit('contact:saved', { contact, itemId });
             return { success: true, itemId };
@@ -880,11 +1084,12 @@ export class ContactDatabase {
             // Use a deterministic itemId based on contact and list
             const itemId = `sharing_${contactId}_${listName}`;
 
-            await userbase.insertItem({
+            // ✅ SDK COMPLIANT: Use safe insertItem with validation
+            await this.safeInsertItem({
                 databaseName: this.databases.distributionSharing,
                 item: sharingRecord,
                 itemId: itemId
-            });
+            }, 'saveDistributionListSharing');
 
             return { success: true, itemId, sharingRecord };
 
@@ -1038,11 +1243,12 @@ export class ContactDatabase {
                 lastUpdated: new Date().toISOString()
             };
 
-            await userbase.insertItem({
+            // ✅ SDK COMPLIANT: Use safe insertItem with validation
+            await this.safeInsertItem({
                 databaseName: this.databases.sharedContactMeta,
                 item: metadataItem,
                 itemId: sharedContactId // Use shared contact ID as the item ID
-            });
+            }, 'saveSharedContactMetadata');
 
             return { success: true, metadata: metadataItem };
         } catch (error) {
@@ -1284,7 +1490,8 @@ export class ContactDatabase {
                 });
 
                 // Insert the contact into the shared database
-                await userbase.insertItem({
+                // ✅ SDK COMPLIANT: Use safe insertItem with validation
+                await this.safeInsertItem({
                     databaseName: sharedDbName,
                     item: {
                         ...contact,
@@ -1296,7 +1503,7 @@ export class ContactDatabase {
                         }
                     },
                     itemId: contact.contactId
-                });
+                }, 'shareContact');
 
                 // Now share this specific database with the target user
                 await userbase.shareDatabase({
@@ -1583,14 +1790,15 @@ export class ContactDatabase {
         try {
             const itemId = 'user-settings';
             
-            await userbase.insertItem({
+            // ✅ SDK COMPLIANT: Use safe insertItem with validation
+            await this.safeInsertItem({
                 databaseName: this.databases.settings,
                 item: {
                     ...settings,
                     lastUpdated: new Date().toISOString()
                 },
                 itemId
-            });
+            }, 'saveSettings');
 
             this.eventBus.emit('settings:saved', { settings });
             return { success: true, itemId };
@@ -1614,7 +1822,8 @@ export class ContactDatabase {
         try {
             const itemId = this.generateItemId();
             
-            await userbase.insertItem({
+            // ✅ SDK COMPLIANT: Use safe insertItem with validation
+            await this.safeInsertItem({
                 databaseName: this.databases.activity,
                 item: {
                     ...activity,
@@ -1622,7 +1831,7 @@ export class ContactDatabase {
                     userId: this.currentUser?.userId
                 },
                 itemId
-            });
+            }, 'logActivity');
 
             return { success: true, itemId };
         } catch (error) {
@@ -1859,11 +2068,12 @@ export class ContactDatabase {
                 // Create new settings with fixed itemId (like in saveSettings method)
                 const fixedItemId = 'user-settings';
                 
-                await userbase.insertItem({
+                // ✅ SDK COMPLIANT: Use safe insertItem with validation
+                await this.safeInsertItem({
                     databaseName: 'user-settings',
                     item: settingsToSave,
                     itemId: fixedItemId
-                });
+                }, 'updateSettings');
                 
                 // Update local cache
                 this.settingsItems = [{ itemId: fixedItemId, ...settingsToSave }];
