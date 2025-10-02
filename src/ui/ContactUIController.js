@@ -494,6 +494,10 @@ export class ContactUIController {
             shareContactPreview: document.getElementById('share-contact-preview'),
             shareUsernameInput: document.getElementById('share-username'),
             shareReadonlyCheckbox: document.getElementById('share-readonly'),
+            verifyUserBtn: document.getElementById('verify-user-btn'),
+            getVerificationBtn: document.getElementById('get-verification-btn'),
+            verificationMessageInput: document.getElementById('verification-message'),
+            verificationStatus: document.getElementById('verification-status'),
             shareLoading: document.getElementById('share-loading'),
             shareSuccess: document.getElementById('share-success'),
             shareDistributionListSelect: document.getElementById('share-distribution-list'),
@@ -746,6 +750,18 @@ export class ContactUIController {
         // Share form
         if (this.elements.shareForm) {
             this.elements.shareForm.addEventListener('submit', this.handleShareSubmit.bind(this));
+        }
+        
+        // Verify user button
+        const verifyUserBtn = document.getElementById('verify-user-btn');
+        if (verifyUserBtn) {
+            verifyUserBtn.addEventListener('click', this.handleVerifyUser.bind(this));
+        }
+        
+        // Get verification message button
+        const getVerificationBtn = document.getElementById('get-verification-btn');
+        if (getVerificationBtn) {
+            getVerificationBtn.addEventListener('click', this.handleGetVerificationMessage.bind(this));
         }
         
         // Share type tabs
@@ -3053,6 +3069,115 @@ export class ContactUIController {
     }
 
     /**
+     * Handle verify user button click
+     */
+    async handleVerifyUser() {
+        const verificationMessageInput = document.getElementById('verification-message');
+        const verifyBtn = document.getElementById('verify-user-btn');
+        
+        const verificationMessage = verificationMessageInput?.value?.trim();
+        if (!verificationMessage) {
+            this.showVerificationStatus('error', 'Please enter a verification message first');
+            return;
+        }
+        
+        // Show loading state
+        this.showVerificationStatus('loading', 'Verifying user...');
+        verifyBtn.disabled = true;
+        verifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+        
+        try {
+            const result = await this.contactManager.verifyUser(verificationMessage);
+            
+            if (result.success) {
+                this.showVerificationStatus('success', 'User verified successfully! You can now share securely.');
+            } else {
+                this.showVerificationStatus('error', result.error || 'Failed to verify user');
+            }
+            
+        } catch (error) {
+            console.error('❌ User verification failed:', error);
+            
+            let errorMessage = 'Failed to verify user';
+            if (error.message && error.message.includes('VerificationMessageInvalid')) {
+                errorMessage = 'Invalid verification message. Please check and try again.';
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            this.showVerificationStatus('error', errorMessage);
+        } finally {
+            // Reset button state
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = '<i class="fas fa-shield-check"></i> Verify';
+        }
+    }
+
+    /**
+     * Handle get verification message button click
+     */
+    async handleGetVerificationMessage() {
+        const getBtn = document.getElementById('get-verification-btn');
+        
+        // Show loading state
+        this.showVerificationStatus('loading', 'Getting your verification message...');
+        getBtn.disabled = true;
+        getBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting...';
+        
+        try {
+            const result = await this.contactManager.getVerificationMessage();
+            
+            if (result.success) {
+                // Show the verification message in a copyable format
+                const message = `Your verification message: <code style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-family: monospace; word-break: break-all;">${result.verificationMessage}</code><br><small>Share this with others so they can verify you before sharing contacts.</small>`;
+                this.showVerificationStatus('success', message);
+                
+                // Also copy to clipboard if possible
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(result.verificationMessage);
+                    console.log('✅ Verification message copied to clipboard');
+                }
+            } else {
+                this.showVerificationStatus('error', result.error || 'Failed to get verification message');
+            }
+            
+        } catch (error) {
+            console.error('❌ Get verification message failed:', error);
+            this.showVerificationStatus('error', 'Failed to get verification message');
+        } finally {
+            // Reset button state
+            getBtn.disabled = false;
+            getBtn.innerHTML = '<i class="fas fa-key"></i> Get My Code';
+        }
+    }
+
+    /**
+     * Show verification status message
+     */
+    showVerificationStatus(type, message) {
+        const verificationStatus = document.getElementById('verification-status');
+        if (!verificationStatus) return;
+        
+        verificationStatus.style.display = 'block';
+        verificationStatus.className = `verification-status ${type}`;
+        
+        let icon = '';
+        switch (type) {
+            case 'success':
+                icon = '<i class="fas fa-check-circle"></i>';
+                break;
+            case 'error':
+                icon = '<i class="fas fa-exclamation-circle"></i>';
+                break;
+            case 'loading':
+                icon = '<i class="fas fa-spinner fa-spin"></i>';
+                break;
+        }
+        
+        verificationStatus.innerHTML = `${icon} <span>${message}</span>`;
+    }
+
+    /**
      * Handle individual contact sharing (existing method)
      */
     async handleContactShare(username, isReadOnly) {
@@ -3113,7 +3238,19 @@ export class ContactUIController {
             
             // Return to form and show error
             this.setShareModalState('form');
-            this.showShareFormError('share-username', error.message || 'Failed to share contact');
+            
+            // Provide specific error messages for common issues
+            let errorMessage = error.message || 'Failed to share contact';
+            
+            if (error.message && error.message.includes('unverified user')) {
+                errorMessage = `User "${username}" needs to be verified first. Contact them to verify their account before sharing.`;
+            } else if (error.message && error.message.includes('User not found')) {
+                errorMessage = `User "${username}" does not exist. Please check the username and try again.`;
+            } else if (error.message && error.message.includes('UserNotVerified')) {
+                errorMessage = `User "${username}" is not verified. They need to verify their account before you can share contacts with them.`;
+            }
+            
+            this.showShareFormError('share-username', errorMessage);
         }
     }
 

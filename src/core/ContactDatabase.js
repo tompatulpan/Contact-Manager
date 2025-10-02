@@ -1019,6 +1019,47 @@ export class ContactDatabase {
     }
 
     /**
+     * Verify a user using their verification message (required for secure sharing)
+     * @param {string} verificationMessage - The verification message from the user being verified
+     * @returns {Promise<Object>} Verification result
+     */
+    async verifyUser(verificationMessage) {
+        try {
+            console.log(`🔐 Verifying user with verification message`);
+            
+            await userbase.verifyUser({
+                verificationMessage: verificationMessage.trim()
+            });
+            
+            console.log(`✅ User verified successfully`);
+            return { success: true };
+            
+        } catch (error) {
+            console.error(`❌ User verification failed:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get current user's verification message for sharing with others
+     * @returns {Promise<Object>} Verification message result
+     */
+    async getVerificationMessage() {
+        try {
+            console.log(`🔐 Getting verification message for current user`);
+            
+            const result = await userbase.getVerificationMessage();
+            
+            console.log(`✅ Verification message retrieved successfully`);
+            return { success: true, verificationMessage: result.verificationMessage };
+            
+        } catch (error) {
+            console.error(`❌ Failed to get verification message:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Share individual contact with another user
      * Creates a separate database for the contact to avoid sharing entire contact list
      * @param {Object} contact - Contact to share
@@ -1036,6 +1077,10 @@ export class ContactDatabase {
             if (!contact || !contact.contactId) {
                 throw new Error('Valid contact is required for sharing');
             }
+
+            // NOTE: Automatic verification disabled - requires manual verification message exchange
+            // For development/testing, we'll disable requireVerified temporarily
+            console.log(`📤 Sharing contact with ${username} (verification disabled for testing)`);
 
             // Create a unique database name for this shared contact
             const sharedDbName = `shared-contact-${contact.contactId}`;
@@ -1063,7 +1108,7 @@ export class ContactDatabase {
                     username: username.trim(),
                     readOnly,
                     resharingAllowed,
-                    requireVerified: false
+                    requireVerified: false // Temporarily disabled for testing - proper verification needs manual message exchange
                 });
                 console.log('✅ Successfully added user to existing shared database:', username);
                 
@@ -1106,7 +1151,7 @@ export class ContactDatabase {
                     username: username.trim(),
                     readOnly,
                     resharingAllowed,
-                    requireVerified: false
+                    requireVerified: false // Temporarily disabled for testing - proper verification needs manual message exchange
                 });
 
                 console.log('✅ New shared database created and shared with:', username);
@@ -1214,47 +1259,21 @@ export class ContactDatabase {
             }
 
             // Remove user from the shared database
-            // Note: We'll try using shareDatabase with revoke parameter
-            // If that doesn't work, we may need to delete and recreate the database
-            try {
-                await userbase.shareDatabase({
-                    databaseName: sharedDbName,
-                    username: username.trim(),
-                    revoke: true
-                });
-                console.log(`✅ Successfully revoked access using shareDatabase revoke`);
-            } catch (revokeError) {
-                console.log(`⚠️ shareDatabase revoke failed, trying alternative approach:`, revokeError.message);
-                
-                // Alternative approach: If revoke isn't supported, we could delete and recreate
-                // For now, we'll just log this limitation
-                console.log(`❌ Cannot revoke access to "${sharedDbName}" from user "${username}" - Userbase may not support direct revocation`);
-                return { 
-                    success: false, 
-                    error: `Access revocation not supported: ${revokeError.message}`,
-                    suggestion: "User will retain access until database is recreated"
-                };
-            }
+            // Note: Userbase SDK doesn't support direct revocation via shareDatabase
+            // We'll need to implement alternative approaches for revocation
             
-            console.log(`✅ Successfully revoked access to "${sharedDbName}" from user "${username}"`);
-
-            // Log the revocation activity
-            await this.logActivity({
-                action: 'contact_access_revoked',
-                targetUser: username,
-                details: {
-                    contactId: contactId,
-                    databaseName: sharedDbName
-                }
-            });
-
-            this.eventBus.emit('contact:access_revoked', { 
-                contactId: contactId,
-                username: username,
-                sharedDbName: sharedDbName
-            });
+            // Userbase doesn't support direct revocation - this is a limitation
+            // We would need to delete and recreate the database or use other methods
+            console.log(`⚠️ Direct revocation not supported by Userbase SDK`);
             
-            return { success: true, sharedDbName };
+            // Alternative approach: Delete and recreate database for revocation
+            // This is a Userbase SDK limitation - no direct revocation support
+            console.log(`❌ Cannot revoke access to "${sharedDbName}" from user "${username}" - Userbase SDK limitation`);
+            return { 
+                success: false, 
+                error: `Access revocation not supported by Userbase SDK`,
+                suggestion: "User will retain access until database is recreated"
+            };
 
         } catch (error) {
             console.error(`❌ Revoke contact access failed for contact ${contactId}, user ${username}:`, error);

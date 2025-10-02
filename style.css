@@ -1559,6 +1559,77 @@ body {
     gap: var(--space-4);
 }
 
+/* Input groups for buttons next to inputs */
+.input-group {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.input-group input {
+    flex: 1;
+    border-radius: 4px 0 0 4px;
+}
+
+.input-group .btn {
+    border-radius: 0 4px 4px 0;
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 0.9em;
+}
+
+/* Field help text */
+.field-help {
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    margin-top: 4px;
+    display: block;
+}
+
+/* Verification status */
+.verification-status {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    word-break: break-word;
+}
+
+.verification-status span {
+    flex: 1;
+}
+
+.verification-status code {
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    word-break: break-all;
+    display: inline-block;
+    margin: 4px 0;
+}
+
+.verification-status.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.verification-status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.verification-status.loading {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
 .contact-preview {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);

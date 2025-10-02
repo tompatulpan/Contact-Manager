@@ -2607,6 +2607,23 @@ export class ContactManager {
     }
 
     /**
+     * Verify user using their verification message
+     * @param {string} verificationMessage - Verification message from the user being verified
+     * @returns {Promise<Object>} Verification result
+     */
+    async verifyUser(verificationMessage) {
+        return await this.database.verifyUser(verificationMessage);
+    }
+
+    /**
+     * Get current user's verification message for sharing with others
+     * @returns {Promise<Object>} Verification message result
+     */
+    async getVerificationMessage() {
+        return await this.database.getVerificationMessage();
+    }
+
+    /**
      * Share individual contact with another user
      * @param {string} contactId - Contact ID to share
      * @param {string} username - Username to share with

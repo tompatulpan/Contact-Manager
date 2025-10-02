@@ -517,9 +517,31 @@
                             
                             <div class="form-group">
                                 <label for="share-username">Share with Username *</label>
-                                <input type="text" id="share-username" name="username" 
-                                       placeholder="Enter username...">
+                                <div class="input-group">
+                                    <input type="text" id="share-username" name="username" 
+                                           placeholder="Enter username..." required>
+                                    <button type="button" id="get-verification-btn" class="btn btn-secondary">
+                                        <i class="fas fa-key"></i> Get My Code
+                                    </button>
+                                </div>
+                                <div id="verification-status" class="verification-status" style="display: none;">
+                                    <!-- Verification status will be shown here -->
+                                </div>
                                 <div class="field-error" id="share-username-error"></div>
+                                
+                                <div class="form-group" style="margin-top: 16px;">
+                                    <label for="verification-message">Verification Message (Optional)</label>
+                                    <div class="input-group">
+                                        <input type="text" id="verification-message" name="verificationMessage" 
+                                               placeholder="Enter verification message from the user...">
+                                        <button type="button" id="verify-user-btn" class="btn btn-secondary">
+                                            <i class="fas fa-shield-check"></i> Verify
+                                        </button>
+                                    </div>
+                                    <small class="field-help">
+                                        For secure sharing, ask the recipient for their verification message and enter it here.
+                                    </small>
+                                </div>
                             </div>
                         </div>
 
