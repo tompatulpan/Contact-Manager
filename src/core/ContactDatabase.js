@@ -108,67 +108,59 @@ export class ContactDatabase {
             // Store the appId (required parameter)
             this.appId = appId;
             
-            // Try to initialize Userbase and check for existing session
-            return new Promise((resolve) => {
-                userbase.init({
-                    appId: this.appId,
-                    updateUserHandler: (user) => {
-                        this.currentUser = user;
-                        this.eventBus.emit('database:userUpdated', { user });
-                    }
-                }).then(async (session) => {
-                    if (session.user) {
-                        console.log('✅ Session restored for user:', session.user.username);
-                        this.currentUser = session.user;
-                        this.isInitialized = true;
-                        
-                        // Update page load flag for session-only auth
-                        if (hasSessionOnly) {
-                            sessionStorage.setItem('userbase-page-loaded', 'true');
-                        }
-                        
-                        // 🚀 CRITICAL: Initialize databases immediately during restoration
-                        try {
-                            console.log('📊 Setting up databases during restoration...');
-                            await this.setupDatabases();
-                            console.log('✅ Databases setup complete during restoration');
-                            
-                            // Emit authentication event
-                            this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                            
-                            resolve({
-                                success: true,
-                                user: { username: session.user.username },
-                                sessionType: hasRememberMe ? 'persistent' : 'session',
-                                databasesReady: true
-                            });
-                        } catch (dbError) {
-                            console.error('❌ Database setup failed during restoration:', dbError);
-                            resolve({
-                                success: true, // Session restored but database setup failed
-                                user: { username: session.user.username },
-                                sessionType: hasRememberMe ? 'persistent' : 'session',
-                                databasesReady: false,
-                                dbError: dbError.message
-                            });
-                        }
-                    } else {
-                        console.log('⚠️ No valid session found during restoration');
-                        resolve({
-                            success: false,
-                            error: 'No valid session found'
-                        });
-                    }
-                }).catch((error) => {
-                    console.error('Session restoration failed:', error);
-                    resolve({
-                        success: false,
-                        error: error.message
-                    });
-                });
+            // ✅ SDK COMPLIANT: Use proper async/await instead of Promise constructor
+            const session = await userbase.init({
+                appId: this.appId,
+                updateUserHandler: (user) => {
+                    this.currentUser = user;
+                    this.eventBus.emit('database:userUpdated', { user });
+                }
             });
+            
+            if (session.user) {
+                console.log('✅ Session restored for user:', session.user.username);
+                this.currentUser = session.user;
+                this.isInitialized = true;
+                
+                // Update page load flag for session-only auth
+                if (hasSessionOnly) {
+                    sessionStorage.setItem('userbase-page-loaded', 'true');
+                }
+                
+                // 🚀 CRITICAL: Initialize databases immediately during restoration
+                try {
+                    console.log('📊 Setting up databases during restoration...');
+                    await this.setupDatabases();
+                    console.log('✅ Databases setup complete during restoration');
+                    
+                    // Emit authentication event
+                    this.eventBus.emit('database:authenticated', { user: this.currentUser });
+                    
+                    return {
+                        success: true,
+                        user: { username: session.user.username },
+                        sessionType: hasRememberMe ? 'persistent' : 'session',
+                        databasesReady: true
+                    };
+                } catch (dbError) {
+                    console.error('❌ Database setup failed during restoration:', dbError);
+                    return {
+                        success: true, // Session restored but database setup failed
+                        user: { username: session.user.username },
+                        sessionType: hasRememberMe ? 'persistent' : 'session',
+                        databasesReady: false,
+                        dbError: dbError.message
+                    };
+                }
+            } else {
+                console.log('⚠️ No valid session found during restoration');
+                return {
+                    success: false,
+                    error: 'No valid session found'
+                };
+            }
         } catch (error) {
-            console.error('Error during session restoration:', error);
+            console.error('Session restoration failed:', error);
             return {
                 success: false,
                 error: error.message
@@ -506,13 +498,30 @@ export class ContactDatabase {
                                     fileName: userbaseItem.fileName,
                                     fileSize: userbaseItem.fileSize,
                                     
+                                    // ✅ SDK Database properties - all SDK-provided database metadata
+                                    databaseMetadata: {
+                                        databaseName: db.databaseName,
+                                        databaseId: db.databaseId,
+                                        isOwner: db.isOwner,
+                                        readOnly: db.readOnly,
+                                        resharingAllowed: db.resharingAllowed,
+                                        encryptionMode: db.encryptionMode,
+                                        receivedFromUsername: db.receivedFromUsername,
+                                        users: db.users || [] // Users with access to this database
+                                    },
+                                    
                                     metadata: {
                                         ...item.metadata,
                                         isOwned: false,
                                         sharedBy: db.receivedFromUsername,
                                         databaseId: db.databaseId,
                                         shareType: 'individual',
-                                        lastUpdated: item.metadata?.lastUpdated || new Date().toISOString()
+                                        lastUpdated: item.metadata?.lastUpdated || new Date().toISOString(),
+                                        
+                                        // ✅ Additional SDK properties for full compliance
+                                        readOnly: db.readOnly,
+                                        resharingAllowed: db.resharingAllowed,
+                                        encryptionMode: db.encryptionMode
                                     }
                                 };
                             });
@@ -522,7 +531,18 @@ export class ContactDatabase {
                                 isOwned: false,
                                 sharedBy: db.receivedFromUsername,
                                 databaseId: db.databaseId,
-                                shareType: 'individual'
+                                shareType: 'individual',
+                                // ✅ SDK Database metadata
+                                databaseMetadata: {
+                                    databaseName: db.databaseName,
+                                    databaseId: db.databaseId,
+                                    isOwner: db.isOwner,
+                                    readOnly: db.readOnly,
+                                    resharingAllowed: db.resharingAllowed,
+                                    encryptionMode: db.encryptionMode,
+                                    receivedFromUsername: db.receivedFromUsername,
+                                    users: db.users || []
+                                }
                             });
                         }
                     });
@@ -618,6 +638,35 @@ export class ContactDatabase {
                 break;
             default:
                 console.error(`❌ Unknown SDK error in ${context}:`, error.name, error.message);
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Handle getDatabases() specific errors per specification
+     * According to SDK docs, getDatabases() can throw: UserNotSignedIn, TooManyRequests, ServiceUnavailable
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleGetDatabasesError(error, context) {
+        console.log(`🔍 getDatabases() Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'UserNotSignedIn':
+                console.log('🔐 User not signed in for getDatabases(), emitting auth required event');
+                this.eventBus.emit('auth:required', { context, method: 'getDatabases' });
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in getDatabases() ${context}, backing off`);
+                this.eventBus.emit('database:rateLimited', { context, method: 'getDatabases' });
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in getDatabases() ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context, method: 'getDatabases' });
+                break;
+            default:
+                // For unexpected errors, fall back to general SDK error handling
+                console.error(`❌ Unexpected getDatabases() error in ${context}:`, error.name, error.message);
+                this.handleSDKError(error, context);
         }
     }
 
@@ -959,17 +1008,16 @@ export class ContactDatabase {
      */
     async getContactsSharedWithDistributionList(listName) {
         try {
-            return new Promise((resolve, reject) => {
-                userbase.openDatabase({
-                    databaseName: this.databases.distributionSharing,
-                    changeHandler: (items) => {
-                        const contactIds = items
-                            .filter(item => item.item && item.item.listName === listName)
-                            .map(item => item.item.contactId);
-                        resolve(contactIds);
-                    },
-                }).catch(reject);
-            });
+            // ✅ SDK COMPLIANT: Use proper state management instead of Promise constructor anti-pattern
+            if (!this.distributionSharingItems) {
+                await this.ensureDistributionSharingDatabase();
+            }
+            
+            const contactIds = this.distributionSharingItems
+                .filter(item => item.listName === listName)
+                .map(item => item.contactId);
+                
+            return contactIds;
         } catch (error) {
             console.error('❌ Get contacts shared with distribution list failed:', error);
             return [];
@@ -1042,17 +1090,16 @@ export class ContactDatabase {
      */
     async getSharedContactMetadata(sharedContactId) {
         try {
-            // We need to open the database and find the item
-            // Since we can't query directly, we'll get all and filter
-            const items = await new Promise((resolve, reject) => {
-                userbase.openDatabase({
-                    databaseName: this.databases.sharedContactMeta,
-                    changeHandler: (items) => resolve(items),
-                }).catch(reject);
-            });
-
-            const metadataItem = items.find(item => item.itemId === sharedContactId);
-            return metadataItem ? metadataItem.item : null;
+            // ✅ SDK COMPLIANT: Use proper state management instead of Promise constructor anti-pattern
+            if (!this.sharedContactMetaItems) {
+                await this.ensureSharedContactMetaDatabase();
+            }
+            
+            const metadataItem = this.sharedContactMetaItems.find(item => 
+                item.itemId === sharedContactId
+            );
+            
+            return metadataItem || null;
         } catch (error) {
             console.error('❌ Get shared contact metadata failed:', error);
             return null;
@@ -1195,8 +1242,9 @@ export class ContactDatabase {
             // Check if the shared database already exists
             let databaseExists = false;
             try {
-                const databases = await userbase.getDatabases();
-                const dbList = databases.databases || databases;
+                // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
+                const result = await userbase.getDatabases();
+                const dbList = result.databases;
                 databaseExists = dbList.some(db => 
                     db.databaseName === sharedDbName && db.isOwner
                 );
@@ -1347,8 +1395,9 @@ export class ContactDatabase {
             // First check if the database exists and we own it
             let databaseExists = false;
             try {
-                const databases = await userbase.getDatabases();
-                const dbList = databases.databases || databases;
+                // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
+                const result = await userbase.getDatabases();
+                const dbList = result.databases;
                 databaseExists = dbList.some(db => 
                     db.databaseName === sharedDbName && db.isOwner
                 );
@@ -1444,27 +1493,34 @@ export class ContactDatabase {
      */
     /**
      * Get all shared contact databases (both owned and received) - CRITICAL for cross-device sharing
+     * @param {Object} [options] - Optional parameters for getDatabases
+     * @param {string} [options.databaseName] - Specific database name to retrieve
+     * @param {string} [options.databaseId] - Specific database ID to retrieve
      * @returns {Promise<Object>} Object with ownedSharedDatabases and receivedSharedDatabases arrays
      */
-    async getAllSharedContactDatabases() {
+    async getAllSharedContactDatabases(options = null) {
         try {
-            const databases = await userbase.getDatabases();
+            // ✅ SDK COMPLIANT: Pass optional parameters to getDatabases only when specified
+            const result = options ? await userbase.getDatabases(options) : await userbase.getDatabases();
             
-            // Check if databases is an object with databases property or direct array
-            let databasesArray;
-            if (Array.isArray(databases)) {
-                databasesArray = databases;
-            } else if (databases && Array.isArray(databases.databases)) {
-                databasesArray = databases.databases;
-            } else {
-                console.warn('⚠️ Unexpected databases format:', databases);
+            // SDK guarantees this format: { databases: [...] }
+            if (!result || !Array.isArray(result.databases)) {
+                console.warn('⚠️ Unexpected databases format from SDK:', result);
                 return { success: true, ownedSharedDatabases: [], receivedSharedDatabases: [] };
             }
+            
+            const databasesArray = result.databases;
             
             // Filter for shared contact databases
             const sharedContactDatabases = databasesArray.filter(db => 
                 db.databaseName.startsWith('shared-contact-')
             );
+            
+            // ✅ SDK COMPLIANT: Log all SDK properties for debugging compliance
+            if (sharedContactDatabases.length > 0) {
+                console.log('🔍 SDK Database Properties Sample:', sharedContactDatabases[0]);
+                console.log('🔍 Available SDK properties:', Object.keys(sharedContactDatabases[0]));
+            }
             
             // Separate owned vs received shared databases
             const ownedSharedDatabases = sharedContactDatabases.filter(db => db.isOwner);
@@ -1476,10 +1532,9 @@ export class ContactDatabase {
                 receivedSharedDatabases
             };
         } catch (error) {
-            // Don't log "Not signed in" as an error since it's expected before authentication
-            if (error.message !== 'Not signed in.') {
-                console.error('Get all shared contact databases failed:', error);
-            }
+            // ✅ SDK COMPLIANT: Handle specific getDatabases() errors per spec
+            this.handleGetDatabasesError(error, 'getAllSharedContactDatabases');
+            
             return { 
                 success: false, 
                 error: error.message,
@@ -1489,27 +1544,32 @@ export class ContactDatabase {
         }
     }
 
-    async getSharedDatabases() {
+    /**
+     * Get shared databases with optional filtering
+     * @param {Object} [options] - Optional parameters for getDatabases
+     * @param {string} [options.databaseName] - Specific database name to retrieve
+     * @param {string} [options.databaseId] - Specific database ID to retrieve
+     * @returns {Promise<Object>} Shared databases result
+     */
+    async getSharedDatabases(options = null) {
         try {
-            const databases = await userbase.getDatabases();
-            console.log('🔍 Raw databases from getDatabases():', databases);
+            // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] } according to spec
+            const result = options ? await userbase.getDatabases(options) : await userbase.getDatabases();
+            console.log('🔍 Raw result from getDatabases():', result);
             
-            // Check if databases is an object with databases property or direct array
-            let databasesArray;
-            if (Array.isArray(databases)) {
-                databasesArray = databases;
-            } else if (databases && Array.isArray(databases.databases)) {
-                databasesArray = databases.databases;
-            } else {
-                console.warn('⚠️ Unexpected databases format:', databases);
+            // SDK guarantees this format: { databases: [...] }
+            if (!result || !Array.isArray(result.databases)) {
+                console.warn('⚠️ Unexpected databases format from SDK:', result);
                 return { success: true, databases: [] };
             }
             
-            const sharedDatabases = databasesArray.filter(db => !db.isOwner);
+            const sharedDatabases = result.databases.filter(db => !db.isOwner);
             
             return { success: true, databases: sharedDatabases };
         } catch (error) {
-            console.error('Get shared databases failed:', error);
+            // ✅ SDK COMPLIANT: Handle specific getDatabases() errors per spec
+            this.handleGetDatabasesError(error, 'getSharedDatabases');
+            
             return { success: false, error: error.message };
         }
     }
