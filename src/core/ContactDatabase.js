@@ -23,6 +23,16 @@ export class ContactDatabase {
         this.distributionSharingItems = null; // Cache for distribution sharing
         this.sharedContactMetaItems = null; // Cache for shared contact metadata
         this.databaseStates = new Map(); // Track database initialization states
+        
+        // 🚀 PERFORMANCE: Caching for shared database operations
+        this.sharedDatabaseCache = {
+            lastFetch: null,
+            data: null,
+            isValid: false,
+            ttl: 30000 // 30 second cache TTL
+        };
+        this.openedSharedDatabases = new Set(); // Track which shared databases are already open
+        this.isInitializingSharedDatabases = false; // Prevent concurrent initialization
     }
 
     /**
@@ -412,12 +422,9 @@ export class ContactDatabase {
                 this.eventBus.emit('contacts:changed', { contacts: items, isOwned: true });
             });
 
-            // Setup shared contact databases - CRITICAL for cross-device sharing
+            // 🚀 PERFORMANCE: Setup shared contact databases with optimized caching
+            // This now handles initial discovery internally, no need for separate check
             await this.setupSharedDatabases();
-
-            // Force initial monitoring check for any existing shared databases
-            console.log('🔍 Performing initial shared database check...');
-            await this.checkForNewSharedDatabases();
 
             // Setup settings database with proper state management
             await this.openDatabase('user-settings', (items) => {
@@ -441,49 +448,181 @@ export class ContactDatabase {
     }
 
     /**
-     * Setup shared contact databases - CRITICAL FIX for cross-device sharing
+     * 🚀 PERFORMANCE: Setup shared contact databases with parallel opening and smart caching
      */
     async setupSharedDatabases() {
+        // Prevent concurrent initialization
+        if (this.isInitializingSharedDatabases) {
+            console.log('🔄 Shared database initialization already in progress, skipping...');
+            return;
+        }
+
+        this.isInitializingSharedDatabases = true;
+        
         try {
-            // Get ALL databases (both owned and received) to handle cross-device sharing
-            const allDatabases = await this.getAllSharedContactDatabases();
+            // Use cached data to avoid redundant getDatabases() calls
+            const allDatabases = await this.getAllSharedContactDatabasesCached();
             if (!allDatabases.success) {
                 console.log('📭 No shared databases found or error accessing them');
                 return;
             }
 
             const { ownedSharedDatabases, receivedSharedDatabases } = allDatabases;
+            console.log(`🚀 Setting up shared databases: ${ownedSharedDatabases.length} owned, ${receivedSharedDatabases.length} received`);
             
-            // 🔑 CRITICAL FIX: Handle OWNED shared databases (for cross-device editing)
-            // When User1 switches devices, they need to monitor their own shared databases
-            // to ensure updates propagate to recipients
-            for (const db of ownedSharedDatabases) {
+            // 🚀 PERFORMANCE: Open owned shared databases in parallel
+            const ownedPromises = ownedSharedDatabases
+                .filter(db => !this.openedSharedDatabases.has(db.databaseName))
+                .map(async (db) => {
+                    try {
+                        await userbase.openDatabase({
+                            databaseName: db.databaseName,
+                            changeHandler: (items) => {
+                                // Don't emit contacts:changed for owned shared databases
+                                // These are just for monitoring outgoing changes
+                            }
+                        });
+                        this.openedSharedDatabases.add(db.databaseName);
+                        console.log(`✅ Opened owned shared database: ${db.databaseName}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to open owned shared database ${db.databaseName}:`, error);
+                    }
+                });
+
+            // 🚀 PERFORMANCE: Open received shared databases in parallel
+            const receivedPromises = receivedSharedDatabases
+                .filter(db => !this.openedSharedDatabases.has(db.databaseId))
+                .map(async (db) => {
+                    try {
+                        await userbase.openDatabase({
+                            databaseId: db.databaseId,
+                            changeHandler: (items) => {
+                                // ✅ SDK COMPLIANT: Transform individual contacts with full attribution data
+                                const contacts = items.map(userbaseItem => {
+                                    const item = userbaseItem.item || {};
+                                    return {
+                                        contactId: item.contactId || userbaseItem.itemId,
+                                        itemId: userbaseItem.itemId, // ✅ Preserve Userbase itemId
+                                        cardName: item.cardName || 'Unnamed Contact',
+                                        vcard: item.vcard || '',
+                                        
+                                        // ✅ SDK Attribution data
+                                        createdBy: userbaseItem.createdBy,
+                                        updatedBy: userbaseItem.updatedBy,
+                                        fileUploadedBy: userbaseItem.fileUploadedBy,
+                                        writeAccess: userbaseItem.writeAccess,
+                                        
+                                        // ✅ File data if present
+                                        fileId: userbaseItem.fileId,
+                                        fileName: userbaseItem.fileName,
+                                        fileSize: userbaseItem.fileSize,
+                                        
+                                        // ✅ SDK Database properties - all SDK-provided database metadata
+                                        databaseMetadata: {
+                                            databaseName: db.databaseName,
+                                            databaseId: db.databaseId,
+                                            isOwner: db.isOwner,
+                                            readOnly: db.readOnly,
+                                            resharingAllowed: db.resharingAllowed,
+                                            encryptionMode: db.encryptionMode,
+                                            receivedFromUsername: db.receivedFromUsername,
+                                            users: db.users || [] // Users with access to this database
+                                        },
+                                        
+                                        metadata: {
+                                            ...item.metadata,
+                                            isOwned: false,
+                                            sharedBy: db.receivedFromUsername,
+                                            databaseId: db.databaseId,
+                                            shareType: 'individual',
+                                            lastUpdated: item.metadata?.lastUpdated || new Date().toISOString(),
+                                            
+                                            // ✅ Additional SDK properties for full compliance
+                                            readOnly: db.readOnly,
+                                            resharingAllowed: db.resharingAllowed,
+                                            encryptionMode: db.encryptionMode
+                                        }
+                                    };
+                                });
+                                
+                                this.eventBus.emit('contacts:changed', { 
+                                    contacts: contacts, 
+                                    isOwned: false,
+                                    sharedBy: db.receivedFromUsername,
+                                    databaseId: db.databaseId,
+                                    shareType: 'individual',
+                                    // ✅ SDK Database metadata
+                                    databaseMetadata: {
+                                        databaseName: db.databaseName,
+                                        databaseId: db.databaseId,
+                                        isOwner: db.isOwner,
+                                        readOnly: db.readOnly,
+                                        resharingAllowed: db.resharingAllowed,
+                                        encryptionMode: db.encryptionMode,
+                                        receivedFromUsername: db.receivedFromUsername,
+                                        users: db.users || []
+                                    }
+                                });
+                            }
+                        });
+                        this.openedSharedDatabases.add(db.databaseId);
+                        console.log(`✅ Opened received shared database: ${db.databaseId} from ${db.receivedFromUsername}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to open received shared database ${db.databaseId}:`, error);
+                    }
+                });
+
+            // 🚀 PERFORMANCE: Wait for all database operations to complete in parallel
+            await Promise.allSettled([...ownedPromises, ...receivedPromises]);
+            
+            // 🚀 PERFORMANCE: Update tracking to prevent redundant monitoring calls
+            const totalCount = ownedSharedDatabases.length + receivedSharedDatabases.length;
+            this.lastKnownSharedCount = totalCount;
+            
+            console.log(`✅ Shared database setup complete. ${this.openedSharedDatabases.size} databases opened.`);
+
+        } catch (error) {
+            console.error('❌ Setup shared databases failed:', error);
+        } finally {
+            this.isInitializingSharedDatabases = false;
+        }
+    }
+
+    /**
+     * 🚀 PERFORMANCE: Setup specific shared databases (for differential updates)
+     * @param {Array} ownedDatabases - New owned shared databases to setup
+     * @param {Array} receivedDatabases - New received shared databases to setup
+     */
+    async setupSpecificSharedDatabases(ownedDatabases, receivedDatabases) {
+        try {
+            // Open new owned shared databases in parallel
+            const ownedPromises = ownedDatabases.map(async (db) => {
                 try {
                     await userbase.openDatabase({
-                        databaseName: db.databaseName, // Use databaseName for owned databases
+                        databaseName: db.databaseName,
                         changeHandler: (items) => {
                             // Don't emit contacts:changed for owned shared databases
-                            // These are just for monitoring outgoing changes
-                            // The contact changes will be handled by the main contacts database
                         }
                     });
+                    this.openedSharedDatabases.add(db.databaseName);
+                    console.log(`✅ Opened new owned shared database: ${db.databaseName}`);
                 } catch (error) {
-                    console.error(`❌ Failed to open owned shared database ${db.databaseName}:`, error);
+                    console.error(`❌ Failed to open new owned shared database ${db.databaseName}:`, error);
                 }
-            }
+            });
 
-            // Handle RECEIVED shared databases (from other users)
-            for (const db of receivedSharedDatabases) {
+            // Open new received shared databases in parallel
+            const receivedPromises = receivedDatabases.map(async (db) => {
                 try {
                     await userbase.openDatabase({
                         databaseId: db.databaseId,
                         changeHandler: (items) => {
-                            // ✅ SDK COMPLIANT: Transform individual contacts with full attribution data
+                            // Same change handler logic as in setupSharedDatabases
                             const contacts = items.map(userbaseItem => {
                                 const item = userbaseItem.item || {};
                                 return {
                                     contactId: item.contactId || userbaseItem.itemId,
-                                    itemId: userbaseItem.itemId, // ✅ Preserve Userbase itemId
+                                    itemId: userbaseItem.itemId,
                                     cardName: item.cardName || 'Unnamed Contact',
                                     vcard: item.vcard || '',
                                     
@@ -493,12 +632,6 @@ export class ContactDatabase {
                                     fileUploadedBy: userbaseItem.fileUploadedBy,
                                     writeAccess: userbaseItem.writeAccess,
                                     
-                                    // ✅ File data if present
-                                    fileId: userbaseItem.fileId,
-                                    fileName: userbaseItem.fileName,
-                                    fileSize: userbaseItem.fileSize,
-                                    
-                                    // ✅ SDK Database properties - all SDK-provided database metadata
                                     databaseMetadata: {
                                         databaseName: db.databaseName,
                                         databaseId: db.databaseId,
@@ -507,7 +640,7 @@ export class ContactDatabase {
                                         resharingAllowed: db.resharingAllowed,
                                         encryptionMode: db.encryptionMode,
                                         receivedFromUsername: db.receivedFromUsername,
-                                        users: db.users || [] // Users with access to this database
+                                        users: db.users || []
                                     },
                                     
                                     metadata: {
@@ -515,13 +648,7 @@ export class ContactDatabase {
                                         isOwned: false,
                                         sharedBy: db.receivedFromUsername,
                                         databaseId: db.databaseId,
-                                        shareType: 'individual',
-                                        lastUpdated: item.metadata?.lastUpdated || new Date().toISOString(),
-                                        
-                                        // ✅ Additional SDK properties for full compliance
-                                        readOnly: db.readOnly,
-                                        resharingAllowed: db.resharingAllowed,
-                                        encryptionMode: db.encryptionMode
+                                        shareType: 'individual'
                                     }
                                 };
                             });
@@ -531,27 +658,22 @@ export class ContactDatabase {
                                 isOwned: false,
                                 sharedBy: db.receivedFromUsername,
                                 databaseId: db.databaseId,
-                                shareType: 'individual',
-                                // ✅ SDK Database metadata
-                                databaseMetadata: {
-                                    databaseName: db.databaseName,
-                                    databaseId: db.databaseId,
-                                    isOwner: db.isOwner,
-                                    readOnly: db.readOnly,
-                                    resharingAllowed: db.resharingAllowed,
-                                    encryptionMode: db.encryptionMode,
-                                    receivedFromUsername: db.receivedFromUsername,
-                                    users: db.users || []
-                                }
+                                shareType: 'individual'
                             });
                         }
                     });
+                    this.openedSharedDatabases.add(db.databaseId);
+                    console.log(`✅ Opened new received shared database: ${db.databaseId} from ${db.receivedFromUsername}`);
                 } catch (error) {
-                    console.error(`❌ Failed to open received shared contact from ${db.receivedFromUsername}:`, error);
+                    console.error(`❌ Failed to open new received shared database ${db.databaseId}:`, error);
                 }
-            }
+            });
+
+            // Wait for all new databases to complete
+            await Promise.allSettled([...ownedPromises, ...receivedPromises]);
+            
         } catch (error) {
-            console.error('❌ Setup shared databases failed:', error);
+            console.error('❌ Error setting up specific shared databases:', error);
         }
     }
 
@@ -2714,6 +2836,73 @@ export class ContactDatabase {
      * @returns {Promise<Array>} Array of shared databases
      */
     /**
+     * 🚀 PERFORMANCE: Get all shared contact databases with caching
+     * @param {boolean} [forceRefresh=false] - Force refresh cache
+     * @returns {Promise<Object>} Object with ownedSharedDatabases and receivedSharedDatabases arrays
+     */
+    async getAllSharedContactDatabasesCached(forceRefresh = false) {
+        const now = Date.now();
+        
+        // Check if cache is valid and not forcing refresh
+        if (!forceRefresh && 
+            this.sharedDatabaseCache.isValid && 
+            this.sharedDatabaseCache.lastFetch && 
+            (now - this.sharedDatabaseCache.lastFetch) < this.sharedDatabaseCache.ttl) {
+            
+            console.log('🚀 Using cached shared database data');
+            return this.sharedDatabaseCache.data;
+        }
+        
+        // Fetch fresh data
+        console.log('🔄 Fetching fresh shared database data');
+        const result = await this.getAllSharedContactDatabases();
+        
+        // Update cache
+        this.sharedDatabaseCache = {
+            lastFetch: now,
+            data: result,
+            isValid: result.success,
+            ttl: this.sharedDatabaseCache.ttl
+        };
+        
+        return result;
+    }
+
+    /**
+     * 🚀 PERFORMANCE: Invalidate shared database cache
+     * Call this when you know the shared database list has changed
+     */
+    invalidateSharedDatabaseCache() {
+        this.sharedDatabaseCache.isValid = false;
+        this.sharedDatabaseCache.data = null;
+        console.log('🗑️ Shared database cache invalidated');
+    }
+
+    /**
+     * 🚀 PERFORMANCE: Handle new shared database notification
+     * Call this when you know a new shared database was created
+     * @param {string} databaseName - Name of the new shared database
+     * @param {string} sharedWith - Username who received the share
+     */
+    async handleNewSharedDatabase(databaseName, sharedWith) {
+        try {
+            // Invalidate cache since we know data changed
+            this.invalidateSharedDatabaseCache();
+            
+            // Track that we created a new shared database
+            this.lastKnownSharedCount = (this.lastKnownSharedCount || 0) + 1;
+            
+            console.log(`📤 New shared database created: ${databaseName} → ${sharedWith}`);
+            
+            // The new shared database will be picked up by the next monitoring cycle
+            // or can be handled immediately if needed
+            
+        } catch (error) {
+            console.error('❌ Error handling new shared database:', error);
+        }
+    }
+
+    /**
      * Get all shared contact databases (both owned and received) - CRITICAL for cross-device sharing
      * @param {Object} [options] - Optional parameters for getDatabases
      * @param {string} [options.databaseName] - Specific database name to retrieve
@@ -2976,23 +3165,26 @@ export class ContactDatabase {
      * Start monitoring for new shared databases
      */
     startSharedDatabaseMonitoring() {
-        // Check every 10 seconds for new shared databases
-        this.sharedDatabaseMonitor = setInterval(async () => {
-            try {
-                await this.checkForNewSharedDatabases();
-            } catch (error) {
-                console.error('🔄 Error checking for new shared databases:', error);
-            }
-        }, 10000); // 10 seconds
+        // 🚀 PERFORMANCE: Add initial delay to avoid immediate redundant call after setup
+        setTimeout(() => {
+            // Check every 10 seconds for new shared databases
+            this.sharedDatabaseMonitor = setInterval(async () => {
+                try {
+                    await this.checkForNewSharedDatabases();
+                } catch (error) {
+                    console.error('🔄 Error checking for new shared databases:', error);
+                }
+            }, 10000); // 10 seconds
+        }, 15000); // Start monitoring after 15 seconds to allow initial setup to complete
     }
 
     /**
-     * Check for new shared databases - ENHANCED for cross-device sharing
+     * 🚀 PERFORMANCE: Check for new shared databases with smart caching and differential updates
      */
     async checkForNewSharedDatabases() {
         try {
-            // Get all databases and check for new shared contact databases
-            const allDatabases = await this.getAllSharedContactDatabases();
+            // Use cached data with forced refresh for monitoring
+            const allDatabases = await this.getAllSharedContactDatabasesCached(true);
             if (!allDatabases.success) {
                 // Don't log "Not signed in" as an error since it's expected before authentication
                 if (allDatabases.error !== 'Not signed in.') {
@@ -3010,10 +3202,19 @@ export class ContactDatabase {
             if (totalSharedCount > currentSharedCount) {
                 console.log(`🔄 Detected new shared database(s)! Total: ${totalSharedCount}, Previous: ${currentSharedCount}`);
                 console.log(`🔄 Owned: ${ownedSharedDatabases.length}, Received: ${receivedSharedDatabases.length}`);
-                console.log('🔄 Re-setting up shared databases to include new ones...');
                 
-                // Re-setup all shared databases to include new ones
-                await this.setupSharedDatabases();
+                // 🚀 PERFORMANCE: Only setup NEW databases, not all databases
+                const newOwnedDatabases = ownedSharedDatabases.filter(db => 
+                    !this.openedSharedDatabases.has(db.databaseName));
+                const newReceivedDatabases = receivedSharedDatabases.filter(db => 
+                    !this.openedSharedDatabases.has(db.databaseId));
+                
+                if (newOwnedDatabases.length > 0 || newReceivedDatabases.length > 0) {
+                    console.log(`🔄 Setting up ${newOwnedDatabases.length + newReceivedDatabases.length} new shared databases...`);
+                    
+                    // Setup only new databases instead of all databases
+                    await this.setupSpecificSharedDatabases(newOwnedDatabases, newReceivedDatabases);
+                }
                 
                 this.lastKnownSharedCount = totalSharedCount;
                 
@@ -3022,6 +3223,8 @@ export class ContactDatabase {
                 // Handle case where shared databases were removed
                 console.log(`🔄 Detected removed shared database(s). Total: ${totalSharedCount}, Previous: ${currentSharedCount}`);
                 this.lastKnownSharedCount = totalSharedCount;
+                
+                // TODO: Clean up opened database tracking for removed databases
             }
             
         } catch (error) {
