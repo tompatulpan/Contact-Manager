@@ -1757,6 +1757,14 @@ export class ContactUIController {
     showNewContactModal() {
         this.showModal({ modalId: 'contact-modal', mode: 'create' });
         this.resetContactForm();
+        
+        // 🔧 CRITICAL: Explicitly set form to create mode after reset
+        const form = document.getElementById('contact-form');
+        if (form) {
+            form.dataset.mode = 'create';
+            // Ensure no contactId is set for new contacts
+            delete form.dataset.contactId;
+        }
     }
 
     /**
@@ -1791,6 +1799,14 @@ export class ContactUIController {
         const isEdit = event.target.dataset.mode === 'edit';
         const contactId = event.target.dataset.contactId;
         
+        // 🔍 Debug: Log form submission details
+        console.log('📝 Form submission details:', {
+            mode: event.target.dataset.mode,
+            isEdit: isEdit,
+            contactId: contactId,
+            hasContactId: !!contactId
+        });
+        
         // Convert form data to contact data object
         const contactData = this.formDataToContactData(formData);
         
@@ -1800,8 +1816,10 @@ export class ContactUIController {
         try {
             let result;
             if (isEdit && contactId) {
+                console.log('🔄 Updating existing contact:', contactId);
                 result = await this.contactManager.updateContact(contactId, contactData);
             } else {
+                console.log('✨ Creating new contact');
                 result = await this.contactManager.createContact(contactData);
             }
             
@@ -3568,6 +3586,10 @@ export class ContactUIController {
         const form = document.getElementById('contact-form');
         if (form) {
             form.reset();
+            
+            // 🔧 CRITICAL: Clear form dataset attributes to prevent wrong mode detection
+            delete form.dataset.mode;
+            delete form.dataset.contactId;
             
             // Reset multi-field components
             this.resetMultiFieldComponent('phone');

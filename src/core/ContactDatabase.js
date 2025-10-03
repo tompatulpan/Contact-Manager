@@ -904,6 +904,84 @@ export class ContactDatabase {
             errors
         };
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Validate modifyDatabasePermissions parameters before SDK call
+     * @param {Object} params - Parameters to validate
+     * @returns {Object} Validation result
+     */
+    validateModifyDatabasePermissionsParams(params) {
+        const errors = [];
+        
+        // Check if params is object
+        if (!params || typeof params !== 'object') {
+            errors.push('ParamsMustBeObject: Parameters must be an object');
+            return { isValid: false, errors };
+        }
+        
+        // Either databaseName or databaseId is required
+        if (params.databaseName === undefined && params.databaseId === undefined) {
+            errors.push('DatabaseNameOrDatabaseIdMissing: Either databaseName or databaseId is required');
+        }
+        
+        // databaseName validation
+        if (params.databaseName !== undefined) {
+            if (typeof params.databaseName !== 'string') {
+                errors.push('DatabaseNameMustBeString: databaseName must be a string');
+            } else if (params.databaseName.trim() === '') {
+                errors.push('DatabaseNameCannotBeBlank: databaseName cannot be blank');
+            } else if (params.databaseName.length > 100) {
+                errors.push('DatabaseNameTooLong: databaseName too long (max 100 characters)');
+            }
+        }
+        
+        // databaseId validation
+        if (params.databaseId !== undefined) {
+            if (typeof params.databaseId !== 'string') {
+                errors.push('DatabaseIdMustBeString: databaseId must be a string');
+            } else if (params.databaseId.trim() === '') {
+                errors.push('DatabaseIdCannotBeBlank: databaseId cannot be blank');
+            } else if (params.databaseId.length !== 36) {
+                errors.push('DatabaseIdInvalidLength: databaseId invalid length (must be 36 characters)');
+            }
+        }
+        
+        // username validation (required)
+        if (params.username === undefined || params.username === null) {
+            errors.push('UsernameMissing: username is required');
+        } else if (typeof params.username !== 'string') {
+            errors.push('UsernameMustBeString: username must be a string');
+        } else if (params.username.trim() === '') {
+            errors.push('UsernameCannotBeBlank: username cannot be blank');
+        }
+        
+        // readOnly validation (required)
+        if (params.readOnly === undefined || params.readOnly === null) {
+            errors.push('ReadOnlyMissing: readOnly is required');
+        } else if (typeof params.readOnly !== 'boolean') {
+            errors.push('ReadOnlyMustBeBoolean: readOnly must be a boolean');
+        }
+        
+        // resharingAllowed validation (optional)
+        if (params.resharingAllowed !== undefined && typeof params.resharingAllowed !== 'boolean') {
+            errors.push('ResharingAllowedMustBeBoolean: resharingAllowed must be a boolean');
+        }
+        
+        // revoke validation (optional)
+        if (params.revoke !== undefined && typeof params.revoke !== 'boolean') {
+            errors.push('RevokeMustBeBoolean: revoke must be a boolean');
+        }
+        
+        // Check for invalid combinations per SDK spec
+        if (params.resharingAllowed === true && params.readOnly === false) {
+            errors.push('ResharingWithWriteAccessNotAllowed: resharingAllowed cannot be true when readOnly is false');
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
     
     /**
      * ✅ SDK COMPLIANT: Calculate item size in bytes
@@ -1269,6 +1347,114 @@ export class ContactDatabase {
                 this.handleSDKError(error, context);
         }
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Handle modifyDatabasePermissions-specific errors per SDK specification
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleModifyDatabasePermissionsError(error, context) {
+        console.log(`🔍 modifyDatabasePermissions Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'ParamsMustBeObject':
+                console.error('❌ Parameters must be provided as an object');
+                break;
+            case 'DatabaseNameOrDatabaseIdMissing':
+                console.error('❌ Either databaseName or databaseId is required');
+                break;
+            case 'DatabaseNameMustBeString':
+                console.error('❌ databaseName must be a string');
+                break;
+            case 'DatabaseNameCannotBeBlank':
+                console.error('❌ databaseName cannot be empty');
+                break;
+            case 'DatabaseNameTooLong':
+                console.error('❌ databaseName exceeds maximum length');
+                break;
+            case 'DatabaseNameRestricted':
+                console.error('❌ databaseName uses restricted characters or words');
+                break;
+            case 'DatabaseIdMustBeString':
+                console.error('❌ databaseId must be a string');
+                break;
+            case 'DatabaseIdCannotBeBlank':
+                console.error('❌ databaseId cannot be empty');
+                break;
+            case 'DatabaseIdInvalidLength':
+                console.error('❌ databaseId must be exactly 36 characters');
+                break;
+            case 'DatabaseIdNotAllowed':
+                console.error('❌ databaseId format is not allowed');
+                break;
+            case 'DatabaseNotFound':
+                console.error('❌ Database does not exist or user does not have access');
+                break;
+            case 'UsernameMissing':
+                console.error('❌ username is required');
+                break;
+            case 'UsernameCannotBeBlank':
+                console.error('❌ username cannot be empty');
+                break;
+            case 'UsernameMustBeString':
+                console.error('❌ username must be a string');
+                break;
+            case 'ReadOnlyMissing':
+                console.error('❌ readOnly parameter is required');
+                break;
+            case 'ReadOnlyMustBeBoolean':
+                console.error('❌ readOnly must be a boolean value');
+                break;
+            case 'ResharingAllowedMustBeBoolean':
+                console.error('❌ resharingAllowed must be a boolean value');
+                break;
+            case 'ResharingWithWriteAccessNotAllowed':
+                console.error('❌ Cannot allow resharing when granting write access');
+                break;
+            case 'RevokeMustBeBoolean':
+                console.error('❌ revoke must be a boolean value');
+                break;
+            case 'UserAlreadyExists':
+                console.warn('⚠️ User already has access to this database');
+                break;
+            case 'UserNotFound':
+                console.error('❌ Target user does not exist');
+                break;
+            case 'SharingWithSelfNotAllowed':
+                console.error('❌ Cannot modify permissions for yourself');
+                break;
+            case 'UserNotSignedIn':
+                console.error('❌ User must be signed in to modify database permissions');
+                this.eventBus.emit('auth:required', { context });
+                break;
+            case 'SubscriptionPlanNotSet':
+                console.error('❌ Subscription plan required for sharing');
+                break;
+            case 'SubscriptionNotFound':
+                console.error('❌ Valid subscription required for sharing');
+                break;
+            case 'SubscribedToIncorrectPlan':
+                console.error('❌ Current subscription plan does not support sharing');
+                break;
+            case 'SubscriptionInactive':
+                console.error('❌ Subscription is not active');
+                break;
+            case 'TrialExpired':
+                console.error('❌ Trial period has expired');
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in ${context}, backing off`);
+                this.eventBus.emit('database:rateLimited', { context });
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context });
+                break;
+            default:
+                // Fall back to general SDK error handling
+                this.handleSDKError(error, context);
+        }
+    }
     
     /**
      * ✅ SDK COMPLIANT: Safe insertItem wrapper with full validation
@@ -1375,6 +1561,151 @@ export class ContactDatabase {
             this.handleShareDatabaseError(error, context);
             throw error;
         }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Safe modifyDatabasePermissions wrapper with full validation
+     * @param {Object} params - modifyDatabasePermissions parameters
+     * @param {string} context - Context for error reporting
+     * @returns {Promise<Object>} Modify permissions result
+     */
+    async safeModifyDatabasePermissions(params, context) {
+        try {
+            // Pre-validate parameters
+            const validation = this.validateModifyDatabasePermissionsParams(params);
+            if (!validation.isValid) {
+                const error = new Error(validation.errors[0]);
+                error.name = validation.errors[0].split(':')[0];
+                throw error;
+            }
+            
+            // Check if modifying permissions for self
+            if (params.username && this.currentUser && params.username === this.currentUser.username) {
+                const error = new Error('Cannot modify permissions for yourself');
+                error.name = 'SharingWithSelfNotAllowed';
+                throw error;
+            }
+            
+            // Log the permission modification attempt
+            console.log(`🔧 Modifying database permissions with validated parameters:`, {
+                databaseName: params.databaseName,
+                databaseId: params.databaseId,
+                username: params.username,
+                readOnly: params.readOnly,
+                resharingAllowed: params.resharingAllowed,
+                revoke: params.revoke
+            });
+            
+            // Call SDK modifyDatabasePermissions
+            return await userbase.modifyDatabasePermissions(params);
+            
+        } catch (error) {
+            this.handleModifyDatabasePermissionsError(error, context);
+            throw error;
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Modify contact sharing permissions for a user
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to modify permissions for
+     * @param {boolean} readOnly - Whether access should be read-only
+     * @param {boolean} [resharingAllowed=false] - Whether resharing is allowed
+     * @param {boolean} [revoke=false] - Whether to revoke access entirely
+     * @returns {Promise<Object>} Modify permissions result
+     */
+    async modifyContactPermissions(contactId, username, readOnly, resharingAllowed = false, revoke = false) {
+        try {
+            if (!contactId || !username) {
+                throw new Error('Contact ID and username are required');
+            }
+
+            const sharedDbName = `shared-contact-${contactId}`;
+            
+            console.log(`🔧 Modifying permissions for contact ${contactId}, user ${username}`);
+            console.log(`🔧 Parameters: readOnly=${readOnly}, resharingAllowed=${resharingAllowed}, revoke=${revoke}`);
+            
+            // ✅ SDK COMPLIANT: Use safe modifyDatabasePermissions wrapper
+            await this.safeModifyDatabasePermissions({
+                databaseName: sharedDbName,
+                username: username.trim(),
+                readOnly,
+                resharingAllowed,
+                revoke
+            }, 'modifyContactPermissions');
+
+            const action = revoke ? 'revoked' : 'modified';
+            console.log(`✅ Successfully ${action} permissions for ${username} on contact ${contactId}`);
+
+            // Log the activity
+            await this.logActivity({
+                action: `contact_permissions_${action}`,
+                targetUser: username,
+                details: {
+                    contactId,
+                    databaseName: sharedDbName,
+                    readOnly,
+                    resharingAllowed,
+                    revoke
+                }
+            });
+
+            this.eventBus.emit('contact:permissionsModified', { 
+                contactId,
+                username, 
+                readOnly, 
+                resharingAllowed,
+                revoke,
+                sharedDbName
+            });
+            
+            return { success: true, action, sharedDbName };
+            
+        } catch (error) {
+            console.error(`❌ Modify contact permissions failed for contact ${contactId}, user ${username}:`, error);
+            this.eventBus.emit('database:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Grant write access to a contact for a user
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to grant write access to
+     * @returns {Promise<Object>} Grant write access result
+     */
+    async grantContactWriteAccess(contactId, username) {
+        return await this.modifyContactPermissions(contactId, username, false, false, false);
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Change contact access from write to read-only
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to change to read-only
+     * @returns {Promise<Object>} Change to read-only result
+     */
+    async makeContactReadOnly(contactId, username) {
+        return await this.modifyContactPermissions(contactId, username, true, false, false);
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Enable resharing for a contact (only works with readOnly=true)
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to enable resharing for
+     * @returns {Promise<Object>} Enable resharing result
+     */
+    async enableContactResharing(contactId, username) {
+        return await this.modifyContactPermissions(contactId, username, true, true, false);
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Disable resharing for a contact
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to disable resharing for
+     * @returns {Promise<Object>} Disable resharing result
+     */
+    async disableContactResharing(contactId, username) {
+        return await this.modifyContactPermissions(contactId, username, true, false, false);
     }
     
     /**
@@ -1552,7 +1883,17 @@ export class ContactDatabase {
 
             // If this contact has been shared individually, update all shared databases
             if (contact.metadata?.isOwned !== false) { // Only for owned contacts
-                await this.updateSharedContactDatabases(contact);
+                try {
+                    const sharedUpdateResult = await this.updateSharedContactDatabases(contact);
+                    if (sharedUpdateResult.success) {
+                        console.log(`✅ Shared database update successful for contact ${contact.contactId}`);
+                    } else {
+                        console.log(`ℹ️ Shared database update info: ${sharedUpdateResult.message || sharedUpdateResult.error}`);
+                    }
+                } catch (sharedError) {
+                    console.error(`⚠️ Shared database update failed (non-critical):`, sharedError);
+                    // Don't fail the whole update if shared database update fails
+                }
             }
 
             this.eventBus.emit('contact:updated', { contact });
@@ -1609,8 +1950,52 @@ export class ContactDatabase {
         try {
             const sharedDbName = `shared-contact-${contact.contactId}`;
             
-            // Try to update the shared database
-            // Note: We can't easily check if the database exists, so we try to update and catch errors
+            console.log(`🔄 Checking if shared database exists: ${sharedDbName}`);
+            
+            // Check if we have this shared database in our owned databases
+            let databaseExists = false;
+            try {
+                // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
+                const result = await userbase.getDatabases();
+                const dbList = result.databases;
+                const existingDb = dbList.find(db => 
+                    db.databaseName === sharedDbName && db.isOwner
+                );
+                
+                if (existingDb) {
+                    databaseExists = true;
+                    console.log(`📋 Found owned shared database: ${sharedDbName}`);
+                } else {
+                    console.log(`📋 No owned shared database found: ${sharedDbName} - skipping update`);
+                    return { success: true, message: 'No shared database to update' };
+                }
+            } catch (checkError) {
+                console.log('⚠️ Could not check database existence:', checkError.message);
+                return { success: false, error: checkError.message };
+            }
+            
+            if (!databaseExists) {
+                return { success: true, message: 'Shared database does not exist' };
+            }
+            
+            // Ensure the database is open before updating
+            try {
+                console.log(`🔓 Ensuring shared database is open: ${sharedDbName}`);
+                await userbase.openDatabase({
+                    databaseName: sharedDbName,
+                    changeHandler: () => {} // Minimal handler for updates
+                });
+                console.log(`✅ Shared database opened: ${sharedDbName}`);
+            } catch (openError) {
+                if (openError.name === 'DatabaseAlreadyOpening' || openError.name === 'DatabaseAlreadyOpen') {
+                    console.log(`ℹ️ Database already open: ${sharedDbName}`);
+                } else {
+                    console.error(`❌ Failed to open shared database ${sharedDbName}:`, openError);
+                    return { success: false, error: openError.message };
+                }
+            }
+            
+            // Now try to update the shared database
             try {
                 await this.safeUpdateItem({
                     databaseName: sharedDbName,
@@ -1620,23 +2005,25 @@ export class ContactDatabase {
                         metadata: {
                             ...contact.metadata,
                             lastUpdated: new Date().toISOString(),
+                            lastSharedUpdate: new Date().toISOString(),
                             sharedAt: contact.metadata?.sharedAt, // Preserve original sharing timestamp
-                            sharedBy: contact.metadata?.sharedBy // Preserve sharing info
+                            sharedBy: contact.metadata?.sharedBy, // Preserve sharing info
+                            originalContactId: contact.contactId
                         }
                     }
                 }, 'updateSharedContactDatabases');
                 
-            } catch (error) {
-                // If the shared database doesn't exist, not open, or we don't have access, that's okay
-                if (error.name === 'DatabaseDoesNotExist' || 
-                    error.name === 'DatabaseNotOpen' || 
-                    error.name === 'Unauthorized') {
-                } else {
-                    console.error(`❌ Failed to update shared database ${sharedDbName}:`, error);
-                }
+                console.log(`✅ Successfully updated shared database: ${sharedDbName}`);
+                return { success: true, sharedDbName };
+                
+            } catch (updateError) {
+                console.error(`❌ Failed to update shared database ${sharedDbName}:`, updateError);
+                return { success: false, error: updateError.message };
             }
+            
         } catch (error) {
             console.error('❌ Error in updateSharedContactDatabases:', error);
+            return { success: false, error: error.message };
         }
     }
 
@@ -2093,8 +2480,8 @@ export class ContactDatabase {
     }
 
     /**
-     * Share individual contact with another user
-     * Creates a separate database for the contact to avoid sharing entire contact list
+     * ✅ SDK COMPLIANT: Share individual contact with another user using proper SDK workflow
+     * Creates a separate database for the contact and uses modifyDatabasePermissions for additional users
      * @param {Object} contact - Contact to share
      * @param {string} username - Target username
      * @param {boolean} readOnly - Whether sharing is read-only
@@ -2111,9 +2498,7 @@ export class ContactDatabase {
                 throw new Error('Valid contact is required for sharing');
             }
 
-            // NOTE: Automatic verification disabled - requires manual verification message exchange
-            // For development/testing, we'll disable requireVerified temporarily
-            console.log(`📤 Sharing contact with ${username} (verification disabled for testing)`);
+            console.log(`📤 Sharing contact with ${username} (SDK compliant workflow)`);
 
             // Create a unique database name for this shared contact
             const sharedDbName = `shared-contact-${contact.contactId}`;
@@ -2122,30 +2507,44 @@ export class ContactDatabase {
 
             // Check if the shared database already exists
             let databaseExists = false;
+            let databaseUsers = [];
+            
             try {
                 // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
                 const result = await userbase.getDatabases();
                 const dbList = result.databases;
-                databaseExists = dbList.some(db => 
+                const existingDb = dbList.find(db => 
                     db.databaseName === sharedDbName && db.isOwner
                 );
-                console.log('🔍 Database exists check:', sharedDbName, '→', databaseExists);
+                
+                if (existingDb) {
+                    databaseExists = true;
+                    databaseUsers = existingDb.users || [];
+                    console.log('🔍 Database exists with users:', databaseUsers.map(u => u.username));
+                }
             } catch (checkError) {
                 console.log('⚠️ Could not check database existence, proceeding with creation:', checkError.message);
             }
 
-            if (databaseExists) {
-                // Database already exists, just add the new user to it
-                console.log('📤 Adding user to existing shared database:', username);
+            // Check if user is already shared with
+            const userAlreadyShared = databaseUsers.some(user => user.username === username.trim());
+            
+            if (userAlreadyShared) {
+                console.log('👤 User already has access, modifying permissions instead');
                 
-                // ✅ SDK COMPLIANT: Use safe shareDatabase wrapper
-                await this.safeShareDatabase({
+                // Use modifyDatabasePermissions to change existing permissions
+                return await this.modifyContactPermissions(contact.contactId, username, readOnly, resharingAllowed, false);
+                
+            } else if (databaseExists) {
+                console.log('📤 Adding new user to existing shared database using modifyDatabasePermissions');
+                
+                // Database exists but user doesn't have access - use modifyDatabasePermissions to add them
+                await this.safeModifyDatabasePermissions({
                     databaseName: sharedDbName,
                     username: username.trim(),
                     readOnly,
-                    resharingAllowed,
-                    requireVerified: false // Temporarily disabled for testing - proper verification needs manual message exchange
-                }, 'shareContact-existing');
+                    resharingAllowed
+                }, 'shareContact-addUser');
                 
                 console.log('✅ Successfully added user to existing shared database:', username);
                 
@@ -2158,17 +2557,15 @@ export class ContactDatabase {
                     // Continue anyway, the sharing was successful
                 }
             } else {
-                // Database doesn't exist, create it and share it
-                console.log('📦 Creating new shared database:', sharedDbName);
+                console.log('📦 Creating new shared database and sharing with first user');
 
-                // First, create/open the shared database and add the contact
+                // Database doesn't exist, create it using shareDatabase (for first user)
                 await userbase.openDatabase({
                     databaseName: sharedDbName,
                     changeHandler: () => {} // Empty handler since this is just for creation
                 });
 
                 // Insert the contact into the shared database
-                // ✅ SDK COMPLIANT: Use safe insertItem with validation
                 await this.safeInsertItem({
                     databaseName: sharedDbName,
                     item: {
@@ -2183,17 +2580,16 @@ export class ContactDatabase {
                     itemId: contact.contactId
                 }, 'shareContact');
 
-                // Now share this specific database with the target user
-                // ✅ SDK COMPLIANT: Use safe shareDatabase wrapper
+                // Use shareDatabase for the first user (initial sharing)
                 await this.safeShareDatabase({
                     databaseName: sharedDbName,
                     username: username.trim(),
                     readOnly,
                     resharingAllowed,
-                    requireVerified: false // Temporarily disabled for testing - proper verification needs manual message exchange
-                }, 'shareContact-new');
+                    requireVerified: false // Temporarily disabled for testing
+                }, 'shareContact-initial');
 
-                console.log('✅ New shared database created and shared with:', username);
+                console.log('✅ New shared database created and shared with first user:', username);
             }
 
             console.log('✅ Individual contact shared successfully with:', username);
@@ -2220,6 +2616,7 @@ export class ContactDatabase {
             });
             
             return { success: true, sharedDbName };
+            
         } catch (error) {
             console.error('Share contact failed:', error);
             console.error('Error details:', {
@@ -2268,74 +2665,13 @@ export class ContactDatabase {
     }
 
     /**
-     * Revoke user access to a specific contact's shared database
+     * ✅ SDK COMPLIANT: Revoke user access to a specific contact's shared database
      * @param {string} contactId - The contact ID to revoke access to
      * @param {string} username - Username to revoke access from
      * @returns {Promise<Object>} Revocation result
      */
     async revokeContactAccess(contactId, username) {
-        try {
-            const sharedDbName = `shared-contact-${contactId}`;
-            console.log(`🔒 Revoking access to shared database "${sharedDbName}" from user "${username}"`);
-            
-            // First check if the database exists and we own it
-            let databaseExists = false;
-            try {
-                // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
-                const result = await userbase.getDatabases();
-                const dbList = result.databases;
-                databaseExists = dbList.some(db => 
-                    db.databaseName === sharedDbName && db.isOwner
-                );
-                console.log('🔍 Database exists check for revocation:', sharedDbName, '→', databaseExists);
-            } catch (checkError) {
-                console.log('⚠️ Could not check database existence for revocation:', checkError.message);
-                return { success: false, error: `Could not verify database ownership: ${checkError.message}` };
-            }
-
-            if (!databaseExists) {
-                console.log('📝 Database does not exist or not owned, skipping revocation:', sharedDbName);
-                return { success: true, message: 'Database not found or not owned' };
-            }
-
-            // Remove user from the shared database
-            // Note: Userbase SDK doesn't support direct revocation via shareDatabase
-            // We'll need to implement alternative approaches for revocation
-            
-            // Userbase doesn't support direct revocation - this is a limitation
-            // We would need to delete and recreate the database or use other methods
-            console.log(`⚠️ Direct revocation not supported by Userbase SDK`);
-            
-            // Alternative approach: Delete and recreate database for revocation
-            // This is a Userbase SDK limitation - no direct revocation support
-            console.log(`❌ Cannot revoke access to "${sharedDbName}" from user "${username}" - Userbase SDK limitation`);
-            return { 
-                success: false, 
-                error: `Access revocation not supported by Userbase SDK`,
-                suggestion: "User will retain access until database is recreated"
-            };
-
-        } catch (error) {
-            console.error(`❌ Revoke contact access failed for contact ${contactId}, user ${username}:`, error);
-            
-            // Check if this is because the user wasn't shared with in the first place
-            if (error.message && (
-                error.message.includes('User does not exist') ||
-                error.message.includes('User not found') ||
-                error.message.includes('not permitted')
-            )) {
-                console.log('📝 User was not shared with this database, considering revocation successful');
-                return { success: true, message: 'User was not shared with this contact' };
-            }
-            
-            console.error('Revocation error details:', {
-                message: error.message,
-                code: error.code,
-                name: error.name
-            });
-            
-            return { success: false, error: error.message };
-        }
+        return await this.modifyContactPermissions(contactId, username, true, false, true);
     }
 
     /**
