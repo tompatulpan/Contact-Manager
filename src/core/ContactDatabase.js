@@ -828,6 +828,82 @@ export class ContactDatabase {
             errors
         };
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Validate shareDatabase parameters before SDK call
+     * @param {Object} params - Parameters to validate
+     * @returns {Object} Validation result
+     */
+    validateShareDatabaseParams(params) {
+        const errors = [];
+        
+        // Check if params is object
+        if (!params || typeof params !== 'object') {
+            errors.push('Parameters must be an object');
+            return { isValid: false, errors };
+        }
+        
+        // Either databaseName or databaseId is required
+        if (params.databaseName === undefined && params.databaseId === undefined) {
+            errors.push('Either databaseName or databaseId is required');
+        }
+        
+        // databaseName validation
+        if (params.databaseName !== undefined) {
+            if (typeof params.databaseName !== 'string') {
+                errors.push('databaseName must be a string');
+            } else if (params.databaseName.trim() === '') {
+                errors.push('databaseName cannot be blank');
+            } else if (params.databaseName.length > 100) {
+                errors.push('databaseName too long (max 100 characters)');
+            }
+        }
+        
+        // databaseId validation
+        if (params.databaseId !== undefined) {
+            if (typeof params.databaseId !== 'string') {
+                errors.push('databaseId must be a string');
+            } else if (params.databaseId.trim() === '') {
+                errors.push('databaseId cannot be blank');
+            } else if (params.databaseId.length !== 36) {
+                errors.push('databaseId invalid length (must be 36 characters)');
+            }
+        }
+        
+        // username validation (optional)
+        if (params.username !== undefined) {
+            if (typeof params.username !== 'string') {
+                errors.push('username must be a string');
+            } else if (params.username.trim() === '') {
+                errors.push('username cannot be blank');
+            }
+        }
+        
+        // readOnly validation (optional)
+        if (params.readOnly !== undefined && typeof params.readOnly !== 'boolean') {
+            errors.push('readOnly must be a boolean');
+        }
+        
+        // requireVerified validation (optional)
+        if (params.requireVerified !== undefined && typeof params.requireVerified !== 'boolean') {
+            errors.push('requireVerified must be a boolean');
+        }
+        
+        // resharingAllowed validation (optional)
+        if (params.resharingAllowed !== undefined && typeof params.resharingAllowed !== 'boolean') {
+            errors.push('resharingAllowed must be a boolean');
+        }
+        
+        // Check for invalid combinations
+        if (params.resharingAllowed === true && params.readOnly === false && params.username) {
+            errors.push('resharingWithWriteAccessNotAllowed');
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
     
     /**
      * ✅ SDK COMPLIANT: Calculate item size in bytes
@@ -1088,6 +1164,111 @@ export class ContactDatabase {
                 this.handleSDKError(error, context);
         }
     }
+
+    /**
+     * ✅ SDK COMPLIANT: Handle shareDatabase-specific errors per SDK specification
+     * @param {Error} error - The error object
+     * @param {string} context - Context where error occurred
+     */
+    handleShareDatabaseError(error, context) {
+        console.log(`🔍 shareDatabase Error in ${context}:`, error.name, error.message);
+        
+        switch (error.name) {
+            case 'ParamsMustBeObject':
+                console.log('❌ Parameters must be provided as an object');
+                break;
+            case 'DatabaseNameMissing':
+                console.log('❌ databaseName is required when databaseId is not provided');
+                break;
+            case 'DatabaseNameMustBeString':
+                console.log('❌ databaseName must be a string');
+                break;
+            case 'DatabaseNameCannotBeBlank':
+                console.log('❌ databaseName cannot be empty');
+                break;
+            case 'DatabaseNameTooLong':
+                console.log('❌ databaseName exceeds maximum length');
+                break;
+            case 'DatabaseNameRestricted':
+                console.log('❌ databaseName uses restricted characters or words');
+                break;
+            case 'DatabaseIdMustBeString':
+                console.log('❌ databaseId must be a string');
+                break;
+            case 'DatabaseIdCannotBeBlank':
+                console.log('❌ databaseId cannot be empty');
+                break;
+            case 'DatabaseIdInvalidLength':
+                console.log('❌ databaseId must be exactly 36 characters');
+                break;
+            case 'DatabaseIdNotAllowed':
+                console.log('❌ databaseId format is not allowed');
+                break;
+            case 'ShareTokenNotAllowed':
+                console.log('❌ shareToken parameter not allowed in this context');
+                break;
+            case 'DatabaseNotFound':
+                console.log('❌ Database does not exist or user does not have access');
+                break;
+            case 'UsernameCannotBeBlank':
+                console.log('❌ username cannot be empty when provided');
+                break;
+            case 'UsernameMustBeString':
+                console.log('❌ username must be a string');
+                break;
+            case 'ReadOnlyMustBeBoolean':
+                console.log('❌ readOnly must be a boolean value');
+                break;
+            case 'ResharingAllowedMustBeBoolean':
+                console.log('❌ resharingAllowed must be a boolean value');
+                break;
+            case 'ResharingNotAllowed':
+                console.log('❌ Resharing is not allowed for this database');
+                break;
+            case 'ResharingWithWriteAccessNotAllowed':
+                console.log('❌ Cannot allow resharing when granting write access');
+                break;
+            case 'RequireVerifiedMustBeBoolean':
+                console.log('❌ requireVerified must be a boolean value');
+                break;
+            case 'SharingWithSelfNotAllowed':
+                console.log('❌ Cannot share database with yourself');
+                break;
+            case 'UserNotSignedIn':
+                console.log('❌ User must be signed in to share databases');
+                this.eventBus.emit('auth:required', { context });
+                break;
+            case 'UserNotFound':
+                console.log('❌ Target user does not exist');
+                break;
+            case 'SubscriptionPlanNotSet':
+                console.log('❌ Subscription plan required for sharing');
+                break;
+            case 'SubscriptionNotFound':
+                console.log('❌ Valid subscription required for sharing');
+                break;
+            case 'SubscribedToIncorrectPlan':
+                console.log('❌ Current subscription plan does not support sharing');
+                break;
+            case 'SubscriptionInactive':
+                console.log('❌ Subscription is not active');
+                break;
+            case 'TrialExpired':
+                console.log('❌ Trial period has expired');
+                break;
+            case 'TooManyRequests':
+                console.warn(`⚠️ Rate limited in ${context}, backing off`);
+                this.eventBus.emit('database:rateLimited', { context });
+                break;
+            case 'ServiceUnavailable':
+                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                this.eventBus.emit('database:serviceUnavailable', { context });
+                break;
+            default:
+                // Fall back to general SDK error handling
+                this.handleSDKError(error, context);
+        }
+    }
     
     /**
      * ✅ SDK COMPLIANT: Safe insertItem wrapper with full validation
@@ -1160,6 +1341,38 @@ export class ContactDatabase {
             
         } catch (error) {
             this.handleDeleteItemError(error, context);
+            throw error;
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Safe shareDatabase wrapper with full validation
+     * @param {Object} params - shareDatabase parameters
+     * @param {string} context - Context for error reporting
+     * @returns {Promise<Object>} Share result
+     */
+    async safeShareDatabase(params, context) {
+        try {
+            // Validate parameters
+            const validation = this.validateShareDatabaseParams(params);
+            if (!validation.isValid) {
+                const error = new Error(validation.errors[0]);
+                error.name = validation.errors[0].split(':')[0];
+                throw error;
+            }
+            
+            // Check if sharing with self
+            if (params.username && this.currentUser && params.username === this.currentUser.username) {
+                const error = new Error('Cannot share database with yourself');
+                error.name = 'SharingWithSelfNotAllowed';
+                throw error;
+            }
+            
+            // Call SDK shareDatabase
+            return await userbase.shareDatabase(params);
+            
+        } catch (error) {
+            this.handleShareDatabaseError(error, context);
             throw error;
         }
     }
@@ -1787,6 +2000,99 @@ export class ContactDatabase {
     }
 
     /**
+     * ✅ SDK COMPLIANT: Generate share token for contact database
+     * @param {Object} contact - Contact to generate share token for
+     * @param {boolean} readOnly - Whether token grants read-only access
+     * @returns {Promise<Object>} Share token result
+     */
+    async generateContactShareToken(contact, readOnly = true) {
+        try {
+            if (!contact || !contact.contactId) {
+                throw new Error('Valid contact is required for share token generation');
+            }
+
+            // Create a unique database name for this shared contact
+            const sharedDbName = `shared-contact-${contact.contactId}`;
+            
+            console.log('🎫 Generating share token for contact database:', sharedDbName);
+
+            // Check if the shared database already exists
+            let databaseExists = false;
+            try {
+                const result = await userbase.getDatabases();
+                const dbList = result.databases;
+                databaseExists = dbList.some(db => 
+                    db.databaseName === sharedDbName && db.isOwner
+                );
+            } catch (checkError) {
+                console.log('⚠️ Could not check database existence, proceeding with creation:', checkError.message);
+            }
+
+            if (!databaseExists) {
+                // Database doesn't exist, create it and add the contact
+                console.log('📦 Creating database for share token:', sharedDbName);
+
+                await userbase.openDatabase({
+                    databaseName: sharedDbName,
+                    changeHandler: () => {} // Empty handler since this is just for creation
+                });
+
+                // Insert the contact into the shared database
+                await this.safeInsertItem({
+                    databaseName: sharedDbName,
+                    item: {
+                        ...contact,
+                        metadata: {
+                            ...contact.metadata,
+                            sharedAt: new Date().toISOString(),
+                            sharedBy: this.currentUser?.username,
+                            originalContactId: contact.contactId
+                        }
+                    },
+                    itemId: contact.contactId
+                }, 'generateContactShareToken');
+            }
+
+            // Generate share token for the database
+            const tokenResult = await this.safeShareDatabase({
+                databaseName: sharedDbName,
+                readOnly
+            }, 'generateContactShareToken');
+
+            console.log('✅ Share token generated successfully');
+
+            // Log the activity
+            await this.logActivity({
+                action: 'share_token_generated',
+                details: {
+                    contactId: contact.contactId,
+                    contactName: contact.cardName,
+                    databaseName: sharedDbName,
+                    readOnly
+                }
+            });
+
+            this.eventBus.emit('contact:shareTokenGenerated', { 
+                contactId: contact.contactId,
+                shareToken: tokenResult.shareToken,
+                readOnly
+            });
+            
+            return { 
+                success: true, 
+                shareToken: tokenResult.shareToken,
+                databaseName: sharedDbName,
+                readOnly
+            };
+            
+        } catch (error) {
+            console.error('Generate share token failed:', error);
+            this.eventBus.emit('database:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Share individual contact with another user
      * Creates a separate database for the contact to avoid sharing entire contact list
      * @param {Object} contact - Contact to share
@@ -1831,13 +2137,16 @@ export class ContactDatabase {
             if (databaseExists) {
                 // Database already exists, just add the new user to it
                 console.log('📤 Adding user to existing shared database:', username);
-                await userbase.shareDatabase({
+                
+                // ✅ SDK COMPLIANT: Use safe shareDatabase wrapper
+                await this.safeShareDatabase({
                     databaseName: sharedDbName,
                     username: username.trim(),
                     readOnly,
                     resharingAllowed,
                     requireVerified: false // Temporarily disabled for testing - proper verification needs manual message exchange
-                });
+                }, 'shareContact-existing');
+                
                 console.log('✅ Successfully added user to existing shared database:', username);
                 
                 // Update the existing contact item in the shared database to ensure it's current
@@ -1875,13 +2184,14 @@ export class ContactDatabase {
                 }, 'shareContact');
 
                 // Now share this specific database with the target user
-                await userbase.shareDatabase({
+                // ✅ SDK COMPLIANT: Use safe shareDatabase wrapper
+                await this.safeShareDatabase({
                     databaseName: sharedDbName,
                     username: username.trim(),
                     readOnly,
                     resharingAllowed,
                     requireVerified: false // Temporarily disabled for testing - proper verification needs manual message exchange
-                });
+                }, 'shareContact-new');
 
                 console.log('✅ New shared database created and shared with:', username);
             }
