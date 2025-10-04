@@ -23,7 +23,6 @@ class ContactManagementApp {
         
         // Application configuration
         this.config = {
-            userbaseAppId: '77e5016f-285d-4678-a31a-3718479a638a', // Replace with your actual Userbase App ID
             enableDebugMode: false,
             autoSaveInterval: 30000, // 30 seconds
             maxCacheSize: 1000

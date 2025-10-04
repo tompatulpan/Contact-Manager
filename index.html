@@ -624,10 +624,39 @@
                     <div class="success-icon">
                         <i class="fas fa-check-circle"></i>
                     </div>
-                    <h3>Contact Shared Successfully!</h3>
-                    <p>The contact has been shared with <span id="shared-with-user"></span>.</p>
+                    <h3 id="share-success-title">Contact Shared Successfully!</h3>
+                    <p id="share-success-message">The contact has been shared with <span id="shared-with-user"></span>.</p>
+                    <div id="share-success-details" class="share-details" style="display: none;"></div>
                     <div class="form-actions">
                         <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+                    </div>
+                </div>
+                
+                <!-- Error State -->
+                <div id="share-error-container" class="error-container" style="display: none;">
+                    <div class="error-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <h3 id="share-error-title">Sharing Failed</h3>
+                    <p id="share-error-message">An error occurred while sharing.</p>
+                    <div id="share-error-details" class="share-details" style="display: none;"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" data-action="retry-share">Try Again</button>
+                    </div>
+                </div>
+                
+                <!-- Warning State (Partial Success) -->
+                <div id="share-warning-container" class="warning-container" style="display: none;">
+                    <div class="warning-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3 id="share-warning-title">Partially Shared</h3>
+                    <p id="share-warning-message">Some sharing operations failed.</p>
+                    <div id="share-warning-details" class="share-details" style="display: none;"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" data-action="retry-share">Share More</button>
                     </div>
                 </div>
             </div>

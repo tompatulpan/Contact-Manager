@@ -817,6 +817,16 @@ export class ContactUIController {
                 }
             });
         });
+
+        // Retry share buttons (Share More / Try Again)
+        const retryShareButtons = document.querySelectorAll('[data-action="retry-share"]');
+        retryShareButtons.forEach(button => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                console.log('🔄 Retry share button clicked');
+                this.setShareModalState('form');
+            });
+        });
         
         // ESC key to close modals
         document.addEventListener('keydown', (event) => {
@@ -2981,15 +2991,19 @@ export class ContactUIController {
     /**
      * Set share modal state
      */
-    setShareModalState(state) {
+    setShareModalState(state, messageData = null) {
         const formContainer = document.getElementById('share-form-container');
         const loadingContainer = this.elements.shareLoading;
         const successContainer = this.elements.shareSuccess;
+        const errorContainer = document.getElementById('share-error-container');
+        const warningContainer = document.getElementById('share-warning-container');
         
         // Hide all states
         if (formContainer) formContainer.style.display = 'none';
         if (loadingContainer) loadingContainer.style.display = 'none';
         if (successContainer) successContainer.style.display = 'none';
+        if (errorContainer) errorContainer.style.display = 'none';
+        if (warningContainer) warningContainer.style.display = 'none';
         
         // Show requested state
         switch (state) {
@@ -3001,6 +3015,58 @@ export class ContactUIController {
                 break;
             case 'success':
                 if (successContainer) successContainer.style.display = 'block';
+                
+                // Handle success message data
+                if (messageData) {
+                    const titleElement = document.getElementById('share-success-title');
+                    const messageElement = document.getElementById('share-success-message');
+                    const detailsElement = document.getElementById('share-success-details');
+                    
+                    if (titleElement) titleElement.textContent = messageData.title || 'Contact Shared Successfully!';
+                    if (messageElement) messageElement.textContent = messageData.message || 'The contact has been shared.';
+                    if (detailsElement && messageData.details) {
+                        detailsElement.textContent = messageData.details;
+                        detailsElement.style.display = 'block';
+                    }
+                }
+                break;
+            case 'error':
+                if (errorContainer) {
+                    errorContainer.style.display = 'block';
+                    
+                    // Handle error message data
+                    if (messageData) {
+                        const titleElement = document.getElementById('share-error-title');
+                        const messageElement = document.getElementById('share-error-message');
+                        const detailsElement = document.getElementById('share-error-details');
+                        
+                        if (titleElement) titleElement.textContent = messageData.title || 'Sharing Failed';
+                        if (messageElement) messageElement.textContent = messageData.message || 'An error occurred while sharing.';
+                        if (detailsElement && messageData.details) {
+                            detailsElement.textContent = messageData.details;
+                            detailsElement.style.display = 'block';
+                        }
+                    }
+                }
+                break;
+            case 'warning':
+                if (warningContainer) {
+                    warningContainer.style.display = 'block';
+                    
+                    // Handle warning message data
+                    if (messageData) {
+                        const titleElement = document.getElementById('share-warning-title');
+                        const messageElement = document.getElementById('share-warning-message');
+                        const detailsElement = document.getElementById('share-warning-details');
+                        
+                        if (titleElement) titleElement.textContent = messageData.title || 'Partially Shared';
+                        if (messageElement) messageElement.textContent = messageData.message || 'Some sharing operations failed.';
+                        if (detailsElement && messageData.details) {
+                            detailsElement.textContent = messageData.details;
+                            detailsElement.style.display = 'block';
+                        }
+                    }
+                }
                 break;
         }
     }
@@ -3102,19 +3168,21 @@ export class ContactUIController {
                 });
                 
             } else if (totalProcessed > 0 && errorCount > 0) {
-                // Partial success
+                // Partial success - enhance error messaging
+                const enhancedErrors = this.enhanceDistributionListErrors(result.results || []);
                 this.setShareModalState('warning', {
                     title: 'Partially Shared',
-                    message: `Shared with ${totalProcessed} users, but ${errorCount} failed.`,
-                    details: `Errors:\n${errors.join('\n')}`
+                    message: `✅ Successfully shared with ${totalProcessed} users, but ${errorCount} failed.`,
+                    details: enhancedErrors
                 });
                 
             } else {
-                // Complete failure
+                // Complete failure - enhance error messaging
+                const enhancedErrors = this.enhanceDistributionListErrors(result.results || []);
                 this.setShareModalState('error', {
                     title: 'Sharing Failed',
-                    message: `Failed to share with any users in "${listName}".`,
-                    details: `Errors:\n${errors.join('\n')}`
+                    message: `❌ Could not share with any users in "${listName}".`,
+                    details: enhancedErrors
                 });
             }
             
@@ -3266,10 +3334,11 @@ export class ContactUIController {
             const result = await this.contactManager.shareContact(this.currentShareContact.contactId, username, isReadOnly, false);
             
             if (result.success) {
-                // Show success state
+                // Show success state with proper message
                 this.setShareModalState('success');
-                if (this.elements.sharedWithUser) {
-                    this.elements.sharedWithUser.textContent = username;
+                const sharedWithUserElement = document.getElementById('shared-with-user');
+                if (sharedWithUserElement) {
+                    sharedWithUserElement.textContent = username;
                 }
                 
                 // Refresh contacts list to show sharing indicators
@@ -3299,19 +3368,149 @@ export class ContactUIController {
             // Return to form and show error
             this.setShareModalState('form');
             
-            // Provide specific error messages for common issues
-            let errorMessage = error.message || 'Failed to share contact';
-            
-            if (error.message && error.message.includes('unverified user')) {
-                errorMessage = `User "${username}" needs to be verified first. Contact them to verify their account before sharing.`;
-            } else if (error.message && error.message.includes('User not found')) {
-                errorMessage = `User "${username}" does not exist. Please check the username and try again.`;
-            } else if (error.message && error.message.includes('UserNotVerified')) {
-                errorMessage = `User "${username}" is not verified. They need to verify their account before you can share contacts with them.`;
-            }
+            // Enhanced error categorization with specific user feedback
+            let errorMessage = this.categorizeAndFormatSharingError(error, username);
             
             this.showShareFormError('share-username', errorMessage);
         }
+    }
+
+    /**
+     * Enhance distribution list error messages with user-friendly explanations
+     * @param {Array} results - Array of sharing results
+     * @returns {string} Formatted error details
+     */
+    enhanceDistributionListErrors(results) {
+        if (!Array.isArray(results) || results.length === 0) {
+            return 'No detailed error information available.';
+        }
+        
+        const errorsByType = {
+            userNotFound: [],
+            subscription: [],
+            network: [],
+            permission: [],
+            other: []
+        };
+        
+        // Categorize errors by type
+        results.forEach(result => {
+            if (!result.success && result.error) {
+                const username = result.username || 'Unknown';
+                const error = result.error.toLowerCase();
+                
+                if (error.includes('user not found') || error.includes('usernotfound')) {
+                    errorsByType.userNotFound.push(username);
+                } else if (error.includes('subscription') || error.includes('trial') || error.includes('plan')) {
+                    errorsByType.subscription.push(username);
+                } else if (error.includes('network') || error.includes('connection') || error.includes('timeout')) {
+                    errorsByType.network.push(username);
+                } else if (error.includes('permission') || error.includes('not allowed')) {
+                    errorsByType.permission.push(username);
+                } else {
+                    errorsByType.other.push(`${username}: ${result.error}`);
+                }
+            }
+        });
+        
+        // Build user-friendly error summary
+        const errorMessages = [];
+        
+        if (errorsByType.userNotFound.length > 0) {
+            const users = errorsByType.userNotFound.join(', ');
+            errorMessages.push(`👤 Users not found: ${users}\n   → These users don't have accounts yet. Ask them to sign up first.`);
+        }
+        
+        if (errorsByType.subscription.length > 0) {
+            const users = errorsByType.subscription.join(', ');
+            errorMessages.push(`💳 Subscription required for: ${users}\n   → Check your account subscription status.`);
+        }
+        
+        if (errorsByType.network.length > 0) {
+            const users = errorsByType.network.join(', ');
+            errorMessages.push(`🌐 Network errors for: ${users}\n   → Check your internet connection and try again.`);
+        }
+        
+        if (errorsByType.permission.length > 0) {
+            const users = errorsByType.permission.join(', ');
+            errorMessages.push(`🔒 Permission denied for: ${users}\n   → You may not have sharing permissions.`);
+        }
+        
+        if (errorsByType.other.length > 0) {
+            errorMessages.push(`❓ Other errors:\n${errorsByType.other.map(err => `   → ${err}`).join('\n')}`);
+        }
+        
+        return errorMessages.length > 0 ? errorMessages.join('\n\n') : 'Unknown sharing errors occurred.';
+    }
+
+    /**
+     * Categorize sharing errors and provide user-friendly messages
+     * @param {Error} error - The error object
+     * @param {string} username - The username that failed
+     * @returns {string} User-friendly error message
+     */
+    categorizeAndFormatSharingError(error, username) {
+        const errorName = error.name || '';
+        const errorMessage = error.message || '';
+        
+        // Handle specific Userbase error types
+        switch (errorName) {
+            case 'UserNotFound':
+                return `❌ User "${username}" does not exist in the system. Please verify the username is correct and that the user has created an account.`;
+            
+            case 'UserNotSignedIn':
+                return `❌ You must be signed in to share contacts. Please sign in and try again.`;
+            
+            case 'SharingWithSelfNotAllowed':
+                return `❌ You cannot share a contact with yourself.`;
+            
+            case 'SubscriptionPlanNotSet':
+            case 'SubscriptionNotFound':
+            case 'SubscribedToIncorrectPlan':
+            case 'SubscriptionInactive':
+            case 'TrialExpired':
+                return `❌ A valid subscription is required to share contacts. Please check your account settings.`;
+            
+            case 'TooManyRequests':
+                return `⚠️ Too many sharing requests. Please wait a moment and try again.`;
+            
+            case 'ServiceUnavailable':
+                return `🚫 The sharing service is temporarily unavailable. Please try again in a few minutes.`;
+            
+            case 'DatabaseNotFound':
+                return `❌ Unable to access sharing database. Please try refreshing the page.`;
+            
+            default:
+                break;
+        }
+        
+        // Handle message-based error detection (for cases where error.name isn't set)
+        if (errorMessage.toLowerCase().includes('user not found')) {
+            return `❌ User "${username}" does not exist. Please check the username spelling and ensure the user has an account.`;
+        }
+        
+        if (errorMessage.toLowerCase().includes('usernotverified') || errorMessage.toLowerCase().includes('unverified user')) {
+            return `❌ User "${username}" needs to verify their account before you can share contacts with them.`;
+        }
+        
+        if (errorMessage.toLowerCase().includes('sharing not allowed') || errorMessage.toLowerCase().includes('permission denied')) {
+            return `❌ You don't have permission to share this contact with "${username}".`;
+        }
+        
+        if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('connection')) {
+            return `🌐 Network error occurred. Please check your internet connection and try again.`;
+        }
+        
+        if (errorMessage.toLowerCase().includes('timeout')) {
+            return `⏱️ The request timed out. Please try again.`;
+        }
+        
+        // Generic error with more helpful context
+        if (errorMessage) {
+            return `❌ Failed to share with "${username}": ${errorMessage}`;
+        }
+        
+        return `❌ Unable to share contact with "${username}". Please try again or contact support if the problem persists.`;
     }
 
     /**
@@ -3457,11 +3656,59 @@ export class ContactUIController {
     /**
      * Show share form error
      */
+    /**
+     * Show error for share form field with enhanced styling and categorization
+     * @param {string} fieldName - Field name for error display
+     * @param {string} message - Error message to display
+     */
     showShareFormError(fieldName, message) {
+        // First try the new error element pattern
         const errorElement = document.getElementById(`${fieldName}-error`);
         if (errorElement) {
-            errorElement.textContent = message;
+            errorElement.innerHTML = message; // Use innerHTML to support emoji
             errorElement.style.display = 'block';
+            
+            // Add error type class for styling
+            errorElement.className = 'field-error';
+            if (message.includes('does not exist') || message.includes('not found')) {
+                errorElement.className += ' error-user-not-found';
+            } else if (message.includes('subscription') || message.includes('trial')) {
+                errorElement.className += ' error-subscription';
+            } else if (message.includes('network') || message.includes('connection')) {
+                errorElement.className += ' error-network';
+            }
+            return;
+        }
+        
+        // Fallback to field-based error handling
+        const field = document.getElementById(fieldName);
+        if (field) {
+            field.classList.add('error');
+            
+            // Remove existing error message
+            const existingError = field.parentNode.querySelector('.field-error');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            // Add new error message with enhanced styling
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'field-error';
+            if (message.includes('does not exist') || message.includes('not found')) {
+                errorDiv.className += ' error-user-not-found';
+            } else if (message.includes('subscription') || message.includes('trial')) {
+                errorDiv.className += ' error-subscription';
+            } else if (message.includes('network') || message.includes('connection')) {
+                errorDiv.className += ' error-network';
+            }
+            
+            errorDiv.innerHTML = message; // Use innerHTML to support emoji and formatting
+            field.parentNode.appendChild(errorDiv);
+            
+            // Auto-focus on the field for better UX
+            if (fieldName === 'share-username') {
+                setTimeout(() => field.focus(), 100);
+            }
         }
     }
 
@@ -4754,9 +5001,22 @@ export class ContactUIController {
                 // Refresh distribution lists in sidebar
                 this.renderDistributionLists();
             } else {
+                // 🆕 Enhanced error feedback for username validation
+                let errorMessage = result.error || 'Failed to add username';
+                let errorIcon = '❌';
+                
+                if (result.errorType === 'userNotFound') {
+                    errorIcon = '👤';
+                } else if (result.errorType === 'subscription') {
+                    errorIcon = '💳';
+                } else if (result.errorType === 'network') {
+                    errorIcon = '🌐';
+                }
+                
                 this.showToast({ 
-                    message: result.error || 'Failed to add username', 
-                    type: 'error' 
+                    message: `${errorIcon} ${errorMessage}`, 
+                    type: 'error',
+                    duration: 5000  // Show longer for error messages
                 });
             }
         } catch (error) {

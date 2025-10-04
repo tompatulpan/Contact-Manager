@@ -1111,6 +1111,80 @@ export class ContactDatabase {
     }
     
     /**
+     * 🔧 NEW: Validate that a user exists before sharing
+     * Uses the same method as shareDatabase to check user existence
+     * @param {string} username - Username to validate
+     * @returns {Promise<boolean>} True if user exists
+     * @throws {Error} If user doesn't exist
+     */
+    async validateUserExists(username) {
+        try {
+            if (!username || typeof username !== 'string' || username.trim() === '') {
+                throw new Error('Username is required');
+            }
+            
+            const trimmedUsername = username.trim();
+            
+            // Use a minimal shareDatabase call to test user existence
+            // This follows the same validation path as actual sharing
+            try {
+                // Create a temporary test database name
+                const testDbName = `uservalidation-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                
+                // Try to get the user's public key - this is what shareDatabase does internally
+                // and will fail with 404 if user doesn't exist
+                const response = await fetch(`https://v1.userbase.com/v1/api/public-key?appId=${this.appId}&username=${encodeURIComponent(trimmedUsername)}&userbaseJsVersion=2.8.0`);
+                
+                if (response.status === 404) {
+                    throw new Error(`User '${trimmedUsername}' does not exist`);
+                } else if (!response.ok) {
+                    throw new Error(`Failed to validate user: ${response.status} ${response.statusText}`);
+                }
+                
+                console.log(`✅ User ${trimmedUsername} exists and can receive shares`);
+                return true;
+                
+            } catch (fetchError) {
+                if (fetchError.message.includes('does not exist')) {
+                    throw fetchError; // Re-throw user not found errors
+                }
+                
+                console.warn('⚠️ Could not validate user via API, falling back to shareDatabase test');
+                
+                // Fallback: Try actual shareDatabase call and catch the specific error
+                // This is more reliable but creates a temporary database
+                try {
+                    const testDbName = `uservalidation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    
+                    // Try to share a test database - this will fail if user doesn't exist
+                    await userbase.shareDatabase({
+                        databaseName: testDbName,
+                        username: trimmedUsername,
+                        readOnly: true,
+                        resharingAllowed: false
+                    });
+                    
+                    console.log(`✅ User ${trimmedUsername} validated via shareDatabase test`);
+                    return true;
+                    
+                } catch (shareError) {
+                    if (shareError.name === 'UserNotFound' || shareError.message.includes('User not found')) {
+                        throw new Error(`User '${trimmedUsername}' does not exist`);
+                    }
+                    
+                    // Other errors (like database doesn't exist) are expected and mean user exists
+                    console.log(`✅ User ${trimmedUsername} exists (shareDatabase gave expected error: ${shareError.message})`);
+                    return true;
+                }
+            }
+            
+        } catch (error) {
+            console.error(`❌ User validation failed for ${username}:`, error);
+            throw error;
+        }
+    }
+    
+    /**
      * ✅ SDK COMPLIANT: Calculate item size in bytes
      * @param {*} item - Item to calculate size for
      * @returns {number} Size in bytes
@@ -1121,6 +1195,98 @@ export class ContactDatabase {
         } catch (error) {
             // Fallback calculation
             return JSON.stringify(item).length * 2; // Rough estimate (UTF-16)
+        }
+    }
+    
+    /**
+     * 🔧 NEW: Optimize contact data to fit within 10KB Userbase limit
+     * @param {Object} contact - Contact object to optimize
+     * @returns {Object} Optimized contact object
+     */
+    optimizeContactForStorage(contact) {
+        try {
+            // Start with the full contact
+            let optimizedContact = { ...contact };
+            
+            // Check current size
+            let currentSize = this.calculateItemSize(optimizedContact);
+            const MAX_SIZE = 10 * 1024; // 10KB in bytes
+            
+            console.log(`📏 Contact size before optimization: ${(currentSize / 1024).toFixed(2)}KB`);
+            
+            if (currentSize <= MAX_SIZE) {
+                return optimizedContact; // No optimization needed
+            }
+            
+            // Step 1: Trim large metadata arrays (keep last 10 entries)
+            if (optimizedContact.metadata?.sharing?.shareHistory?.length > 10) {
+                optimizedContact.metadata.sharing.shareHistory = 
+                    optimizedContact.metadata.sharing.shareHistory.slice(-10);
+                console.log(`🔧 Trimmed shareHistory to last 10 entries`);
+            }
+            
+            if (optimizedContact.metadata?.usage?.interactionHistory?.length > 10) {
+                optimizedContact.metadata.usage.interactionHistory = 
+                    optimizedContact.metadata.usage.interactionHistory.slice(-10);
+                console.log(`🔧 Trimmed interactionHistory to last 10 entries`);
+            }
+            
+            // Step 2: Remove non-essential metadata
+            if (optimizedContact.metadata?.ui) {
+                delete optimizedContact.metadata.ui;
+                console.log(`🔧 Removed UI state metadata`);
+            }
+            
+            // Step 3: Compress sharing permissions (keep essential data only)
+            if (optimizedContact.metadata?.sharing?.sharePermissions) {
+                const compressedPerms = {};
+                Object.entries(optimizedContact.metadata.sharing.sharePermissions).forEach(([user, perm]) => {
+                    compressedPerms[user] = {
+                        level: perm.level,
+                        sharedAt: perm.sharedAt
+                        // Remove canReshare, lastUpdated, etc.
+                    };
+                });
+                optimizedContact.metadata.sharing.sharePermissions = compressedPerms;
+                console.log(`🔧 Compressed sharing permissions`);
+            }
+            
+            // Check size after optimization
+            currentSize = this.calculateItemSize(optimizedContact);
+            console.log(`📏 Contact size after optimization: ${(currentSize / 1024).toFixed(2)}KB`);
+            
+            if (currentSize > MAX_SIZE) {
+                console.warn(`⚠️ Contact still exceeds 10KB limit after optimization: ${(currentSize / 1024).toFixed(2)}KB`);
+                
+                // Last resort: Keep only essential data
+                optimizedContact = {
+                    contactId: contact.contactId,
+                    itemId: contact.itemId,
+                    cardName: contact.cardName,
+                    vcard: contact.vcard,
+                    metadata: {
+                        createdAt: contact.metadata?.createdAt,
+                        lastUpdated: contact.metadata?.lastUpdated,
+                        isOwned: contact.metadata?.isOwned,
+                        isArchived: contact.metadata?.isArchived || false,
+                        sharing: {
+                            isShared: contact.metadata?.sharing?.isShared || false,
+                            sharedWithUsers: contact.metadata?.sharing?.sharedWithUsers || [],
+                            shareCount: contact.metadata?.sharing?.shareCount || 0
+                        }
+                    }
+                };
+                
+                console.log(`🔧 Applied aggressive optimization - keeping only essential data`);
+                const finalSize = this.calculateItemSize(optimizedContact);
+                console.log(`📏 Final contact size: ${(finalSize / 1024).toFixed(2)}KB`);
+            }
+            
+            return optimizedContact;
+            
+        } catch (error) {
+            console.error(`❌ Failed to optimize contact:`, error);
+            return contact; // Return original if optimization fails
         }
     }
     
@@ -1894,14 +2060,17 @@ export class ContactDatabase {
             if (!itemId) {
                 throw new Error('No itemId or contactId provided for update');
             }
+
+            // 🔧 CRITICAL FIX: Optimize contact to fit within 10KB Userbase limit
+            const optimizedContact = this.optimizeContactForStorage(contact);
             
             // Update in main contacts database
             await this.safeUpdateItem({
                 databaseName: this.databases.contacts,
                 item: {
-                    ...contact,
+                    ...optimizedContact,
                     metadata: {
-                        ...contact.metadata,
+                        ...optimizedContact.metadata,
                         lastUpdated: new Date().toISOString()
                     }
                 },

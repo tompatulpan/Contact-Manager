@@ -2281,8 +2281,68 @@ export class ContactManager {
                 distributionLists[listName].usernames = [];
             }
             
-            // Add username if not already present
+            // 🆕 VALIDATE USERNAME EXISTS: Test if user exists before adding to list
             if (!distributionLists[listName].usernames.includes(username)) {
+                console.log(`🔍 Validating username "${username}" exists before adding to distribution list...`);
+                
+                try {
+                    // Test username validity by attempting to create a temporary test database
+                    const testDbName = `test-user-validation-${Date.now()}`;
+                    await userbase.openDatabase({
+                        databaseName: testDbName,
+                        changeHandler: () => {}
+                    });
+                    
+                    // Try to share with the user (this will fail if user doesn't exist)
+                    await userbase.shareDatabase({
+                        databaseName: testDbName,
+                        username: username.trim(),
+                        readOnly: true,
+                        resharingAllowed: false
+                    });
+                    
+                    // If we get here, the user exists - clean up test database
+                    try {
+                        await userbase.deleteDatabase({ databaseName: testDbName });
+                    } catch (cleanupError) {
+                        console.warn('⚠️ Failed to clean up test database:', cleanupError.message);
+                    }
+                    
+                    console.log(`✅ Username "${username}" validated - user exists`);
+                    
+                } catch (validationError) {
+                    console.error(`❌ Username validation failed for "${username}":`, validationError.message);
+                    
+                    // Categorize the error for better user feedback
+                    let errorType = 'unknown';
+                    let userMessage = `Failed to add "${username}" to distribution list.`;
+                    
+                    if (validationError.message.includes('User not found') || 
+                        validationError.message.includes('UserNotFound')) {
+                        errorType = 'userNotFound';
+                        userMessage = `User "${username}" not found. Please check the username and make sure they have an account.`;
+                    } else if (validationError.message.includes('subscription') || 
+                               validationError.message.includes('trial') || 
+                               validationError.message.includes('plan')) {
+                        errorType = 'subscription';
+                        userMessage = `Subscription issue: Cannot add "${username}". Check your account subscription status.`;
+                    } else if (validationError.message.includes('network') || 
+                               validationError.message.includes('connection')) {
+                        errorType = 'network';
+                        userMessage = `Network error: Cannot validate "${username}". Check your internet connection and try again.`;
+                    } else {
+                        userMessage = `Error adding "${username}": ${validationError.message}`;
+                    }
+                    
+                    return {
+                        success: false,
+                        error: userMessage,
+                        errorType: errorType,
+                        username: username
+                    };
+                }
+                
+                // ✅ Validation passed - add username to distribution list
                 distributionLists[listName].usernames.push(username);
                 
                 // Update settings
@@ -2676,8 +2736,96 @@ export class ContactManager {
             const isAlreadyShared = currentSharedUsers.includes(username);
             
             if (isAlreadyShared) {
-                console.log('ℹ️ Contact already shared with user:', username, '- updating permissions only');
-                // Update permissions only without re-sharing
+                console.log('ℹ️ Contact already shared with user:', username, '- checking database state');
+                
+                // 🔧 CRITICAL FIX: Validate that the user actually exists before assuming share is valid
+                // This prevents false positive "already shared" results for non-existent users
+                try {
+                    console.log('🔍 Validating user existence for:', username);
+                    await this.database.validateUserExists(username);
+                    console.log('✅ User exists, proceeding with database state check');
+                } catch (userError) {
+                    console.error(`❌ User ${username} does not exist, removing from shared users list:`, userError.message);
+                    
+                    // Remove the non-existent user from the metadata
+                    const updatedSharedUsers = currentSharedUsers.filter(u => u !== username);
+                    const updatedContact = {
+                        ...contact,
+                        metadata: {
+                            ...contact.metadata,
+                            sharing: {
+                                ...contact.metadata.sharing,
+                                sharedWithUsers: updatedSharedUsers,
+                                shareCount: updatedSharedUsers.length,
+                                isShared: updatedSharedUsers.length > 0
+                            }
+                        }
+                    };
+                    
+                    // Update contact metadata to remove invalid user
+                    await this.updateContact(contactId, updatedContact);
+                    
+                    // Return failure since the user doesn't exist
+                    return { 
+                        success: false, 
+                        error: `User '${username}' does not exist`,
+                        cleanedMetadata: true
+                    };
+                }
+                
+                // Check if the shared database actually contains the contact
+                const cleanContactId = this.sanitizeContactId(contactId);
+                const sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
+                
+                let needsContactData = false;
+                try {
+                    // Use proper method to check database items via openDatabase
+                    const dbItems = await new Promise((resolve, reject) => {
+                        userbase.openDatabase({
+                            databaseName: sharedDbName,
+                            changeHandler: (items) => resolve(items)
+                        }).catch(reject);
+                    });
+                    
+                    const hasContact = dbItems?.some(item => 
+                        item.itemId === contactId || 
+                        item.item?.contactId === contactId ||
+                        item.item?.metadata?.originalContactId === contactId
+                    );
+                    
+                    if (!hasContact) {
+                        needsContactData = true;
+                        console.log('⚠️ Shared database exists but is empty - will populate with contact data');
+                    } else {
+                        console.log('✅ Shared database contains contact data - updating permissions only');
+                    }
+                } catch (error) {
+                    needsContactData = true;
+                    console.log('⚠️ Cannot access shared database - will re-share contact:', error.message);
+                }
+                
+                // If database is empty, insert the contact data
+                if (needsContactData) {
+                    console.log('🔄 Re-populating empty shared database with contact data');
+                    try {
+                        // Use Userbase SDK directly to insert contact
+                        await window.userbase.insertItem({
+                            databaseName: sharedDbName,
+                            itemId: contactId,
+                            item: contact
+                        });
+                        console.log('✅ Contact data inserted into previously empty shared database');
+                    } catch (insertError) {
+                        if (insertError.message.includes('Item with the same id already exists')) {
+                            console.log('ℹ️ Contact already exists in shared database - proceeding with permission update');
+                        } else {
+                            console.error('❌ Failed to insert contact into empty shared database:', insertError.message);
+                        }
+                        // Continue with permission update even if insert fails
+                    }
+                }
+                
+                // Update permissions
                 const updatedContact = {
                     ...contact,
                     metadata: {
@@ -2702,8 +2850,10 @@ export class ContactManager {
                 
                 return {
                     success: true,
-                    message: `Permissions updated for ${username}`,
-                    action: 'updated'
+                    message: needsContactData ? 
+                        `Re-shared and updated permissions for ${username}` : 
+                        `Permissions updated for ${username}`,
+                    action: needsContactData ? 'reshared' : 'updated'
                 };
             }
             
@@ -2924,18 +3074,27 @@ export class ContactManager {
                 }
             }
             
-            // Update contact metadata to track distribution list sharing
-            await this.updateContactMetadata(contactId, {
-                metadata: {
-                    sharedWithDistributionList: listName,
-                    lastSharedAt: new Date().toISOString()
-                }
-            });
+            // 🔧 FIX: Only update contact metadata for successfully shared users, not all users
+            const successfulUsernames = results
+                .filter(result => result.success)
+                .map(result => result.username);
+            
+            if (successfulUsernames.length > 0) {
+                // Update contact metadata to track distribution list sharing
+                await this.updateContactMetadata(contactId, {
+                    metadata: {
+                        sharedWithDistributionList: listName,
+                        lastSharedAt: new Date().toISOString()
+                    }
+                });
 
-            // 🔑 CRITICAL FIX: Save the distribution list sharing relationship to persistent storage
-            // This ensures the relationship persists across browser/PC switches
-            console.log('💾 Saving distribution list sharing relationship to persistent storage...');
-            await this.database.saveDistributionListSharing(contactId, listName, usernames);
+                // 🔑 CRITICAL FIX: Save the distribution list sharing relationship to persistent storage
+                // This ensures the relationship persists across browser/PC switches
+                console.log('💾 Saving distribution list sharing relationship to persistent storage...');
+                await this.database.saveDistributionListSharing(contactId, listName, successfulUsernames);
+            } else {
+                console.log('⚠️ No successful shares - skipping metadata and persistence updates');
+            }
             
             console.log(`✅ Distribution list sharing complete: ${successCount} new shares, ${alreadySharedCount} already shared, ${errorCount} errors`);
             
@@ -3055,5 +3214,15 @@ export class ContactManager {
             console.error('❌ Error during sharing cleanup:', error);
             return { success: false, error: error.message };
         }
+    }
+
+    /**
+     * Sanitize contact ID for database naming (same logic as IndividualSharingStrategy)
+     * @param {string} contactId - The contact ID to sanitize
+     * @returns {string} Clean contact ID suitable for database naming
+     */
+    sanitizeContactId(contactId) {
+        // Remove 'contact_' prefix to avoid double naming
+        return contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
     }
 }

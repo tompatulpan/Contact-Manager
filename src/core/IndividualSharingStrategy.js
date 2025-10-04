@@ -20,22 +20,20 @@ export class IndividualSharingStrategy {
      * @param {string} username - Target username
      * @returns {Promise<Object>} Share result
      */
-    async shareContactIndividually(contact, username) {
+    async shareContactIndividually(contact, username, readOnly = true, resharingAllowed = false) {
         const startTime = Date.now();
+        let databaseOpened = false; // 🔧 Track database opening state
+        let sharedDbName = null; // 🔧 Store the actual database name for cleanup
         
         try {
-            if (!username || username.trim() === '') {
-                throw new Error('Username is required for individual sharing');
-            }
-            
-            if (!contact || !contact.contactId) {
-                throw new Error('Valid contact with contactId is required');
+            if (!contact || !username) {
+                throw new Error('Contact and username are required');
             }
 
             // Create unique database name for this specific sharing relationship
             // Remove 'contact_' prefix to avoid double naming  
             const cleanContactId = contact.contactId.startsWith('contact_') ? contact.contactId.substring(8) : contact.contactId;
-            const sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
+            sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
             
             console.log(`📤 Creating individual shared database: ${sharedDbName}`);
 
@@ -65,9 +63,11 @@ export class IndividualSharingStrategy {
             await this.database.openDatabase(sharedDbName, () => {
                 console.log(`📡 Individual database ${sharedDbName} change detected`);
             });
+            
+            databaseOpened = true; // 🔧 Mark database as successfully opened
 
             // Insert contact into individual database with sharing metadata
-            const sharedContact = {
+            let sharedContact = {
                 ...contact,
                 metadata: {
                     ...contact.metadata,
@@ -79,6 +79,9 @@ export class IndividualSharingStrategy {
                     lastSharedUpdate: new Date().toISOString()
                 }
             };
+
+            // 🔧 CRITICAL FIX: Optimize contact to fit within 10KB Userbase limit
+            sharedContact = this.database.optimizeContactForStorage(sharedContact);
 
             // Check if contact already exists in this database, update if exists, insert if not
             try {
@@ -133,6 +136,32 @@ export class IndividualSharingStrategy {
         } catch (error) {
             const duration = Date.now() - startTime;
             console.error(`❌ Individual sharing failed for ${username}:`, error);
+            
+            // 🔧 CRITICAL FIX: Clean up database if sharing failed
+            // Only attempt cleanup if we successfully opened the database AND have the database name
+            if (databaseOpened && sharedDbName) {
+                try {
+                    console.log(`🧹 Cleaning up failed sharing database: ${sharedDbName}`);
+                    
+                    // Try to delete the contact from the database if it was inserted
+                    try {
+                        await this.database.safeDeleteItem({
+                            databaseName: sharedDbName,
+                            itemId: contact.contactId
+                        }, 'cleanup_failed_share');
+                        console.log(`🗑️ Removed contact from failed sharing database: ${sharedDbName}`);
+                    } catch (deleteError) {
+                        console.warn(`⚠️ Could not clean up contact from failed database:`, deleteError.message);
+                    }
+                    
+                    // Note: We don't delete the database itself as Userbase doesn't have a deleteDatabase method
+                    // But removing the contact data prevents false positive "already shared" detection
+                } catch (cleanupError) {
+                    console.warn(`⚠️ Cleanup process failed:`, cleanupError.message);
+                }
+            } else {
+                console.log(`⏭️ Skipping cleanup - database was never opened for ${username}`);
+            }
             
             this.database.handleShareDatabaseError(error, 'shareContactIndividually');
             
@@ -678,5 +707,14 @@ export class IndividualSharingStrategy {
      */
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * 🔧 UTILITY: Sanitize contact ID for database naming
+     * @param {string} contactId - Contact ID to sanitize
+     * @returns {string} Sanitized contact ID safe for database names
+     */
+    sanitizeContactId(contactId) {
+        return contactId ? contactId.replace(/[^a-zA-Z0-9\-_]/g, '_') : 'unknown';
     }
 }

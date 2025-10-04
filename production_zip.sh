@@ -47,7 +47,7 @@ end
 # Create 404.html if it doesn't exist (required for Cloudflare Pages SPA routing)
 if not test -f 404.html
     echo "Creating 404.html for SPA routing..."
-    cp index.html 404.htmltml
+    cp index.html 404.html
     zip -u $zipname 404.html
     echo "Added 404.html (copy of index.html for SPA routing)"
 else
@@ -71,7 +71,7 @@ unzip -l $zipname
 echo ""
 echo "🚀 Ready for Cloudflare Pages deployment!"
 echo "💡 Cache busting applied - browsers will get fresh files!"
-echo "📊 Enhanced: Now covers all 13 JavaScript modules + CSS files"
+echo "📊 Enhanced: Now covers all 18 JavaScript modules + CSS files"
 
 # Restore original index.html for development
 if test -f index.html.backup
@@ -89,15 +89,20 @@ if test -f index.html.backup
     sed -i.tmp 's|\(ContactManager\.js\)\?v=[^'"'"']*|\1|g' src/app.js
     sed -i.tmp 's|\(ContactUIController\.js\)\?v=[^'"'"']*|\1|g' src/app.js
     sed -i.tmp 's|\(MobileNavigation\.js\)\?v=[^'"'"']*|\1|g' src/ui/ContactUIController.js
+    sed -i.tmp 's|\(ContactUIHelpers\.js\)\?v=[^'"'"']*|\1|g' src/ui/ContactRenderer.js
+    sed -i.tmp 's|\(app\.config\.js\)\?v=[^'"'"']*|\1|g' src/ui/ContactUIController.js
+    sed -i.tmp 's|\(app\.config\.js\)\?v=[^'"'"']*|\1|g' src/utils/AuthPerformanceTracker.js
     
     # Clean up any remaining ? characters from failed regex matches
     sed -i.tmp 's|\.js?|.js|g' src/app.js
     sed -i.tmp 's|\.js?|.js|g' src/ui/ContactUIController.js
+    sed -i.tmp 's|\.js?|.js|g' src/ui/ContactRenderer.js
+    sed -i.tmp 's|\.js?|.js|g' src/utils/AuthPerformanceTracker.js
     sed -i.tmp 's|\.js?"|.js"|g' index.html
     sed -i.tmp 's|\.css?"|.css"|g' index.html
     
     # Clean up temp files (including any that might have been accidentally zipped)
-    rm -f src/app.js.tmp src/ui/ContactUIController.js.tmp
+    rm -f src/app.js.tmp src/ui/ContactUIController.js.tmp src/ui/ContactRenderer.js.tmp src/utils/AuthPerformanceTracker.js.tmp
     find src -name "*.tmp" -delete 2>/dev/null || true
     rm -f *.tmp 2>/dev/null || true
     

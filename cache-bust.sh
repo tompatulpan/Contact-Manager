@@ -40,6 +40,13 @@ function update_cache_busting
     set -l ui_controller_version (generate_version "src/ui/ContactUIController.js")
     set -l mobile_nav_version (generate_version "src/ui/MobileNavigation.js")
     set -l qr_version (generate_version "src/ui/components/qrcode.js")
+    
+    # New module versions (added in recent updates)
+    set -l individual_sharing_version (generate_version "src/core/IndividualSharingStrategy.js")
+    set -l contact_renderer_version (generate_version "src/ui/ContactRenderer.js")
+    set -l ui_helpers_version (generate_version "src/ui/ContactUIHelpers.js")
+    set -l auth_tracker_version (generate_version "src/utils/AuthPerformanceTracker.js")
+    set -l app_config_version (generate_version "src/config/app.config.js")
 
     echo "  📄 style.css → v$css_version"
     echo "  📄 mobile.css → v$mobile_css_version"
@@ -56,6 +63,13 @@ function update_cache_busting
     echo "     src/ui/ContactUIController.js → v$ui_controller_version"
     echo "     src/ui/MobileNavigation.js → v$mobile_nav_version"
     echo "     src/ui/components/qrcode.js → v$qr_version"
+    echo ""
+    echo "  🆕 New Modules:"
+    echo "     src/core/IndividualSharingStrategy.js → v$individual_sharing_version"
+    echo "     src/ui/ContactRenderer.js → v$contact_renderer_version"
+    echo "     src/ui/ContactUIHelpers.js → v$ui_helpers_version"
+    echo "     src/utils/AuthPerformanceTracker.js → v$auth_tracker_version"
+    echo "     src/config/app.config.js → v$app_config_version"
     echo ""
 
     # Create backup
@@ -83,6 +97,15 @@ function update_cache_busting
 
     # Update imports in ContactUIController.js
     sed -i.tmp "s|from './MobileNavigation\.js'|from './MobileNavigation.js?v=$mobile_nav_version'|g" src/ui/ContactUIController.js
+
+    # Update imports in ContactRenderer.js  
+    sed -i.tmp "s|from './ContactUIHelpers\.js'|from './ContactUIHelpers.js?v=$ui_helpers_version'|g" src/ui/ContactRenderer.js
+
+    # Update imports in ContactUIController.js (app.config.js import)
+    sed -i.tmp "s|from '../config/app\.config\.js'|from '../config/app.config.js?v=$app_config_version'|g" src/ui/ContactUIController.js
+
+    # Update imports in AuthPerformanceTracker.js (app.config.js import)  
+    sed -i.tmp "s|from '../config/app\.config\.js'|from '../config/app.config.js?v=$app_config_version'|g" src/utils/AuthPerformanceTracker.js
 
     # Clean up temp files
     rm -f index.html.tmp
@@ -123,7 +146,12 @@ function update_cache_busting
     echo "    \"src/core/ContactManager.js\": \"$manager_version\"," >> cache-versions.json
     echo "    \"src/ui/ContactUIController.js\": \"$ui_controller_version\"," >> cache-versions.json
     echo "    \"src/ui/MobileNavigation.js\": \"$mobile_nav_version\"," >> cache-versions.json
-    echo "    \"src/ui/components/qrcode.js\": \"$qr_version\"" >> cache-versions.json
+    echo "    \"src/ui/components/qrcode.js\": \"$qr_version\"," >> cache-versions.json
+    echo "    \"src/core/IndividualSharingStrategy.js\": \"$individual_sharing_version\"," >> cache-versions.json
+    echo "    \"src/ui/ContactRenderer.js\": \"$contact_renderer_version\"," >> cache-versions.json
+    echo "    \"src/ui/ContactUIHelpers.js\": \"$ui_helpers_version\"," >> cache-versions.json
+    echo "    \"src/utils/AuthPerformanceTracker.js\": \"$auth_tracker_version\"," >> cache-versions.json
+    echo "    \"src/config/app.config.js\": \"$app_config_version\"" >> cache-versions.json
     echo "  }" >> cache-versions.json
     echo "}" >> cache-versions.json
 
@@ -132,7 +160,7 @@ function update_cache_busting
     echo "=================================================="
     echo "📈 Build: $build_number"
     echo "🕒 Time: $timestamp"  
-    echo "📁 Files: 13 updated (5 direct + 8 ES6 modules)"
+    echo "📁 Files: 18 updated (5 direct + 13 ES6 modules)"
     echo "✨ Ready for deployment!"
     echo ""
     echo "💡 To restore original: mv index.html.backup index.html"
