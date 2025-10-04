@@ -2534,7 +2534,7 @@ export class ContactManager {
                 try {
                     console.log(`🔒 Revoking access to contact "${contact.cardName}" (${contact.contactId}) from user "${username}"`);
                     
-                    const result = await this.database.revokeContactAccess(contact.contactId, username);
+                    const result = await this.individualSharingStrategy.revokeIndividualAccess(contact.contactId, username);
                     
                     if (result.success) {
                         revokedCount++;
