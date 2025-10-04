@@ -1,3 +1,6 @@
+import { IndividualSharingStrategy } from './IndividualSharingStrategy.js';
+import { HybridSharingManager } from './HybridSharingManager.js';
+
 /**
  * ContactDatabase - Userbase integration for encrypted contact storage
  * Handles all database operations with real-time synchronization
@@ -33,6 +36,12 @@ export class ContactDatabase {
         };
         this.openedSharedDatabases = new Set(); // Track which shared databases are already open
         this.isInitializingSharedDatabases = false; // Prevent concurrent initialization
+        
+        // 🆕 INDIVIDUAL DATABASE STRATEGY: Initialize individual sharing strategy
+        this.individualSharing = new IndividualSharingStrategy(this);
+        
+        // 🎯 HYBRID STRATEGY: Initialize hybrid sharing manager
+        this.hybridSharing = new HybridSharingManager(this);
     }
 
     /**
@@ -2065,10 +2074,50 @@ export class ContactDatabase {
     }
 
     /**
-     * Update contact in all shared databases (for real-time sync)
+     * 🔄 ENHANCED: Update contact in all shared databases (supports both group and individual strategies)
+     * Updates contact data across all shared databases where this contact exists
      * @param {Object} contact - Updated contact object
+     * @returns {Promise<Object>} Update result with comprehensive metrics
      */
     async updateSharedContactDatabases(contact) {
+        try {
+            console.log(`🔄 Updating contact ${contact.contactId} across all shared databases`);
+            
+            // Strategy 1: Update traditional group shared database (backward compatibility)
+            const groupResult = await this.updateGroupSharedDatabase(contact);
+            
+            // Strategy 2: Update individual shared databases (new strategy)
+            const individualResult = await this.individualSharing.updateContactAcrossSharedDatabases(contact);
+            
+            // Combine results
+            const totalUpdated = (groupResult.success ? 1 : 0) + (individualResult.updatedCount || 0);
+            const hasErrors = !groupResult.success || !individualResult.success;
+            
+            console.log(`📊 Contact update summary: ${totalUpdated} databases updated`);
+            console.log(`📊 Group database: ${groupResult.success ? 'updated' : 'skipped/failed'}`);
+            console.log(`📊 Individual databases: ${individualResult.updatedCount || 0} updated`);
+            
+            return {
+                success: totalUpdated > 0,
+                totalUpdated,
+                groupResult,
+                individualResult,
+                hasErrors,
+                message: `Updated ${totalUpdated} shared databases`
+            };
+            
+        } catch (error) {
+            console.error('❌ Error in updateSharedContactDatabases:', error);
+            return { success: false, error: error.message, totalUpdated: 0 };
+        }
+    }
+
+    /**
+     * 🔄 LEGACY: Update traditional group shared database (backward compatibility)
+     * @param {Object} contact - Updated contact object
+     * @returns {Promise<Object>} Update result
+     */
+    async updateGroupSharedDatabase(contact) {
         try {
             const sharedDbName = `shared-contact-${contact.contactId}`;
             
@@ -2107,12 +2156,12 @@ export class ContactDatabase {
                     databaseName: sharedDbName,
                     changeHandler: () => {} // Minimal handler for updates
                 });
-                console.log(`✅ Shared database opened: ${sharedDbName}`);
+                console.log(`✅ Group shared database opened: ${sharedDbName}`);
             } catch (openError) {
                 if (openError.name === 'DatabaseAlreadyOpening' || openError.name === 'DatabaseAlreadyOpen') {
                     console.log(`ℹ️ Database already open: ${sharedDbName}`);
                 } else {
-                    console.error(`❌ Failed to open shared database ${sharedDbName}:`, openError);
+                    console.error(`❌ Failed to open group shared database ${sharedDbName}:`, openError);
                     return { success: false, error: openError.message };
                 }
             }
@@ -2130,21 +2179,22 @@ export class ContactDatabase {
                             lastSharedUpdate: new Date().toISOString(),
                             sharedAt: contact.metadata?.sharedAt, // Preserve original sharing timestamp
                             sharedBy: contact.metadata?.sharedBy, // Preserve sharing info
-                            originalContactId: contact.contactId
+                            originalContactId: contact.contactId,
+                            sharingType: 'group'
                         }
                     }
-                }, 'updateSharedContactDatabases');
+                }, 'updateGroupSharedDatabase');
                 
-                console.log(`✅ Successfully updated shared database: ${sharedDbName}`);
-                return { success: true, sharedDbName };
+                console.log(`✅ Successfully updated group shared database: ${sharedDbName}`);
+                return { success: true, sharedDbName, type: 'group' };
                 
             } catch (updateError) {
-                console.error(`❌ Failed to update shared database ${sharedDbName}:`, updateError);
+                console.error(`❌ Failed to update group shared database ${sharedDbName}:`, updateError);
                 return { success: false, error: updateError.message };
             }
             
         } catch (error) {
-            console.error('❌ Error in updateSharedContactDatabases:', error);
+            console.error('❌ Error in updateGroupSharedDatabase:', error);
             return { success: false, error: error.message };
         }
     }
@@ -2565,7 +2615,8 @@ export class ContactDatabase {
             // Generate share token for the database
             const tokenResult = await this.safeShareDatabase({
                 databaseName: sharedDbName,
-                readOnly
+                readOnly,
+                requireVerified: false  // Allow sharing with unverified users
             }, 'generateContactShareToken');
 
             console.log('✅ Share token generated successfully');
@@ -2752,6 +2803,322 @@ export class ContactDatabase {
             return { success: false, error: error.message };
         }
     }
+
+    // ==================================================================================
+    // 🆕 INDIVIDUAL DATABASE STRATEGY METHODS
+    // ==================================================================================
+
+    /**
+     * 🆕 INDIVIDUAL: Share contact using individual database strategy
+     * Creates separate database per recipient for granular control
+     * @param {Object} contact - Contact to share
+     * @param {string} username - Target username
+     * @param {boolean} readOnly - Whether the share is read-only
+     * @param {boolean} resharingAllowed - Whether resharing is allowed
+     * @returns {Promise<Object>} Share result
+     */
+    async shareContactIndividually(contact, username, readOnly = true, resharingAllowed = false) {
+        try {
+            console.log(`📤 Sharing contact individually with ${username}`);
+
+            const result = await this.individualSharing.shareContactIndividually(contact, username);
+            
+            if (result.success) {
+                // Log the sharing activity
+                await this.logActivity({
+                    action: 'contact_shared_individually',
+                    targetUser: username,
+                    details: {
+                        contactId: contact.contactId,
+                        contactName: contact.cardName,
+                        databaseName: result.sharedDbName,
+                        sharingType: 'individual',
+                        duration: result.duration
+                    }
+                });
+
+                this.eventBus.emit('contact:shared', { 
+                    contactId: contact.contactId,
+                    username: result.username, 
+                    readOnly, 
+                    resharingAllowed,
+                    sharingType: 'individual',
+                    sharedDbName: result.sharedDbName,
+                    duration: result.duration
+                });
+                
+                console.log(`✅ Individual contact shared successfully with ${username} (${result.duration}ms)`);
+            } else {
+                console.error(`❌ Failed to share contact individually with ${username}:`, result.error);
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('Individual share contact failed:', error);
+            this.eventBus.emit('database:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * 🚀 BULK: Share contact with multiple users using optimized individual databases
+     * Uses parallel processing and smart batching for performance
+     * @param {Object} contact - Contact to share
+     * @param {Array} usernames - Array of usernames
+     * @returns {Promise<Object>} Bulk share result with performance metrics
+     */
+    async shareContactWithMultipleUsers(contact, usernames) {
+        try {
+            console.log(`📤 Bulk sharing contact with ${usernames.length} users individually`);
+            
+            const result = await this.individualSharing.shareContactWithMultipleUsers(contact, usernames);
+            
+            // Log each successful share
+            for (const shareResult of result.results || []) {
+                if (shareResult.success) {
+                    await this.logActivity({
+                        action: 'contact_shared_individually',
+                        targetUser: shareResult.username,
+                        details: {
+                            contactId: contact.contactId,
+                            contactName: contact.cardName,
+                            databaseName: shareResult.sharedDbName,
+                            sharingType: 'individual',
+                            duration: shareResult.duration,
+                            bulkOperation: true
+                        }
+                    });
+                }
+            }
+            
+            this.eventBus.emit('contact:bulkShared', {
+                contactId: contact.contactId,
+                results: result.results,
+                successCount: result.successCount,
+                errorCount: result.errorCount,
+                totalDuration: result.totalDuration,
+                averageDuration: result.averageDuration
+            });
+            
+            console.log(`📊 Bulk sharing completed: ${result.successCount}/${usernames.length} successful in ${result.totalDuration}ms`);
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Bulk share failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * 🗑️ REVOKE: Revoke individual contact access (solves the granular revocation problem)
+     * Removes access for specific user without affecting others
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to revoke access from
+     * @returns {Promise<Object>} Revoke result
+     */
+    async revokeIndividualContactAccess(contactId, username) {
+        try {
+            console.log(`🗑️ Revoking individual access for ${username} to contact ${contactId}`);
+            
+            const result = await this.individualSharing.revokeIndividualAccess(contactId, username);
+            
+            if (result.success) {
+                // Log the revocation activity
+                await this.logActivity({
+                    action: 'contact_access_revoked',
+                    targetUser: username,
+                    details: {
+                        contactId,
+                        revokedAt: new Date().toISOString(),
+                        method: 'individual-database-deletion',
+                        duration: result.duration
+                    }
+                });
+
+                this.eventBus.emit('contact:accessRevoked', { 
+                    contactId,
+                    username: result.revokedFrom,
+                    method: 'individual',
+                    duration: result.duration
+                });
+                
+                console.log(`✅ Individual access revoked for ${username} (${result.duration}ms)`);
+            } else {
+                console.error(`❌ Failed to revoke individual access for ${username}:`, result.error);
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Revoke individual access failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * 📋 LIST: Get individual shares for a contact
+     * @param {string} contactId - Contact ID
+     * @returns {Promise<Array>} Array of individual shares
+     */
+    async getIndividualContactShares(contactId) {
+        try {
+            return await this.individualSharing.getIndividualShares(contactId);
+        } catch (error) {
+            console.error('❌ Failed to get individual shares:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 📊 ANALYTICS: Get sharing statistics
+     * @param {string} contactId - Optional contact ID to filter stats
+     * @returns {Promise<Object>} Sharing statistics
+     */
+    async getSharingStatistics(contactId = null) {
+        try {
+            return await this.individualSharing.getSharingStats(contactId);
+        } catch (error) {
+            console.error('❌ Failed to get sharing statistics:', error);
+            return { error: error.message };
+        }
+    }
+
+    /**
+     * ⚙️ CONFIG: Configure individual sharing strategy performance settings
+     * @param {Object} config - Configuration options
+     */
+    configureIndividualSharing(config = {}) {
+        if (config.batchSize) {
+            this.individualSharing.setBatchSize(config.batchSize);
+        }
+        
+        if (config.clearCache) {
+            this.individualSharing.clearCache();
+        }
+        
+        console.log('⚙️ Individual sharing strategy configured');
+    }
+
+    // ==================================================================================
+    // 🎯 HYBRID SHARING STRATEGY METHODS
+    // ==================================================================================
+
+    /**
+     * 🎯 SMART: Intelligently share contact using optimal strategy
+     * Automatically chooses between individual and group strategies
+     * @param {Object} contact - Contact to share
+     * @param {Array|string} users - Single user or array of users
+     * @param {Object} options - Sharing options
+     * @returns {Promise<Object>} Share result with strategy used
+     */
+    async smartShareContact(contact, users, options = {}) {
+        try {
+            const result = await this.hybridSharing.smartShare(contact, users, {
+                readOnly: options.readOnly !== false, // Default to true
+                resharingAllowed: options.resharingAllowed || false,
+                requiresGranularRevocation: options.requiresGranularRevocation || false,
+                performancePriority: options.performancePriority || 'balanced',
+                expectedUpdateFrequency: options.expectedUpdateFrequency || 'medium'
+            });
+            
+            if (result.success) {
+                this.eventBus.emit('contact:smartShared', {
+                    contactId: contact.contactId,
+                    users: Array.isArray(users) ? users : [users],
+                    strategyUsed: result.strategyUsed,
+                    userCount: result.userCount,
+                    duration: result.duration
+                });
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Smart share contact failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * 🗑️ SMART: Intelligently revoke contact access using optimal strategy
+     * Automatically detects and uses the appropriate revocation method
+     * @param {string} contactId - Contact ID
+     * @param {string} username - Username to revoke access from
+     * @returns {Promise<Object>} Revoke result with strategy used
+     */
+    async smartRevokeContactAccess(contactId, username) {
+        try {
+            const result = await this.hybridSharing.smartRevoke(contactId, username);
+            
+            if (result.success) {
+                this.eventBus.emit('contact:smartRevoked', {
+                    contactId,
+                    username,
+                    strategyUsed: result.strategyUsed,
+                    duration: result.duration
+                });
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('❌ Smart revoke contact access failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * 📋 INFO: Get comprehensive sharing information for a contact
+     * @param {string} contactId - Contact ID
+     * @returns {Promise<Object>} Detailed sharing information
+     */
+    async getContactSharingInfo(contactId) {
+        try {
+            return await this.hybridSharing.getContactSharingInfo(contactId);
+        } catch (error) {
+            console.error('❌ Failed to get contact sharing info:', error);
+            return { error: error.message };
+        }
+    }
+
+    /**
+     * 📈 ANALYTICS: Get performance analytics for sharing operations
+     * @returns {Object} Performance analytics with recommendations
+     */
+    getSharingPerformanceAnalytics() {
+        try {
+            return this.hybridSharing.getPerformanceAnalytics();
+        } catch (error) {
+            console.error('❌ Failed to get sharing performance analytics:', error);
+            return { error: error.message };
+        }
+    }
+
+    /**
+     * ⚙️ CONFIG: Configure hybrid sharing strategy
+     * @param {Object} config - Configuration options
+     * @param {string} config.strategy - 'auto', 'group', or 'individual'
+     * @param {number} config.autoThreshold - User count threshold for auto strategy
+     * @param {boolean} config.clearMetrics - Whether to clear performance metrics
+     */
+    configureHybridSharing(config = {}) {
+        try {
+            this.hybridSharing.configure(config);
+            console.log('⚙️ Hybrid sharing strategy configured');
+        } catch (error) {
+            console.error('❌ Failed to configure hybrid sharing:', error);
+        }
+    }
+
+    // ==================================================================================
+    // END HYBRID SHARING STRATEGY METHODS
+    // ==================================================================================
+
+    // ==================================================================================
+    // END INDIVIDUAL DATABASE STRATEGY METHODS
+    // ==================================================================================
 
     /**
      * Update contact in shared database after editing - CRITICAL for cross-device updates
