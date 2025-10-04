@@ -1,5 +1,4 @@
 import { IndividualSharingStrategy } from './IndividualSharingStrategy.js';
-import { HybridSharingManager } from './HybridSharingManager.js';
 
 /**
  * ContactDatabase - Userbase integration for encrypted contact storage
@@ -39,9 +38,6 @@ export class ContactDatabase {
         
         // 🆕 INDIVIDUAL DATABASE STRATEGY: Initialize individual sharing strategy
         this.individualSharing = new IndividualSharingStrategy(this);
-        
-        // 🎯 HYBRID STRATEGY: Initialize hybrid sharing manager
-        this.hybridSharing = new HybridSharingManager(this);
     }
 
     /**
@@ -2074,36 +2070,26 @@ export class ContactDatabase {
     }
 
     /**
-     * 🔄 ENHANCED: Update contact in all shared databases (supports both group and individual strategies)
-     * Updates contact data across all shared databases where this contact exists
+     * 🔄 SIMPLIFIED: Update contact in individual shared databases only
+     * Updates contact data across all individual shared databases where this contact exists
      * @param {Object} contact - Updated contact object
-     * @returns {Promise<Object>} Update result with comprehensive metrics
+     * @returns {Promise<Object>} Update result with metrics
      */
     async updateSharedContactDatabases(contact) {
         try {
             console.log(`🔄 Updating contact ${contact.contactId} across all shared databases`);
             
-            // Strategy 1: Update traditional group shared database (backward compatibility)
-            const groupResult = await this.updateGroupSharedDatabase(contact);
-            
-            // Strategy 2: Update individual shared databases (new strategy)
+            // Update individual shared databases only (no group databases)
             const individualResult = await this.individualSharing.updateContactAcrossSharedDatabases(contact);
             
-            // Combine results
-            const totalUpdated = (groupResult.success ? 1 : 0) + (individualResult.updatedCount || 0);
-            const hasErrors = !groupResult.success || !individualResult.success;
-            
-            console.log(`📊 Contact update summary: ${totalUpdated} databases updated`);
-            console.log(`📊 Group database: ${groupResult.success ? 'updated' : 'skipped/failed'}`);
-            console.log(`📊 Individual databases: ${individualResult.updatedCount || 0} updated`);
+            console.log(`📊 Contact update summary: ${individualResult.updatedCount || 0} databases updated`);
+            console.log(`📊 Individual databases: ${individualResult.updatedCount || 0} updated${individualResult.skippedCount > 0 ? ` (${individualResult.skippedCount} skipped)` : ''}`);
             
             return {
-                success: totalUpdated > 0,
-                totalUpdated,
-                groupResult,
+                success: individualResult.success,
+                totalUpdated: individualResult.updatedCount || 0,
                 individualResult,
-                hasErrors,
-                message: `Updated ${totalUpdated} shared databases`
+                message: `Updated ${individualResult.updatedCount || 0} individual shared databases`
             };
             
         } catch (error) {
@@ -2112,92 +2098,7 @@ export class ContactDatabase {
         }
     }
 
-    /**
-     * 🔄 LEGACY: Update traditional group shared database (backward compatibility)
-     * @param {Object} contact - Updated contact object
-     * @returns {Promise<Object>} Update result
-     */
-    async updateGroupSharedDatabase(contact) {
-        try {
-            const sharedDbName = `shared-contact-${contact.contactId}`;
-            
-            console.log(`🔄 Checking if shared database exists: ${sharedDbName}`);
-            
-            // Check if we have this shared database in our owned databases
-            let databaseExists = false;
-            try {
-                // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
-                const result = await userbase.getDatabases();
-                const dbList = result.databases;
-                const existingDb = dbList.find(db => 
-                    db.databaseName === sharedDbName && db.isOwner
-                );
-                
-                if (existingDb) {
-                    databaseExists = true;
-                    console.log(`📋 Found owned shared database: ${sharedDbName}`);
-                } else {
-                    console.log(`📋 No owned shared database found: ${sharedDbName} - skipping update`);
-                    return { success: true, message: 'No shared database to update' };
-                }
-            } catch (checkError) {
-                console.log('⚠️ Could not check database existence:', checkError.message);
-                return { success: false, error: checkError.message };
-            }
-            
-            if (!databaseExists) {
-                return { success: true, message: 'Shared database does not exist' };
-            }
-            
-            // Ensure the database is open before updating
-            try {
-                console.log(`🔓 Ensuring shared database is open: ${sharedDbName}`);
-                await userbase.openDatabase({
-                    databaseName: sharedDbName,
-                    changeHandler: () => {} // Minimal handler for updates
-                });
-                console.log(`✅ Group shared database opened: ${sharedDbName}`);
-            } catch (openError) {
-                if (openError.name === 'DatabaseAlreadyOpening' || openError.name === 'DatabaseAlreadyOpen') {
-                    console.log(`ℹ️ Database already open: ${sharedDbName}`);
-                } else {
-                    console.error(`❌ Failed to open group shared database ${sharedDbName}:`, openError);
-                    return { success: false, error: openError.message };
-                }
-            }
-            
-            // Now try to update the shared database
-            try {
-                await this.safeUpdateItem({
-                    databaseName: sharedDbName,
-                    itemId: contact.contactId,
-                    item: {
-                        ...contact,
-                        metadata: {
-                            ...contact.metadata,
-                            lastUpdated: new Date().toISOString(),
-                            lastSharedUpdate: new Date().toISOString(),
-                            sharedAt: contact.metadata?.sharedAt, // Preserve original sharing timestamp
-                            sharedBy: contact.metadata?.sharedBy, // Preserve sharing info
-                            originalContactId: contact.contactId,
-                            sharingType: 'group'
-                        }
-                    }
-                }, 'updateGroupSharedDatabase');
-                
-                console.log(`✅ Successfully updated group shared database: ${sharedDbName}`);
-                return { success: true, sharedDbName, type: 'group' };
-                
-            } catch (updateError) {
-                console.error(`❌ Failed to update group shared database ${sharedDbName}:`, updateError);
-                return { success: false, error: updateError.message };
-            }
-            
-        } catch (error) {
-            console.error('❌ Error in updateGroupSharedDatabase:', error);
-            return { success: false, error: error.message };
-        }
-    }
+
 
     // ========== DISTRIBUTION LIST SHARING PERSISTENCE METHODS ==========
 
@@ -2662,146 +2563,9 @@ export class ContactDatabase {
      * @returns {Promise<Object>} Share result
      */
     async shareContact(contact, username, readOnly = true, resharingAllowed = false) {
-        try {
-            if (!username || username.trim() === '') {
-                throw new Error('Username is required for sharing');
-            }
-            
-            if (!contact || !contact.contactId) {
-                throw new Error('Valid contact is required for sharing');
-            }
-
-            console.log(`📤 Sharing contact with ${username} (SDK compliant workflow)`);
-
-            // Create a unique database name for this shared contact
-            const sharedDbName = `shared-contact-${contact.contactId}`;
-            
-            console.log('📦 Preparing to share contact database:', sharedDbName);
-
-            // Check if the shared database already exists
-            let databaseExists = false;
-            let databaseUsers = [];
-            
-            try {
-                // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] }
-                const result = await userbase.getDatabases();
-                const dbList = result.databases;
-                const existingDb = dbList.find(db => 
-                    db.databaseName === sharedDbName && db.isOwner
-                );
-                
-                if (existingDb) {
-                    databaseExists = true;
-                    databaseUsers = existingDb.users || [];
-                    console.log('🔍 Database exists with users:', databaseUsers.map(u => u.username));
-                }
-            } catch (checkError) {
-                console.log('⚠️ Could not check database existence, proceeding with creation:', checkError.message);
-            }
-
-            // Check if user is already shared with
-            const userAlreadyShared = databaseUsers.some(user => user.username === username.trim());
-            
-            if (userAlreadyShared) {
-                console.log('👤 User already has access, modifying permissions instead');
-                
-                // Use modifyDatabasePermissions to change existing permissions
-                return await this.modifyContactPermissions(contact.contactId, username, readOnly, resharingAllowed, false);
-                
-            } else if (databaseExists) {
-                console.log('📤 Adding new user to existing shared database using modifyDatabasePermissions');
-                
-                // Database exists but user doesn't have access - use modifyDatabasePermissions to add them
-                await this.safeModifyDatabasePermissions({
-                    databaseName: sharedDbName,
-                    username: username.trim(),
-                    readOnly,
-                    resharingAllowed
-                }, 'shareContact-addUser');
-                
-                console.log('✅ Successfully added user to existing shared database:', username);
-                
-                // Update the existing contact item in the shared database to ensure it's current
-                try {
-                    await this.updateSharedContactDatabase(contact, sharedDbName);
-                    console.log('✅ Updated contact data in shared database');
-                } catch (updateError) {
-                    console.log('⚠️ Could not update contact in shared database:', updateError.message);
-                    // Continue anyway, the sharing was successful
-                }
-            } else {
-                console.log('📦 Creating new shared database and sharing with first user');
-
-                // Database doesn't exist, create it using shareDatabase (for first user)
-                await userbase.openDatabase({
-                    databaseName: sharedDbName,
-                    changeHandler: () => {} // Empty handler since this is just for creation
-                });
-
-                // Insert the contact into the shared database
-                await this.safeInsertItem({
-                    databaseName: sharedDbName,
-                    item: {
-                        ...contact,
-                        metadata: {
-                            ...contact.metadata,
-                            sharedAt: new Date().toISOString(),
-                            sharedBy: this.currentUser?.username,
-                            originalContactId: contact.contactId
-                        }
-                    },
-                    itemId: contact.contactId
-                }, 'shareContact');
-
-                // Use shareDatabase for the first user (initial sharing)
-                await this.safeShareDatabase({
-                    databaseName: sharedDbName,
-                    username: username.trim(),
-                    readOnly,
-                    resharingAllowed,
-                    requireVerified: false // Temporarily disabled for testing
-                }, 'shareContact-initial');
-
-                console.log('✅ New shared database created and shared with first user:', username);
-            }
-
-            console.log('✅ Individual contact shared successfully with:', username);
-
-            // Log the sharing activity
-            await this.logActivity({
-                action: 'contact_shared',
-                targetUser: username,
-                details: {
-                    contactId: contact.contactId,
-                    contactName: contact.cardName,
-                    databaseName: sharedDbName,
-                    readOnly,
-                    resharingAllowed
-                }
-            });
-
-            this.eventBus.emit('contact:shared', { 
-                contactId: contact.contactId,
-                username, 
-                readOnly, 
-                resharingAllowed,
-                sharedDbName
-            });
-            
-            return { success: true, sharedDbName };
-            
-        } catch (error) {
-            console.error('Share contact failed:', error);
-            console.error('Error details:', {
-                message: error.message,
-                code: error.code,
-                name: error.name,
-                stack: error.stack
-            });
-            
-            this.eventBus.emit('database:error', { error: error.message });
-            return { success: false, error: error.message };
-        }
+        // Redirect all legacy sharing calls to individual sharing strategy
+        console.log(`� Redirecting legacy shareContact to individual sharing`);
+        return await this.shareContactIndividually(contact, username, readOnly, resharingAllowed);
     }
 
     // ==================================================================================
@@ -3002,12 +2766,12 @@ export class ContactDatabase {
     }
 
     // ==================================================================================
-    // 🎯 HYBRID SHARING STRATEGY METHODS
+    // 🎯 INDIVIDUAL SHARING STRATEGY METHODS
     // ==================================================================================
 
     /**
-     * 🎯 SMART: Intelligently share contact using optimal strategy
-     * Automatically chooses between individual and group strategies
+     * 🎯 SMART: Intelligently share contact using individual strategy
+     * Uses individual database sharing for granular control
      * @param {Object} contact - Contact to share
      * @param {Array|string} users - Single user or array of users
      * @param {Object} options - Sharing options
@@ -3015,21 +2779,20 @@ export class ContactDatabase {
      */
     async smartShareContact(contact, users, options = {}) {
         try {
-            const result = await this.hybridSharing.smartShare(contact, users, {
+            // Use individual sharing strategy directly
+            const userList = Array.isArray(users) ? users : [users];
+            const result = await this.shareContactIndividually(contact, userList, {
                 readOnly: options.readOnly !== false, // Default to true
-                resharingAllowed: options.resharingAllowed || false,
-                requiresGranularRevocation: options.requiresGranularRevocation || false,
-                performancePriority: options.performancePriority || 'balanced',
-                expectedUpdateFrequency: options.expectedUpdateFrequency || 'medium'
+                resharingAllowed: options.resharingAllowed || false
             });
             
             if (result.success) {
                 this.eventBus.emit('contact:smartShared', {
                     contactId: contact.contactId,
-                    users: Array.isArray(users) ? users : [users],
-                    strategyUsed: result.strategyUsed,
-                    userCount: result.userCount,
-                    duration: result.duration
+                    users: userList,
+                    strategyUsed: 'individual',
+                    userCount: userList.length,
+                    duration: result.duration || 0
                 });
             }
             
@@ -3050,14 +2813,15 @@ export class ContactDatabase {
      */
     async smartRevokeContactAccess(contactId, username) {
         try {
-            const result = await this.hybridSharing.smartRevoke(contactId, username);
+            // Use individual sharing revocation directly
+            const result = await this.revokeIndividualContactAccess(contactId, username);
             
             if (result.success) {
                 this.eventBus.emit('contact:smartRevoked', {
                     contactId,
                     username,
-                    strategyUsed: result.strategyUsed,
-                    duration: result.duration
+                    strategyUsed: 'individual',
+                    duration: result.duration || 0
                 });
             }
             
@@ -3076,7 +2840,8 @@ export class ContactDatabase {
      */
     async getContactSharingInfo(contactId) {
         try {
-            return await this.hybridSharing.getContactSharingInfo(contactId);
+            // Use individual sharing info directly
+            return await this.individualSharing.getIndividualShares(contactId);
         } catch (error) {
             console.error('❌ Failed to get contact sharing info:', error);
             return { error: error.message };
@@ -3089,7 +2854,14 @@ export class ContactDatabase {
      */
     getSharingPerformanceAnalytics() {
         try {
-            return this.hybridSharing.getPerformanceAnalytics();
+            // Return basic analytics for individual sharing strategy
+            return {
+                strategy: 'individual',
+                totalOperations: 0,
+                averageResponseTime: 0,
+                successRate: 100,
+                recommendations: ['Using individual database strategy for granular control']
+            };
         } catch (error) {
             console.error('❌ Failed to get sharing performance analytics:', error);
             return { error: error.message };
@@ -3097,23 +2869,23 @@ export class ContactDatabase {
     }
 
     /**
-     * ⚙️ CONFIG: Configure hybrid sharing strategy
+     * ⚙️ CONFIG: Configure individual sharing strategy
      * @param {Object} config - Configuration options
-     * @param {string} config.strategy - 'auto', 'group', or 'individual'
+     * @param {string} config.strategy - 'individual' (only supported strategy)
      * @param {number} config.autoThreshold - User count threshold for auto strategy
      * @param {boolean} config.clearMetrics - Whether to clear performance metrics
      */
-    configureHybridSharing(config = {}) {
+    configureIndividualSharing(config = {}) {
         try {
-            this.hybridSharing.configure(config);
-            console.log('⚙️ Hybrid sharing strategy configured');
+            // Individual sharing strategy is always used
+            console.log('⚙️ Individual sharing strategy configured (no additional configuration needed)');
         } catch (error) {
-            console.error('❌ Failed to configure hybrid sharing:', error);
+            console.error('❌ Failed to configure individual sharing:', error);
         }
     }
 
     // ==================================================================================
-    // END HYBRID SHARING STRATEGY METHODS
+    // END INDIVIDUAL SHARING STRATEGY METHODS
     // ==================================================================================
 
     // ==================================================================================

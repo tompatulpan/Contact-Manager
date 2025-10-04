@@ -1245,6 +1245,10 @@ body {
     border-radius: var(--radius);
     padding: var(--space-2);
     transition: background-color 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-2);
 }
 
 .shared-user-item:hover {
@@ -1252,10 +1256,10 @@ body {
 }
 
 .shared-user-info {
+    flex: 1;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-1);
+    flex-direction: column;
+    gap: var(--space-1);
 }
 
 .shared-username {
@@ -1278,6 +1282,45 @@ body {
     color: var(--text-secondary);
 }
 
+.shared-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-1);
+    flex-shrink: 0;
+}
+
+/* Revoke Button Styles */
+.btn-revoke {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.btn-revoke:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.btn-revoke:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.btn-revoke i {
+    font-size: 0.625rem;
+}
+
 .share-summary {
     margin-top: var(--space-2);
     padding-top: var(--space-2);
@@ -1289,14 +1332,25 @@ body {
 
 /* Mobile Responsive Sharing Styles */
 @media (max-width: 768px) {
-    .shared-user-info {
+    .shared-user-item {
         flex-direction: column;
-        align-items: flex-start;
-        gap: var(--space-1);
+        align-items: stretch;
+        gap: var(--space-2);
     }
     
-    .shared-permission {
-        align-self: flex-start;
+    .shared-user-info {
+        align-items: flex-start;
+    }
+    
+    .shared-actions {
+        align-items: flex-start;
+        flex-direction: row;
+        justify-content: flex-start;
+    }
+    
+    .btn-revoke {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
     }
     
     .metadata-sharing .metadata-label {

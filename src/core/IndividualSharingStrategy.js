@@ -33,7 +33,9 @@ export class IndividualSharingStrategy {
             }
 
             // Create unique database name for this specific sharing relationship
-            const sharedDbName = `shared-contact-${contact.contactId}-to-${username.trim()}`;
+            // Remove 'contact_' prefix to avoid double naming  
+            const cleanContactId = contact.contactId.startsWith('contact_') ? contact.contactId.substring(8) : contact.contactId;
+            const sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
             
             console.log(`📤 Creating individual shared database: ${sharedDbName}`);
 
@@ -78,11 +80,27 @@ export class IndividualSharingStrategy {
                 }
             };
 
-            await this.database.safeInsertItem({
-                databaseName: sharedDbName,
-                item: sharedContact,
-                itemId: contact.contactId
-            }, 'shareContactIndividually');
+            // Check if contact already exists in this database, update if exists, insert if not
+            try {
+                await this.database.safeInsertItem({
+                    databaseName: sharedDbName,
+                    item: sharedContact,
+                    itemId: contact.contactId
+                }, 'shareContactIndividually');
+                console.log(`✅ Contact inserted into individual database: ${sharedDbName}`);
+            } catch (insertError) {
+                if (insertError.name === 'ItemAlreadyExists') {
+                    console.log(`🔄 Contact already exists in ${sharedDbName}, updating instead`);
+                    await this.database.safeUpdateItem({
+                        databaseName: sharedDbName,
+                        item: sharedContact,
+                        itemId: contact.contactId
+                    }, 'shareContactIndividually');
+                    console.log(`✅ Contact updated in individual database: ${sharedDbName}`);
+                } else {
+                    throw insertError; // Re-throw other errors
+                }
+            }
 
             // Share database with target user (readOnly by default)
             await this.database.safeShareDatabase({
@@ -242,40 +260,96 @@ export class IndividualSharingStrategy {
             }
 
             const trimmedUsername = username.trim();
-            const sharedDbName = `shared-contact-${contactId}-to-${trimmedUsername}`;
+            // Remove 'contact_' prefix to avoid double naming
+            const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+            const sharedDbName = `shared-contact-${cleanContactId}-to-${trimmedUsername}`;
             
             console.log(`🗑️ Revoking individual access: ${sharedDbName}`);
 
-            // Validate parameters before SDK call
-            const deleteValidation = this.database.validateDeleteItemParams({
-                databaseName: sharedDbName,
-                itemId: contactId
-            });
-
-            if (!deleteValidation.isValid) {
-                throw new Error(`Invalid deleteItem parameters: ${deleteValidation.errors.join(', ')}`);
-            }
-
-            // First, try to open the database to ensure it exists
+            // Enhanced revocation: Query database first to find the actual item
+            let databaseItems = [];
+            let actualItemId = null;
+            
             try {
-                await this.database.openDatabase(sharedDbName, () => {});
+                // First, try to open the database and get all items
+                await new Promise((resolve, reject) => {
+                    this.database.openDatabase(sharedDbName, (items) => {
+                        databaseItems = items || [];
+                        resolve();
+                    }).catch(reject);
+                });
+                
+                console.log(`🔍 Found ${databaseItems.length} items in shared database ${sharedDbName}`);
+                
+                if (databaseItems.length === 0) {
+                    console.log(`ℹ️ Database ${sharedDbName} is empty, access already revoked`);
+                    return { 
+                        success: true, 
+                        message: 'Access already revoked (database empty)',
+                        revokedFrom: trimmedUsername,
+                        duration: Date.now() - startTime
+                    };
+                }
+                
+                // Search for the contact using multiple approaches
+                let foundItem = null;
+                
+                // Approach 1: Direct itemId match
+                foundItem = databaseItems.find(item => item.itemId === contactId);
+                if (foundItem) {
+                    actualItemId = foundItem.itemId;
+                    console.log(`✅ Found contact using direct itemId match: ${actualItemId}`);
+                } else {
+                    // Approach 2: Search by item.contactId property
+                    foundItem = databaseItems.find(item => item.item?.contactId === contactId);
+                    if (foundItem) {
+                        actualItemId = foundItem.itemId;
+                        console.log(`✅ Found contact using item.contactId match: ${actualItemId}`);
+                    } else {
+                        // Approach 3: Search by item content (vCard or other fields)
+                        foundItem = databaseItems.find(item => {
+                            const itemData = item.item || {};
+                            return itemData.contactId === contactId || 
+                                   itemData.cardName?.includes(contactId) ||
+                                   item.itemId?.includes(contactId);
+                        });
+                        if (foundItem) {
+                            actualItemId = foundItem.itemId;
+                            console.log(`✅ Found contact using content search: ${actualItemId}`);
+                        }
+                    }
+                }
+                
+                if (!actualItemId) {
+                    console.log(`⚠️ Contact not found in database ${sharedDbName}, access already revoked`);
+                    return { 
+                        success: true, 
+                        message: 'Access already revoked (contact not found)',
+                        revokedFrom: trimmedUsername,
+                        duration: Date.now() - startTime
+                    };
+                }
+                
             } catch (openError) {
                 if (openError.name === 'DatabaseNotFound') {
                     console.log(`ℹ️ Database ${sharedDbName} doesn't exist, access already revoked`);
                     return { 
                         success: true, 
-                        message: 'Access already revoked',
+                        message: 'Access already revoked (database not found)',
                         revokedFrom: trimmedUsername,
                         duration: Date.now() - startTime
                     };
                 }
+                console.error(`❌ Error opening database ${sharedDbName}:`, openError);
                 throw openError;
             }
 
-            // Delete the contact from the individual database
+            // Now delete the contact using the correct itemId
+            console.log(`🗑️ Deleting item with actualItemId: ${actualItemId} from database: ${sharedDbName}`);
+            
             await this.database.safeDeleteItem({
                 databaseName: sharedDbName,
-                itemId: contactId
+                itemId: actualItemId
             }, 'revokeIndividualAccess');
 
             // Clear cache entry
@@ -290,7 +364,8 @@ export class IndividualSharingStrategy {
                 revokedFrom: trimmedUsername,
                 sharedDbName,
                 duration,
-                method: 'individual-database-deletion'
+                method: 'individual-database-deletion',
+                actualItemId: actualItemId
             };
             
         } catch (error) {
@@ -344,6 +419,35 @@ export class IndividualSharingStrategy {
                 
                 const batchPromises = batch.map(async (dbName) => {
                     try {
+                        // First, check if the database has any items (skip empty databases)
+                        let hasItems = false;
+                        try {
+                            await new Promise((resolve, reject) => {
+                                this.database.openDatabase(dbName, (items) => {
+                                    hasItems = items && items.length > 0;
+                                    resolve();
+                                }).catch(reject);
+                            });
+                            
+                            if (!hasItems) {
+                                console.log(`⏭️ Skipping empty database: ${dbName}`);
+                                return { 
+                                    database: dbName, 
+                                    success: true, 
+                                    message: 'Skipped - database is empty',
+                                    skipped: true 
+                                };
+                            }
+                        } catch (checkError) {
+                            console.log(`⏭️ Skipping inaccessible database: ${dbName}`);
+                            return { 
+                                database: dbName, 
+                                success: true, 
+                                message: 'Skipped - database not accessible',
+                                skipped: true 
+                            };
+                        }
+                        
                         // Extract username from database name for metadata
                         const username = this.extractUsernameFromDbName(dbName);
                         
@@ -385,15 +489,17 @@ export class IndividualSharingStrategy {
             }
             
             const duration = Date.now() - startTime;
-            const successCount = updateResults.filter(r => r.success).length;
-            const errorCount = updateResults.length - successCount;
+            const successCount = updateResults.filter(r => r.success && !r.skipped).length;
+            const skippedCount = updateResults.filter(r => r.skipped).length;
+            const errorCount = updateResults.filter(r => !r.success).length;
             
-            console.log(`✅ Updated ${successCount}/${sharedDatabases.length} databases in ${duration}ms`);
+            console.log(`✅ Updated ${successCount}/${sharedDatabases.length} databases in ${duration}ms${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`);
             
             return {
-                success: successCount > 0,
+                success: successCount > 0 || skippedCount > 0,
                 results: updateResults,
                 successCount,
+                skippedCount,
                 errorCount,
                 duration,
                 updatedCount: successCount,
@@ -422,9 +528,12 @@ export class IndividualSharingStrategy {
             const result = await userbase.getDatabases();
             const allDatabases = result.databases;
             
+            // Remove 'contact_' prefix to avoid double naming
+            const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+            
             return allDatabases
                 .filter(db => 
-                    db.databaseName.startsWith(`shared-contact-${contactId}-to-`) &&
+                    db.databaseName.startsWith(`shared-contact-${cleanContactId}-to-`) &&
                     db.isOwner
                 )
                 .map(db => db.databaseName);
@@ -445,10 +554,13 @@ export class IndividualSharingStrategy {
             const result = await userbase.getDatabases();
             const allDatabases = result.databases;
             
+            // Remove 'contact_' prefix to avoid double naming
+            const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+            
             // Find all individual shared databases for this contact
             const individualShares = allDatabases
                 .filter(db => 
-                    db.databaseName.startsWith(`shared-contact-${contactId}-to-`) &&
+                    db.databaseName.startsWith(`shared-contact-${cleanContactId}-to-`) &&
                     db.isOwner
                 )
                 .map(db => ({
@@ -487,9 +599,14 @@ export class IndividualSharingStrategy {
             const result = await userbase.getDatabases();
             const allDatabases = result.databases;
             
-            const pattern = contactId ? 
-                `shared-contact-${contactId}-to-` : 
-                'shared-contact-';
+            let pattern;
+            if (contactId) {
+                // Remove 'contact_' prefix to avoid double naming
+                const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+                pattern = `shared-contact-${cleanContactId}-to-`;
+            } else {
+                pattern = 'shared-contact-';
+            }
                 
             const sharedDatabases = allDatabases.filter(db => 
                 db.databaseName.includes(pattern) && db.isOwner

@@ -1608,7 +1608,14 @@ export class ContactUIController {
         this.hideContactModal();
         this.performSearch();
         if (this.selectedContactId === data.contact.contactId) {
-            this.displayContactDetail(data.contact);
+            // Always fetch fresh contact data to avoid stale data issues
+            const freshContact = this.contactManager.getContact(data.contact.contactId);
+            if (freshContact) {
+                this.displayContactDetail(freshContact);
+            } else {
+                console.warn('⚠️ Could not fetch fresh contact data, using event data as fallback');
+                this.displayContactDetail(data.contact);
+            }
         }
     }
 
@@ -1628,7 +1635,14 @@ export class ContactUIController {
     handleContactRestored(data) {
         this.performSearch();
         if (this.selectedContactId === data.contact.contactId) {
-            this.displayContactDetail(data.contact);
+            // Always fetch fresh contact data to avoid stale data issues
+            const freshContact = this.contactManager.getContact(data.contact.contactId);
+            if (freshContact) {
+                this.displayContactDetail(freshContact);
+            } else {
+                console.warn('⚠️ Could not fetch fresh contact data, using event data as fallback');
+                this.displayContactDetail(data.contact);
+            }
         }
     }
 
@@ -2143,6 +2157,14 @@ export class ContactUIController {
      */
     displayContactDetail(contact) {
         
+        // Essential logging for contact display debugging
+        if (this.debugMode) {
+            console.log(`� Displaying contact: ${contact.contactId}`, {
+                isShared: contact.metadata?.sharing?.isShared,
+                shareCount: contact.metadata?.sharing?.shareCount
+            });
+        }
+        
         const container = this.elements.contactDetail;
         if (!container) {
             console.error('❌ No contact detail container found!');
@@ -2296,8 +2318,17 @@ export class ContactUIController {
     renderSharingInfo(contact) {
         const sharing = contact.metadata?.sharing;
         
+        // 🔍 DEBUG: Log sharing info rendering
+        console.log(`🔍 renderSharingInfo called for ${contact.contactId}:`, {
+            isOwned: contact.metadata?.isOwned,
+            isShared: sharing?.isShared,
+            sharedWithUsers: sharing?.sharedWithUsers,
+            sharedUsersLength: sharing?.sharedWithUsers?.length
+        });
+        
         // Only show sharing info for owned contacts that are shared
         if (!contact.metadata?.isOwned || !sharing?.isShared || !sharing?.sharedWithUsers?.length) {
+            console.log(`🔍 Hiding sharing info - conditions not met`);
             return '';
         }
         
@@ -2309,10 +2340,13 @@ export class ContactUIController {
         
         // If no unique users after deduplication, don't show sharing info
         if (uniqueUsers.length === 0) {
+            console.log(`🔍 Hiding sharing info - no unique users after deduplication`);
             return '';
         }
         
-        // Create user list with permissions
+        console.log(`🔍 Showing sharing info for ${uniqueUsers.length} users:`, uniqueUsers);
+        
+        // Create user list with permissions and revoke buttons
         const userList = uniqueUsers.map(username => {
             const permissions = sharePermissions[username];
             const permissionText = permissions?.level === 'write' ? 'Can edit' : 'Read only';
@@ -2325,8 +2359,16 @@ export class ContactUIController {
                     <div class="shared-user-info">
                         <span class="shared-username">${this.escapeHtml(username)}</span>
                         <span class="shared-permission">${permissionText}</span>
+                        <div class="shared-date">Shared: ${sharedDate}</div>
                     </div>
-                    <div class="shared-date">Shared: ${sharedDate}</div>
+                    <div class="shared-actions">
+                        <button class="btn-revoke" 
+                                data-contact-id="${contact.contactId}" 
+                                data-username="${this.escapeHtml(username)}"
+                                title="Revoke sharing from ${this.escapeHtml(username)}">
+                            <i class="fas fa-times"></i> Revoke
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -4176,6 +4218,23 @@ export class ContactUIController {
                 this.restoreContact(contactId);
             });
         }
+        
+        // Revoke sharing buttons
+        const revokeButtons = container.querySelectorAll('.btn-revoke');
+        revokeButtons.forEach(button => {
+            button.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                
+                const contactId = button.dataset.contactId;
+                const username = button.dataset.username;
+                
+                console.log('🚫 Revoke button clicked for:', { contactId, username });
+                
+                if (contactId && username) {
+                    await this.handleRevokeSharing(contactId, username);
+                }
+            });
+        });
     }
 
     handleModalBackdropClick(event) {
@@ -6010,6 +6069,219 @@ export class ContactUIController {
     clearProfileState() {
         if (this.profileRouter.hasProfileLink()) {
             this.profileRouter.clearProfileState();
+        }
+    }
+
+    // ========== REVOKE SHARING METHODS ==========
+
+    /**
+     * Handle revoke sharing action with confirmation
+     */
+    async handleRevokeSharing(contactId, username) {
+        try {
+            const contact = this.contactManager.getContact(contactId);
+            if (!contact) {
+                this.showToast({ 
+                    message: 'Contact not found', 
+                    type: 'error' 
+                });
+                return;
+            }
+
+            // Show confirmation dialog
+            const confirmed = confirm(
+                `Revoke Sharing\n\n` +
+                `Are you sure you want to stop sharing "${contact.cardName}" with ${username}?\n\n` +
+                `They will lose access immediately and the contact will be removed from their account.`
+            );
+            
+            if (!confirmed) {
+                return;
+            }
+
+            // Show loading state
+            this.showToast({ 
+                message: `Revoking sharing from ${username}...`, 
+                type: 'info' 
+            });
+            
+            // Revoke the sharing
+            const result = await this.revokeContactSharing(contactId, username);
+            
+            if (result.success) {
+                // Show success message
+                this.showToast({ 
+                    message: result.message || `Sharing revoked from ${username}`, 
+                    type: 'success' 
+                });
+                
+                // Refresh the contact detail view to update sharing info
+                const updatedContact = this.contactManager.getContact(contactId);
+                if (updatedContact && this.selectedContactId === contactId) {
+                    this.displayContactDetail(updatedContact);
+                }
+                
+                // Refresh the contact list to update sharing indicators
+                this.refreshContactsList();
+                
+            } else {
+                this.showToast({ 
+                    message: `Failed to revoke sharing: ${result.error}`, 
+                    type: 'error' 
+                });
+            }
+            
+        } catch (error) {
+            console.error('❌ Error in handleRevokeSharing:', error);
+            this.showToast({ 
+                message: 'Failed to revoke sharing due to an unexpected error', 
+                type: 'error' 
+            });
+        }
+    }
+
+    /**
+     * Revoke contact sharing from a specific user using individual database strategy
+     */
+    async revokeContactSharing(contactId, username) {
+        try {
+            let contact = this.contactManager.getContact(contactId);
+            if (!contact || !contact.metadata.isOwned) {
+                throw new Error('Can only revoke sharing for contacts you own');
+            }
+
+            let sharing = contact.metadata.sharing;
+            console.log(`🔍 Before revocation - sharing metadata:`, {
+                sharedWithUsers: sharing?.sharedWithUsers,
+                shareCount: sharing?.shareCount,
+                isShared: sharing?.isShared
+            });
+            
+            if (!sharing?.sharedWithUsers?.includes(username)) {
+                return {
+                    success: false,
+                    error: `Contact is not shared with ${username}`
+                };
+            }
+
+            // Use the individual database revocation method from ContactDatabase
+            const result = await this.contactManager.database.revokeIndividualContactAccess(contactId, username);
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to revoke database access');
+            }
+
+            // 🔧 CRITICAL FIX: Get fresh contact data after database operation
+            contact = this.contactManager.getContact(contactId);
+            sharing = contact.metadata.sharing;
+
+            // Update contact metadata to reflect revoked sharing
+            const updatedSharing = {
+                ...sharing,
+                sharedWithUsers: sharing.sharedWithUsers.filter(u => u !== username)
+            };
+            
+            // Remove the user's permissions
+            if (updatedSharing.sharePermissions) {
+                delete updatedSharing.sharePermissions[username];
+            }
+            
+            // Update derived flags based on remaining users
+            updatedSharing.isShared = updatedSharing.sharedWithUsers.length > 0;
+            updatedSharing.shareCount = updatedSharing.sharedWithUsers.length;
+            
+            console.log(`🔍 After revocation - updated sharing metadata:`, {
+                sharedWithUsers: updatedSharing.sharedWithUsers,
+                shareCount: updatedSharing.shareCount,
+                isShared: updatedSharing.isShared
+            });
+
+            // Add revocation tracking
+            const revokedFrom = contact.metadata.revokedFrom || [];
+            revokedFrom.push({
+                username: username,
+                revokedAt: new Date().toISOString(),
+                revokedBy: this.currentUser?.username || 'unknown'
+            });
+
+            // Save updated contact metadata using ContactManager
+            const updateResult = await this.contactManager.updateContactMetadata(contactId, {
+                metadata: {
+                    sharing: updatedSharing,
+                    revokedFrom: revokedFrom,
+                    lastUpdated: new Date().toISOString()
+                }
+            });
+
+            if (!updateResult.success) {
+                console.warn('⚠️ Database access revoked but metadata update failed:', updateResult.error);
+            }
+
+            return {
+                success: true,
+                message: `Sharing revoked from ${username}`,
+                details: {
+                    username: username,
+                    revokedAt: new Date().toISOString(),
+                    remainingShares: updatedSharing.sharedWithUsers.length,
+                    databaseRevoked: result.success,
+                    metadataUpdated: updateResult.success
+                }
+            };
+
+        } catch (error) {
+            console.error('❌ Failed to revoke sharing:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Bulk revoke contact sharing from multiple users (for distribution lists)
+     */
+    async bulkRevokeContactSharing(contactId, usernames) {
+        try {
+            const results = {
+                success: 0,
+                failed: 0,
+                errors: [],
+                details: []
+            };
+            
+            // Process revocations in parallel for better performance
+            const revokePromises = usernames.map(async (username) => {
+                try {
+                    const result = await this.revokeContactSharing(contactId, username);
+                    if (result.success) {
+                        results.success++;
+                        results.details.push({ username, status: 'success', ...result.details });
+                    } else {
+                        results.failed++;
+                        results.errors.push(`${username}: ${result.error}`);
+                        results.details.push({ username, status: 'failed', error: result.error });
+                    }
+                } catch (error) {
+                    results.failed++;
+                    results.errors.push(`${username}: ${error.message}`);
+                    results.details.push({ username, status: 'error', error: error.message });
+                }
+            });
+            
+            await Promise.all(revokePromises);
+            
+            return {
+                success: results.success > 0,
+                message: `Revoked from ${results.success} users${results.failed > 0 ? `, ${results.failed} failed` : ''}`,
+                ...results
+            };
+            
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
         }
     }
 }/* Cache bust: tor 18 sep 2025 08:55:36 CEST */

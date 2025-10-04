@@ -337,22 +337,8 @@ export class ContactManager {
 
             // 🔑 CRITICAL FIX: Update shared databases for cross-device sharing
             // If this contact is shared, we need to update the shared databases too
-            if (updatedContact.metadata.sharing?.isShared && updatedContact.metadata.sharing.sharedWithUsers?.length > 0) {
-                
-                // Update each shared database
-                const sharedDbName = `shared-contact-${contactId}`;
-                try {
-                    const sharedUpdateResult = await this.database.updateSharedContactDatabase(updatedContact, sharedDbName);
-                    if (sharedUpdateResult.success) {
-                    } else {
-                        console.log('⚠️ Failed to update shared database:', sharedUpdateResult.error);
-                        // Don't fail the main update, just log the warning
-                    }
-                } catch (sharedError) {
-                    console.log('⚠️ Error updating shared database:', sharedError.message);
-                    // Don't fail the main update, just log the warning
-                }
-            }
+            // Shared database updates are handled by the database layer's updateSharedContactDatabases method
+            // This ensures consistent Individual Database Strategy usage
 
             // Update local cache
             this.setContactInCache(contactId, updatedContact, 'updateContact');
@@ -2721,8 +2707,8 @@ export class ContactManager {
                 };
             }
             
-            // Share using the database's new individual sharing method
-            const result = await this.database.shareContact(contact, username, readOnly, resharingAllowed);
+            // Share using individual sharing strategy only (no group databases)
+            const result = await this.database.shareContactIndividually(contact, username, readOnly, resharingAllowed);
             
             if (result.success) {
                 // Get current shared users and deduplicate
@@ -2738,6 +2724,7 @@ export class ContactManager {
                             ...contact.metadata.sharing,
                             isShared: true,
                             sharedWithUsers: uniqueSharedUsers,
+                            shareCount: uniqueSharedUsers.length, // 🔧 ADD MISSING shareCount
                             sharePermissions: {
                                 ...contact.metadata.sharing?.sharePermissions,
                                 [username]: {
@@ -3048,7 +3035,9 @@ export class ContactManager {
                             ...contact.metadata,
                             sharing: {
                                 ...contact.metadata.sharing,
-                                sharedWithUsers: uniqueUsers
+                                sharedWithUsers: uniqueUsers,
+                                shareCount: uniqueUsers.length, // 🔧 ADD MISSING shareCount
+                                isShared: uniqueUsers.length > 0 // 🔧 ADD MISSING isShared flag
                             }
                         }
                     };
