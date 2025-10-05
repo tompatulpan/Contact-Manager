@@ -71,13 +71,14 @@ npm run serve
 - [ ] Sharing-List features (Rename, edit, etc)
 - [ ] Multi-language support (i18n)
 - [ ] Better integration on phones
-- [ ] Advanced sharing permissions (X edit contacts)
+- [ ] Advanced sharing permissions (cross edit contacts)
 - [x] Stay logged in feature
 - [ ] Change password
 - [ ] Set passwords rules
 - [ ] Dark mode
 - [ ] Create e-mail distrubution list
 - [ ] Icons improvments (pictures?)
+- [x] Revoke sharing per recipient (Individual Databases)
 
 ### Ideas
 - [ ] Contact merge functionality

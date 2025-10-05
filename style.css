@@ -1292,25 +1292,26 @@ body {
     padding: var(--space-2);
     transition: background-color 0.2s ease;
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-1);
 }
 
 .shared-user-item:hover {
     background: var(--hover-color);
 }
 
-.shared-user-info {
-    flex: 1;
+.shared-user-main {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    align-items: center;
+    gap: var(--space-2);
+    justify-content: space-between;
 }
 
 .shared-username {
     font-weight: 500;
     color: var(--text-primary);
+    flex: 1;
+    min-width: 120px;
 }
 
 .shared-permission {
@@ -1321,19 +1322,16 @@ body {
     border-radius: 0.25rem;
     text-transform: uppercase;
     letter-spacing: 0.025em;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .shared-date {
     font-size: 0.75rem;
     color: var(--text-secondary);
-}
-
-.shared-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--space-1);
-    flex-shrink: 0;
+    margin-left: var(--space-1);
+    padding-left: var(--space-1);
+    border-left: 1px solid var(--border-color);
 }
 
 /* Revoke Button Styles */
@@ -1379,28 +1377,62 @@ body {
 /* Mobile Responsive Sharing Styles */
 @media (max-width: 768px) {
     .shared-user-item {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--space-2);
+        gap: var(--space-1);
+        padding: var(--space-1) var(--space-2);
     }
     
-    .shared-user-info {
-        align-items: flex-start;
+    .shared-user-main {
+        /* Keep horizontal layout but adjust spacing */
+        gap: var(--space-1);
     }
     
-    .shared-actions {
-        align-items: flex-start;
-        flex-direction: row;
-        justify-content: flex-start;
+    .shared-username {
+        min-width: 80px;
+        font-size: 0.9rem;
+        flex: 1;
+    }
+    
+    .shared-permission {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.25rem;
     }
     
     .btn-revoke {
         font-size: 0.7rem;
         padding: 0.25rem 0.5rem;
+        min-height: 32px; /* Touch-friendly minimum */
     }
     
     .metadata-sharing .metadata-label {
         font-size: 0.8rem;
+    }
+}
+
+/* Extra small screens - even more compact but still horizontal */
+@media (max-width: 480px) {
+    .shared-user-main {
+        gap: 0.25rem;
+    }
+    
+    .shared-username {
+        min-width: 60px;
+        font-size: 0.85rem;
+    }
+    
+    .shared-permission {
+        font-size: 0.6rem;
+        padding: 0.05rem 0.2rem;
+    }
+    
+    .btn-revoke {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    .shared-date {
+        font-size: 0.65rem;
+        margin-left: 0.25rem;
+        padding-left: 0.25rem;
     }
 }
 

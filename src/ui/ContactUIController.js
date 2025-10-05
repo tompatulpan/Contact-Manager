@@ -2366,18 +2366,17 @@ export class ContactUIController {
             
             return `
                 <div class="shared-user-item">
-                    <div class="shared-user-info">
+                    <div class="shared-user-main">
                         <span class="shared-username">${this.escapeHtml(username)}</span>
                         <span class="shared-permission">${permissionText}</span>
-                        <div class="shared-date">Shared: ${sharedDate}</div>
-                    </div>
-                    <div class="shared-actions">
                         <button class="btn-revoke" 
                                 data-contact-id="${contact.contactId}" 
                                 data-username="${this.escapeHtml(username)}"
                                 title="Revoke sharing from ${this.escapeHtml(username)}">
                             <i class="fas fa-times"></i> Revoke
                         </button>
+                    </div>
+                    <div class="shared-date">Shared: ${sharedDate}</div>
                     </div>
                 </div>
             `;
