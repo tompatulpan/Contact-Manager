@@ -2289,6 +2289,19 @@ export class ContactUIController {
             `;
         }
         
+        // Birthday field
+        if (displayData.birthday) {
+            const formattedBirthday = this.formatBirthday(displayData.birthday);
+            html += `
+                <div class="field-group">
+                    <h4><i class="fas fa-birthday-cake"></i> Birthday</h4>
+                    <div class="field-item">
+                        <span class="field-value">${ContactUIHelpers.escapeHtml(formattedBirthday)}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
         // Notes
         if (displayData.notes && displayData.notes.length > 0) {
             html += `
@@ -2605,6 +2618,45 @@ export class ContactUIController {
     escapeHtml(text) {
         // Delegate to ContactUIHelpers
         return ContactUIHelpers.escapeHtml(text);
+    }
+
+    /**
+     * Format birthday for display
+     * @param {string} birthday - Birthday in ISO format (YYYY-MM-DD)
+     * @returns {string} Formatted birthday
+     */
+    formatBirthday(birthday) {
+        if (!birthday) return '';
+        
+        try {
+            const date = new Date(birthday + 'T00:00:00'); // Add time to avoid timezone issues
+            
+            // Format as localized date
+            const formattedDate = date.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // Calculate age
+            const today = new Date();
+            let age = today.getFullYear() - date.getFullYear();
+            const monthDiff = today.getMonth() - date.getMonth();
+            
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate())) {
+                age--;
+            }
+            
+            // Return formatted string with age if valid
+            if (age >= 0 && age <= 150) {
+                return `${formattedDate} (${age} years old)`;
+            } else {
+                return formattedDate;
+            }
+        } catch (error) {
+            console.warn('Failed to format birthday:', birthday, error);
+            return birthday; // Return original if formatting fails
+        }
     }
 
     debounce(func, wait) {
@@ -3879,10 +3931,19 @@ export class ContactUIController {
             delete form.dataset.mode;
             delete form.dataset.contactId;
             
+            // Reset single fields explicitly (form.reset() should handle these, but being explicit)
+            this.setFormFieldValue('fullName', '');
+            this.setFormFieldValue('cardName', '');
+            this.setFormFieldValue('organization', '');
+            this.setFormFieldValue('title', '');
+            this.setFormFieldValue('birthday', '');
+            
             // Reset multi-field components
             this.resetMultiFieldComponent('phone');
             this.resetMultiFieldComponent('email');
             this.resetMultiFieldComponent('url');
+            this.resetMultiFieldComponent('address');
+            this.resetMultiFieldComponent('note');
             
             // Clear any error messages
             const errorElements = form.querySelectorAll('.field-error');
@@ -4080,6 +4141,7 @@ export class ContactUIController {
             this.setFormFieldValue('cardName', contact.cardName);
             this.setFormFieldValue('organization', displayData.organization);
             this.setFormFieldValue('title', displayData.title);
+            this.setFormFieldValue('birthday', displayData.birthday);
 
             // Populate multi-field data
             this.populateMultiFieldData('phone', displayData.phones);
@@ -4146,6 +4208,12 @@ export class ContactUIController {
         const title = formData.get('title');
         if (title && title.trim()) {
             contactData.title = title.trim();
+        }
+
+        // Handle birthday
+        const birthday = formData.get('birthday');
+        if (birthday && birthday.trim()) {
+            contactData.birthday = birthday.trim();
         }
 
         // Handle multi-field data

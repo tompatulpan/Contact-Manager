@@ -251,7 +251,7 @@ export class VCardStandard {
             const nameParts = displayData.fullName.split(' ');
             const lastName = nameParts.pop() || '';
             const firstName = nameParts.join(' ') || '';
-            vcard += `N:${lastName};${firstName};;;\n`;
+            vcard += `N:${this.escapeValue(lastName)};${this.escapeValue(firstName)};;;\n`;
         }
 
         // Convert multi-value properties to Apple format
@@ -263,6 +263,9 @@ export class VCardStandard {
         }
         if (displayData.title) {
             vcard += `TITLE:${this.escapeValue(displayData.title)}\n`;
+        }
+        if (displayData.birthday) {
+            vcard += `BDAY:${this.escapeValue(displayData.birthday)}\n`;
         }
 
         // Notes
@@ -350,6 +353,25 @@ export class VCardStandard {
         return mapping[standardType?.toLowerCase()] || 'OTHER';
     }
 
+    convertAppleUrlType(appleType) {
+        if (!appleType) return 'other';
+        const type = appleType.toLowerCase();
+        const mapping = {
+            'work': 'work',
+            'home': 'home', 
+            'personal': 'home',
+            'social': 'other',
+            'other': 'other'
+        };
+        
+        // Preserve original type if it's a recognized standard type
+        if (['work', 'home', 'other'].includes(type)) {
+            return type;
+        }
+        
+        return mapping[type] || 'other';
+    }
+
     convertToAppleAddressType(standardType) {
         const mapping = {
             'work': 'WORK',
@@ -370,7 +392,17 @@ export class VCardStandard {
             address.country || ''
         ];
         
-        return addressParts.map(part => this.escapeValue(part)).join(';');
+        // Don't escape semicolons in addresses - they are field separators
+        return addressParts.map(part => this.escapeAddressValue(part)).join(';');
+    }
+
+    escapeAddressValue(value) {
+        if (typeof value !== 'string') return String(value);
+        // Don't escape semicolons in address values - they are structural separators
+        return value
+            .replace(/\\/g, '\\\\')
+            .replace(/,/g, '\\,')
+            .replace(/\n/g, '\\n');
     }
 
     /**
@@ -541,6 +573,7 @@ export class VCardStandard {
             contactId: contact.contactId,
             cardName: contact.cardName,
             fullName: vCardData.properties.get('FN') || 'Unnamed Contact',
+            structuredName: this.normalizeStructuredName(vCardData.properties.get('N')) || '', // Properly normalize N property
             organization: this.normalizeOrganizationValue(vCardData.properties.get('ORG')) || '',
             title: vCardData.properties.get('TITLE') || '',
             phones: this.extractMultiValueProperty(vCardData, 'TEL'),
@@ -677,6 +710,62 @@ export class VCardStandard {
         return mainOrganization;
     }
 
+    normalizeStructuredName(nValue) {
+        console.log('🔧 normalizeStructuredName input:', {
+            nValue,
+            type: typeof nValue,
+            isArray: Array.isArray(nValue),
+            hasValue: nValue && nValue.value,
+            toString: nValue ? nValue.toString() : 'null'
+        });
+        
+        if (!nValue) {
+            console.log('❌ normalizeStructuredName: null/undefined value');
+            return '';
+        }
+        
+        // If it's already a string, return it (but check for [object Object])
+        if (typeof nValue === 'string') {
+            if (nValue === '[object Object]') {
+                console.log('❌ normalizeStructuredName: found [object Object] string');
+                return '';
+            }
+            console.log('✅ normalizeStructuredName: returning string value:', nValue);
+            return nValue;
+        }
+        
+        // If it's an object with a value property, use that
+        if (typeof nValue === 'object' && nValue.value) {
+            const result = String(nValue.value);
+            console.log('✅ normalizeStructuredName: extracted value property:', result);
+            return result;
+        }
+        
+        // If it's an array (multiple N properties), take the first one
+        if (Array.isArray(nValue) && nValue.length > 0) {
+            const firstN = nValue[0];
+            if (typeof firstN === 'string') {
+                console.log('✅ normalizeStructuredName: using first array element:', firstN);
+                return firstN;
+            }
+            if (firstN && firstN.value) {
+                const result = String(firstN.value);
+                console.log('✅ normalizeStructuredName: using first array element value:', result);
+                return result;
+            }
+        }
+        
+        // Last resort: convert to string but avoid [object Object]
+        const stringResult = String(nValue);
+        if (stringResult === '[object Object]') {
+            console.log('❌ normalizeStructuredName: String() produced [object Object], returning empty');
+            return '';
+        }
+        
+        console.log('⚠️ normalizeStructuredName: fallback string conversion:', stringResult);
+        return stringResult;
+    }
+
     extractNotesProperty(vCardData) {
         const noteValues = vCardData.properties.get('NOTE') || [];
         if (!Array.isArray(noteValues)) {
@@ -749,14 +838,48 @@ export class VCardStandard {
     }
 
     exportAsVCard(contact) {
+        // Generate fresh vCard from display data instead of using raw contact.vcard
         const displayData = this.extractDisplayData(contact);
+        
+        // Convert displayData to contactData format for VCardGenerator
+        const contactData = this.convertDisplayDataToContactData(displayData);
+        
+        const freshVCard = this.generateVCard(contactData);
         const filename = `${displayData.fullName.replace(/[^a-zA-Z0-9]/g, '_')}.vcf`;
         
         return {
             filename,
-            content: contact.vcard,
+            content: freshVCard,
             mimeType: 'text/vcard;charset=utf-8'
         };
+    }
+
+    /**
+     * Convert display data format to contact data format for VCardGenerator
+     */
+    convertDisplayDataToContactData(displayData) {
+        console.log('🔄 convertDisplayDataToContactData input:', displayData);
+        console.log('🔍 displayData.fullName:', displayData.fullName, 'type:', typeof displayData.fullName);
+        console.log('🔍 displayData.structuredName:', displayData.structuredName, 'type:', typeof displayData.structuredName);
+        
+        const contactData = {
+            fn: displayData.fullName,
+            structuredName: displayData.structuredName || '', // Preserve structured name
+            organization: displayData.organization,
+            title: displayData.title,
+            birthday: displayData.birthday,
+            phones: displayData.phones || [],
+            emails: displayData.emails || [],
+            urls: displayData.urls || [],
+            addresses: displayData.addresses || [],
+            notes: displayData.notes || []
+        };
+        
+        console.log('🔄 convertDisplayDataToContactData output:', contactData);
+        console.log('🔍 contactData.fn:', contactData.fn, 'type:', typeof contactData.fn);
+        console.log('🔍 contactData.structuredName:', contactData.structuredName, 'type:', typeof contactData.structuredName);
+        
+        return contactData;
     }
 
     generateQRCodeData(contact) {
@@ -813,7 +936,40 @@ class VCardGenerator {
 
         // Essential properties
         if (contactData.fn) {
-            vcard += `FN:${this.escapeValue(contactData.fn)}\n`;
+            // Ensure fn is a string (handle cases where it might be an object)
+            const fullName = typeof contactData.fn === 'string' ? contactData.fn : String(contactData.fn);
+            vcard += `FN:${this.escapeValue(fullName)}\n`;
+            
+            // Debug structured name handling
+            console.log('🔧 VCardGenerator structuredName debug:', {
+                structuredName: contactData.structuredName,
+                type: typeof contactData.structuredName,
+                isString: typeof contactData.structuredName === 'string',
+                trimmed: contactData.structuredName?.trim ? contactData.structuredName.trim() : 'no-trim'
+            });
+            
+            // Use existing structured name if available and valid, otherwise generate from full name
+            if (contactData.structuredName && 
+                typeof contactData.structuredName === 'string' && 
+                contactData.structuredName.trim() &&
+                contactData.structuredName !== '[object Object]') {
+                
+                console.log('✅ Using existing structured name:', contactData.structuredName);
+                vcard += `N:${this.escapeValue(contactData.structuredName)}\n`;
+            } else {
+                console.log('⚠️ Generating structured name from full name due to invalid structured name:', contactData.structuredName);
+                // Generate structured name (N) from full name as fallback
+                const nameParts = fullName.split(' ');
+                const lastName = nameParts.pop() || '';
+                const firstName = nameParts.join(' ') || '';
+                
+                const escapedLastName = this.escapeValue(lastName);
+                const escapedFirstName = this.escapeValue(firstName);
+                
+                const generatedN = `${escapedLastName};${escapedFirstName};;;`;
+                console.log('🔧 Generated N property:', generatedN);
+                vcard += `N:${generatedN}\n`;
+            }
         }
 
         // Multi-value properties
@@ -920,7 +1076,17 @@ class VCardGenerator {
             address.country || ''
         ];
         
-        return addressParts.map(part => this.escapeValue(part)).join(';');
+        // Don't escape semicolons in addresses - they are field separators
+        return addressParts.map(part => this.escapeAddressValue(part)).join(';');
+    }
+
+    escapeAddressValue(value) {
+        if (typeof value !== 'string') return String(value);
+        // Don't escape semicolons in address values - they are structural separators
+        return value
+            .replace(/\\/g, '\\\\')
+            .replace(/,/g, '\\,')
+            .replace(/\n/g, '\\n');
     }
 
     escapeValue(value) {
@@ -1081,7 +1247,19 @@ class AppleVCardProcessor {
         // Structured Name (N)
         const n = appleContact.properties.get('N');
         if (n) {
-            vcard += `N:${this.escapeValue(n)}\n`;
+            console.log('🔧 Apple convertToStandard N property:', { type: typeof n, value: n, toString: String(n) });
+            
+            let nValue = n;
+            if (typeof n === 'object' && n !== null) {
+                if (Array.isArray(n) && n.length > 0) {
+                    nValue = n[0].value || n[0]; // Extract from array of objects
+                } else if (n.value) {
+                    nValue = n.value; // Extract from single object
+                }
+            }
+            
+            console.log('🔧 Apple N final value:', { nValue, type: typeof nValue });
+            vcard += `N:${this.escapeValue(nValue)}\n`;
         }
 
         // Convert Apple properties to standard
@@ -1147,6 +1325,10 @@ class AppleVCardProcessor {
         const title = appleContact.properties.get('TITLE');
         if (title) output += `TITLE:${this.escapeValue(title)}\n`;
 
+        // Birthday
+        const bday = appleContact.properties.get('BDAY');
+        if (bday) output += `BDAY:${this.escapeValue(bday)}\n`;
+
         // Notes
         const notes = appleContact.properties.get('NOTE') || [];
         if (Array.isArray(notes)) {
@@ -1178,14 +1360,21 @@ class AppleVCardProcessor {
 
     convertAppleUrlType(appleType) {
         if (!appleType) return 'other';
+        const type = appleType.toLowerCase();
         const mapping = {
             'work': 'work',
-            'home': 'home',
+            'home': 'home', 
             'personal': 'home',
             'social': 'other',
             'other': 'other'
         };
-        return mapping[appleType.toLowerCase()] || 'other';
+        
+        // Preserve original type if it's a recognized standard type
+        if (['work', 'home', 'other'].includes(type)) {
+            return type;
+        }
+        
+        return mapping[type] || 'other';
     }
 
     convertAppleAddressType(appleType) {
@@ -1205,8 +1394,6 @@ class AppleVCardProcessor {
         const type = parameters.TYPE;
         return type && typeof type === 'string' && type.toLowerCase().includes('pref');
     }
-
-    // Utility methods
     unfoldLines(vCardString) {
         const lines = vCardString.split(/\r?\n/);
         const unfolded = [];
@@ -1231,7 +1418,7 @@ class AppleVCardProcessor {
         }
 
         const propertyValue = { value, parameters };
-        const singleValueProps = ['FN', 'ORG', 'TITLE', 'BDAY'];
+        const singleValueProps = ['FN', 'N', 'ORG', 'TITLE', 'BDAY'];
         
         if (singleValueProps.includes(property)) {
             contact.properties.set(property, value);
