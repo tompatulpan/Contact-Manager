@@ -1,6 +1,11 @@
 /**
- * ContactValidator - Simplified validation for contact data
- * Validates form data and vCard compliance
+ * ContactValidator - Enhanced validation for contact data with structured vCard support
+ * 
+ * This enhanced version works with the new structured vCard handling system:
+ * - VCardFormatManager integration for version-specific validation
+ * - Support for both vCard 3.0 and 4.0 formats
+ * - Enhanced validation rules with format-aware checks
+ * - Improved error messaging and warnings
  */
 export class ContactValidator {
     constructor(vCardStandard) {
@@ -22,60 +27,80 @@ export class ContactValidator {
             cardName: { required: true, minLength: 1, maxLength: 100 },
             notes: { required: false, maxLength: 1000 }
         };
+
+        // Version-specific validation rules
+        this.versionRules = {
+            '3.0': {
+                supportedTypes: {
+                    TEL: ['WORK', 'HOME', 'MOBILE', 'MAIN', 'OTHER', 'FAX'],
+                    EMAIL: ['WORK', 'HOME', 'OTHER', 'INTERNET'],
+                    URL: ['WORK', 'HOME', 'PERSONAL', 'SOCIAL', 'OTHER'],
+                    ADR: ['WORK', 'HOME', 'OTHER']
+                },
+                allowsItemPrefixes: true,
+                preferenceFormat: 'pref',
+                requiredProperties: ['FN']
+            },
+            '4.0': {
+                supportedTypes: {
+                    TEL: ['work', 'home', 'cell', 'mobile', 'fax', 'pager', 'voice', 'text'],
+                    EMAIL: ['work', 'home', 'internet'],
+                    URL: ['work', 'home'],
+                    ADR: ['work', 'home', 'other']
+                },
+                allowsItemPrefixes: false,
+                preferenceFormat: 'PREF=1',
+                requiredProperties: ['FN']
+            }
+        };
     }
 
     /**
-     * Validate contact data using RFC 9553 standards
-     * @param {Object} contactData - Contact data to validate
-     * @returns {Object} Validation result
+     * Validate contact form data with version-aware checking
      */
-    validateContactData(contactData) {
+    validateContactData(formData, vCardVersion = '4.0') {
         const errors = [];
         const warnings = [];
 
-        try {
-            // Required field validation
-            this.validateRequiredFields(contactData, errors);
-            
-            // Multi-value field validation
-            this.validatePhones(contactData.phones, errors, warnings);
-            this.validateEmails(contactData.emails, errors, warnings);
-            this.validateUrls(contactData.urls, errors, warnings);
-            this.validateAddresses(contactData.addresses, errors, warnings);
-            
-            // Single field validation
-            this.validateTextField(contactData.organization, 'organization', errors);
-            this.validateTextField(contactData.title, 'title', errors);
-            this.validateTextField(contactData.cardName, 'cardName', errors);
-            
-            // Date validation
-            if (contactData.birthday) {
-                this.validateDate(contactData.birthday, 'birthday', errors);
-            }
-
-            // Notes validation
-            if (contactData.notes && Array.isArray(contactData.notes)) {
-                contactData.notes.forEach((note, index) => {
-                    if (typeof note === 'string' && note.length > this.fieldRequirements.notes.maxLength) {
-                        errors.push(`Note ${index + 1} exceeds maximum length of ${this.fieldRequirements.notes.maxLength} characters`);
-                    }
-                });
-            }
-
-            return {
-                isValid: errors.length === 0,
-                errors,
-                warnings,
-                hasWarnings: warnings.length > 0
-            };
-        } catch (error) {
-            return {
-                isValid: false,
-                errors: [`Validation error: ${error.message}`],
-                warnings,
-                hasWarnings: false
-            };
+        // Required field validation
+        if (!formData.fn || formData.fn.trim() === '') {
+            errors.push('Full name is required');
         }
+
+        if (!formData.cardName || formData.cardName.trim() === '') {
+            formData.cardName = formData.fn || 'Unnamed Contact';
+            warnings.push('Card name was empty, using full name as default');
+        }
+
+        // Field length validation
+        this.validateFieldLengths(formData, errors);
+
+        // Version-specific validation rules
+        const rules = this.versionRules[vCardVersion] || this.versionRules['4.0'];
+
+        // Multi-value field validation with version awareness
+        this.validatePhones(formData.phones || [], errors, warnings, rules);
+        this.validateEmails(formData.emails || [], errors, warnings, rules);
+        this.validateUrls(formData.urls || [], errors, warnings, rules);
+        this.validateAddresses(formData.addresses || [], errors, warnings, rules);
+
+        // Birthday validation
+        if (formData.birthday && !this.patterns.date.test(formData.birthday)) {
+            errors.push('Birthday must be in YYYY-MM-DD format');
+        }
+
+        // Version-specific warnings
+        if (vCardVersion === '3.0' && formData.photos?.length > 0) {
+            warnings.push('Photo support varies in vCard 3.0 - consider using vCard 4.0 for better compatibility');
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+            warnings,
+            sanitizedData: this.sanitizeContactData(formData),
+            vCardVersion
+        };
     }
 
     /**
@@ -104,8 +129,9 @@ export class ContactValidator {
      * @param {Array} phones - Array of phone objects
      * @param {Array} errors - Errors array
      * @param {Array} warnings - Warnings array
+     * @param {Object} rules - Version-specific validation rules
      */
-    validatePhones(phones, errors, warnings) {
+    validatePhones(phones, errors, warnings, rules = null) {
         if (!phones || !Array.isArray(phones)) {
             return;
         }
@@ -134,8 +160,14 @@ export class ContactValidator {
                 errors.push(`Invalid phone number format at position ${index + 1}: "${phone.value}"`);
             }
 
-            if (phone.type && !this.isValidPhoneType(phone.type)) {
-                warnings.push(`Non-standard phone type at position ${index + 1}: "${phone.type}"`);
+            // Version-aware type validation
+            if (phone.type) {
+                if (rules && !this.isValidFieldType('TEL', phone.type, rules)) {
+                    const version = this.getVersionFromRules(rules);
+                    warnings.push(`Non-standard phone type "${phone.type}" for vCard ${version} at position ${index + 1}`);
+                } else if (!rules && !this.isValidPhoneType(phone.type)) {
+                    warnings.push(`Non-standard phone type at position ${index + 1}: "${phone.type}"`);
+                }
             }
         });
 
@@ -148,8 +180,9 @@ export class ContactValidator {
      * @param {Array} emails - Array of email objects
      * @param {Array} errors - Errors array
      * @param {Array} warnings - Warnings array
+     * @param {Object} rules - Version-specific validation rules
      */
-    validateEmails(emails, errors, warnings) {
+    validateEmails(emails, errors, warnings, rules = null) {
         if (!emails || !Array.isArray(emails)) {
             return;
         }
@@ -178,8 +211,14 @@ export class ContactValidator {
                 errors.push(`Invalid email address format at position ${index + 1}: "${email.value}"`);
             }
 
-            if (email.type && !this.isValidEmailType(email.type)) {
-                warnings.push(`Non-standard email type at position ${index + 1}: "${email.type}"`);
+            // Version-aware type validation
+            if (email.type) {
+                if (rules && !this.isValidFieldType('EMAIL', email.type, rules)) {
+                    const version = this.getVersionFromRules(rules);
+                    warnings.push(`Non-standard email type "${email.type}" for vCard ${version} at position ${index + 1}`);
+                } else if (!rules && !this.isValidEmailType(email.type)) {
+                    warnings.push(`Non-standard email type at position ${index + 1}: "${email.type}"`);
+                }
             }
         });
 
@@ -192,8 +231,9 @@ export class ContactValidator {
      * @param {Array} urls - Array of URL objects
      * @param {Array} errors - Errors array
      * @param {Array} warnings - Warnings array
+     * @param {Object} rules - Version-specific validation rules
      */
-    validateUrls(urls, errors, warnings) {
+    validateUrls(urls, errors, warnings, rules = null) {
         if (!urls || !Array.isArray(urls)) {
             return;
         }
@@ -217,8 +257,14 @@ export class ContactValidator {
                 errors.push(`Invalid URL format at position ${index + 1}: "${url.value}"`);
             }
 
-            if (url.type && !this.isValidUrlType(url.type)) {
-                warnings.push(`Non-standard URL type at position ${index + 1}: "${url.type}"`);
+            // Version-aware type validation
+            if (url.type) {
+                if (rules && !this.isValidFieldType('URL', url.type, rules)) {
+                    const version = this.getVersionFromRules(rules);
+                    warnings.push(`Non-standard URL type "${url.type}" for vCard ${version} at position ${index + 1}`);
+                } else if (!rules && !this.isValidUrlType(url.type)) {
+                    warnings.push(`Non-standard URL type at position ${index + 1}: "${url.type}"`);
+                }
             }
         });
 
@@ -231,8 +277,9 @@ export class ContactValidator {
      * @param {Array} addresses - Array of address objects
      * @param {Array} errors - Errors array
      * @param {Array} warnings - Warnings array
+     * @param {Object} rules - Version-specific validation rules
      */
-    validateAddresses(addresses, errors, warnings) {
+    validateAddresses(addresses, errors, warnings, rules = null) {
         if (!addresses || !Array.isArray(addresses)) {
             return;
         }
@@ -256,9 +303,14 @@ export class ContactValidator {
                 warnings.push(`Address ${index + 1} appears to be empty (no street, city, state, postal code, or country)`);
             }
 
-            // Validate address type
-            if (address.type && !this.isValidAddressType(address.type)) {
-                warnings.push(`Non-standard address type at position ${index + 1}: "${address.type}"`);
+            // Version-aware type validation
+            if (address.type) {
+                if (rules && !this.isValidFieldType('ADR', address.type, rules)) {
+                    const version = this.getVersionFromRules(rules);
+                    warnings.push(`Non-standard address type "${address.type}" for vCard ${version} at position ${index + 1}`);
+                } else if (!rules && !this.isValidAddressType(address.type)) {
+                    warnings.push(`Non-standard address type at position ${index + 1}: "${address.type}"`);
+                }
             }
 
             // Validate field lengths
@@ -363,20 +415,40 @@ export class ContactValidator {
     }
 
     /**
-     * RFC 9553 vCard validation
+     * Enhanced vCard validation using format-aware processors
      * @param {string} vCardString - vCard string to validate
      * @returns {Object} Validation result
      */
     validateVCard(vCardString) {
-        if (!this.vCardStandard) {
-            return {
-                isValid: false,
-                errors: ['VCard standard validator not available'],
-                warnings: []
-            };
+        // Use the enhanced validation with processors
+        return this.validateVCardWithProcessors(vCardString);
+    }
+
+    /**
+     * Validate contact data for a specific vCard version
+     * @param {Object} contactData - Contact data to validate
+     * @param {string} targetVersion - Target vCard version ('3.0' or '4.0')
+     * @returns {Object} Validation result with version compatibility
+     */
+    validateForVersion(contactData, targetVersion = '4.0') {
+        const rules = this.versionRules[targetVersion] || this.versionRules['4.0'];
+        const result = this.validateContactData(contactData, targetVersion);
+        
+        // Add version-specific compatibility checks
+        if (targetVersion === '3.0' && contactData.photos?.length > 0) {
+            result.warnings.push('Photo support in vCard 3.0 varies by implementation');
+        }
+        
+        if (targetVersion === '4.0' && contactData.legacy?.length > 0) {
+            result.warnings.push('Legacy fields may not be supported in vCard 4.0');
         }
 
-        return this.vCardStandard.validateVCard(vCardString);
+        return {
+            ...result,
+            targetVersion,
+            versionRules: rules,
+            isVersionCompatible: result.isValid
+        };
     }
 
     /**
@@ -560,5 +632,141 @@ export class ContactValidator {
                 ? 'Contact data is valid' 
                 : `${validationResult.errors.length} errors found`
         };
+    }
+
+    /**
+     * Version-aware field type validation
+     * @param {string} property - vCard property (TEL, EMAIL, URL, ADR)
+     * @param {string} type - Type value to validate
+     * @param {Object} rules - Version-specific rules
+     * @returns {boolean} True if type is valid for the property and version
+     */
+    isValidFieldType(property, type, rules) {
+        if (!rules || !rules.supportedTypes || !rules.supportedTypes[property]) {
+            return true; // Default to allowing unknown types
+        }
+
+        const supportedTypes = rules.supportedTypes[property];
+        
+        // Case-insensitive comparison for flexibility
+        return supportedTypes.some(supportedType => 
+            supportedType.toLowerCase() === type.toLowerCase()
+        );
+    }
+
+    /**
+     * Get version string from rules object
+     * @param {Object} rules - Version-specific rules
+     * @returns {string} Version string
+     */
+    getVersionFromRules(rules) {
+        for (const [version, versionRules] of Object.entries(this.versionRules)) {
+            if (versionRules === rules) {
+                return version;
+            }
+        }
+        return '4.0'; // Default fallback
+    }
+
+    /**
+     * Validate vCard format and version
+     * @param {string} vCardString - Raw vCard string
+     * @returns {Object} Validation result with version info
+     */
+    validateVCardFormat(vCardString) {
+        if (!vCardString || typeof vCardString !== 'string') {
+            return {
+                isValid: false,
+                errors: ['vCard string is required'],
+                warnings: [],
+                detectedVersion: null
+            };
+        }
+
+        const errors = [];
+        const warnings = [];
+
+        // Check for required BEGIN/END markers
+        if (!vCardString.includes('BEGIN:VCARD')) {
+            errors.push('Missing BEGIN:VCARD marker');
+        }
+
+        if (!vCardString.includes('END:VCARD')) {
+            errors.push('Missing END:VCARD marker');
+        }
+
+        // Detect version
+        let detectedVersion = null;
+        const versionMatch = vCardString.match(/VERSION:(\d\.\d)/);
+        if (versionMatch) {
+            detectedVersion = versionMatch[1];
+        } else {
+            warnings.push('No VERSION property found, assuming vCard 4.0');
+            detectedVersion = '4.0';
+        }
+
+        // Check for required FN property
+        if (!vCardString.includes('FN:')) {
+            errors.push('Missing required FN (Full Name) property');
+        }
+
+        // Version-specific validation
+        if (detectedVersion === '3.0') {
+            // Check for ITEM prefixes (common in Apple vCards)
+            if (vCardString.includes('item1.') || vCardString.includes('ITEM1.')) {
+                warnings.push('Apple-style ITEM prefixes detected - ensure proper v3.0 handling');
+            }
+        } else if (detectedVersion === '4.0') {
+            // Check for RFC 9553 compliance
+            if (vCardString.includes('TYPE=pref')) {
+                warnings.push('Found TYPE=pref parameter - consider using PREF=1 for RFC 9553 compliance');
+            }
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+            warnings,
+            detectedVersion,
+            versionRules: this.versionRules[detectedVersion] || this.versionRules['4.0']
+        };
+    }
+
+    /**
+     * Enhanced vCard validation using structured processors
+     * @param {string} vCardString - Raw vCard string
+     * @returns {Object} Comprehensive validation result
+     */
+    validateVCardWithProcessors(vCardString) {
+        // First check basic format
+        const formatValidation = this.validateVCardFormat(vCardString);
+        
+        if (!formatValidation.isValid) {
+            return formatValidation;
+        }
+
+        // Use the VCardStandard to parse and validate structure
+        try {
+            if (this.vCardStandard && this.vCardStandard.formatManager) {
+                const detectedFormat = this.vCardStandard.formatManager.detectFormat(vCardString);
+                const parseResult = this.vCardStandard.formatManager.importVCard(vCardString);
+
+                return {
+                    ...formatValidation,
+                    detectedFormat,
+                    parsedData: parseResult.success ? parseResult.contact : null,
+                    parseErrors: parseResult.success ? [] : [parseResult.error],
+                    structureValid: parseResult.success
+                };
+            }
+        } catch (error) {
+            return {
+                ...formatValidation,
+                parseErrors: [error.message],
+                structureValid: false
+            };
+        }
+
+        return formatValidation;
     }
 }

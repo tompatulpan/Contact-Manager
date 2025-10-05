@@ -1033,8 +1033,25 @@ export class ContactManager {
      */
     findSimilarContacts(newContact) {
         const similar = [];
+        
+        // Debug: Check what we received
+        console.log('🔍 findSimilarContacts received:', {
+            hasVcard: !!newContact?.vcard,
+            hasSuccess: !!newContact?.success,
+            isResultObject: !!(newContact?.success !== undefined),
+            contactKeys: Object.keys(newContact || {})
+        });
+        
+        // Handle case where we received a result object instead of contact
+        const actualContact = newContact?.success ? newContact.contact : newContact;
+        
         // Suppress itemId warning during import operations (contact hasn't been saved yet)
-        const newData = this.vCardStandard.extractDisplayData(newContact, true, true);
+        const newData = this.vCardStandard.extractDisplayData(actualContact, true, true);
+        
+        if (!newData) {
+            console.error('❌ Failed to extract display data from contact');
+            return [];
+        }
         
         // Extract comparison data
         const newName = newData.fullName?.toLowerCase().trim() || '';
@@ -1325,6 +1342,16 @@ export class ContactManager {
     async importContactFromVCard(vCardString, cardName = null, markAsImported = true) {
         try {
             const contact = this.vCardStandard.importFromVCard(vCardString, cardName, markAsImported);
+            
+            // Debug: Check what importFromVCard returned
+            console.log('🔍 importFromVCard returned:', {
+                hasVcard: !!contact?.vcard,
+                hasSuccess: !!contact?.success,
+                isResultObject: !!(contact?.success !== undefined),
+                contactKeys: Object.keys(contact || {}),
+                cardName: contact?.cardName || contact?.contact?.cardName,
+                fn: contact?.fn || contact?.contact?.fn
+            });
             
             // Check for duplicates before saving
             const similarContacts = this.findSimilarContacts(contact);

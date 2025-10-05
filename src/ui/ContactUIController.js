@@ -2181,6 +2181,9 @@ export class ContactUIController {
             return;
         }
         
+        console.log('🔍 Contact detail - Raw contact data:', contact);
+        console.log('🔍 Contact vCard field:', contact.vcard);
+        
         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
         console.log('🎯 Extracted display data:', displayData);
         
@@ -2265,10 +2268,12 @@ export class ContactUIController {
         
         // Keep address rendering for now (more complex structure)
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
+            console.log('🏠 UI DEBUG: Rendering addresses:', displayData.addresses);
             html += `
                 <div class="field-group">
                     <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
                     ${displayData.addresses.map((address, index) => {
+                        console.log(`🏠 UI DEBUG: Address ${index}:`, address);
                         return `
                         <div class="field-item address-item">
                             <div class="address-content">
@@ -2630,6 +2635,11 @@ export class ContactUIController {
         
         try {
             const date = new Date(birthday + 'T00:00:00'); // Add time to avoid timezone issues
+            
+            if (isNaN(date.getTime())) {
+                console.warn(`Invalid date created from: "${birthday}"`);
+                return 'Invalid Date';
+            }
             
             // Format as localized date
             const formattedDate = date.toLocaleDateString(undefined, {
