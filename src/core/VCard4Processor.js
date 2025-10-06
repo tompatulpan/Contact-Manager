@@ -632,9 +632,9 @@ export class VCard4Processor {
      */
     extractDisplayData(contact) {
         // If the contact has direct display properties (from form data), use them
-        if (contact.fullName || contact.phones || contact.emails) {
+        if (contact.fullName || contact.fn || contact.phones || contact.emails) {
             const baseData = {
-                fullName: contact.fullName || contact.cardName || 'Unnamed Contact',
+                fullName: contact.fullName || contact.fn || contact.cardName || 'Unnamed Contact',
                 structuredName: contact.structuredName || '',
                 organization: contact.organization || '',
                 title: contact.title || '',

@@ -4205,8 +4205,29 @@ export class ContactUIController {
         // Convert form data to contact data format expected by ContactManager
         const contactData = {
             fn: formData.get('fullName') || '',
-            cardName: formData.get('cardName') || formData.get('fullName') || 'Unnamed Contact'
+            cardName: formData.get('cardName') || ''
         };
+
+        // For new contacts, provide fallback card name if empty
+        const form = document.getElementById('contact-form');
+        const isEdit = form && form.dataset.mode === 'edit';
+        
+        // 🔧 DEBUG: Log form data processing
+        console.log('🔧 formDataToContactData DEBUG:', {
+            isEdit,
+            fullName: contactData.fn,
+            cardName: contactData.cardName,
+            formMode: form?.dataset.mode,
+            rawCardName: formData.get('cardName'),
+            rawFullName: formData.get('fullName')
+        });
+        
+        if (!isEdit && !contactData.cardName.trim()) {
+            contactData.cardName = contactData.fn || 'Unnamed Contact';
+            console.log('🔧 Applied fallback cardName for new contact:', contactData.cardName);
+        } else if (isEdit) {
+            console.log('🔧 Edit mode: preserving cardName as-is:', contactData.cardName);
+        }
 
         // Handle organization
         const organization = formData.get('organization');

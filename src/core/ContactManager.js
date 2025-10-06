@@ -151,7 +151,7 @@ export class ContactManager {
         try {
             // Sanitize and validate input data
             const sanitizedData = this.validator.sanitizeContactData(contactData);
-            const validation = this.validator.validateContactData(sanitizedData);
+            const validation = this.validator.validateContactData(sanitizedData, '4.0', false);
             
             if (!validation.isValid) {
                 return {
@@ -289,7 +289,7 @@ export class ContactManager {
             // Sanitize and validate input data
             const sanitizedData = this.validator.sanitizeContactData(contactData);
             
-            const validation = this.validator.validateContactData(sanitizedData);
+            const validation = this.validator.validateContactData(sanitizedData, '4.0', true);
             
             if (!validation.isValid) {
                 return {
@@ -306,7 +306,7 @@ export class ContactManager {
             // Create updated contact with preserved metadata
             const updatedContact = {
                 ...existingContact,
-                cardName: sanitizedData.cardName || existingContact.cardName,
+                cardName: sanitizedData.cardName !== undefined ? sanitizedData.cardName : existingContact.cardName,
                 vcard: vCardString,
                 metadata: {
                     ...existingContact.metadata,
@@ -319,6 +319,14 @@ export class ContactManager {
                     }
                 }
             };
+
+            // 🔧 DEBUG: Log contact update process
+            console.log('🔧 ContactManager updateContact DEBUG:', {
+                originalCardName: existingContact.cardName,
+                sanitizedCardName: sanitizedData.cardName,
+                finalCardName: updatedContact.cardName,
+                cardNameChanged: existingContact.cardName !== updatedContact.cardName
+            });
 
             // Track the update in usage history
             this.addInteractionHistory(updatedContact, 'edited', {

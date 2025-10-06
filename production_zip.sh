@@ -23,6 +23,38 @@ end
 
 echo "📦 Packaging files..."
 
+# Validate critical files exist before packaging
+set critical_files \
+    "index.html" \
+    "style.css" \
+    "mobile.css" \
+    "favicon.ico" \
+    "lib/userbase.js" \
+    "src/app.js" \
+    "src/core/ContactManager.js" \
+    "src/core/ContactDatabase.js" \
+    "src/core/VCardStandard.js" \
+    "src/ui/ContactUIController.js" \
+    "src/utils/EventBus.js"
+
+echo "🔍 Validating critical files..."
+set missing_files 0
+for file in $critical_files
+    if not test -f $file
+        echo "❌ MISSING: $file"
+        set missing_files (math $missing_files + 1)
+    end
+end
+
+if test $missing_files -gt 0
+    echo ""
+    echo "💥 ABORT: $missing_files critical files missing!"
+    echo "🛠️  Please ensure all files exist before running production build."
+    exit 1
+end
+echo "✅ All critical files present"
+echo ""
+
 # Clean up any existing temp files before packaging
 find . -name "*.tmp" -delete 2>/dev/null || true
 
@@ -32,17 +64,22 @@ zip -r $zipname \
     style.css \
     mobile.css \
     favicon.ico \
+    package.json \
     src/ \
     lib/userbase.js \
     cache-versions.json \
     --exclude="src/**/*.tmp" \
-    --exclude="*.tmp"
+    --exclude="*.tmp" \
+    --exclude="src/**/*_backup.js" \
+    --exclude="src/**/*_new.js" \
+    --exclude="test-*.html" \
+    --exclude="debug-*.html" \
+    --exclude="tests/" \
+    --exclude="tools/" \
+    --exclude="_temp/" \
+    --exclude="*.md"
 
-# Include tests for debugging if present
-if test -d tests
-    zip -r $zipname tests/
-    echo "Added tests directory for production debugging"
-end
+# Tests are excluded from production build for security and size optimization
 
 # Create 404.html if it doesn't exist (required for Cloudflare Pages SPA routing)
 if not test -f 404.html
@@ -67,11 +104,19 @@ end
 
 echo ""
 echo "📦 Contents:"
-unzip -l $zipname
+unzip -l $zipname | head -30
+if test (unzip -l $zipname | wc -l) -gt 35
+    echo "... (showing first 25 files, total: "(unzip -l $zipname | grep -c "\.") " files)"
+end
 echo ""
 echo "🚀 Ready for Cloudflare Pages deployment!"
 echo "💡 Cache busting applied - browsers will get fresh files!"
-echo "📊 Enhanced: Now covers all 18 JavaScript modules + CSS files"
+echo "📊 Enhanced: Covers all JavaScript modules + CSS files"
+echo "🔍 Validation: All critical files verified before packaging"
+
+# Show file size summary
+set zipsize (du -h $zipname | cut -f1)
+echo "📏 Package size: $zipsize"
 
 # Restore original index.html for development
 if test -f index.html.backup

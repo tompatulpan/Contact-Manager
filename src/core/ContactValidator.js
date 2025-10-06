@@ -59,7 +59,7 @@ export class ContactValidator {
     /**
      * Validate contact form data with version-aware checking
      */
-    validateContactData(formData, vCardVersion = '4.0') {
+    validateContactData(formData, vCardVersion = '4.0', isEdit = false) {
         const errors = [];
         const warnings = [];
 
@@ -68,9 +68,15 @@ export class ContactValidator {
             errors.push('Full name is required');
         }
 
-        if (!formData.cardName || formData.cardName.trim() === '') {
+        // Only apply cardName fallback for new contacts, not edits
+        if (!isEdit && (!formData.cardName || formData.cardName.trim() === '')) {
             formData.cardName = formData.fn || 'Unnamed Contact';
             warnings.push('Card name was empty, using full name as default');
+            console.log('🔧 Validator: Applied cardName fallback for new contact:', formData.cardName);
+        } else if (isEdit) {
+            console.log('🔧 Validator: Edit mode - preserving cardName:', formData.cardName);
+        } else {
+            console.log('🔧 Validator: New contact with cardName provided:', formData.cardName);
         }
 
         // Field length validation
