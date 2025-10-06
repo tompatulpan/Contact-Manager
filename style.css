@@ -1251,10 +1251,16 @@ body {
     width: 100%;
 }
 
-.qr-code-wrapper svg {
+/* Support both SVG and IMG formats for QR codes */
+.qr-code-wrapper svg,
+.qr-code-wrapper img,
+.qr-code-wrapper .qr-code-image {
     width: 100%;
     height: auto;
     display: block;
+    /* Enable iOS tap-and-hold QR detection */
+    -webkit-touch-callout: default;
+    user-select: auto;
 }
 
 .qr-help-text {

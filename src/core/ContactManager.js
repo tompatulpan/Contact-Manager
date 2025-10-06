@@ -2329,19 +2329,18 @@ export class ContactManager {
                     });
                     
                     // Try to share with the user (this will fail if user doesn't exist)
+                    // requireVerified: false - Allow adding users to distribution lists without verification
                     await userbase.shareDatabase({
                         databaseName: testDbName,
                         username: username.trim(),
                         readOnly: true,
-                        resharingAllowed: false
+                        resharingAllowed: false,
+                        requireVerified: false
                     });
                     
-                    // If we get here, the user exists - clean up test database
-                    try {
-                        await userbase.deleteDatabase({ databaseName: testDbName });
-                    } catch (cleanupError) {
-                        console.warn('⚠️ Failed to clean up test database:', cleanupError.message);
-                    }
+                    // If we get here, the user exists
+                    // Note: Userbase SDK doesn't have deleteDatabase, so we skip cleanup
+                    // The test database will remain but won't cause issues
                     
                     console.log(`✅ Username "${username}" validated - user exists`);
                     

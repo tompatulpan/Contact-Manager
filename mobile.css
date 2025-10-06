@@ -737,6 +737,14 @@
         margin-bottom: var(--space-2) !important;
     }
     
+    /* Enable iOS tap-and-hold QR detection on mobile */
+    .qr-code-wrapper img,
+    .qr-code-wrapper .qr-code-image {
+        -webkit-touch-callout: default !important;
+        user-select: auto !important;
+        pointer-events: auto !important;
+    }
+    
     .qr-help-text {
         font-size: 0.8rem !important;
         line-height: 1.3 !important;

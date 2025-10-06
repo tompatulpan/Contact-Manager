@@ -2346,7 +2346,7 @@ export class ContactUIController {
                     </div>
                     <p class="qr-help-text">
                         <i class="fas fa-info-circle"></i>
-                        Scan this QR code to quickly import this contact on your mobile device
+                        <strong>iOS:</strong> Tap and hold to scan | <strong>Android:</strong> Open camera to scan
                     </p>
                 </div>
             </div>
@@ -2516,24 +2516,42 @@ export class ContactUIController {
             qr.addData(vcard3);
             qr.make();
 
-            // Generate SVG with proper sizing and styling
+            // Generate PNG data URL for iOS "tap and hold" recognition
+            // iOS only recognizes QR codes in <img> tags with image formats (PNG/JPG), not SVG
             const cellSize = 4;
-            const margin = 16;
-            const svgString = qr.createSvgTag({
-                cellSize: cellSize,
-                margin: margin,
-                scalable: true,
-                alt: {
-                    text: `QR code for contact: ${contact.cardName || 'Unknown'}`,
-                    id: `qr-desc-${contact.contactId}`
-                },
-                title: {
-                    text: 'Scan to import contact',
-                    id: `qr-title-${contact.contactId}`
+            const moduleCount = qr.getModuleCount();
+            const size = moduleCount * cellSize;
+            
+            // Create canvas to generate PNG
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill background white
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Draw QR code modules
+            ctx.fillStyle = '#000000';
+            for (let row = 0; row < moduleCount; row++) {
+                for (let col = 0; col < moduleCount; col++) {
+                    if (qr.isDark(row, col)) {
+                        ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                    }
                 }
-            });
-
-            return svgString;
+            }
+            
+            // Convert canvas to PNG data URL
+            const dataUrl = canvas.toDataURL('image/png');
+            
+            // Return <img> tag with data URL (iOS recognizes this for tap-and-hold)
+            return `<img src="${dataUrl}" 
+                        alt="QR code for contact: ${contact.cardName || 'Unknown'}" 
+                        title="Tap and hold to scan on iOS, or scan with camera"
+                        class="qr-code-image"
+                        style="max-width: 100%; height: auto; display: block;">`;
+        
         } catch (error) {
             console.error('❌ Error generating QR code:', error);
             return '<p class="qr-error">Failed to generate QR code</p>';
