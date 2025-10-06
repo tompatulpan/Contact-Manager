@@ -2230,6 +2230,7 @@ export class ContactUIController {
             
             <div class="contact-detail-body">
                 ${this.renderContactFields(displayData)}
+                ${this.renderContactQRCode(contact)}
                 ${this.renderContactMetadata(contact)}
             </div>
         `;
@@ -2322,6 +2323,221 @@ export class ContactUIController {
         }
         
         return html;
+    }
+
+    /**
+     * Render QR code section for contact
+     * @param {Object} contact - Contact object
+     * @returns {string} - HTML string for QR code section
+     */
+    renderContactQRCode(contact) {
+        const qrCode = this.generateContactQRCode(contact);
+        
+        if (!qrCode) {
+            return '';
+        }
+        
+        return `
+            <div class="field-group qr-code-section">
+                <h4><i class="fas fa-qrcode"></i> QR Code</h4>
+                <div class="field-item qr-code-container">
+                    <div class="qr-code-wrapper">
+                        ${qrCode}
+                    </div>
+                    <p class="qr-help-text">
+                        <i class="fas fa-info-circle"></i>
+                        Scan this QR code to quickly import this contact on your mobile device
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Original renderContactFields - kept for backward compatibility
+     */
+    renderContactFieldsOnly(displayData) {
+        let html = '';
+        
+        // Use ContactRenderer helper for individual field types
+        if (displayData.phones.length > 0) {
+            html += ContactRenderer.renderContactFields('phone', displayData.phones);
+        }
+        
+        if (displayData.emails.length > 0) {
+            html += ContactRenderer.renderContactFields('email', displayData.emails);
+        }
+        
+        if (displayData.urls.length > 0) {
+            html += ContactRenderer.renderContactFields('url', displayData.urls);
+        }
+        
+        // Keep address rendering for now (more complex structure)
+        if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
+            console.log('🏠 UI DEBUG: Rendering addresses:', displayData.addresses);
+            html += `
+                <div class="field-group">
+                    <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
+                    ${displayData.addresses.map((address, index) => {
+                        console.log(`🏠 UI DEBUG: Address ${index}:`, address);
+                        return `
+                        <div class="field-item address-item">
+                            <div class="address-content">
+                                ${address.street ? `<div class="address-line">${ContactUIHelpers.escapeHtml(address.street)}</div>` : ''}
+                                <div class="address-line">
+                                    ${[address.city, address.state, address.postalCode].filter(Boolean).map(part => ContactUIHelpers.escapeHtml(part)).join(', ')}
+                                </div>
+                                ${address.country ? `<div class="address-line">${ContactUIHelpers.escapeHtml(address.country)}</div>` : ''}
+                            </div>
+                            <div class="address-meta">
+                                <span class="field-type">${address.type || 'other'}</span>
+                                ${address.primary ? '<span class="field-primary">Primary</span>' : ''}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        // Birthday field
+        if (displayData.birthday) {
+            const formattedBirthday = this.formatBirthday(displayData.birthday);
+            html += `
+                <div class="field-group">
+                    <h4><i class="fas fa-birthday-cake"></i> Birthday</h4>
+                    <div class="field-item">
+                        <span class="field-value">${ContactUIHelpers.escapeHtml(formattedBirthday)}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Notes
+        if (displayData.notes && displayData.notes.length > 0) {
+            html += `
+                <div class="field-group">
+                    <h4><i class="fas fa-sticky-note"></i> Notes</h4>
+                    ${displayData.notes.map(note => `
+                        <div class="field-item">
+                            <p class="field-value">${ContactUIHelpers.escapeHtml(note)}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        return html;
+    }
+
+    /**
+     * Generate QR code for contact vCard
+     * @param {Object} contact - Contact object with vcard string
+     * @returns {string} - SVG QR code as string
+     */
+    /**
+     * Convert vCard 4.0 to vCard 3.0 with explicit CHARSET=UTF-8 for QR code compatibility
+     * iOS and many QR scanners don't properly decode UTF-8 in vCard 4.0 format
+     */
+    convertToVCard3WithCharset(vcard4) {
+        // Convert version
+        let vcard3 = vcard4.replace('VERSION:4.0', 'VERSION:3.0');
+        
+        // Process each line to add CHARSET=UTF-8 where needed
+        const lines = vcard3.split('\n').map(line => {
+            // Skip BEGIN, END, VERSION lines
+            if (line.startsWith('BEGIN:') || line.startsWith('END:') || line.startsWith('VERSION:')) {
+                return line;
+            }
+            
+            // Add CHARSET=UTF-8 to text fields that may contain Swedish characters
+            if (line.match(/^(FN|N|ORG|TITLE|NOTE|NICKNAME|ADR):/)) {
+                return line.replace(':', ';CHARSET=UTF-8:');
+            }
+            
+            // Handle fields that already have parameters
+            if (line.match(/^(FN|N|ORG|TITLE|NOTE|NICKNAME|ADR);/)) {
+                // Add CHARSET=UTF-8 before the colon
+                return line.replace(/:/, ';CHARSET=UTF-8:');
+            }
+            
+            // Convert vCard 4.0 TYPE syntax to vCard 3.0
+            // vCard 4.0: TEL;TYPE=work;PREF=1:
+            // vCard 3.0: TEL;TYPE=WORK,PREF:
+            if (line.match(/^(TEL|EMAIL);/)) {
+                let newLine = line;
+                
+                // Handle PREF parameter
+                if (line.includes(';PREF=1')) {
+                    newLine = newLine.replace(/;PREF=1/, '');
+                    // Add PREF to TYPE if TYPE exists, otherwise create TYPE=PREF
+                    if (newLine.includes('TYPE=')) {
+                        newLine = newLine.replace(/TYPE=([^;:]+)/, 'TYPE=$1,PREF');
+                    } else {
+                        newLine = newLine.replace(/:/, ';TYPE=PREF:');
+                    }
+                }
+                
+                return newLine;
+            }
+            
+            return line;
+        });
+        
+        return lines.join('\n');
+    }
+
+    generateContactQRCode(contact) {
+        try {
+            if (!contact || !contact.vcard) {
+                console.warn('⚠️ Cannot generate QR code: Invalid contact data');
+                return '';
+            }
+
+            // Check if qrcode library is available
+            if (typeof qrcode === 'undefined') {
+                console.warn('⚠️ QR code library not loaded');
+                return '<p class="qr-error">QR code library not available</p>';
+            }
+
+            // Convert to vCard 3.0 with explicit CHARSET=UTF-8 for better QR scanner compatibility
+            // iOS Camera app and many scanners don't properly decode UTF-8 in vCard 4.0
+            const vcard3 = this.convertToVCard3WithCharset(contact.vcard);
+
+            // Use default encoding (not UTF-8) since we're explicitly declaring CHARSET in the vCard
+            if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs['default']) {
+                qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+            }
+
+            // Create QR code instance with high error correction for better reliability
+            const qr = qrcode(0, 'H'); // Type 0 = auto-detect, Error correction level H
+            
+            // Add vCard 3.0 data with explicit CHARSET parameters
+            qr.addData(vcard3);
+            qr.make();
+
+            // Generate SVG with proper sizing and styling
+            const cellSize = 4;
+            const margin = 16;
+            const svgString = qr.createSvgTag({
+                cellSize: cellSize,
+                margin: margin,
+                scalable: true,
+                alt: {
+                    text: `QR code for contact: ${contact.cardName || 'Unknown'}`,
+                    id: `qr-desc-${contact.contactId}`
+                },
+                title: {
+                    text: 'Scan to import contact',
+                    id: `qr-title-${contact.contactId}`
+                }
+            });
+
+            return svgString;
+        } catch (error) {
+            console.error('❌ Error generating QR code:', error);
+            return '<p class="qr-error">Failed to generate QR code</p>';
+        }
     }
 
     /**

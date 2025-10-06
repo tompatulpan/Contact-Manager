@@ -24,7 +24,8 @@ A secure, modular contact management system with:
 - Create, edit, and organize contacts
 - Share contacts with users or groups (distribution lists)
 - Archive, delete, and manage received/shared contacts
-- Import/export contacts (vCard)
+- Import/export contacts (vCard 4.0)
+- QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
 - **Automated cache busting** (no more manual cache clearing!)
 
@@ -65,7 +66,7 @@ npm run serve
 ---
 ## Roadmap
 
-- [ ] QR-code generation (for easy sharing)
+- [x] QR code generation (for easy contact sharing with iOS/Android compatibility)
 - [x] Share your profile
 - [ ] Bulk operations (Delete, Export etc.)
 - [ ] Sharing-List features (Rename, edit, etc)
