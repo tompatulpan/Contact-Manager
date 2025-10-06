@@ -15,6 +15,7 @@ export class ContactValidator {
         this.patterns = {
             email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
             phone: /^[+]?[\d\s\-\(\)\.]+$/,
+            phoneUri: /^tel:[+]?[\d\s\-\(\)\.]+$/,
             url: /^https?:\/\/.+/,
             date: /^\d{4}-\d{2}-\d{2}$/
         };
@@ -112,16 +113,64 @@ export class ContactValidator {
         // Full name is required
         if (!contactData.fn || typeof contactData.fn !== 'string' || contactData.fn.trim() === '') {
             errors.push('Full name is required');
-        } else if (contactData.fn.length > this.fieldRequirements.fn.maxLength) {
-            errors.push(`Full name exceeds maximum length of ${this.fieldRequirements.fn.maxLength} characters`);
         }
 
         // Card name is required for UI purposes
         if (!contactData.cardName || typeof contactData.cardName !== 'string' || contactData.cardName.trim() === '') {
             errors.push('Card name is required');
-        } else if (contactData.cardName.length > this.fieldRequirements.cardName.maxLength) {
-            errors.push(`Card name exceeds maximum length of ${this.fieldRequirements.cardName.maxLength} characters`);
         }
+    }
+
+    /**
+     * Validate field lengths against requirements
+     * @param {Object} formData - Form data to validate
+     * @param {Array} errors - Errors array to populate
+     */
+    validateFieldLengths(formData, errors) {
+        // Validate string fields
+        const stringFields = ['fn', 'organization', 'title', 'cardName'];
+        
+        for (const field of stringFields) {
+            const value = formData[field];
+            const requirements = this.fieldRequirements[field];
+            
+            if (value && typeof value === 'string' && requirements) {
+                if (requirements.maxLength && value.length > requirements.maxLength) {
+                    errors.push(`${this.getFieldDisplayName(field)} exceeds maximum length of ${requirements.maxLength} characters`);
+                }
+                if (requirements.minLength && value.length < requirements.minLength) {
+                    errors.push(`${this.getFieldDisplayName(field)} must be at least ${requirements.minLength} characters`);
+                }
+            }
+        }
+
+        // Validate notes array
+        if (formData.notes && Array.isArray(formData.notes)) {
+            const noteRequirements = this.fieldRequirements.notes;
+            formData.notes.forEach((note, index) => {
+                if (note && typeof note === 'string' && noteRequirements.maxLength) {
+                    if (note.length > noteRequirements.maxLength) {
+                        errors.push(`Note ${index + 1} exceeds maximum length of ${noteRequirements.maxLength} characters`);
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Get user-friendly field display name
+     * @param {string} fieldName - Internal field name
+     * @returns {string} Display name
+     */
+    getFieldDisplayName(fieldName) {
+        const displayNames = {
+            fn: 'Full name',
+            organization: 'Organization',
+            title: 'Job title',
+            cardName: 'Card name',
+            notes: 'Notes'
+        };
+        return displayNames[fieldName] || fieldName;
     }
 
     /**
@@ -461,9 +510,22 @@ export class ContactValidator {
             return false;
         }
 
+        // Handle vCard 4.0 tel: URI format
+        if (phone.startsWith('tel:')) {
+            const telNumber = phone.substring(4); // Remove 'tel:' prefix
+            const cleaned = telNumber.replace(/\s/g, '');
+            console.log(`🔍 Validating tel: URI phone: "${phone}" → cleaned: "${cleaned}"`);
+            const isValid = this.patterns.phone.test(cleaned) && cleaned.length >= 7 && cleaned.length <= 20;
+            console.log(`📞 Tel URI validation result: ${isValid} (pattern: ${this.patterns.phone.test(cleaned)}, length: ${cleaned.length})`);
+            return isValid;
+        }
+
+        // Handle standard phone number format
         const cleaned = phone.replace(/\s/g, '');
-        // Require at least 7 digits for a valid phone number (realistic minimum)
-        return this.patterns.phone.test(cleaned) && cleaned.length >= 7 && cleaned.length <= 20;
+        console.log(`🔍 Validating standard phone: "${phone}" → cleaned: "${cleaned}"`);
+        const isValid = this.patterns.phone.test(cleaned) && cleaned.length >= 7 && cleaned.length <= 20;
+        console.log(`📞 Standard validation result: ${isValid} (pattern: ${this.patterns.phone.test(cleaned)}, length: ${cleaned.length})`);
+        return isValid;
     }
 
     /**

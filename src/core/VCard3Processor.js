@@ -400,11 +400,11 @@ export class VCard3Processor {
             const originalType = value.parameters?.TYPE;
             const convertedType = this.convertType(originalType, propertyType);
             
-            console.log(`📋 ${property}[${index}]: "${originalType}" → "${convertedType}"`);
+            console.log(`📋 ${property}[${index}]: "${originalType || 'undefined'}" → "${convertedType}"`);
             
             // Extra debug for URL issues
             if (property === 'URL' && !originalType) {
-                console.log(`⚠️ URL missing TYPE parameter:`, value);
+                console.log(`⚠️ URL missing TYPE parameter - defaulting to 'other':`, value);
             }
             const baseObj = {
                 type: convertedType,

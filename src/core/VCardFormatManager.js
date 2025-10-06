@@ -27,7 +27,7 @@ export class VCardFormatManager {
         this.patterns = {
             version3: /VERSION:3\.0/i,
             version4: /VERSION:4\.0/i,
-            appleIndicators: /(?:ITEM\d+\.|type=|TYPE=PERSONAL|X-|vnd\.apple)/i,
+            appleIndicators: /(?:ITEM\d+\.|TYPE=PERSONAL|X-APPLE|X-ABUID|X-ABADR|vnd\.apple)/i,
             beginVCard: /BEGIN:VCARD/i,
             endVCard: /END:VCARD/i
         };

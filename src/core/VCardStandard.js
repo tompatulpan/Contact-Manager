@@ -451,7 +451,9 @@ export class VCardStandard {
             
             try {
                 const parsed = this.parseLine(line);
-                this.addPropertyToContact(contact, parsed);
+                if (parsed) { // Only add if parsing was successful and returned a result
+                    this.addPropertyToContact(contact, parsed);
+                }
             } catch (error) {
                 console.warn(`Failed to parse line: "${line}"`, error);
             }
@@ -463,6 +465,12 @@ export class VCardStandard {
     parseLine(line) {
         const colonIndex = line.indexOf(':');
         if (colonIndex === -1) {
+            // Check if this might be a malformed address component (common in imported vCards)
+            if (this.isMalformedAddressComponent(line)) {
+                // Skip malformed address components gracefully
+                console.warn(`Skipping malformed address component: "${line}"`);
+                return null;
+            }
             throw new Error(`Invalid property line: ${line}`);
         }
 
@@ -507,6 +515,45 @@ export class VCardStandard {
         }
 
         return parameters;
+    }
+
+    /**
+     * Check if a line appears to be a malformed address component
+     * Common patterns from imported vCards that break parsing
+     */
+    isMalformedAddressComponent(line) {
+        const trimmedLine = line.trim();
+        
+        // Skip empty lines
+        if (!trimmedLine) return true;
+        
+        // Common malformed address patterns:
+        // - City names without property prefix: "STOCKHOLM", "TÄBY", "EKERÖ"
+        // - Postal codes with semicolons: "187 76;;;;", "178 34;;;;"
+        // - Standalone postal codes: "112 23", "182 54"
+        // - Country names: "Sweden;;;;"
+        
+        // Pattern 1: Lines that end with multiple semicolons (malformed address components)
+        if (/;;;;\s*$/.test(trimmedLine)) {
+            return true;
+        }
+        
+        // Pattern 2: Lines that look like Swedish postal codes (5 digits with space)
+        if (/^\d{3}\s\d{2}$/.test(trimmedLine)) {
+            return true;
+        }
+        
+        // Pattern 3: Lines that look like city names (all caps, Swedish characters)
+        if (/^[A-ZÅÄÖ\s]+$/.test(trimmedLine) && trimmedLine.length > 2 && trimmedLine.length < 30) {
+            return true;
+        }
+        
+        // Pattern 4: Lines that look like country names followed by semicolons
+        if (/^[A-Za-zÅÄÖåäö\s]+;;;;\s*$/.test(trimmedLine)) {
+            return true;
+        }
+        
+        return false;
     }
 
     addPropertyToContact(contact, { property, parameters, value }) {

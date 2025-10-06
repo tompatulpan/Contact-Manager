@@ -1,42 +1,50 @@
-# Personal and encrypted data
+# =============================================================================
+# Contact Management System - .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Security & Sensitive Data
+# -----------------------------------------------------------------------------
+*.key
+*.age
+*.env
+*.env.test
 .temp_age/
 .temp_key
 public_keys/
 private_keys/
-backend/app_data/
-backend/app_data/cards/
-backend/app_data/addressbooks/
-backend/app_data/index.json
-.github/copilot-instructions.md
 
-# Cache busting generated files
-cache-versions.json
-index.html.backup
+# -----------------------------------------------------------------------------
+# System & OS Files
+# -----------------------------------------------------------------------------
+.DS_Store
+.directory
+Thumbs.db
+*~
 
-# Shell scripts (except cache busting ones)
-*.sh
-!cache-bust.sh
-!dev-cache-bust.sh  
-!restore-dev.sh
-!production_zip.sh
-
-*.zip
-
-# Compiled backend binary
-backend/main
-frontend/test-app/
-*.key
-*.vcf
-*.age
-*.txt
+# -----------------------------------------------------------------------------
+# IDE & Editor Files
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
 *.kate-swp
-*.followers
-*.old
-*.bup
-*.env
-*.blob
 
-# Python artifacts
+# -----------------------------------------------------------------------------
+# Node.js & NPM
+# -----------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+.npm/
+*.tgz
+.yarn-integrity
+.pnp.*
+.pnp/
+
+# -----------------------------------------------------------------------------
+# Python Environment
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
@@ -48,7 +56,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-# lib/
 lib64/
 parts/
 sdist/
@@ -57,88 +64,87 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Virtual environments
 venv/
 env/
 ENV/
 
-# IDE specific files
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-
-# Log files
+# -----------------------------------------------------------------------------
+# Development & Testing
+# -----------------------------------------------------------------------------
 *.log
 logs/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# System files
-.DS_Store
-.directory
-Thumbs.db
-
-*.meta
-
-# Node.js / npm
-node_modules/
-npm-debug.log*
-.npm/
-*.tgz
-.yarn-integrity
-.pnp.*
-.pnp/
-
-# Project-specific folders to ignore
-/tools
-/tests
-/config
-
-# Project-specific files to ignore
-*.md
-!README.md
-!license.md
-!LICENSE.md
-*.yml
-*.json
-*package.json
-*package-lock.json
-
-# Ignore debug and test HTML pages
-*debug*.html
-*fix*.html
-*quick*.html
-*inspector*.html
-*database*.html
-*troubleshoot*.html
-*demo*
-*example*
-*sample*.html
-*template*.html
-*old*
-*backup*
-*test*
-*temp*.html
-*cleanup*.html
-*debug*.js
-
-# Test environment files
-.env.test
 coverage/
 test-results/
-
-# SQLite DBs
+.ipynb_checkpoints
 *.db
 
-# React build output
+# -----------------------------------------------------------------------------
+# Build & Compilation Artifacts
+# -----------------------------------------------------------------------------
+backend/main
 frontend/build/
+*.zip
 
-# Editor/OS backup files
-*~
+# -----------------------------------------------------------------------------
+# Cache & Generated Files
+# -----------------------------------------------------------------------------
+cache-versions.json
+index.html.backup
 
-# Allowed
-!frontend/public/robots.txt
+# -----------------------------------------------------------------------------
+# Project-Specific Patterns
+# -----------------------------------------------------------------------------
+# Temporary and backup files
+*.old
+*.bup
+*.backup
+*temp*
+
+# Debug and test HTML files (keep main ones)
+*debug*.html
+*fix*.html
+*test*.html
+*demo*.html
+*example*.html
+*sample*.html
+*troubleshoot*.html
+*quick*.html
+
+# Data files that shouldn't be in git
+*.vcf
+*.txt
+*.blob
+*.meta
+*.followers
+
+# Project folders
+/tools
+/tests
+frontend/test-app/
+
+# Documentation files (except essential ones)
+*.md
+!README.md
+!LICENSE.md
+
+# Configuration files (be selective)
+*.yml
+*.json
+!package.json
+
+# -----------------------------------------------------------------------------
+# Shell Scripts (Allow specific ones)
+# -----------------------------------------------------------------------------
+*.sh
+!cache-bust.sh
+!dev-cache-bust.sh
+!restore-dev.sh
+!production_zip.sh
+
+# -----------------------------------------------------------------------------
+# Allow Essential Files
+# -----------------------------------------------------------------------------
+!index.html
+!404.html
+!robots.txt
+!favicon.ico
