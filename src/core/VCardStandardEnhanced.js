@@ -536,6 +536,11 @@ export class VCardStandardEnhanced {
                 paramValue = paramValue.toLowerCase();
             }
             
+            // Filter out CHARSET parameter as it's a parsing hint, not a contact data attribute
+            if (paramName === 'CHARSET') {
+                continue; // Skip adding CHARSET to parameters
+            }
+            
             parameters[paramName] = paramValue;
         }
         

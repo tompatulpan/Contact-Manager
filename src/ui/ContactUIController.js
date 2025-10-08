@@ -2436,29 +2436,18 @@ export class ContactUIController {
      * @returns {string} - SVG QR code as string
      */
     /**
-     * Convert vCard 4.0 to vCard 3.0 with explicit CHARSET=UTF-8 for QR code compatibility
-     * iOS and many QR scanners don't properly decode UTF-8 in vCard 4.0 format
+     * Convert vCard 4.0 to vCard 3.0 for QR code compatibility
+     * Modern QR scanners handle UTF-8 natively, so CHARSET parameter is not needed
      */
     convertToVCard3WithCharset(vcard4) {
         // Convert version
         let vcard3 = vcard4.replace('VERSION:4.0', 'VERSION:3.0');
         
-        // Process each line to add CHARSET=UTF-8 where needed
+        // Process each line to convert vCard 4.0 syntax to vCard 3.0
         const lines = vcard3.split('\n').map(line => {
             // Skip BEGIN, END, VERSION lines
             if (line.startsWith('BEGIN:') || line.startsWith('END:') || line.startsWith('VERSION:')) {
                 return line;
-            }
-            
-            // Add CHARSET=UTF-8 to text fields that may contain Swedish characters
-            if (line.match(/^(FN|N|ORG|TITLE|NOTE|NICKNAME|ADR):/)) {
-                return line.replace(':', ';CHARSET=UTF-8:');
-            }
-            
-            // Handle fields that already have parameters
-            if (line.match(/^(FN|N|ORG|TITLE|NOTE|NICKNAME|ADR);/)) {
-                // Add CHARSET=UTF-8 before the colon
-                return line.replace(/:/, ';CHARSET=UTF-8:');
             }
             
             // Convert vCard 4.0 TYPE syntax to vCard 3.0
@@ -2500,8 +2489,8 @@ export class ContactUIController {
                 return '<p class="qr-error">QR code library not available</p>';
             }
 
-            // Convert to vCard 3.0 with explicit CHARSET=UTF-8 for better QR scanner compatibility
-            // iOS Camera app and many scanners don't properly decode UTF-8 in vCard 4.0
+            // Convert to vCard 3.0 for better QR scanner compatibility
+            // Modern QR scanners handle UTF-8 natively without CHARSET parameters
             const vcard3 = this.convertToVCard3WithCharset(contact.vcard);
 
             // Use default encoding (not UTF-8) since we're explicitly declaring CHARSET in the vCard

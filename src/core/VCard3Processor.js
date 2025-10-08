@@ -301,6 +301,9 @@ export class VCard3Processor {
                     parameters['PREF'] = value;
                 } else if (key.toLowerCase() === 'encoding') {
                     parameters['ENCODING'] = value.toUpperCase();
+                } else if (key.toLowerCase() === 'charset') {
+                    // Filter out CHARSET parameter as it's a parsing hint, not contact data
+                    continue; // Skip adding CHARSET to parameters
                 } else {
                     parameters[key.toUpperCase()] = value;
                 }

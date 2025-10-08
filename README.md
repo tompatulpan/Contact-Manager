@@ -27,7 +27,6 @@ A secure, modular contact management system with:
 - Import/export contacts (vCard 3.0 and 4.0)
 - QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
-- **Automated cache busting** (no more manual cache clearing!)
 
 ## Project Structure
 
@@ -41,7 +40,7 @@ mobile.css
 ---
 ## Development
 
-- Contributions and feedback are welcome.
+- Contributions and feedback are welcome!
 
 ### Setup
 ```bash
@@ -68,7 +67,11 @@ npm run serve
 
 - [x] QR code generation (for easy contact sharing with iOS/Android compatibility)
 - [x] Share your profile
-- [ ] Add missing export functionality 
+- [x] Revoke sharing per recipient (Individual Databases)
+- [ ] Add some missing export functionality
+- [ ] Improved import duplicate and merge functionality
+- [x] Sharing-lists (for better control and bulk sharing)
+- [ ] Create e-mail distrubution list
 - [ ] Bulk operations (Delete, Export etc.)
 - [ ] Sharing-List features (Rename, edit, copy, etc)
 - [ ] Multi-language support (i18n)
@@ -78,15 +81,12 @@ npm run serve
 - [ ] Change password
 - [ ] Set passwords rules
 - [ ] Dark mode
-- [ ] Create e-mail distrubution list
 - [ ] Icons improvments (pictures?)
-- [x] Revoke sharing per recipient (Individual Databases)
 
 ### Ideas
-- [ ] Contact merge functionality
 - [ ] A Progressive Web App (PWA)
 - [ ] An electron App
-- [ ] Improve decentralization
+- [ ] Improve decentralization using userbase
 
 ---
 ## Acknowledgements

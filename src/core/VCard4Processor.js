@@ -271,6 +271,11 @@ export class VCard4Processor {
                 const key = param.substring(0, equalIndex).toUpperCase();
                 const value = param.substring(equalIndex + 1);
                 
+                // Filter out CHARSET parameter as it's a parsing hint, not contact data
+                if (key === 'CHARSET') {
+                    continue; // Skip adding CHARSET to parameters
+                }
+                
                 // Store parameter with proper casing
                 parameters[key] = value;
             }
