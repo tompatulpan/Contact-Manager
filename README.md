@@ -3,6 +3,10 @@
 **Status:** 🚧 In development!  
 This project is not production-ready. Features, structure, and documentation are subject to rapid change.
 
+## Background
+
+I started this project because I was frustrated with how messy and inaccurate my contact lists had become. I couldn’t find a simple, secure way to share **MY OWN** contact info and keep it up to date. So I built a tool that makes exchanging these details safe, automatic, and effortless.
+
 ## Overview
 
 - Your contacts are broken 🤯
@@ -75,7 +79,6 @@ npm run serve
 - [ ] Bulk operations (Delete, Export etc.)
 - [ ] Sharing-List features (Rename, edit, copy, etc)
 - [ ] Multi-language support (i18n)
-- [ ] Better integration on phones
 - [ ] Advanced sharing permissions (cross edit contacts)
 - [x] Stay logged in feature
 - [ ] Change password
@@ -85,8 +88,50 @@ npm run serve
 
 ### Ideas
 - [ ] A Progressive Web App (PWA)
-- [ ] An electron App
+- [ ] An Electron App
 - [ ] Improve decentralization using userbase
+- [ ] Better integration on phones, CardDAV support
+
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Client Apps   │    │ Contact Manager │    │ Userbase.com    │
+│ (iOS, Android,  │◄──►│                 │◄──►│   (E2E Encrypted│
+│  Thunderbird)   │    │                 │    │    Storage)     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │
+         │                       │
+         └───────────────────────▼
+         ┌─────────────────────────────────────┐
+         │         Baïcal Server               │
+         │    (CardDAV/CalDAV Server)          │
+         │                                     │
+         │  ┌─────────────────────────────┐    │
+         │  │    Bridge Component         │    │
+         │  │  (Sync Userbase ↔ Baïcal)   │    │
+         │  └─────────────────────────────┘    │
+         └─────────────────────────────────────┘
+
+
+┌─────────────────────────────┐
+│    Contact Manager          │ ← Real-time sharing, E2E encryption
+│ (Userbase.com storage)      │ ← Advanced features: distribution lists, 
+│                             │   individual sharing, revocation
+└─────────────┬───────────────┘
+              │ Bridge Component
+              ▼
+┌─────────────────────────────┐
+│       Baïcal Server         │ ← Standard CardDAV server
+│    (CardDAV endpoint)       │ ← Compatible with ALL devices
+└─────────────┬───────────────┘
+              │ Standard CardDAV Protocol
+              ▼
+┌─────────────────────────────┐
+│     Native Device Apps      │
+│ • iPhone Contacts           │
+│ • Android Contacts          │
+│ • Thunderbird Address Book  │
+│ • macOS Contacts            │
+│ • Any CardDAV client        │
+└─────────────────────────────┘
 
 ---
 ## Acknowledgements

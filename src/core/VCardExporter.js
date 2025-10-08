@@ -72,6 +72,16 @@ export class VCardExporter {
     }
 
     /**
+     * Check if format manager is available for advanced format generation
+     * @returns {boolean} True if format manager is available
+     */
+    isFormatManagerAvailable() {
+        return this.vCardStandard && 
+               this.vCardStandard.formatManager && 
+               typeof this.vCardStandard.formatManager.generateForFormat === 'function';
+    }
+
+    /**
      * Export single contact with format selection
      * @param {Object} contact - Contact data
      * @param {Object} options - Export options
@@ -268,7 +278,7 @@ export class VCardExporter {
      */
     generateQRCode(contact, options = {}) {
         const qrOptions = {
-            format: options.format || 'vcard-4.0',
+            format: options.format || 'vcard-3.0', // Changed from 'vcard-4.0' to 'vcard-3.0' for better mobile compatibility
             includePhoto: options.includePhoto || false,
             maxSize: options.maxSize || 2048, // bytes
             errorCorrection: options.errorCorrection || 'M', // L, M, Q, H
@@ -347,15 +357,46 @@ export class VCardExporter {
                 this.applyCustomFieldFilter(contactData, options.customFields);
             }
 
-            // Generate vCard using enhanced standard
-            const generateOptions = {
-                version: formatConfig.version,
-                includeFolding: true,
-                validateOutput: this.config.validation.enabled,
-                includeSystemProperties: true
-            };
+            // Use format manager for consistent output across all formats
+            let vCardResult;
+            
+            if (this.isFormatManagerAvailable() && (options.format === 'vcard-3.0' || options.format === 'apple-contacts')) {
+                // Use format manager for vCard 3.0 and Apple formats (includes fixed type mappings)
+                console.log(`📤 Using format manager for ${options.format} export`);
+                vCardResult = this.vCardStandard.formatManager.exportVCard(contactData, 'vcard-3.0');
+                
+                // Convert format manager result to expected structure
+                if (vCardResult && vCardResult.content) {
+                    vCardResult = {
+                        success: true,
+                        content: vCardResult.content,
+                        errors: [],
+                        warnings: []
+                    };
+                } else {
+                    console.warn('Format manager export failed, falling back to standard method');
+                    vCardResult = {
+                        success: false,
+                        content: '',
+                        errors: ['Format manager export failed'],
+                        warnings: []
+                    };
+                }
+            } else {
+                // Use standard method for vCard 4.0 or when format manager unavailable
+                const methodReason = !this.isFormatManagerAvailable() ? 
+                    'format manager unavailable' : 
+                    `${options.format} format`;
+                console.log(`📤 Using standard method for ${methodReason} export`);
+                const generateOptions = {
+                    version: formatConfig.version,
+                    includeFolding: true,
+                    validateOutput: this.config.validation.enabled,
+                    includeSystemProperties: true
+                };
 
-            const vCardResult = this.vCardStandard.generateVCard(contactData, generateOptions);
+                vCardResult = this.vCardStandard.generateVCard(contactData, generateOptions);
+            }
             
             if (!vCardResult.success) {
                 result.errors.push(...vCardResult.errors);
@@ -410,13 +451,47 @@ export class VCardExporter {
                 result.warnings.push('Photo excluded from QR code to reduce size');
             }
 
-            // Generate compact vCard
-            const vCardResult = this.vCardStandard.generateVCard(qrContactData, {
-                version: this.config.formats[options.format]?.version || '4.0',
-                includeFolding: false, // No folding for QR codes
-                validateOutput: false,
-                includeSystemProperties: false
-            });
+            // Generate compact vCard using format manager for consistency
+            let vCardResult;
+            
+            if (this.isFormatManagerAvailable() && (options.format === 'vcard-3.0' || options.format === 'apple-contacts')) {
+                // Use format manager for vCard 3.0 (includes our fixed type mappings)
+                console.log(`📱 QR: Using format manager for ${options.format}`);
+                vCardResult = this.vCardStandard.formatManager.exportVCard(
+                    { ...qrContactData, contactId: contact.contactId }, 
+                    options.format === 'apple-contacts' ? 'vcard-3.0' : options.format
+                );
+                
+                // Convert format manager result to expected structure
+                if (vCardResult && vCardResult.content) {
+                    vCardResult = {
+                        success: true,
+                        content: vCardResult.content,
+                        errors: [],
+                        warnings: []
+                    };
+                } else {
+                    console.warn('Format manager QR export failed, falling back to standard method');
+                    vCardResult = {
+                        success: false,
+                        content: '',
+                        errors: ['Format manager QR export failed'],
+                        warnings: []
+                    };
+                }
+            } else {
+                // Use standard method for vCard 4.0 or when format manager unavailable
+                const methodReason = !this.isFormatManagerAvailable() ? 
+                    'format manager unavailable' : 
+                    `${options.format} format`;
+                console.log(`📱 QR: Using standard method for ${methodReason}`);
+                vCardResult = this.vCardStandard.generateVCard(qrContactData, {
+                    version: this.config.formats[options.format]?.version || '4.0',
+                    includeFolding: false, // No folding for QR codes
+                    validateOutput: false,
+                    includeSystemProperties: false
+                });
+            }
 
             if (!vCardResult.success) {
                 result.errors.push(...vCardResult.errors);
@@ -934,3 +1009,5 @@ export class VCardExporter {
         return { ...this.config };
     }
 }
+
+export default VCardExporter;

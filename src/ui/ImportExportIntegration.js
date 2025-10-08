@@ -122,7 +122,7 @@ export class ImportExportIntegration {
      */
     async generateContactQR(contact, options = {}) {
         const qrOptions = {
-            format: 'vcard-4.0',
+            format: 'vcard-3.0',  // Use vCard 3.0 for better mobile device compatibility
             maxSize: 2048,
             ...options
         };

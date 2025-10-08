@@ -50,8 +50,9 @@ export class VCard3Processor {
             url: {
                 'WORK': 'work',
                 'HOME': 'home',
-                'PERSONAL': 'home',
-                'SOCIAL': 'other',
+                'PERSONAL': 'personal',  // Fixed: personal should map to personal, not home
+                'SOCIAL': 'social',      // Map social to social instead of other
+                'BLOG': 'blog',          // Add blog type mapping
                 'OTHER': 'other'
             },
             address: {
@@ -61,8 +62,8 @@ export class VCard3Processor {
             }
         };
         
-        // Reverse mappings for export
-        this.reverseTypeMappings = this.createReverseMappings();
+        // Custom reverse mappings to ensure proper export type mapping
+        this.reverseTypeMappings = this.createCustomReverseMappings();
     }
 
     /**
@@ -527,37 +528,49 @@ export class VCard3Processor {
     }
 
     /**
-     * Generate multi-value properties in vCard 3.0 format
+     * Generate multi-value properties in vCard 3.0 format (iCloud-compatible)
      * @param {Object} displayData - Display data
      * @returns {string} vCard 3.0 formatted properties
      */
     generateMultiValueProperties3(displayData) {
         let output = '';
+        let itemCounter = 1;
 
-        // Phone numbers
+        // Phone numbers (with VOICE type as iCloud expects)
         if (displayData.phones && displayData.phones.length > 0) {
             displayData.phones.forEach(phone => {
                 const type = this.convertToVCard3Type(phone.type, 'phone');
-                const pref = phone.primary ? ';pref' : '';
-                output += `TEL;type=${type}${pref}:${this.escapeValue(phone.value)}\n`;
+                const prefType = phone.primary ? ';TYPE=pref' : '';
+                // iCloud always adds VOICE to phone numbers
+                output += `TEL;TYPE=${type}${prefType};TYPE=VOICE:${this.escapeValue(phone.value)}\n`;
             });
         }
 
-        // Email addresses
+        // Email addresses (with INTERNET type as iCloud expects)
         if (displayData.emails && displayData.emails.length > 0) {
             displayData.emails.forEach(email => {
                 const type = this.convertToVCard3Type(email.type, 'email');
-                const pref = email.primary ? ';pref' : '';
-                output += `EMAIL;type=${type}${pref}:${this.escapeValue(email.value)}\n`;
+                const prefType = email.primary ? ';TYPE=pref' : '';
+                // iCloud always adds INTERNET to email addresses
+                output += `EMAIL;TYPE=${type}${prefType};TYPE=INTERNET:${this.escapeValue(email.value)}\n`;
             });
         }
 
-        // URLs
+        // URLs (using ITEM format for non-standard types like iCloud)
         if (displayData.urls && displayData.urls.length > 0) {
             displayData.urls.forEach(url => {
                 const type = this.convertToVCard3Type(url.type, 'url');
-                const pref = url.primary ? ';pref' : '';
-                output += `URL;type=${type}${pref}:${this.escapeValue(url.value)}\n`;
+                const prefType = url.primary ? ';TYPE=pref' : '';
+                
+                // Use standard format for WORK, HOME, OTHER
+                if (['WORK', 'HOME', 'OTHER'].includes(type)) {
+                    output += `URL;TYPE=${type}${prefType}:${this.escapeValue(url.value)}\n`;
+                } else {
+                    // Use ITEM format for PERSONAL, BLOG, etc. (like iCloud does)
+                    output += `item${itemCounter}.URL:${this.escapeValue(url.value)}\n`;
+                    output += `item${itemCounter}.X-ABLABEL:${type}\n`;
+                    itemCounter++;
+                }
             });
         }
 
@@ -565,9 +578,9 @@ export class VCard3Processor {
         if (displayData.addresses && displayData.addresses.length > 0) {
             displayData.addresses.forEach(address => {
                 const type = this.convertToVCard3Type(address.type, 'address');
-                const pref = address.primary ? ';pref' : '';
+                const prefType = address.primary ? ';TYPE=pref' : '';
                 const adrValue = this.formatAddressValue(address);
-                output += `ADR;type=${type}${pref}:${adrValue}\n`;
+                output += `ADR;TYPE=${type}${prefType}:${adrValue}\n`;
             });
         }
 
@@ -590,7 +603,44 @@ export class VCard3Processor {
     // ========== UTILITY METHODS ==========
 
     /**
-     * Create reverse type mappings for export
+     * Create custom reverse type mappings for export with proper URL type handling
+     * @returns {Object} Reverse mappings
+     */
+    createCustomReverseMappings() {
+        const reverse = {};
+        
+        Object.keys(this.typeMappings).forEach(propertyType => {
+            reverse[propertyType] = {};
+            Object.entries(this.typeMappings[propertyType]).forEach(([vcard3Type, standardType]) => {
+                reverse[propertyType][standardType] = vcard3Type;
+            });
+        });
+        
+        // Custom mappings to ensure correct type export
+        reverse.url = {
+            'work': 'WORK',
+            'home': 'HOME',           // Ensure home maps to HOME, not PERSONAL
+            'personal': 'PERSONAL',   // Keep personal as PERSONAL
+            'blog': 'BLOG',           // iCloud supports BLOG as default type
+            'social': 'OTHER',        // Map social to OTHER (not available in UI, but handle imports)
+            'other': 'OTHER'
+        };
+        
+        reverse.phone = {
+            'work': 'WORK',
+            'home': 'HOME', 
+            'cell': 'CELL',           // Prefer CELL over MOBILE for mobile phones
+            'mobile': 'CELL',         // mobile also maps to CELL
+            'fax': 'FAX',
+            'voice': 'VOICE',
+            'other': 'OTHER'
+        };
+        
+        return reverse;
+    }
+
+    /**
+     * Create reverse type mappings for export (legacy method)
      * @returns {Object} Reverse mappings
      */
     createReverseMappings() {
