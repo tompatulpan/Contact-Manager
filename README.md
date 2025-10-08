@@ -91,7 +91,7 @@ npm run serve
 - [ ] An Electron App
 - [ ] Improve decentralization using userbase
 - [ ] Better integration on phones, CardDAV support
-
+```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Client Apps   │    │ Contact Manager │    │ Userbase.com    │
 │ (iOS, Android,  │◄──►│                 │◄──►│   (E2E Encrypted│
@@ -132,7 +132,7 @@ npm run serve
 │ • macOS Contacts            │
 │ • Any CardDAV client        │
 └─────────────────────────────┘
-
+```
 ---
 ## Acknowledgements
 
