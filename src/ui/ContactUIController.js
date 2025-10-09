@@ -1982,6 +1982,7 @@ export class ContactUIController {
             }
             
             const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+            const contactType = ContactRenderer.getContactType(contact);
             
             const card = document.createElement('div');
             card.className = 'contact-card';
@@ -1989,7 +1990,7 @@ export class ContactUIController {
             card.dataset.archived = contact.metadata.isArchived ? 'true' : 'false';
             
             card.innerHTML = `
-                <div class="contact-avatar">
+                <div class="contact-avatar avatar-${contactType}">
                     <span class="avatar-initial">${displayData.fullName.charAt(0).toUpperCase()}</span>
                 </div>
                 <div class="contact-info">
@@ -2038,11 +2039,12 @@ export class ContactUIController {
         card.dataset.contactId = contact.contactId || 'unknown';
         
         const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
+        const contactType = ContactRenderer.getContactType(contact);
         const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
             `<div class="contact-meta"><span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span></div>` : '';
         
         card.innerHTML = `
-            <div class="contact-avatar">
+            <div class="contact-avatar avatar-${contactType}">
                 <span class="avatar-initial">?</span>
             </div>
             <div class="contact-info">
@@ -2186,10 +2188,11 @@ export class ContactUIController {
         
         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
         console.log('🎯 Extracted display data:', displayData);
+        const contactType = ContactRenderer.getContactType(contact);
         
         container.innerHTML = `
             <div class="contact-detail-header">
-                <div class="contact-avatar-large">
+                <div class="contact-avatar-large avatar-${contactType}">
                     <span class="avatar-initial">${displayData.fullName.charAt(0).toUpperCase()}</span>
                 </div>
                 <div class="contact-info">

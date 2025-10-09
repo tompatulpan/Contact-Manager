@@ -11,10 +11,11 @@ export class ContactRenderer {
     static renderContactPreview(contact) {
         const escapedName = ContactUIHelpers.escapeHtml(contact.cardName || 'Unnamed Contact');
         const initials = ContactUIHelpers.getInitials(contact.cardName || 'Unnamed Contact');
+        const contactType = this.getContactType(contact);
         
         return `
             <div class="contact-item" data-contact-id="${ContactUIHelpers.escapeHtml(contact.itemId)}">
-                <div class="contact-avatar">
+                <div class="contact-avatar avatar-${contactType}">
                     <div class="avatar-circle">${initials}</div>
                 </div>
                 <div class="contact-info">
@@ -151,14 +152,18 @@ export class ContactRenderer {
     }
 
     /**
-     * Render contact avatar
+     * Render contact avatar with type-specific styling
+     * @param {string} name - Contact name for initials
+     * @param {string} size - Size: 'small', 'medium', 'large'
+     * @param {string} type - Type: 'owned', 'shared', 'imported'
      */
-    static renderContactAvatar(name, size = 'medium') {
+    static renderContactAvatar(name, size = 'medium', type = 'owned') {
         const initials = ContactUIHelpers.getInitials(name);
         const sizeClass = `avatar-${size}`;
+        const typeClass = `avatar-${type}`;
         
         return `
-            <div class="contact-avatar ${sizeClass}">
+            <div class="contact-avatar ${sizeClass} ${typeClass}">
                 <div class="avatar-circle">${ContactUIHelpers.escapeHtml(initials)}</div>
             </div>
         `;
@@ -258,6 +263,21 @@ export class ContactRenderer {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * Determine contact type for avatar styling
+     * @param {Object} contact - Contact object
+     * @returns {string} - 'owned', 'shared', or 'imported'
+     */
+    static getContactType(contact) {
+        if (contact.metadata?.isImported) {
+            return 'imported';
+        } else if (contact.metadata?.isOwned === false) {
+            return 'shared';
+        } else {
+            return 'owned';
+        }
     }
 }
 

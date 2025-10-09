@@ -75,16 +75,16 @@ npm run serve
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
+- [ ] Sharing-List features (Rename, edit, copy, etc)
 - [ ] Create e-mail distrubution list
 - [ ] Bulk operations (Delete, Export etc.)
-- [ ] Sharing-List features (Rename, edit, copy, etc)
 - [ ] Multi-language support (i18n)
 - [ ] Advanced sharing permissions (cross edit contacts)
 - [x] Stay logged in feature
 - [ ] Change password
 - [ ] Set passwords rules
 - [ ] Dark mode
-- [ ] Icons improvments (pictures?)
+- [ ] Pictures as avatars
 
 ### Ideas
 - [ ] A Progressive Web App (PWA)

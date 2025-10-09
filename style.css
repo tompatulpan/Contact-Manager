@@ -868,6 +868,34 @@ body {
     color: white;
 }
 
+/* Avatar Types */
+/* Owned contacts - Blue (default, keep current styling) */
+.contact-avatar.avatar-owned {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+}
+
+.contact-avatar-large.avatar-owned {
+    background: var(--primary-color);
+}
+
+/* Shared contacts - Green */
+.contact-avatar.avatar-shared {
+    background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+}
+
+.contact-avatar-large.avatar-shared {
+    background: var(--success-color);
+}
+
+/* Imported contacts - Orange/Yellow */
+.contact-avatar.avatar-imported {
+    background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%);
+}
+
+.contact-avatar-large.avatar-imported {
+    background: var(--warning-color);
+}
+
 /* Contact Info */
 .contact-info {
     flex: 1;
@@ -927,8 +955,8 @@ body {
 
 /* Shared Indicators */
 .shared-indicator {
-    background: var(--warning-color);
-    color: white;
+    background: transparent;
+    color: #007bff;
     padding: 2px 6px;
     border-radius: 12px;
     font-size: 0.75rem;
@@ -937,8 +965,8 @@ body {
 }
 
 .tag-shared-out {
-    background: var(--success-color);
-    color: white;
+    background: transparent;
+    color: #007bff;
 }
 
 .tag-shared {

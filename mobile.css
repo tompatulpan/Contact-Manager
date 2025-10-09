@@ -289,6 +289,19 @@
         font-size: 0.75rem !important;
     }
     
+    /* Mobile Avatar Types */
+    .contact-card .contact-avatar.avatar-owned {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
+    }
+    
+    .contact-card .contact-avatar.avatar-shared {
+        background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%) !important;
+    }
+    
+    .contact-card .contact-avatar.avatar-imported {
+        background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%) !important;
+    }
+    
     .contact-card .contact-name {
         font-size: 18px !important;
         font-weight: 500 !important;
@@ -334,9 +347,9 @@
         font-size: 11px !important;
         padding: 2px 6px !important;
         border-radius: 12px !important;
-        color: white !important;
+        color: #007bff !important;
         font-weight: 500 !important;
-        background: #17a2b8 !important;
+        background: transparent !important;
     }
     
     .contact-card::after {
@@ -370,8 +383,8 @@
     }
     
     .contact-list.list-view .contact-list-item .shared-indicator {
-        background: #17a2b8 !important;
-        color: white !important;
+        background: transparent !important;
+        color: #007bff !important;
         padding: 3px 8px !important;
         border-radius: 12px !important;
         font-size: 12px !important;

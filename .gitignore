@@ -99,6 +99,9 @@ index.html.backup
 *.bup
 *.backup
 *temp*
+*tmp*
+*fixes*
+
 
 # Debug and test HTML files (keep main ones)
 *debug*.html
