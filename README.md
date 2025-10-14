@@ -93,6 +93,7 @@ npm run serve
 - [ ] Better integration on phones, CardDAV support
 - [ ] Improve decentralization using userbase
 
+```  
 ┌────────────────────────────────────────────────────┐
 │          Shared Userbase Application               │
 │              AppID: "contact-manager"              │
