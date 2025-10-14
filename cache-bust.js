@@ -1,14 +1,42 @@
 #!/usr/bin/env node
-
-/**
- * Cache Busting Script
- * Generates version parameters for CSS and JS files to prevent browser caching issues
- */
+// ============================================================================
+// Cache Busting Script (Node.js Implementation)
+// ============================================================================
+// Purpose: Generates MD5-based version parameters for CSS/JS files
+//
+// NOTE: This is the Node.js implementation. The primary cache busting script
+//       is cache-bust.sh (Fish shell), which provides more comprehensive
+//       coverage including ES6 module imports.
+//
+// Features:
+// - MD5 hash-based versioning (content-based, not time-based)
+// - Updates index.html with version parameters
+// - Creates cache-versions.json report
+// - Standalone execution or module usage
+//
+// Limitations:
+// ⚠️  Does NOT update ES6 module imports (import statements)
+// ⚠️  Only updates index.html <script> and <link> tags
+// ⚠️  Limited to 5 files (cache-bust.sh handles 28 files)
+//
+// Recommendation: Use cache-bust.sh for production builds
+//                 Use this script for simple HTML-only updates
+//
+// Usage:
+//   node cache-bust.js              # Run directly
+//   const CB = require('./cache-bust.js'); new CB().run();  # Module usage
+// ============================================================================
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// ============================================================================
+// Class: CacheBuster
+// ============================================================================
+// Handles cache busting operations for HTML-embedded files only.
+// For full ES6 module support, use cache-bust.sh instead.
+// ============================================================================
 class CacheBuster {
     constructor() {
         this.indexPath = path.join(__dirname, 'index.html');
@@ -18,6 +46,10 @@ class CacheBuster {
 
     /**
      * Generate version hash for a file based on its content
+     * Uses MD5 hash for deterministic versioning (same content = same hash)
+     * 
+     * @param {string} filePath - Path to file to hash
+     * @returns {string} 8-character MD5 hash or timestamp fallback
      */
     generateFileVersion(filePath) {
         try {
@@ -28,7 +60,7 @@ class CacheBuster {
 
             const content = fs.readFileSync(filePath, 'utf8');
             const hash = crypto.createHash('md5').update(content).digest('hex');
-            return hash.substring(0, 8); // Use first 8 characters
+            return hash.substring(0, 8); // Use first 8 characters for compact version
         } catch (error) {
             console.warn(`⚠️  Error reading ${filePath}:`, error.message);
             return this.timestamp.toString();
@@ -37,6 +69,11 @@ class CacheBuster {
 
     /**
      * Get all files that need cache busting
+     * 
+     * ⚠️ LIMITED COVERAGE: Only 5 files
+     * For complete coverage (28 files + ES6 imports), use cache-bust.sh
+     * 
+     * @returns {Array} List of files to process
      */
     getFilesToBust() {
         return [
@@ -50,6 +87,7 @@ class CacheBuster {
 
     /**
      * Generate versions for all files
+     * Iterates through files and creates MD5 hash versions
      */
     generateVersions() {
         const filesToBust = this.getFilesToBust();
@@ -68,6 +106,15 @@ class CacheBuster {
 
     /**
      * Update index.html with version parameters
+     * 
+     * ⚠️ LIMITATION: Only updates <link> and <script> tags in index.html
+     * Does NOT update ES6 import statements inside JavaScript files
+     * 
+     * For full import chain updates, use cache-bust.sh which handles:
+     * - All HTML tags (this script)
+     * - ES6 module imports in app.js
+     * - Nested module imports in all components
+     * - 28 total files vs 5 files here
      */
     updateIndexHtml() {
         let content = fs.readFileSync(this.indexPath, 'utf8');
@@ -124,18 +171,24 @@ class CacheBuster {
 
         // Write updated content
         fs.writeFileSync(this.indexPath, content, 'utf8');
-        console.log('\n🎉 Cache busting complete!\n');
+        console.log('\n🎉 Cache busting complete (HTML tags only)!\n');
+        console.log('⚠️  NOTE: ES6 module imports NOT updated by this script');
+        console.log('💡 For full cache busting, use: ./cache-bust.sh\n');
     }
 
     /**
      * Generate versions report
+     * Creates cache-versions.json with build metadata
+     * 
+     * @returns {Object} Report object with timestamp, build number, and versions
      */
     generateVersionsReport() {
         const reportPath = path.join(__dirname, 'cache-versions.json');
         const report = {
             timestamp: new Date().toISOString(),
             buildNumber: this.timestamp,
-            versions: Object.fromEntries(this.versions)
+            versions: Object.fromEntries(this.versions),
+            note: 'Generated by cache-bust.js - HTML tags only. For full coverage, use cache-bust.sh'
         };
         
         fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
@@ -146,9 +199,10 @@ class CacheBuster {
 
     /**
      * Main execution method
+     * Runs the complete cache busting workflow
      */
     run() {
-        console.log('🚀 Contact Management System - Cache Buster\n');
+        console.log('🚀 Contact Management System - Cache Buster (Node.js)\n');
         console.log('=' .repeat(50));
         
         this.generateVersions();
@@ -158,12 +212,17 @@ class CacheBuster {
         console.log('=' .repeat(50));
         console.log(`📈 Build: ${report.buildNumber}`);
         console.log(`🕒 Time: ${report.timestamp}`);
-        console.log(`📁 Files: ${this.versions.size} updated`);
+        console.log(`📁 Files: ${this.versions.size} updated (HTML tags only)`);
+        console.log('⚠️  ES6 imports: NOT updated');
+        console.log('💡 Use cache-bust.sh for full coverage (28 files)');
         console.log('✨ Ready for deployment!');
     }
 }
 
-// Run if called directly
+// ============================================================================
+// Execution
+// ============================================================================
+// Run if called directly (not when required as module)
 if (require.main === module) {
     try {
         const cacheBuster = new CacheBuster();
@@ -174,4 +233,11 @@ if (require.main === module) {
     }
 }
 
+// ============================================================================
+// Module Export
+// ============================================================================
+// Allow usage as a module for programmatic cache busting
+// Example: const CacheBuster = require('./cache-bust.js');
+//          const cb = new CacheBuster();
+//          cb.run();
 module.exports = CacheBuster;
