@@ -72,6 +72,7 @@ npm run serve
 - [x] QR code generation (for easy contact sharing with iOS/Android compatibility)
 - [x] Share your profile
 - [x] Revoke sharing per recipient (Individual Databases)
+- [ ] Improve phone menu system
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
@@ -89,9 +90,117 @@ npm run serve
 ### Ideas
 - [ ] A Progressive Web App (PWA)
 - [ ] An Electron App
-- [ ] Improve decentralization using userbase
 - [ ] Better integration on phones, CardDAV support
+- [ ] Improve decentralization using userbase
+
+┌────────────────────────────────────────────────────┐
+│          Shared Userbase Application               │
+│              AppID: "contact-manager"              │
+│                                                    │
+│  ┌──────────────┐            ┌──────────────┐      │
+│  │  Instance A  │            │  Instance B  │      │
+│  │  domain-a.com│            │  domain-b.com│      │
+│  │              │            │              │      │
+│  │ User: alice  │◄──────────►│ User: bob    │      │
+│  │ Contacts DB  │   Native   │ Contacts DB  │      │
+│  │              │  Userbase  │              │      │
+│  └──────────────┘  Sharing   └──────────────┘      │
+│                                                    │
+│     Same AppID = Native Sharing Works!             │
+└────────────────────────────────────────────────────┘
+
+
+┌─────────────────────┐         ┌─────────────────────┐
+│   Instance A        │         │   Instance B        │
+│   (Userbase App 1)  │         │   (Userbase App 2)  │
+│                     │         │                     │
+│  User: alice@A      │         │  User: bob@B        │
+│  Contact DB         │         │  Contact DB         │
+└──────────┬──────────┘         └──────────┬──────────┘
+           │                               │
+           │     Encrypted Export          │
+           └───────────┐     ┌─────────────┘
+                       ▼     ▼
+                ┌──────────────────┐
+                │  Bridge Service  │
+                │  (Server)        │
+                │                  │
+                │  • User mapping  │
+                │  • Data relay    │
+                │  • Permissions   │
+                └──────────────────┘
+
+
+┌─────────────────────┐         ┌─────────────────────┐
+│   Browser A         │         │   Browser B         │
+│   (Alice)           │◄───────►│   (Bob)             │
+│                     │ WebRTC  │                     │
+│  Userbase: app-a    │  P2P    │  Userbase: app-b    │
+│                     │ Channel │                     │
+└─────────────────────┘         └─────────────────────┘
+           │                               │
+           └───────────┐     ┐─────────────┘
+                       ▼     ▼
+                ┌──────────────────┐
+                │  Signaling       │
+                │  Server          │
+                │  (WebSocket)     │
+                └──────────────────┘
+
+
+┌─────────────────────┐         ┌─────────────────────┐
+│   Instance A        │         │   Instance B        │
+│   AppID: "app-a"    │         │   AppID: "app-b"    │
+│   domain-a.com      │◄───────►│   domain-b.com      │
+│                     │WebFinger│                     │
+│  alice@domain-a.com │  +      │  bob@domain-b.com   │
+│                     │ Signed  │                     │
+│                     │ vCards  │                     │
+└─────────────────────┘         └─────────────────────┘
+
+
+```                
+### Sync Flow Details with Baical
+
+**Push (Contact Manager → Baïcal)**
+- User updates contact in web app
+- Bridge uploads vCard via CardDAV PUT
+- Baïcal stores and serves to other devices
+
+**Pull (Baïcal → Contact Manager)**  
+- Other devices update contact via CardDAV
+- Bridge polls Baïcal for changes (PROPFIND)
+- Contact Manager updates local storage
+
 ```
+┌─────────────────────────────────────────────────────────┐
+│            User's Contact Manager Account               │
+│                                                         │
+│  ┌───────────────────┐        ┌──────────────────┐      │
+│  │ Userbase Storage  │        │  User's Bridge   │      │
+│  │  (E2E Encrypted)  │◄──────►│   Component      │      │
+│  │                   │        │  (Per-User)      │      │
+│  │ - My Contacts     │        │                  │      │
+│  │ - Shared Contacts │        │  User Config:    │      │
+│  └───────────────────┘        │  • Baïcal URL    │      │
+│                               │  • Username      │      │
+│                               │  • Password      │      │
+│                               │  • Sync Settings │      │
+│                               └────────┬─────────┘      │
+└────────────────────────────────────────┼────────────────┘
+                                         │
+                                         │ CardDAV Protocol
+                                         │ (Bidirectional Sync)
+                              ┌──────────────────────┐
+                              │  Baïcal Server       │
+                              │  (CardDAV Endpoint)  │
+                              │                      │
+                              │  /dav.php/           │
+                              │  addressbooks/       │
+                              │  username/contacts/  │
+                              └──────────────────────┘
+
+
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Client Apps   │    │ Contact Manager │    │ Userbase.com    │
 │ (iOS, Android,  │◄──►│                 │◄──►│   (E2E Encrypted│
@@ -109,6 +218,7 @@ npm run serve
          │  │  (Sync Userbase ↔ Baïcal)   │    │
          │  └─────────────────────────────┘    │
          └─────────────────────────────────────┘
+
 
 
 ┌─────────────────────────────┐
