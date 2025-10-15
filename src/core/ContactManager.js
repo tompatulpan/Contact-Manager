@@ -848,13 +848,27 @@ export class ContactManager {
                 
                 case 'recent-activity':
                     // Use the most recent of lastAccessedAt or lastUpdated
-                    const aAccessed = a.metadata.usage?.lastAccessedAt ? new Date(a.metadata.usage.lastAccessedAt) : new Date(0);
+                    // For shared contacts, also check the top-level lastAccessedAt from metadata merge
+                    const aAccessedUsage = a.metadata.usage?.lastAccessedAt ? new Date(a.metadata.usage.lastAccessedAt) : new Date(0);
+                    const aAccessedTop = a.metadata.lastAccessedAt ? new Date(a.metadata.lastAccessedAt) : new Date(0);
+                    const aAccessed = aAccessedUsage > aAccessedTop ? aAccessedUsage : aAccessedTop;
                     const aUpdated = new Date(a.metadata.lastUpdated);
                     valueA = aAccessed > aUpdated ? aAccessed : aUpdated;
                     
-                    const bAccessed = b.metadata.usage?.lastAccessedAt ? new Date(b.metadata.usage.lastAccessedAt) : new Date(0);
+                    const bAccessedUsage = b.metadata.usage?.lastAccessedAt ? new Date(b.metadata.usage.lastAccessedAt) : new Date(0);
+                    const bAccessedTop = b.metadata.lastAccessedAt ? new Date(b.metadata.lastAccessedAt) : new Date(0);
+                    const bAccessed = bAccessedUsage > bAccessedTop ? bAccessedUsage : bAccessedTop;
                     const bUpdated = new Date(b.metadata.lastUpdated);
                     valueB = bAccessed > bUpdated ? bAccessed : bUpdated;
+                    
+                    // Debug logging for shared contacts
+                    if (a.contactId.startsWith('shared_') || b.contactId.startsWith('shared_')) {
+                        console.log(`🔍 Sort comparison: ${a.cardName} (${a.contactId.startsWith('shared_') ? 'SHARED' : 'OWNED'}) vs ${b.cardName} (${b.contactId.startsWith('shared_') ? 'SHARED' : 'OWNED'})`);
+                        console.log(`  A: usageAccessed=${a.metadata.usage?.lastAccessedAt}, topAccessed=${a.metadata.lastAccessedAt}, updated=${a.metadata.lastUpdated} → FINAL=${valueA.toISOString()}`);
+                        console.log(`  B: usageAccessed=${b.metadata.usage?.lastAccessedAt}, topAccessed=${b.metadata.lastAccessedAt}, updated=${b.metadata.lastUpdated} → FINAL=${valueB.toISOString()}`);
+                        console.log(`  Result: ${valueA > valueB ? 'A wins' : valueB > valueA ? 'B wins' : 'tie'}`);
+                    }
+                    
                     break;
                 
                 default:
@@ -967,6 +981,7 @@ export class ContactManager {
             // For shared contacts, store usage in user's metadata database
             if (contactId.startsWith('shared_')) {
                 console.log('📊 Tracking access for shared contact in user metadata:', contactId);
+                console.log('🕒 Current timestamp being set:', now);
                 
                 // Get existing metadata or create new
                 const existingMetadata = await this.database.getSharedContactMetadata(contactId) || {};
@@ -978,8 +993,32 @@ export class ContactManager {
                     lastAccessedAt: now
                 });
                 
-                // Update local cache
-                this.contacts.set(contactId, updatedContact);
+                // Immediately merge the updated metadata into the contact for sorting
+                const mergedContact = {
+                    ...updatedContact,
+                    metadata: {
+                        ...updatedContact.metadata,
+                        lastAccessedAt: now, // Top-level lastAccessedAt for sorting
+                        usage: updatedContact.metadata.usage
+                    }
+                };
+                
+                console.log('🔍 Merged contact timestamps:', {
+                    usageAccessed: mergedContact.metadata.usage?.lastAccessedAt,
+                    topAccessed: mergedContact.metadata.lastAccessedAt,
+                    updated: mergedContact.metadata.lastUpdated
+                });
+                
+                // Update local cache with merged metadata
+                this.contacts.set(contactId, mergedContact);
+                
+                // Clear search cache to ensure updated data is used in searches
+                this.clearSearchCache();
+                
+                // Emit event to trigger UI refresh for shared contacts
+                console.log('🔄 Emitting contact:updated event for shared contact:', contactId);
+                this.eventBus.emit('contact:updated', { contact: mergedContact });
+                console.log('✅ Event emitted for shared contact:', contactId);
             } else {
                 // Validate contact size before saving
                 const sizeValidation = this.validateContactSize(updatedContact);
@@ -994,16 +1033,25 @@ export class ContactManager {
                         await this.database.updateContactMetadataOnly(cleanedContact);
                         this.contacts.set(contactId, cleanedContact);
                         console.log('✅ Contact metadata saved after cleanup, size:', newValidation.sizeInKB + 'KB');
+                        
+                        // Emit event to trigger UI refresh
+                        this.eventBus.emit('contact:updated', { contact: cleanedContact });
                     } else {
                         console.error('❌ Contact still too large after cleanup:', newValidation);
                         // Still update cache but don't save to database
                         this.contacts.set(contactId, cleanedContact);
+                        
+                        // Still emit event for UI refresh
+                        this.eventBus.emit('contact:updated', { contact: cleanedContact });
                     }
                 } else {
                     // For owned contacts, update both database and cache using metadata-only method
                     // This preserves the original lastUpdated timestamp (only content changes should update it)
                     await this.database.updateContactMetadataOnly(updatedContact);
                     this.contacts.set(contactId, updatedContact);
+                    
+                    // Emit event to trigger UI refresh
+                    this.eventBus.emit('contact:updated', { contact: updatedContact });
                     
                     if (sizeValidation.warning) {
                         console.warn('⚠️ Contact size warning:', sizeValidation.warning, sizeValidation.sizeInKB + 'KB');

@@ -1516,7 +1516,15 @@ export class ContactUIController {
         let sortedResults;
         if (this.activeFilters.recentOnly || this.activeFilters.sortBy === 'recent-activity') {
             // Sort by recent activity descending
+            console.log('🔄 Performing recent activity sort for', results.length, 'contacts');
             sortedResults = this.contactManager.sortContacts(results, 'recent-activity', 'desc');
+            console.log('🎯 Top 3 contacts after recent sort:', sortedResults.slice(0, 3).map(c => ({
+                id: c.contactId,
+                name: c.cardName,
+                lastAccessed: c.metadata?.usage?.lastAccessedAt,
+                lastUpdated: c.metadata?.lastUpdated,
+                isShared: c.contactId.startsWith('shared_')
+            })));
         } else {
             // Use current sort setting
             sortedResults = this.contactManager.sortContacts(results, this.getCurrentSort());
@@ -1615,8 +1623,23 @@ export class ContactUIController {
      * Handle contact updates
      */
     handleContactUpdated(data) {
+        console.log('🔄 handleContactUpdated called for:', data.contact.contactId);
+        console.log('🔄 Current activeFilters:', this.activeFilters);
+        
+        // Only refresh the list if we're in a sorting mode that would be affected
+        if (this.activeFilters.sortBy === 'recent-activity' || this.activeFilters.recentOnly) {
+            console.log('🔄 Refreshing contact list due to recent activity sort');
+            
+            // Add a small delay to ensure the contact cache is fully updated
+            // This is especially important for shared contacts where metadata updates
+            // happen asynchronously
+            setTimeout(() => {
+                this.performSearch();
+            }, 10);
+        }
+        
         this.hideContactModal();
-        this.performSearch();
+        
         if (this.selectedContactId === data.contact.contactId) {
             // Always fetch fresh contact data to avoid stale data issues
             const freshContact = this.contactManager.getContact(data.contact.contactId);
@@ -2160,7 +2183,7 @@ export class ContactUIController {
         this.selectedContactId = contactId;
         this.displayContactDetail(contact);
         
-        // Track access
+        // Track access - this will emit contact:updated event
         await this.contactManager.trackContactAccess(contactId);
     }
 
