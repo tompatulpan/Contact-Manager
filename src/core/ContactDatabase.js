@@ -3418,12 +3418,185 @@ export class ContactDatabase {
     getDefaultSettings() {
         return {
             distributionLists: {},
+            baicalConfigurations: {}, // 🆕 Baical configurations storage
             theme: 'light',
             defaultSort: 'name',
             defaultViewMode: 'card',
             createdAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString()
         };
+    }
+
+    // 🆕 BAICAL INTEGRATION: Configuration management methods
+
+    /**
+     * Update Baical configuration in user settings
+     * @param {string} profileName - Configuration profile name
+     * @param {Object} configuration - Configuration data
+     * @returns {Promise<boolean>} Success status
+     */
+    async updateBaicalConfiguration(profileName, configuration) {
+        try {
+            const currentSettings = await this.getSettings();
+            
+            if (!currentSettings.baicalConfigurations) {
+                currentSettings.baicalConfigurations = {};
+            }
+            
+            currentSettings.baicalConfigurations[profileName] = {
+                ...configuration,
+                profileName,
+                lastUpdated: new Date().toISOString()
+            };
+
+            const success = await this.updateSettings(currentSettings);
+            
+            if (success) {
+                this.eventBus.emit('database:baicalConfigurationUpdated', {
+                    profileName,
+                    configuration
+                });
+                console.log('✅ Baical configuration updated:', profileName);
+            }
+            
+            return success;
+
+        } catch (error) {
+            console.error('❌ Error updating Baical configuration:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get Baical configuration by profile name
+     * @param {string} profileName - Configuration profile name
+     * @returns {Promise<Object|null>} Configuration or null
+     */
+    async getBaicalConfiguration(profileName) {
+        try {
+            const settings = await this.getSettings();
+            return settings.baicalConfigurations?.[profileName] || null;
+
+        } catch (error) {
+            console.error('❌ Error getting Baical configuration:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get all Baical configurations
+     * @returns {Promise<Array>} Array of configurations
+     */
+    async getAllBaicalConfigurations() {
+        try {
+            const settings = await this.getSettings();
+            const configurations = settings.baicalConfigurations || {};
+            
+            return Object.values(configurations);
+
+        } catch (error) {
+            console.error('❌ Error getting Baical configurations:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Delete Baical configuration
+     * @param {string} profileName - Configuration profile name
+     * @returns {Promise<boolean>} Success status
+     */
+    async deleteBaicalConfiguration(profileName) {
+        try {
+            const currentSettings = await this.getSettings();
+            
+            if (!currentSettings.baicalConfigurations || !currentSettings.baicalConfigurations[profileName]) {
+                console.warn('⚠️ Baical configuration not found:', profileName);
+                return true; // Consider it successful if it doesn't exist
+            }
+            
+            delete currentSettings.baicalConfigurations[profileName];
+            
+            const success = await this.updateSettings(currentSettings);
+            
+            if (success) {
+                this.eventBus.emit('database:baicalConfigurationDeleted', {
+                    profileName
+                });
+                console.log('✅ Baical configuration deleted:', profileName);
+            }
+            
+            return success;
+
+        } catch (error) {
+            console.error('❌ Error deleting Baical configuration:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Store Baical sync metadata for contact
+     * @param {string} contactId - Contact ID
+     * @param {Object} syncMetadata - Sync metadata
+     * @returns {Promise<boolean>} Success status
+     */
+    async updateContactBaicalSyncMetadata(contactId, syncMetadata) {
+        try {
+            const contact = await this.getContact(contactId);
+            if (!contact) {
+                throw new Error(`Contact ${contactId} not found`);
+            }
+
+            // Add Baical sync metadata to contact
+            const updatedContact = {
+                ...contact,
+                metadata: {
+                    ...contact.metadata,
+                    baicalSync: {
+                        ...contact.metadata?.baicalSync,
+                        ...syncMetadata,
+                        lastUpdated: new Date().toISOString()
+                    }
+                }
+            };
+
+            return await this.updateContact(updatedContact);
+
+        } catch (error) {
+            console.error('❌ Error updating contact Baical sync metadata:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get contacts that need Baical sync
+     * @param {string} profileName - Baical profile name
+     * @returns {Promise<Array>} Array of contacts needing sync
+     */
+    async getContactsNeedingBaicalSync(profileName) {
+        try {
+            const allContacts = await this.getAllContacts();
+            
+            // Filter contacts that are marked for this profile or need sync
+            return allContacts.filter(contact => {
+                const baicalSync = contact.metadata?.baicalSync;
+                
+                // Include if explicitly marked for this profile
+                if (baicalSync?.profiles?.includes(profileName)) {
+                    return true;
+                }
+                
+                // Include if it's a user-owned contact (not shared)
+                if (contact.metadata?.isOwned && !contact.metadata?.isArchived) {
+                    return true;
+                }
+                
+                return false;
+            });
+
+        } catch (error) {
+            console.error('❌ Error getting contacts needing Baical sync:', error);
+            return [];
+        }
     }
 
     /**

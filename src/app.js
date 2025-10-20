@@ -10,6 +10,10 @@ import { ContactValidator } from './core/ContactValidator.js';
 import { ContactManager } from './core/ContactManager.js';
 import { ContactUIController } from './ui/ContactUIController.js';
 import { profileRouter } from './utils/ProfileRouter.js';
+// 🆕 Baical CardDAV Integration
+import { BaicalConnector } from './integrations/BaicalConnector.js';
+import { BaicalConfigManager } from './integrations/BaicalConfigManager.js';
+import { BaicalUIController } from './ui/BaicalUIController.js';
 
 /**
  * Main Application Class
@@ -82,6 +86,13 @@ class ContactManagementApp {
             this.modules.validator
         );
         
+        // 🆕 Initialize Baical CardDAV integration modules
+        this.modules.baicalConnector = new BaicalConnector();
+        this.modules.baicalConfigManager = new BaicalConfigManager(
+            this.eventBus,
+            this.modules.database
+        );
+        
         // IMPORTANT: Do NOT initialize database here - let UI Controller handle it optimally
         // The optimizedAuthenticationCheck() will decide when/how to initialize database
         // Core modules ready, database initialization deferred to UI Controller
@@ -91,14 +102,22 @@ class ContactManagementApp {
      * Initialize user interface
      */
     async initializeUI() {
-        // Initialize UI controller
+        // Initialize main UI controller
         this.modules.uiController = new ContactUIController(
             this.eventBus,
             this.modules.contactManager
         );
 
-        // Initialize UI controller
+        // 🆕 Initialize Baical UI controller
+        this.modules.baicalUIController = new BaicalUIController(
+            this.eventBus,
+            this.modules.baicalConnector,
+            this.modules.baicalConfigManager
+        );
+
+        // Initialize UI controllers
         await this.modules.uiController.initialize();
+        this.modules.baicalUIController.initialize();
     }
 
     /**
@@ -144,6 +163,47 @@ class ContactManagementApp {
         // Handle contact manager initialization
         this.eventBus.on('contactManager:initialized', (data) => {
             // Contact manager ready with ${data.contactCount} contacts
+        });
+
+        // 🆕 Handle Baical integration events
+        this.eventBus.on('baical:configurationSaved', (data) => {
+            this.showToast(`Baical profile "${data.profileName}" configured`, 'success');
+        });
+
+        this.eventBus.on('baical:configurationDeleted', (data) => {
+            this.showToast(`Baical profile "${data.profileName}" deleted`, 'info');
+        });
+
+        this.eventBus.on('contact:importFromBaical', async (data) => {
+            try {
+                // Import contact from Baical using vCard format
+                console.log(`📥 Importing contact from Baical: ${data.contact.cardName}`, data.contact);
+                
+                const result = await this.modules.contactManager.importContactFromVCard(
+                    data.contact.vcard,
+                    data.contact.cardName,
+                    true // markAsImported
+                );
+                
+                if (result.success) {
+                    console.log(`✅ Imported contact from Baical: ${data.contact.cardName}`);
+                    
+                    // Update UI if contact view is active
+                    this.eventBus.emit('contact:imported', {
+                        contact: result.contact,
+                        source: 'baical',
+                        profileName: data.profileName
+                    });
+                } else {
+                    console.error('❌ Failed to import contact from Baical:', result.error);
+                }
+            } catch (error) {
+                console.error('❌ Error importing contact from Baical:', error);
+            }
+        });
+
+        this.eventBus.on('notification:show', (data) => {
+            this.showToast(data.message, data.type || 'info');
         });
 
         // Handle window events
