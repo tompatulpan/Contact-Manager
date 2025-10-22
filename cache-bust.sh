@@ -117,11 +117,6 @@ function update_cache_busting
     set -l profile_router_version (generate_version "src/utils/ProfileRouter.js")
     set -l test_helpers_version (generate_version "src/utils/TestHelpers.js")
     
-    # Integration Modules
-    set -l baical_connector_version (generate_version "src/integrations/BaicalConnector.js")
-    set -l baical_config_manager_version (generate_version "src/integrations/BaicalConfigManager.js")
-    set -l baical_ui_controller_version (generate_version "src/integrations/BaicalUIController.js")
-    
     # Configuration
     set -l app_config_version (generate_version "src/config/app.config.js")
 
@@ -168,11 +163,6 @@ function update_cache_busting
     echo "     src/utils/ProfileRouter.js → v$profile_router_version"
     echo "     src/utils/TestHelpers.js → v$test_helpers_version"
     echo ""
-    echo "  🔗 Integration Modules:"
-    echo "     src/integrations/BaicalConnector.js → v$baical_connector_version"
-    echo "     src/integrations/BaicalConfigManager.js → v$baical_config_manager_version"
-    echo "     src/ui/BaicalUIController.js → v$baical_ui_controller_version"
-    echo ""
     echo "  ⚙️ Configuration:"
     echo "     src/config/app.config.js → v$app_config_version"
     echo ""
@@ -217,11 +207,6 @@ function update_cache_busting
     sed -i.tmp "s|from './core/ContactValidator\.js'|from './core/ContactValidator.js?v=$validator_version'|g" src/app.js
     sed -i.tmp "s|from './core/ContactManager\.js'|from './core/ContactManager.js?v=$manager_version'|g" src/app.js
     sed -i.tmp "s|from './ui/ContactUIController\.js'|from './ui/ContactUIController.js?v=$ui_controller_version'|g" src/app.js
-    
-    # Update Baical integration imports in src/app.js
-    sed -i.tmp "s|from './integrations/BaicalConnector\.js'|from './integrations/BaicalConnector.js?v=$baical_connector_version'|g" src/app.js
-    sed -i.tmp "s|from './integrations/BaicalConfigManager\.js'|from './integrations/BaicalConfigManager.js?v=$baical_config_manager_version'|g" src/app.js
-    sed -i.tmp "s|from './ui/BaicalUIController\.js'|from './ui/BaicalUIController.js?v=$baical_ui_controller_version'|g" src/app.js
 
     # Update imports in ContactUIController.js
     sed -i.tmp "s|from './MobileNavigation\.js'|from './MobileNavigation.js?v=$mobile_nav_version'|g" src/ui/ContactUIController.js
@@ -285,11 +270,6 @@ function update_cache_busting
     echo "     ✅ ContactValidator.js → ?v=$validator_version"
     echo "     ✅ ContactManager.js → ?v=$manager_version"
     echo "     ✅ ContactUIController.js → ?v=$ui_controller_version"
-    echo ""
-    echo "  🔗 Baical integration imports updated in app.js:"
-    echo "     ✅ BaicalConnector.js → ?v=$baical_connector_version"
-    echo "     ✅ BaicalConfigManager.js → ?v=$baical_config_manager_version"
-    echo "     ✅ BaicalUIController.js → ?v=$baical_ui_controller_version"
     echo ""
     echo "  🎨 UI component imports updated:"
     echo "     ✅ MobileNavigation.js → ?v=$mobile_nav_version"
@@ -371,11 +351,6 @@ function update_cache_busting
     echo "    \"src/utils/AuthPerformanceTracker.js\": \"$auth_tracker_version\"," >> cache-versions.json
     echo "    \"src/utils/ProfileRouter.js\": \"$profile_router_version\"," >> cache-versions.json
     echo "    \"src/utils/TestHelpers.js\": \"$test_helpers_version\"," >> cache-versions.json
-    
-    # Baical CardDAV Integration
-    echo "    \"src/integrations/BaicalConnector.js\": \"$baical_connector_version\"," >> cache-versions.json
-    echo "    \"src/integrations/BaicalConfigManager.js\": \"$baical_config_manager_version\"," >> cache-versions.json
-    echo "    \"src/ui/BaicalUIController.js\": \"$baical_ui_controller_version\"," >> cache-versions.json
     
     # Configuration (last entry - no trailing comma)
     echo "    \"src/config/app.config.js\": \"$app_config_version\"" >> cache-versions.json

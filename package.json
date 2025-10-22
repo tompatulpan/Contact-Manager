@@ -9,8 +9,7 @@
     "serve": "python -m http.server 8080",
     "serve:alt": "npx serve . -p 8080",
     "production": "./production_zip.sh",
-    "cache-bust": "./cache-bust.sh",
-    "setup-baical": "./setup-baical-dev.sh"
+    "cache-bust": "./cache-bust.sh"
   },
   "keywords": [
     "contact-management",

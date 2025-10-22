@@ -31,7 +31,6 @@ A secure, modular contact management system with:
 - Import/export contacts (vCard 3.0 and 4.0)
 - QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
-- **🆕 Baical CardDAV Integration** - Sync with any CardDAV server
 
 ## Project Structure
 
@@ -54,10 +53,6 @@ npm install
 
 # Start development server with live reload
 npm run serve
-
-# 🆕 Baical CardDAV integration setup
-cd ../contact-carddav-bridge && npm start  # Start bridge server (port 3001)
-npm run serve                               # Start contact manager (port 8080)
 ```
 ### Cache Busting 
 ```bash
@@ -81,7 +76,6 @@ npm run serve                               # Start contact manager (port 8080)
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
-- [x] **Baical CardDAV Integration** (sync with any CardDAV server)
 - [ ] Sharing-List features (Rename, edit, copy, etc)
 - [ ] Create e-mail distrubution list
 - [ ] Bulk operations (Delete, Export etc.)
@@ -251,28 +245,6 @@ npm run serve                               # Start contact manager (port 8080)
 └─────────────────────────────┘
 ```
 ---
-## 🔗 Baical CardDAV Integration
-
-The contact manager now supports synchronization with any CardDAV server (Baical, Nextcloud, etc.). This enables:
-
-- **Universal Device Sync**: Access contacts on iPhone, Android, Thunderbird, etc.
-- **Standard Protocol**: Uses industry-standard CardDAV for maximum compatibility
-- **Bidirectional Sync**: Changes sync both ways between contact manager and CardDAV server
-- **Self-Service Setup**: No admin required - users configure their own connections
-
-### Quick Start
-```bash
-# Start CardDAV bridge server (separate project)
-cd ../contact-carddav-bridge && npm start  # Port 3001
-
-# Start contact manager
-npm run serve  # Port 8080
-
-# Open http://localhost:8080, click "Baical" button
-```
-
-See **[BAICAL_INTEGRATION.md](BAICAL_INTEGRATION.md)** for complete setup and configuration guide.
-
 ## Acknowledgements
 
 This project has been developed with assistance from [GitHub Copilot](https://github.com/features/copilot).
