@@ -678,6 +678,32 @@ export class ContactValidator {
                 .slice(0, 10); // Limit to 10 distribution lists
         }
 
+        // ⭐ CRITICAL FIX: Preserve vCard and contactId for UID preservation
+        // When editing a contact, the original vCard contains the UID that must be preserved
+        // Without this, a new random UID is generated, causing duplicate contacts after sync
+        if (contactData.vcard && typeof contactData.vcard === 'string') {
+            sanitized.vcard = contactData.vcard;
+            console.log('🔑 ContactValidator: Preserved original vCard for UID extraction');
+        }
+
+        if (contactData.contactId && typeof contactData.contactId === 'string') {
+            sanitized.contactId = contactData.contactId;
+            console.log('🔑 ContactValidator: Preserved contactId as UID fallback');
+        }
+        
+        // ⭐ CRITICAL FIX #2: Ensure UID is always a string, never an object
+        // This prevents the "[object Object]" bug in generated vCards
+        if (contactData.uid) {
+            if (typeof contactData.uid === 'string') {
+                sanitized.uid = contactData.uid;
+            } else if (contactData.uid.value && typeof contactData.uid.value === 'string') {
+                sanitized.uid = contactData.uid.value; // Extract from object
+            } else {
+                sanitized.uid = String(contactData.uid); // Force string conversion
+            }
+            console.log('🔑 ContactValidator: Sanitized UID to string:', sanitized.uid);
+        }
+
         return sanitized;
     }
 

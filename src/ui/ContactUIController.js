@@ -1842,7 +1842,10 @@ export class ContactUIController {
         });
         
         // Convert form data to contact data object
-        const contactData = this.formDataToContactData(formData);
+        // ⭐ CRITICAL FIX: Pass contactId to preserve vcard for UID extraction
+        console.log('🔍 ABOUT TO CALL formDataToContactData with contactId:', contactId);
+        const contactData = this.formDataToContactData(formData, contactId);
+        console.log('🔍 RETURNED FROM formDataToContactData, contactData has vcard:', !!contactData.vcard);
         
         // Show loading state
         this.showFormLoading(true);
@@ -4437,7 +4440,10 @@ export class ContactUIController {
         fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
     }
 
-    formDataToContactData(formData) {
+    formDataToContactData(formData, contactId = null) {
+        // ⭐ DEBUG: Verify method is being called
+        console.log('🔍 formDataToContactData CALLED with contactId:', contactId);
+        
         // Convert form data to contact data format expected by ContactManager
         const contactData = {
             fn: formData.get('fullName') || '',
@@ -4448,9 +4454,31 @@ export class ContactUIController {
         const form = document.getElementById('contact-form');
         const isEdit = form && form.dataset.mode === 'edit';
         
-        // 🔧 DEBUG: Log form data processing
+        console.log('🔍 Edit mode detection:', { isEdit, formMode: form?.dataset.mode, contactId });
+        
+        // ⭐ CRITICAL FIX: Preserve original vcard and contactId for UID extraction
+        if (isEdit && contactId) {
+            const originalContact = this.contactManager.getContact(contactId);
+            if (originalContact) {
+                if (originalContact.vcard) {
+                    contactData.vcard = originalContact.vcard;
+                    console.log('� formDataToContactData: Preserved original vCard for UID extraction');
+                }
+                if (originalContact.contactId) {
+                    contactData.contactId = originalContact.contactId;
+                    console.log('🔑 formDataToContactData: Preserved contactId as UID fallback');
+                }
+            } else {
+                console.warn('⚠️ formDataToContactData: Could not find original contact:', contactId);
+            }
+        }
+        
+        // �🔧 DEBUG: Log form data processing
         console.log('🔧 formDataToContactData DEBUG:', {
             isEdit,
+            contactId,
+            hasOriginalVcard: !!contactData.vcard,
+            hasOriginalContactId: !!contactData.contactId,
             fullName: contactData.fn,
             cardName: contactData.cardName,
             formMode: form?.dataset.mode,
@@ -6758,8 +6786,8 @@ export class ContactUIController {
                 };
             }
 
-            // Use the individual database revocation method from ContactDatabase
-            const result = await this.contactManager.database.revokeIndividualContactAccess(contactId, username);
+            // 🔧 ENHANCED: Pass contact object for Baikal deletion on revoke
+            const result = await this.contactManager.database.revokeIndividualContactAccess(contactId, username, contact);
             
             if (!result.success) {
                 throw new Error(result.error || 'Failed to revoke database access');

@@ -276,8 +276,18 @@ export class VCard4Processor {
                     continue; // Skip adding CHARSET to parameters
                 }
                 
-                // Store parameter with proper casing
-                parameters[key] = value;
+                // 🐛 FIX: Concatenate multiple TYPE values (same fix as VCard3Processor)
+                // vCard 4.0 can have: TEL;TYPE=home;TYPE=pref → TYPE should be "home,pref"
+                if (key === 'TYPE') {
+                    if (parameters['TYPE']) {
+                        parameters['TYPE'] += ',' + value.toUpperCase();
+                    } else {
+                        parameters['TYPE'] = value.toUpperCase();
+                    }
+                } else {
+                    // Store parameter with proper casing
+                    parameters[key] = value;
+                }
             }
         }
 
@@ -330,7 +340,8 @@ export class VCard4Processor {
             urls: this.convertMultiValueProperty(parsedContact, 'URL'),
             addresses: this.convertMultiValueProperty(parsedContact, 'ADR'),
             notes: this.convertNotesProperty(parsedContact),
-            birthday: this.validateAndFormatBirthday(parsedContact.properties.get('BDAY'))
+            birthday: this.validateAndFormatBirthday(parsedContact.properties.get('BDAY')),
+            uid: parsedContact.properties.get('UID') || null  // ⭐ PRESERVE UID from original vCard
         };
     }
 
@@ -424,6 +435,22 @@ export class VCard4Processor {
 
         // Add revision timestamp
         vcard += `REV:${new Date().toISOString()}\n`;
+        
+        // Add UID if available, otherwise generate one
+        // UID is REQUIRED by RFC 6350 (vCard 4.0) for CardDAV servers
+        if (displayData.uid) {
+            // FIX: Convert UID to string if it's an object (handles {value: "uuid"} format)
+            const uidValue = typeof displayData.uid === 'string' 
+                ? displayData.uid 
+                : (displayData.uid.value || displayData.uid.toString());
+            vcard += `UID:${this.escapeValue(uidValue)}\n`;
+        } else {
+            // Generate stable UID based on contactId or random UUID
+            const uid = displayData.contactId || 
+                        `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            vcard += `UID:${this.escapeValue(uid)}\n`;
+        }
+        
         vcard += 'END:VCARD';
         
         return vcard;
@@ -656,6 +683,22 @@ export class VCard4Processor {
                 baseData.itemId = contact.itemId;
             }
 
+            // ⭐ CRITICAL: Preserve UID from original vCard when editing
+            // This prevents duplicate contacts after sync/push
+            if (contact.vcard) {
+                const existingUID = this.extractUIDFromVCard(contact.vcard);
+                if (existingUID) {
+                    baseData.uid = existingUID;
+                    console.log(`🔑 Preserved existing UID from vCard: ${existingUID}`);
+                }
+            }
+
+            // Fallback: Use contactId if no UID found
+            if (!baseData.uid && contact.contactId) {
+                baseData.uid = contact.contactId;
+                console.log(`🔑 Using contactId as UID: ${contact.contactId}`);
+            }
+
             return baseData;
         }
 
@@ -668,6 +711,14 @@ export class VCard4Processor {
             // Preserve itemId if available
             if (contact.itemId) {
                 displayData.itemId = contact.itemId;
+            }
+            
+            // Ensure UID is preserved
+            if (!displayData.uid) {
+                const uid = this.extractUIDFromVCard(contact.vcard);
+                if (uid) {
+                    displayData.uid = uid;
+                }
             }
             
             return displayData;
@@ -686,8 +737,23 @@ export class VCard4Processor {
             addresses: [],
             notes: [],
             birthday: '',
-            itemId: contact.itemId
+            itemId: contact.itemId,
+            uid: contact.contactId  // Use contactId as fallback UID
         };
+    }
+
+    /**
+     * Extract UID from vCard string
+     * @param {string} vCardString - vCard content
+     * @returns {string|null} UID value or null
+     */
+    extractUIDFromVCard(vCardString) {
+        if (!vCardString || typeof vCardString !== 'string') {
+            return null;
+        }
+
+        const match = vCardString.match(/^UID:(.+)$/m);
+        return match ? match[1].trim() : null;
     }
 
     /**
@@ -731,6 +797,25 @@ export class VCard4Processor {
     normalizeType(type, property) {
         if (!type) return 'other';
         
+        // 🐛 FIX: Handle compound TYPE values (e.g., "HOME,PREF,VOICE")
+        // Similar to VCard3Processor.convertType() - extract the most specific type
+        if (type.includes(',')) {
+            const types = type.split(',').map(t => t.trim().toUpperCase());
+            const validTypes = this.standardTypes[property] || [];
+            
+            // Priority order for phone types (most specific first)
+            const priorityOrder = ['WORK', 'HOME', 'CELL', 'MOBILE', 'FAX', 'PAGER', 'MAIN', 'OTHER', 'VOICE', 'TEXT'];
+            
+            // Find first type that matches priority order
+            for (const priority of priorityOrder) {
+                if (types.includes(priority)) {
+                    const lowerPriority = priority.toLowerCase();
+                    return validTypes.includes(lowerPriority) ? lowerPriority : 'other';
+                }
+            }
+        }
+        
+        // Single type value - normalize as before
         const lowerType = type.toLowerCase();
         const validTypes = this.standardTypes[property] || [];
         

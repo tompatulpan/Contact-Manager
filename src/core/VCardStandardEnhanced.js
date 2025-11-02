@@ -311,7 +311,11 @@ export class VCardStandardEnhanced {
             // System properties
             if (genOptions.includeSystemProperties) {
                 if (contactData.uid) {
-                    lines.push(`UID:${this.escapeValue(contactData.uid)}`);
+                    // FIX: Convert UID to string if it's an object (handles {value: "uuid"} format)
+                    const uidValue = typeof contactData.uid === 'string' 
+                        ? contactData.uid 
+                        : (contactData.uid.value || contactData.uid.toString());
+                    lines.push(`UID:${this.escapeValue(uidValue)}`);
                     result.statistics.propertiesAdded++;
                 }
                 

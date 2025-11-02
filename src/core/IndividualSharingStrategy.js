@@ -276,11 +276,13 @@ export class IndividualSharingStrategy {
     /**
      * 🆕 GRANULAR: Revoke access from specific user by deleting their individual database
      * SOLVES: User A can revoke from User C without affecting User B
+     * 🔧 ENHANCED: Also deletes contact from Baikal server (deletion authority override)
      * @param {string} contactId - Contact ID
      * @param {string} username - Username to revoke access from
+     * @param {Object} contact - Full contact object (needed for Baikal deletion)
      * @returns {Promise<Object>} Revoke result
      */
-    async revokeIndividualAccess(contactId, username) {
+    async revokeIndividualAccess(contactId, username, contact = null) {
         const startTime = Date.now();
         
         try {
@@ -298,6 +300,7 @@ export class IndividualSharingStrategy {
             // Enhanced revocation: Query database first to find the actual item
             let databaseItems = [];
             let actualItemId = null;
+            let foundContactData = null; // Store full contact data for Baikal deletion
             
             try {
                 // First, try to open the database and get all items
@@ -312,6 +315,10 @@ export class IndividualSharingStrategy {
                 
                 if (databaseItems.length === 0) {
                     console.log(`ℹ️ Database ${sharedDbName} is empty, access already revoked`);
+                    // Still try Baikal deletion if contact provided
+                    if (contact) {
+                        await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
+                    }
                     return { 
                         success: true, 
                         message: 'Access already revoked (database empty)',
@@ -327,12 +334,14 @@ export class IndividualSharingStrategy {
                 foundItem = databaseItems.find(item => item.itemId === contactId);
                 if (foundItem) {
                     actualItemId = foundItem.itemId;
+                    foundContactData = foundItem.item;
                     console.log(`✅ Found contact using direct itemId match: ${actualItemId}`);
                 } else {
                     // Approach 2: Search by item.contactId property
                     foundItem = databaseItems.find(item => item.item?.contactId === contactId);
                     if (foundItem) {
                         actualItemId = foundItem.itemId;
+                        foundContactData = foundItem.item;
                         console.log(`✅ Found contact using item.contactId match: ${actualItemId}`);
                     } else {
                         // Approach 3: Search by item content (vCard or other fields)
@@ -344,6 +353,7 @@ export class IndividualSharingStrategy {
                         });
                         if (foundItem) {
                             actualItemId = foundItem.itemId;
+                            foundContactData = foundItem.item;
                             console.log(`✅ Found contact using content search: ${actualItemId}`);
                         }
                     }
@@ -351,6 +361,10 @@ export class IndividualSharingStrategy {
                 
                 if (!actualItemId) {
                     console.log(`⚠️ Contact not found in database ${sharedDbName}, access already revoked`);
+                    // Still try Baikal deletion if contact provided
+                    if (contact) {
+                        await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
+                    }
                     return { 
                         success: true, 
                         message: 'Access already revoked (contact not found)',
@@ -362,6 +376,10 @@ export class IndividualSharingStrategy {
             } catch (openError) {
                 if (openError.name === 'DatabaseNotFound') {
                     console.log(`ℹ️ Database ${sharedDbName} doesn't exist, access already revoked`);
+                    // Still try Baikal deletion if contact provided
+                    if (contact) {
+                        await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
+                    }
                     return { 
                         success: true, 
                         message: 'Access already revoked (database not found)',
@@ -380,6 +398,15 @@ export class IndividualSharingStrategy {
                 databaseName: sharedDbName,
                 itemId: actualItemId
             }, 'revokeIndividualAccess');
+
+            // 🔧 NEW: Delete from Baikal server (deletion authority override)
+            // Use found contact data or fallback to provided contact
+            const contactForBaikal = foundContactData || contact;
+            if (contactForBaikal) {
+                await this.deleteFromBaikalOnRevoke(contactForBaikal, trimmedUsername);
+            } else {
+                console.warn(`⚠️ No contact data available for Baikal deletion - contact may remain on server`);
+            }
 
             // Clear cache entry
             const cacheKey = `${contactId}-${trimmedUsername}`;
@@ -409,6 +436,72 @@ export class IndividualSharingStrategy {
                 duration,
                 revokedFrom: username.trim()
             };
+        }
+    }
+
+    /**
+     * 🔧 NEW: Delete shared contact from Baikal server when revoked
+     * This prevents orphaned contacts in the "Shared with Me" addressbook
+     * @param {Object} contact - Contact to delete from Baikal
+     * @param {string} revokedUsername - Username whose access was revoked
+     */
+    async deleteFromBaikalOnRevoke(contact, revokedUsername) {
+        try {
+            // Check if BaikalConnector is available
+            if (!this.database.BaikalConnector) {
+                console.log(`ℹ️ BaikalConnector not available - skipping Baikal deletion for revoked contact`);
+                return { success: false, reason: 'connector_not_available' };
+            }
+
+            console.log(`🗑️ Deleting revoked contact "${contact.cardName}" from Baikal server`);
+            
+            // Get all connected Baikal profiles from BaikalConnector
+            const connections = this.database.BaikalConnector.connections || new Map();
+            
+            if (connections.size === 0) {
+                console.log(`ℹ️ No active Baikal connections - skipping Baikal deletion`);
+                return { success: false, reason: 'no_active_connections' };
+            }
+
+            // Delete from all connected profiles
+            let deletedCount = 0;
+            let errorCount = 0;
+            
+            for (const [profileName, connectionInfo] of connections.entries()) {
+                try {
+                    console.log(`🗑️ Attempting to delete from profile "${profileName}"...`);
+                    
+                    // Delete from shared-contacts addressbook (where shared contacts are stored)
+                    const deleteResult = await this.database.BaikalConnector.deleteContactFromBaikal(
+                        contact,
+                        profileName,
+                        'shared-contacts' // Shared contacts addressbook
+                    );
+                    
+                    if (deleteResult && deleteResult.success) {
+                        deletedCount++;
+                        console.log(`✅ Deleted revoked contact from Baikal profile "${profileName}"`);
+                    } else {
+                        errorCount++;
+                        console.warn(`⚠️ Failed to delete from Baikal profile "${profileName}":`, deleteResult?.error || 'Unknown error');
+                    }
+                } catch (profileError) {
+                    errorCount++;
+                    console.error(`❌ Error deleting from Baikal profile "${profileName}":`, profileError.message);
+                }
+            }
+
+            if (deletedCount > 0) {
+                console.log(`✅ Revoked contact deleted from ${deletedCount} Baikal profile(s) (${errorCount} failed)`);
+                return { success: true, deletedCount, errorCount };
+            } else {
+                console.warn(`⚠️ Could not delete revoked contact from any Baikal profiles (${errorCount} errors)`);
+                return { success: false, reason: 'deletion_failed', errorCount };
+            }
+            
+        } catch (error) {
+            console.error(`❌ Error deleting revoked contact from Baikal:`, error);
+            return { success: false, error: error.message };
         }
     }
 

@@ -3,11 +3,12 @@
  * Handles all contact operations with RFC 9553 compliance and comprehensive metadata
  */
 export class ContactManager {
-    constructor(eventBus, database, vCardStandard, validator) {
+    constructor(eventBus, database, vCardStandard, validator, baikalConnector = null) {
         this.eventBus = eventBus;
         this.database = database;
         this.vCardStandard = vCardStandard;
         this.validator = validator;
+        this.baikalConnector = baikalConnector; // 🆕 Add BaikalConnector reference
         
         // In-memory contact storage for performance
         this.contacts = new Map();
@@ -25,6 +26,15 @@ export class ContactManager {
         
         // Setup event listeners
         this.setupEventListeners();
+    }
+
+    /**
+     * Set BaikalConnector reference (called after construction)
+     * @param {BaikalConnector} baikalConnector - BaikalConnector instance
+     */
+    setBaikalConnector(baikalConnector) {
+        this.baikalConnector = baikalConnector;
+        console.log('🔗 BaikalConnector reference set in ContactManager');
     }
 
     /**
@@ -176,7 +186,8 @@ export class ContactManager {
             }
 
             // Create contact object with comprehensive metadata
-            const contactId = this.vCardStandard.generateContactId();
+            // Generate UID for the contact (used in vCard and as contactId)
+            const contactId = this.vCardStandard.generateUID();
             const contact = {
                 contactId,
                 cardName: sanitizedData.cardName || 'Unnamed Contact',
@@ -247,6 +258,33 @@ export class ContactManager {
                 contact, 
                 validationWarnings: validation.warnings 
             });
+
+            // 🆕 AUTO-PUSH TO BAIKAL: Push newly created contact to all connected Baikal profiles
+            // This ensures new contacts are immediately synced to Baikal server
+            if (this.baikalConnector && this.baikalConnector.connections && 
+                this.baikalConnector.connections.size > 0) {
+                
+                console.log(`📤 AUTO-PUSH: Syncing new contact to Baikal server: ${contact.cardName}`);
+                
+                const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                
+                for (const profileName of connectedProfiles) {
+                    try {
+                        const pushResult = await this.baikalConnector.pushContactToBaikal(
+                            contact,         // ✅ FIX: Contact first
+                            profileName      // ✅ FIX: Profile name second
+                        );
+                        
+                        if (pushResult.success) {
+                            console.log(`✅ Auto-pushed new contact to Baikal profile "${profileName}"`);
+                        } else {
+                            console.warn(`⚠️ Failed to auto-push to profile "${profileName}": ${pushResult.error}`);
+                        }
+                    } catch (pushError) {
+                        console.warn(`⚠️ Error auto-pushing to profile "${profileName}":`, pushError.message);
+                    }
+                }
+            }
 
             return {
                 success: true,
@@ -368,6 +406,35 @@ export class ContactManager {
                 validationWarnings: validation.warnings 
             });
 
+            // 🆕 AUTO-PUSH TO BAIKAL: Push updated contact to all connected Baikal profiles
+            // This ensures changes made in Contact Manager are synced to Baikal server
+            // Works for both OWNED and IMPORTED contacts
+            if (this.baikalConnector && this.baikalConnector.connections && 
+                this.baikalConnector.connections.size > 0 && 
+                (updatedContact.metadata.isOwned || updatedContact.metadata.isImported)) {
+                
+                console.log(`📤 AUTO-PUSH: Syncing updated contact to Baikal server: ${updatedContact.cardName}`);
+                
+                const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                
+                for (const profileName of connectedProfiles) {
+                    try {
+                        const pushResult = await this.baikalConnector.pushContactToBaikal(
+                            updatedContact,  // ✅ FIX: Contact first
+                            profileName      // ✅ FIX: Profile name second
+                        );
+                        
+                        if (pushResult.success) {
+                            console.log(`✅ Auto-pushed updated contact to Baikal profile "${profileName}"`);
+                        } else {
+                            console.warn(`⚠️ Failed to auto-push to profile "${profileName}": ${pushResult.error}`);
+                        }
+                    } catch (pushError) {
+                        console.warn(`⚠️ Error auto-pushing to profile "${profileName}":`, pushError.message);
+                    }
+                }
+            }
+
             return {
                 success: true,
                 contact: updatedContact,
@@ -425,6 +492,46 @@ export class ContactManager {
                 }
                 
                 this.contacts.set(contactId, deletedContact);
+                
+                // 🆕 AUTHORITY OVERRIDE: Delete from Baikal server (OWNED contacts have authority)
+                if (this.baikalConnector && this.baikalConnector.isConnected) {
+                    try {
+                        console.log(`🗑️ AUTHORITY OVERRIDE: Deleting OWNED contact from Baikal server: ${contact.cardName}`);
+                        
+                        // Get all connected profiles and delete from each
+                        const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                        let deletedFromProfiles = 0;
+                        
+                        for (const profileName of connectedProfiles) {
+                            try {
+                                // ✅ FIXED: Correct parameter order - deleteContactFromBaikal(contact, profileName)
+                                const deleteResult = await this.baikalConnector.deleteContactFromBaikal(contact, profileName);
+                                if (deleteResult.success) {
+                                    deletedFromProfiles++;
+                                    console.log(`✅ Contact deleted from Baikal profile "${profileName}"`);
+                                } else {
+                                    console.warn(`⚠️ Failed to delete from profile "${profileName}": ${deleteResult.error}`);
+                                }
+                            } catch (profileError) {
+                                console.warn(`⚠️ Error deleting from profile "${profileName}":`, profileError.message);
+                            }
+                        }
+                        
+                        if (deletedFromProfiles > 0) {
+                            console.log(`✅ AUTHORITY OVERRIDE: Contact deleted from ${deletedFromProfiles} Baikal profile(s)`);
+                            console.log(`🔄 3rd party clients will see deletion during next sync`);
+                        } else {
+                            console.warn(`⚠️ Contact deleted locally but failed to delete from any Baikal profiles`);
+                        }
+                        
+                    } catch (baikalError) {
+                        console.error(`❌ Failed to delete OWNED contact from Baikal:`, baikalError);
+                        // Continue with local deletion even if Baikal delete fails
+                        console.log(`⚠️ Contact marked as deleted locally despite Baikal deletion failure`);
+                    }
+                } else {
+                    console.log(`ℹ️ BaikalConnector not available - contact deleted locally only`);
+                }
             } else {
                 // Hard delete for shared contacts (removes from local view)
                 const deleteResult = await this.database.deleteContact(contactId);
@@ -433,6 +540,47 @@ export class ContactManager {
                 }
                 
                 this.contacts.delete(contactId);
+                
+                // 🆕 AUTHORITY OVERRIDE: Delete SHARED contacts from Baikal server too
+                // Per spec: "When a shared contact is revoked by sharer it shall be deleted everywhere at the receivers"
+                if (this.baikalConnector && this.baikalConnector.connections && this.baikalConnector.connections.size > 0) {
+                    try {
+                        console.log(`🗑️ AUTHORITY OVERRIDE: Deleting SHARED contact from Baikal server: ${contact.cardName}`);
+                        
+                        // Get all connected profiles and delete from each
+                        const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                        let deletedFromProfiles = 0;
+                        
+                        for (const profileName of connectedProfiles) {
+                            try {
+                                // ✅ FIXED: Correct parameter order - deleteContactFromBaikal(contact, profileName)
+                                const deleteResult = await this.baikalConnector.deleteContactFromBaikal(contact, profileName);
+                                if (deleteResult.success) {
+                                    deletedFromProfiles++;
+                                    console.log(`✅ SHARED contact deleted from Baikal profile "${profileName}"`);
+                                } else {
+                                    console.warn(`⚠️ Failed to delete SHARED contact from profile "${profileName}": ${deleteResult.error}`);
+                                }
+                            } catch (profileError) {
+                                console.warn(`⚠️ Error deleting SHARED contact from profile "${profileName}":`, profileError.message);
+                            }
+                        }
+                        
+                        if (deletedFromProfiles > 0) {
+                            console.log(`✅ AUTHORITY OVERRIDE: SHARED contact deleted from ${deletedFromProfiles} Baikal profile(s)`);
+                            console.log(`🔄 3rd party clients will see SHARED contact deletion during next sync`);
+                        } else {
+                            console.warn(`⚠️ SHARED contact deleted locally but failed to delete from any Baikal profiles`);
+                        }
+                        
+                    } catch (baikalError) {
+                        console.error(`❌ Failed to delete SHARED contact from Baikal:`, baikalError);
+                        // Continue with local deletion even if Baikal delete fails
+                        console.log(`⚠️ SHARED contact removed locally despite Baikal deletion failure`);
+                    }
+                } else {
+                    console.log(`ℹ️ BaikalConnector not available - SHARED contact deleted locally only`);
+                }
             }
 
             // Clear search cache
@@ -1453,6 +1601,381 @@ export class ContactManager {
     }
 
     /**
+     * Get contact by vCard UID (for Baikal sync duplicate detection)
+     */
+    getContactByUID(uid) {
+        // First try direct contactId match
+        const directMatch = this.contacts.get(uid);
+        if (directMatch) {
+            return directMatch;
+        }
+        
+        // Then search through vCard content for UID property
+        for (const contact of this.contacts.values()) {
+            if (contact.vcard) {
+                const extractedUID = this.extractUIDFromVCard(contact.vcard);
+                if (extractedUID === uid) {
+                    return contact;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extract UID from vCard content
+     */
+    extractUIDFromVCard(vcard) {
+        if (!vcard) return null;
+        
+        const lines = vcard.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('UID:')) {
+                return line.substring(4).trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find contact by vCard UID (used for sync matching)
+     * CRITICAL: Use UID matching instead of contactId for CardDAV sync
+     * 
+     * @param {string} uid - vCard UID to search for
+     * @returns {Object|null} - Contact object or null
+     */
+    findContactByUID(uid) {
+        if (!uid) return null;
+        
+        for (const contact of this.contacts.values()) {
+            const contactUID = this.extractUIDFromVCard(contact.vcard);
+            if (contactUID === uid) {
+                return contact;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Import or update contact from Baikal with ownership preservation
+     * 
+     * CRITICAL OWNERSHIP PRESERVATION RULE:
+     * - If contact exists → PRESERVE metadata.isOwned (never overwrite)
+     * - If new contact → SET metadata.isOwned based on addressbook
+     * 
+     * @param {Object} serverContact - Contact from Baikal server
+     * @param {Object} syncContext - { addressbook: 'my-contacts' | 'shared-contacts' }
+     * @returns {Promise<Object>} - Import result
+     */
+    async importOrUpdateContact(serverContact, syncContext = {}) {
+        try {
+            // ⚠️ CRITICAL: Use serverContact.uid if available (from Baikal), else extract from vCard
+            const uid = serverContact.uid || this.extractUIDFromVCard(serverContact.vcard);
+            const existingContact = this.findContactByUID(uid);
+            
+            if (existingContact) {
+                // 🔍 CHECK FOR ADDRESSBOOK MISMATCH (UID collision between owned and orphaned shared)
+                // Infer addressbook from ownership if not explicitly set
+                const existingAddressbook = existingContact.metadata?.cardDAV?.addressbook || 
+                    (existingContact.metadata?.isOwned ? 'my-contacts' : 'shared-contacts');
+                const serverAddressbook = syncContext.addressbook;
+                
+                // 🐛 DEBUG: Log addressbook comparison
+                console.log(`🔍 Addressbook comparison for UID ${uid}:`);
+                console.log(`   Existing: ${existingContact.cardName}`);
+                console.log(`   - isOwned: ${existingContact.metadata?.isOwned}`);
+                console.log(`   - cardDAV.addressbook: ${existingContact.metadata?.cardDAV?.addressbook}`);
+                console.log(`   - Inferred addressbook: ${existingAddressbook}`);
+                console.log(`   Server: ${this.extractNameFromVCard(serverContact.vcard)}`);
+                console.log(`   - Server addressbook: ${serverAddressbook}`);
+                console.log(`   - Mismatch? ${existingAddressbook !== serverAddressbook}`);
+                
+                // � DISABLED: Orphan detection causing sync loops with iCloud (single addressbook)
+                // iCloud has only ONE addressbook, so addressbook mismatches are expected
+                // This logic was deleting legitimate contacts during sync
+                // TODO: Re-enable only for multi-addressbook servers (Baikal)
+                /*
+                // �🚨 ORPHAN DETECTION: Two scenarios for UID collision
+                // Scenario 1: Local SHARED contact matches server MY-CONTACTS contact
+                //   (Shared contact was pushed to my-contacts, then sharing revoked locally)
+                // Scenario 2: Local MY-CONTACTS contact matches server SHARED-CONTACTS contact  
+                //   (Should not happen in normal flow, but handle for completeness)
+                if (existingAddressbook && serverAddressbook && 
+                    existingAddressbook !== serverAddressbook) {
+                    
+                    // Check if this is an orphaned shared contact scenario
+                    const isOrphanedShared = (
+                        // Scenario 1: Local is shared-contacts, server is my-contacts
+                        (existingAddressbook === 'shared-contacts' && serverAddressbook === 'my-contacts') ||
+                        // Scenario 2: Local is my-contacts, server is shared-contacts  
+                        (existingAddressbook === 'my-contacts' && serverAddressbook === 'shared-contacts')
+                    );
+                    
+                    if (isOrphanedShared) {
+                        console.warn(`⚠️ Addressbook mismatch detected for UID: ${uid}`);
+                        console.warn(`   Local contact: ${existingContact.cardName} (${existingAddressbook})`);
+                        console.warn(`   Server contact: ${this.extractNameFromVCard(serverContact.vcard)} (${serverAddressbook})`);
+                        console.warn(`   Reason: Orphaned shared contact with same UID in different addressbook`);
+                        console.warn(`   Action: Skipping update, marking for deletion from Baikal`);
+                        
+                        // Emit event so BaikalConnector can clean up the orphaned contact
+                        this.eventBus.emit('contact:orphaned-shared', { 
+                            uid, 
+                            serverContact, 
+                            addressbook: serverAddressbook,
+                            localContact: existingContact 
+                        });
+                        
+                        return { 
+                            success: false, 
+                            action: 'skipped', 
+                            reason: 'orphaned_shared_contact_uid_collision',
+                            shouldDelete: true,
+                            deleteContact: {
+                                uid: uid,
+                                href: serverContact.href,
+                                addressbook: serverAddressbook,
+                                vcard: serverContact.vcard,
+                                name: this.extractNameFromVCard(serverContact.vcard)
+                            }
+                        };
+                    }
+                }
+                */
+                // 🛑 END OF DISABLED ORPHAN DETECTION
+                
+                // ✅ UPDATING EXISTING CONTACT - PRESERVE OWNERSHIP
+                console.log(`🔄 Updating existing contact: ${existingContact.cardName}`);
+                console.log(`🔍 OLD ETag: ${existingContact.metadata?.cardDAV?.etag || 'none'}`);
+                console.log(`🔍 NEW ETag: ${serverContact.etag || 'none'}`);
+                
+                // 🔒 CONFLICT DETECTION: Skip update if local contact was recently edited (within last 2 minutes)
+                const localLastUpdated = new Date(existingContact.metadata?.lastUpdated || 0);
+                const localLastSynced = new Date(existingContact.metadata?.cardDAV?.lastSyncedAt || 0);
+                const now = new Date();
+                const timeSinceUpdate = now - localLastUpdated;
+                const timeSinceSync = now - localLastSynced;
+                
+                // If contact was updated locally AFTER the last sync, and within last 2 minutes, skip server update
+                if (localLastUpdated > localLastSynced && timeSinceUpdate < 120000) {
+                    console.warn(`
+⚠️ ═══════════════════════════════════════════════════════════════
+⚠️ CONFLICT DETECTED - Local Edits Protected
+⚠️ ═══════════════════════════════════════════════════════════════
+📝 Contact: ${existingContact.cardName}
+⏱️  Local edit was ${Math.round(timeSinceUpdate / 1000)}s ago (within 2-minute protection window)
+📅 Local lastUpdated: ${localLastUpdated.toISOString()}
+🔄 Last synced:        ${localLastSynced.toISOString()}
+🏷️  Server ETag:       ${serverContact.etag}
+
+🛑 ACTION: SKIPPING server update to preserve local changes
+✅ NEXT: Local changes will be pushed on next sync cycle (30s from now)
+⚠️ ═══════════════════════════════════════════════════════════════
+`);
+                    
+                    return { 
+                        success: true, 
+                        action: 'skipped', 
+                        reason: 'local_changes_pending',
+                        timeSinceUpdate 
+                    };
+                }
+                
+                const updatedContact = {
+                    ...existingContact,
+                    vcard: serverContact.vcard,  // Update vCard content
+                    
+                    metadata: {
+                        ...existingContact.metadata,
+                        
+                        // ⚠️ CRITICAL: PRESERVE ownership flags (never overwrite)
+                        isOwned: existingContact.metadata.isOwned,       // Keep original
+                        isImported: existingContact.metadata.isImported, // Keep original
+                        
+                        // Update CardDAV sync metadata
+                        cardDAV: {
+                            ...existingContact.metadata.cardDAV,
+                            etag: serverContact.etag,
+                            href: serverContact.href,
+                            addressbook: syncContext.addressbook,
+                            lastSyncedAt: new Date().toISOString()
+                        },
+                        
+                        lastUpdated: new Date().toISOString()
+                    }
+                };
+                
+                // 🔒 SHARED CONTACT HANDLING
+                // If this is a received shared contact (from another user), only update in-memory
+                // Don't try to update in database - it lives in a separate shared database
+                if (!existingContact.metadata.isOwned && existingContact.contactId.startsWith('shared_')) {
+                    console.log(`⏭️ Skipping database update for received shared contact (read-only)`);
+                    this.contacts.set(existingContact.contactId, updatedContact);
+                } else {
+                    // Normal update for owned or imported contacts
+                    console.log(`💾 Updating contact in database with NEW ETag: ${serverContact.etag}`);
+                    await this.database.updateContact(updatedContact);
+                    this.contacts.set(existingContact.contactId, updatedContact);
+                    console.log(`✅ Database and Map updated successfully`);
+                }
+                
+                this.eventBus.emit('contact:updated', { contact: updatedContact, source: 'baikal-sync' });
+                
+                return { success: true, action: 'updated', contact: updatedContact };
+                
+            } else {
+                // ✅ NEW CONTACT FROM SERVER - DETERMINE OWNERSHIP
+                console.log(`📥 Importing new contact from ${syncContext.addressbook || 'server'}`);
+                
+                // � DISABLED: Orphaned shared contact detection
+                // This was causing sync loops with iCloud (single addressbook)
+                // TODO: Re-enable only for multi-addressbook servers (Baikal)
+                /*
+                // �🔍 CHECK FOR ORPHANED SHARED CONTACT
+                // If contact comes from shared-contacts addressbook but doesn't exist locally,
+                // it's likely an orphaned contact from revoked sharing - should be deleted from Baikal
+                if (syncContext.addressbook === 'shared-contacts') {
+                    console.warn(`⚠️ Orphaned shared contact detected: ${uid}`);
+                    console.warn(`   This contact exists on Baikal server but not in local database`);
+                    console.warn(`   Likely cause: Sharing was revoked but contact not cleaned up from Baikal`);
+                    console.warn(`   Action: Skipping import (contact should be deleted from Baikal)`);
+                    
+                    // Emit event so BaikalConnector can clean up
+                    this.eventBus.emit('contact:orphaned-shared', { 
+                        uid, 
+                        serverContact, 
+                        addressbook: syncContext.addressbook 
+                    });
+                    
+                    return { 
+                        success: false, 
+                        action: 'skipped', 
+                        reason: 'orphaned_shared_contact',
+                        shouldDelete: true 
+                    };
+                }
+                */
+                
+                const contactId = this.vCardStandard.generateUID();
+                const cardName = this.extractNameFromVCard(serverContact.vcard) || 'Unnamed Contact';
+                
+                // 🔧 OWNERSHIP LOGIC FOR IMPORTED CONTACTS:
+                // CRITICAL FIX: Imported contacts are OWNED by user (user controls them)
+                // - isOwned: TRUE (user can edit, delete, manage them)
+                // - isImported: TRUE (originated from external source - server has authority on conflicts)
+                // This makes them ORANGE in the UI and enables bidirectional sync
+                const isOwnedContact = true;    // ✅ User owns imported contacts
+                const isImportedContact = true; // ✅ Mark as imported (server authority on conflicts)
+                
+                const newContact = {
+                    contactId: contactId,
+                    itemId: contactId, // ✅ Ensure itemId is set for cache consistency
+                    cardName: cardName,
+                    vcard: serverContact.vcard,
+                    
+                    metadata: {
+                        createdAt: new Date().toISOString(),
+                        lastUpdated: new Date().toISOString(),
+                        
+                        // ✅ FIXED OWNERSHIP FOR IMPORTED CONTACTS:
+                        // - isOwned: TRUE (user controls the contact, can edit/delete)
+                        // - isImported: TRUE (server has authority on conflicts)
+                        // This enables bidirectional sync: pull updates + push changes
+                        isOwned: isOwnedContact,      // TRUE for imported contacts (ORANGE)
+                        isImported: isImportedContact, // TRUE for all sync imports
+                        
+                        cardDAV: {
+                            etag: serverContact.etag,
+                            href: serverContact.href,
+                            addressbook: syncContext.addressbook,
+                            lastSyncedAt: new Date().toISOString()
+                        }
+                    }
+                };
+                
+                await this.database.saveContact(newContact);
+                this.contacts.set(contactId, newContact);
+                
+                this.eventBus.emit('contact:created', { contact: newContact, source: 'baikal-import' });
+                
+                return { success: true, action: 'created', contact: newContact };
+            }
+            
+        } catch (error) {
+            console.error('❌ Failed to import/update contact:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Extract name from vCard for display
+     * @param {string} vcard - vCard string
+     * @returns {string} - Extracted name
+     */
+    extractNameFromVCard(vcard) {
+        if (!vcard) return null;
+        
+        const lines = vcard.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('FN:')) {
+                return line.substring(3).trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get all owned and shared contacts eligible for CardDAV push
+     * Per RFC 9553 sync strategy: both OWNED and SHARED contacts use Contact-Manager authority
+     */
+    getAllOwnedContacts() {
+        const eligibleContacts = [];
+        
+        for (const [contactId, contact] of this.contacts.entries()) {
+            if (!contact || !contact.metadata) continue;
+            
+            // Skip deleted and archived contacts
+            if (contact.metadata.isDeleted || contact.metadata.isArchived) continue;
+            
+            // Include OWNED contacts (user created)
+            const isOwned = contact.metadata.isOwned === true;
+            
+            // Include SHARED contacts (received from other users)
+            // Per CardDAV sync strategy: SHARED contacts use Contact-Manager authority override
+            const isShared = contactId.startsWith('shared_') || 
+                           contact.metadata.isShared === true ||
+                           contact.metadata.sharedBy;
+            
+            if (isOwned || isShared) {
+                eligibleContacts.push(contact);
+            }
+        }
+        
+        console.log(`📋 Found ${eligibleContacts.length} contacts eligible for CardDAV push (owned + shared)`);
+        return eligibleContacts;
+    }
+
+    /**
+     * Get all contacts (owned and shared, excluding deleted)
+     */
+    getAllContacts() {
+        const allContacts = [];
+        
+        for (const [contactId, contact] of this.contacts.entries()) {
+            // Include all contacts that are not deleted
+            if (contact && 
+                contact.metadata && 
+                !contact.metadata.isDeleted) {
+                allContacts.push(contact);
+            }
+        }
+        
+        console.log(`📋 Found ${allContacts.length} total contacts (owned + shared)`);
+        return allContacts;
+    }
+
+    /**
      * Load contacts from database
      */
     async loadContacts() {
@@ -1534,13 +2057,58 @@ export class ContactManager {
             
         } else {
             // Handle shared contacts from a specific user
-            // Remove old shared contacts from this same sharer/database
+            
+            // 🐛 BUG FIX: Build map of incoming contacts to detect actual revocations
+            const incomingContactIds = new Set(
+                contactsArray.map(c => `shared_${sharedBy}_${c.contactId}`)
+            );
+            
+            // Find contacts that exist locally but are NOT in the incoming batch
+            // These are the ACTUALLY REVOKED contacts
             const oldSharedContactIds = Array.from(this.contacts.keys()).filter(id => {
                 const contact = this.contacts.get(id);
                 return !contact.metadata.isOwned && 
                        contact.metadata.sharedBy === sharedBy &&
-                       contact.metadata.databaseId === databaseId;
+                       contact.metadata.databaseId === databaseId &&
+                       !incomingContactIds.has(id);  // ✅ CRITICAL: Only if NOT in incoming batch
             });
+            
+            // 🆕 AUTHORITY OVERRIDE: Delete ACTUALLY revoked shared contacts from Baikal server
+            // When sharer revokes access, Userbase removes the contact from our view
+            // We must also delete it from Baikal server to prevent zombie contacts
+            if (oldSharedContactIds.length > 0 && this.baikalConnector && 
+                this.baikalConnector.connections && this.baikalConnector.connections.size > 0) {
+                
+                console.log(`🗑️ REVOCATION DETECTED: ${oldSharedContactIds.length} shared contact(s) removed by sharer`);
+                console.log(`📊 Incoming contacts: ${incomingContactIds.size}, Revoked contacts: ${oldSharedContactIds.length}`);
+                
+                for (const contactId of oldSharedContactIds) {
+                    const contact = this.contacts.get(contactId);
+                    if (!contact) continue;
+                    
+                    console.log(`🗑️ Deleting revoked contact: ${contact.cardName} (${contactId})`);
+                    
+                    try {
+                        const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                        
+                        for (const profileName of connectedProfiles) {
+                            try {
+                                // ✅ FIXED: Correct parameter order - deleteContactFromBaikal(contact, profileName)
+                                const deleteResult = await this.baikalConnector.deleteContactFromBaikal(contact, profileName);
+                                if (deleteResult.success) {
+                                    console.log(`✅ Deleted revoked contact from Baikal: ${contact.cardName} (profile: ${profileName})`);
+                                }
+                            } catch (error) {
+                                console.warn(`⚠️ Failed to delete revoked contact from Baikal:`, error.message);
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error processing revoked contact deletion:`, error);
+                    }
+                }
+            } else if (oldSharedContactIds.length > 0) {
+                console.log(`ℹ️ ${oldSharedContactIds.length} shared contact(s) removed (no Baikal sync needed)`);
+            }
             
             oldSharedContactIds.forEach(id => this.contacts.delete(id));
             
@@ -1941,6 +2509,82 @@ export class ContactManager {
         } catch (error) {
             console.error('❌ Update contact metadata failed:', error);
             this.eventBus.emit('contact:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Update CardDAV-specific metadata (ETags, hrefs, sync timestamps)
+     * Used by BaikalConnector after push operations to track server state
+     * @param {string} contactId - Contact identifier
+     * @param {Object} cardDAVMetadata - CardDAV metadata {etag, href, lastSyncedAt, serverUID}
+     * @returns {Promise<Object>} Update result
+     */
+    async updateContactCardDAVMetadata(contactId, cardDAVMetadata) {
+        try {
+            const contact = this.contacts.get(contactId);
+            if (!contact) {
+                console.warn(`⚠️ Contact ${contactId} not found for CardDAV metadata update`);
+                return { success: false, error: 'Contact not found' };
+            }
+
+            if (!contact.itemId) {
+                console.error('❌ Contact missing itemId in updateContactCardDAVMetadata:', contactId);
+                return { success: false, error: 'Contact missing itemId' };
+            }
+
+            console.log('🔄 Updating CardDAV metadata for:', contactId, 'ETag:', cardDAVMetadata.etag);
+
+            // Prepare CardDAV metadata structure
+            const currentCardDAV = contact.metadata?.carddav || {};
+            const pushHistory = currentCardDAV.pushHistory || [];
+            
+            // Add this push to history (keep last 10)
+            pushHistory.push({
+                timestamp: cardDAVMetadata.lastSyncedAt || new Date().toISOString(),
+                etag: cardDAVMetadata.etag,
+                href: cardDAVMetadata.href,
+                serverUID: cardDAVMetadata.serverUID
+            });
+            const trimmedHistory = pushHistory.slice(-10);
+
+            // Build updated contact
+            const updatedContact = {
+                ...contact,
+                metadata: {
+                    ...contact.metadata,
+                    carddav: {
+                        ...currentCardDAV,
+                        etag: cardDAVMetadata.etag,
+                        href: cardDAVMetadata.href,
+                        lastSyncedAt: cardDAVMetadata.lastSyncedAt || new Date().toISOString(),
+                        serverUID: cardDAVMetadata.serverUID,
+                        pushHistory: trimmedHistory
+                    },
+                    lastUpdated: new Date().toISOString()
+                }
+            };
+
+            // Save to database (metadata-only update for performance)
+            const saveResult = await this.database.updateContactMetadataOnly(updatedContact);
+            if (!saveResult.success) {
+                throw new Error(saveResult.error);
+            }
+
+            // Update local cache
+            this.contacts.set(contactId, updatedContact);
+
+            console.log('✅ CardDAV metadata stored:', {
+                contactId,
+                cardName: contact.cardName,
+                etag: cardDAVMetadata.etag,
+                href: cardDAVMetadata.href
+            });
+
+            return { success: true, contact: updatedContact };
+
+        } catch (error) {
+            console.error('❌ Update CardDAV metadata failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -2657,7 +3301,8 @@ export class ContactManager {
                 try {
                     console.log(`🔒 Revoking access to contact "${contact.cardName}" (${contact.contactId}) from user "${username}"`);
                     
-                    const result = await this.individualSharingStrategy.revokeIndividualAccess(contact.contactId, username);
+                    // 🔧 ENHANCED: Pass full contact object for Baikal deletion
+                    const result = await this.individualSharingStrategy.revokeIndividualAccess(contact.contactId, username, contact);
                     
                     if (result.success) {
                         revokedCount++;

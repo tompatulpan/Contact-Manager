@@ -10,6 +10,10 @@ import { ContactValidator } from './core/ContactValidator.js';
 import { ContactManager } from './core/ContactManager.js';
 import { ContactUIController } from './ui/ContactUIController.js';
 import { profileRouter } from './utils/ProfileRouter.js';
+// 🆕 Baikal CardDAV Integration
+import { BaikalConnector } from './integrations/BaikalConnector.js';
+import { BaikalConfigManager } from './integrations/BaikalConfigManager.js';
+import { BaikalUIController } from './ui/BaikalUIController.js';
 
 /**
  * Main Application Class
@@ -82,6 +86,13 @@ class ContactManagementApp {
             this.modules.validator
         );
         
+        // 🆕 Initialize Baikal CardDAV integration modules
+        this.modules.baikalConnector = new BaikalConnector('http://localhost:3001/api', this.eventBus);
+        this.modules.baikalConfigManager = new BaikalConfigManager(
+            this.eventBus,
+            this.modules.database
+        );
+        
         // IMPORTANT: Do NOT initialize database here - let UI Controller handle it optimally
         // The optimizedAuthenticationCheck() will decide when/how to initialize database
         // Core modules ready, database initialization deferred to UI Controller
@@ -91,14 +102,29 @@ class ContactManagementApp {
      * Initialize user interface
      */
     async initializeUI() {
-        // Initialize UI controller
+        // Initialize main UI controller
         this.modules.uiController = new ContactUIController(
             this.eventBus,
             this.modules.contactManager
         );
 
-        // Initialize UI controller
+        // 🆕 Initialize Baikal UI controller
+        this.modules.baikalUIController = new BaikalUIController(
+            this.eventBus,
+            this.modules.baikalConnector,
+            this.modules.baikalConfigManager,
+            this.modules.contactManager  // ⭐ Add ContactManager reference
+        );
+
+        // ⭐ Set ContactManager reference in BaikalConnector
+        this.modules.baikalConnector.contactManager = this.modules.contactManager;
+        
+        // ⭐ Set BaikalConnector reference in ContactManager
+        this.modules.contactManager.setBaikalConnector(this.modules.baikalConnector);
+
+        // Initialize UI controllers
         await this.modules.uiController.initialize();
+        this.modules.baikalUIController.initialize();
     }
 
     /**
@@ -144,6 +170,47 @@ class ContactManagementApp {
         // Handle contact manager initialization
         this.eventBus.on('contactManager:initialized', (data) => {
             // Contact manager ready with ${data.contactCount} contacts
+        });
+
+        // 🆕 Handle Baikal integration events
+        this.eventBus.on('baikal:configurationSaved', (data) => {
+            this.showToast(`Baikal profile "${data.profileName}" configured`, 'success');
+        });
+
+        this.eventBus.on('baikal:configurationDeleted', (data) => {
+            this.showToast(`Baikal profile "${data.profileName}" deleted`, 'info');
+        });
+
+        this.eventBus.on('contact:importFromBaikal', async (data) => {
+            try {
+                // Import contact from Baikal using vCard format
+                console.log(`📥 Importing contact from Baikal: ${data.contact.cardName}`, data.contact);
+                
+                const result = await this.modules.contactManager.importContactFromVCard(
+                    data.contact.vcard,
+                    data.contact.cardName,
+                    true // markAsImported
+                );
+                
+                if (result.success) {
+                    console.log(`✅ Imported contact from Baikal: ${data.contact.cardName}`);
+                    
+                    // Update UI if contact view is active
+                    this.eventBus.emit('contact:imported', {
+                        contact: result.contact,
+                        source: 'baikal',
+                        profileName: data.profileName
+                    });
+                } else {
+                    console.error('❌ Failed to import contact from Baikal:', result.error);
+                }
+            } catch (error) {
+                console.error('❌ Error importing contact from Baikal:', error);
+            }
+        });
+
+        this.eventBus.on('notification:show', (data) => {
+            this.showToast(data.message, data.type || 'info');
         });
 
         // Handle window events

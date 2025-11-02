@@ -760,8 +760,22 @@ export class VCardStandard {
         }).filter(note => note.length > 0);
     }
 
-    generateContactId() {
+    /**
+     * Generate UID for new contact
+     * This is the primary identifier for contacts (replaces contactId)
+     * UID is embedded in the vCard and used for CardDAV sync
+     */
+    generateUID() {
         return 'contact_' + this.generateUUIDv4();
+    }
+
+    /**
+     * @deprecated Use generateUID() instead
+     * Kept for backward compatibility during migration
+     */
+    generateContactId() {
+        console.warn('⚠️ generateContactId() is deprecated, use generateUID() instead');
+        return this.generateUID();
     }
 
     generateUUIDv4() {
@@ -793,6 +807,39 @@ export class VCardStandard {
             addresses: displayData.addresses || [],
             notes: displayData.notes || []
         };
+    }
+
+    /**
+     * Extract UID from vCard content
+     * Works with both vCard 3.0 and 4.0 formats
+     * Essential for CardDAV sync and contact matching
+     * @param {string} vcard - vCard content string
+     * @returns {string|null} UID value or null if not found
+     */
+    extractUIDFromVCard(vcard) {
+        if (!vcard || typeof vcard !== 'string') return null;
+        
+        const match = vcard.match(/^UID:(.+)$/m);
+        return match ? match[1].trim() : null;
+    }
+
+    /**
+     * Find contact by UID (used for sync matching)
+     * This is the preferred method for CardDAV synchronization
+     * @param {Map} contacts - Map of contacts
+     * @param {string} uid - UID to search for
+     * @returns {Object|null} Contact object or null
+     */
+    findContactByUID(contacts, uid) {
+        if (!uid) return null;
+        
+        for (const contact of contacts.values()) {
+            const contactUID = this.extractUIDFromVCard(contact.vcard);
+            if (contactUID === uid) {
+                return contact;
+            }
+        }
+        return null;
     }
 
     /**

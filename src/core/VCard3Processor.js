@@ -28,6 +28,15 @@ export class VCard3Processor {
             applePref: /type=.*pref|pref/i
         };
         
+        // Multi-value properties (consistent with VCard4Processor architecture)
+        this.multiValueProperties = new Set(['TEL', 'EMAIL', 'URL', 'ADR', 'NOTE']);
+        
+        // Required properties for vCard 3.0 validation
+        this.requiredProperties = new Set(['FN', 'VERSION']);
+        
+        // Single-value properties (for backwards compatibility and clarity)
+        this.singleValueProperties = new Set(['FN', 'N', 'ORG', 'TITLE', 'BDAY', 'UID', 'VERSION', 'REV']);
+        
         // Apple/legacy type mappings
         this.typeMappings = {
             phone: {
@@ -134,7 +143,7 @@ export class VCard3Processor {
     }
 
     /**
-     * Validate vCard 3.0 content
+     * Validate vCard 3.0 content (improved with required properties check)
      * @param {string} vCardString - vCard content to validate
      * @returns {Object} Validation result
      */
@@ -159,9 +168,11 @@ export class VCard3Processor {
             // Parse and validate content
             const parsed = this.parseVCard3(vCardString);
             
-            // Check for required properties
-            if (!parsed.properties.has('FN')) {
-                errors.push('Missing required FN (Full Name) property');
+            // ⭐ IMPROVED: Check all required properties using Set
+            for (const requiredProp of this.requiredProperties) {
+                if (!parsed.properties.has(requiredProp)) {
+                    errors.push(`Missing required property: ${requiredProp}`);
+                }
             }
 
             // Check for Apple-specific patterns
@@ -245,9 +256,31 @@ export class VCard3Processor {
      * @returns {Object} Parsed line data
      */
     parseLine3(line) {
-        const colonIndex = line.indexOf(':');
+        let colonIndex = line.indexOf(':');
+        
+        // Handle malformed vCard where value is appended to parameter without colon
+        // Example: "EMAIL;TYPE=INTERNET,WORK,email@example.com" instead of "EMAIL;TYPE=INTERNET,WORK:email@example.com"
         if (colonIndex === -1) {
-            throw new Error(`Invalid vCard 3.0 line: ${line}`);
+            // Try to find the property and fix the format
+            const semicolonIndex = line.indexOf(';');
+            if (semicolonIndex !== -1) {
+                // Find where the value starts (after last comma in TYPE parameter)
+                const afterProperty = line.substring(semicolonIndex + 1);
+                const lastCommaIndex = afterProperty.lastIndexOf(',');
+                
+                if (lastCommaIndex !== -1) {
+                    // Reconstruct the line with proper colon
+                    const propertyAndParams = line.substring(0, semicolonIndex + 1 + lastCommaIndex);
+                    const value = afterProperty.substring(lastCommaIndex + 1);
+                    line = propertyAndParams + ':' + value;
+                    colonIndex = line.indexOf(':');
+                    console.warn(`⚠️ Fixed malformed vCard line: "${line}"`);
+                } else {
+                    throw new Error(`Invalid vCard 3.0 line: ${line}`);
+                }
+            } else {
+                throw new Error(`Invalid vCard 3.0 line: ${line}`);
+            }
         }
 
         const propertyPart = line.substring(0, colonIndex);
@@ -297,7 +330,13 @@ export class VCard3Processor {
                 
                 // Handle vCard 3.0 specific parameter formats
                 if (key.toLowerCase() === 'type') {
-                    parameters['TYPE'] = value.toUpperCase();
+                    // 🐛 FIX: Concatenate multiple TYPE values instead of overwriting
+                    // Example: TEL;TYPE=work;TYPE=VOICE → TYPE="WORK,VOICE"
+                    if (parameters['TYPE']) {
+                        parameters['TYPE'] += ',' + value.toUpperCase();
+                    } else {
+                        parameters['TYPE'] = value.toUpperCase();
+                    }
                 } else if (key.toLowerCase() === 'pref') {
                     parameters['PREF'] = value;
                 } else if (key.toLowerCase() === 'encoding') {
@@ -322,7 +361,7 @@ export class VCard3Processor {
     }
 
     /**
-     * Add property to contact object
+     * Add property to contact object (improved architecture)
      * @param {Object} contact - Contact object
      * @param {Object} parsed - Parsed property data
      */
@@ -334,11 +373,17 @@ export class VCard3Processor {
         }
 
         const propertyValue = { value, parameters };
-        const singleValueProps = ['FN', 'N', 'ORG', 'TITLE', 'BDAY'];
         
-        if (singleValueProps.includes(property)) {
+        // ⭐ IMPROVED: Use Sets for better maintainability (consistent with VCard4Processor)
+        if (this.singleValueProperties.has(property)) {
+            // Single value property - store as string
             contact.properties.set(property, value);
+        } else if (this.multiValueProperties.has(property)) {
+            // Multi-value property - store as array of objects
+            contact.properties.get(property).push(propertyValue);
         } else {
+            // Unknown property - default to multi-value for safety
+            console.warn(`⚠️ Unknown vCard 3.0 property "${property}" - treating as multi-value`);
             contact.properties.get(property).push(propertyValue);
         }
 
@@ -383,7 +428,8 @@ export class VCard3Processor {
             urls: this.convertMultiValueProperty(parsedContact, 'URL', 'url'),
             addresses,
             notes: this.convertNotesProperty(parsedContact),
-            birthday: formattedBirthday
+            birthday: formattedBirthday,
+            uid: parsedContact.properties.get('UID') || null  // ⭐ PRESERVE UID from original vCard (like VCard4Processor)
         };
     }
 
@@ -523,6 +569,21 @@ export class VCard3Processor {
             });
         }
 
+        // Add UID if available, otherwise generate one
+        // UID is REQUIRED by CardDAV servers (even for vCard 3.0)
+        if (displayData.uid) {
+            // FIX: Convert UID to string if it's an object (handles {value: "uuid"} format)
+            const uidValue = typeof displayData.uid === 'string' 
+                ? displayData.uid 
+                : (displayData.uid.value || displayData.uid.toString());
+            vcard += `UID:${this.escapeValue(uidValue)}\n`;
+        } else {
+            // Generate stable UID based on contactId or random UUID
+            const uid = displayData.contactId || 
+                        `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            vcard += `UID:${this.escapeValue(uid)}\n`;
+        }
+
         vcard += 'END:VCARD';
         return vcard;
     }
@@ -541,8 +602,14 @@ export class VCard3Processor {
             displayData.phones.forEach(phone => {
                 const type = this.convertToVCard3Type(phone.type, 'phone');
                 const prefType = phone.primary ? ';TYPE=pref' : '';
-                // iCloud always adds VOICE to phone numbers
-                output += `TEL;TYPE=${type}${prefType};TYPE=VOICE:${this.escapeValue(phone.value)}\n`;
+                
+                // 🐛 FIX: Only add VOICE for generic "voice" type or "other"
+                // Do NOT add VOICE for specific types (WORK, HOME, CELL, etc.)
+                // This prevents type corruption when re-importing from iCloud
+                const needsVoice = (type === 'VOICE' || type === 'OTHER');
+                const voiceType = needsVoice ? ';TYPE=VOICE' : '';
+                
+                output += `TEL;TYPE=${type}${prefType}${voiceType}:${this.escapeValue(phone.value)}\n`;
             });
         }
 
@@ -690,25 +757,48 @@ export class VCard3Processor {
      * @returns {string} Filtered content
      */
     filterPhotoData(vCardString) {
-        const lines = this.unfoldLines(vCardString);
+        const lines = vCardString.split(/\r?\n/);
         const filteredLines = [];
         let skipPhoto = false;
+        
+        // Pattern to detect base64 data lines (lines that look like photo continuation)
+        const base64Pattern = /^[A-Za-z0-9+/=]{40,}$/;
+        
+        // Pattern to detect vCard property lines (start with PROPERTY: or PROPERTY;)
+        const propertyPattern = /^[A-Z][A-Z0-9-]*[;:]/i;
 
         for (const line of lines) {
-            if (this.patterns.photoEncoding.test(line) || line.startsWith('PHOTO:')) {
+            const trimmedLine = line.trim();
+            
+            // Skip empty lines
+            if (!trimmedLine) {
+                continue;
+            }
+            
+            // Detect start of PHOTO property
+            if (this.patterns.photoEncoding.test(trimmedLine) || 
+                trimmedLine.startsWith('PHOTO:') || 
+                trimmedLine.startsWith('PHOTO;')) {
                 skipPhoto = true;
+                console.log('📸 Detected PHOTO property start, filtering photo data...');
                 continue;
             }
             
-            if (skipPhoto && this.patterns.unfoldContinuation.test(line)) {
-                continue;
-            }
-            
-            if (skipPhoto && !this.patterns.unfoldContinuation.test(line)) {
-                skipPhoto = false;
-            }
-            
-            if (!skipPhoto) {
+            // If we're in photo mode, check if this is the end
+            if (skipPhoto) {
+                // Check if this line starts a new vCard property
+                if (propertyPattern.test(trimmedLine)) {
+                    // This is a new property, stop skipping
+                    skipPhoto = false;
+                    console.log('✅ Photo filtering complete, resuming vCard parsing');
+                    filteredLines.push(line);
+                } else {
+                    // Still in photo data, skip this line
+                    // (could be continuation line with space, or raw base64)
+                    continue;
+                }
+            } else {
+                // Not in photo mode, keep the line
                 filteredLines.push(line);
             }
         }
@@ -722,6 +812,16 @@ export class VCard3Processor {
      * @returns {Object} Display data
      */
     extractDisplayData(contact) {
+        console.log('🔍 VCard3Processor.extractDisplayData - Input contact:', {
+            hasFullName: !!contact.fullName,
+            hasPhones: !!contact.phones,
+            hasEmails: !!contact.emails,
+            hasVcard: !!contact.vcard,
+            hasUid: !!contact.uid,
+            uidType: typeof contact.uid,
+            uidValue: contact.uid
+        });
+        
         // If the contact has direct display properties (from form data), use them
         if (contact.fullName || contact.phones || contact.emails) {
             const baseData = {
@@ -742,6 +842,31 @@ export class VCard3Processor {
                 baseData.itemId = contact.itemId;
             }
 
+            // ⭐ CRITICAL FIX #3: Prefer contact.uid over vCard extraction
+            // PRIORITY: 1) contact.uid (already sanitized), 2) extract from vCard, 3) contactId
+            if (contact.uid && typeof contact.uid === 'string') {
+                // Use the already-sanitized UID from contact object (best source)
+                baseData.uid = contact.uid;
+                console.log(`🔑 VCard3: Using contact.uid (sanitized): ${contact.uid}`);
+            } else if (contact.vcard) {
+                // Fallback: Extract UID from vCard if contact.uid not available
+                const existingUID = this.extractUIDFromVCard(contact.vcard);
+                if (existingUID) {
+                    // ⭐ CRITICAL: Ensure extracted UID is a string, not "[object Object]"
+                    const uidValue = typeof existingUID === 'string' 
+                        ? existingUID 
+                        : (existingUID.value || String(existingUID));
+                    baseData.uid = uidValue;
+                    console.log(`🔑 VCard3: Extracted UID from vCard: ${uidValue}`);
+                }
+            }
+
+            // Last fallback: Use contactId if no UID found
+            if (!baseData.uid && contact.contactId) {
+                baseData.uid = contact.contactId;
+                console.log(`🔑 VCard3: Using contactId as UID: ${contact.contactId}`);
+            }
+
             return baseData;
         }
 
@@ -754,6 +879,31 @@ export class VCard3Processor {
             // Preserve itemId if available
             if (contact.itemId) {
                 displayData.itemId = contact.itemId;
+            }
+            
+            // ⭐ CRITICAL FIX #3: Prefer contact.uid over vCard extraction
+            // PRIORITY: 1) contact.uid (already sanitized), 2) extract from vCard, 3) contactId
+            if (contact.uid && typeof contact.uid === 'string') {
+                // Use the already-sanitized UID from contact object (best source)
+                displayData.uid = contact.uid;
+                console.log(`🔑 VCard3: Using contact.uid (sanitized): ${contact.uid}`);
+            } else if (!displayData.uid) {
+                // Fallback: Extract UID from vCard if contact.uid not available
+                const uid = this.extractUIDFromVCard(contact.vcard);
+                if (uid) {
+                    // ⭐ CRITICAL: Ensure extracted UID is a string, not "[object Object]"
+                    const uidValue = typeof uid === 'string' 
+                        ? uid 
+                        : (uid.value || String(uid));
+                    displayData.uid = uidValue;
+                    console.log(`🔑 VCard3: Extracted UID from vCard: ${uidValue}`);
+                }
+            }
+            
+            // Last fallback: contactId
+            if (!displayData.uid && contact.contactId) {
+                displayData.uid = contact.contactId;
+                console.log(`🔑 VCard3: Using contactId as UID: ${contact.contactId}`);
             }
             
             return displayData;
@@ -772,7 +922,8 @@ export class VCard3Processor {
             addresses: [],
             notes: [],
             birthday: '',
-            itemId: contact.itemId
+            itemId: contact.itemId,
+            uid: contact.contactId  // Use contactId as fallback UID
         };
     }
 
@@ -796,6 +947,20 @@ export class VCard3Processor {
             notes: [],
             birthday: ''
         };
+    }
+
+    /**
+     * Extract UID from vCard string
+     * @param {string} vCardString - vCard content
+     * @returns {string|null} UID value or null
+     */
+    extractUIDFromVCard(vCardString) {
+        if (!vCardString || typeof vCardString !== 'string') {
+            return null;
+        }
+
+        const match = vCardString.match(/^UID:(.+)$/m);
+        return match ? match[1].trim() : null;
     }
 
     /**
@@ -910,6 +1075,21 @@ export class VCard3Processor {
             });
         }
         
+        // Add UID if available, otherwise generate one
+        // UID is REQUIRED by RFC 6350 (vCard 4.0) for CardDAV servers
+        if (displayData.uid) {
+            // FIX: Convert UID to string if it's an object (handles {value: "uuid"} format)
+            const uidValue = typeof displayData.uid === 'string' 
+                ? displayData.uid 
+                : (displayData.uid.value || displayData.uid.toString());
+            vcard += `UID:${this.escapeValue(uidValue)}\n`;
+        } else {
+            // Generate stable UID based on contactId or random UUID
+            const uid = displayData.contactId || 
+                        `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            vcard += `UID:${this.escapeValue(uid)}\n`;
+        }
+        
         vcard += 'END:VCARD';
         return vcard;
     }
@@ -992,5 +1172,32 @@ export class VCard3Processor {
             const v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
+    }
+
+    /**
+     * Check if a property is a multi-value property
+     * @param {string} property - Property name
+     * @returns {boolean} True if multi-value
+     */
+    isMultiValueProperty(property) {
+        return this.multiValueProperties.has(property);
+    }
+
+    /**
+     * Check if a property is a single-value property
+     * @param {string} property - Property name
+     * @returns {boolean} True if single-value
+     */
+    isSingleValueProperty(property) {
+        return this.singleValueProperties.has(property);
+    }
+
+    /**
+     * Check if a property is required
+     * @param {string} property - Property name
+     * @returns {boolean} True if required
+     */
+    isRequiredProperty(property) {
+        return this.requiredProperties.has(property);
     }
 }
