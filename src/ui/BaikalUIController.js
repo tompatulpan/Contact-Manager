@@ -47,7 +47,6 @@ export class BaikalUIController {
         // this.setupEventListeners(); // ❌ REMOVED: Already called in constructor - prevents duplicate listeners
         this.setupTabSwitching(); // Setup tab switching
         await this.autoConnectSavedProfiles();
-        console.log('🔌 Baikal UI Controller initialized');
     }
 
     /**
@@ -65,20 +64,14 @@ export class BaikalUIController {
             await this.configManager.loadConfigurations();
             const configurations = this.configManager.getAllConfigurations();
             
-            console.log('🔍 DEBUG: Raw configurations:', configurations);
-            console.log('🔍 DEBUG: Configurations type:', typeof configurations);
-            console.log('🔍 DEBUG: Configurations length:', configurations?.length);
             
             if (!configurations || configurations.length === 0) {
-                console.log('📋 No saved Baikal configurations found, skipping auto-connect');
                 return;
             }
             
-            console.log(`🔗 Auto-connecting ${configurations.length} saved profile(s)...`);
             
             for (const config of configurations) {
                 if (config.autoConnect !== false) { // Default to auto-connect unless explicitly disabled
-                    console.log(`🔗 Auto-connecting to saved profile: ${config.profileName}`);
                     
                     try {
                         let password = null;
@@ -86,26 +79,20 @@ export class BaikalUIController {
                         
                         // 🔐 STRATEGY 1: Try simple localStorage password first (from storePassword method)
                         const storageKey = `baikal_password_${config.profileName}`;
-                        console.log(`🔍 DEBUG: Checking localStorage key: ${storageKey}`);
                         
                         password = this.getStoredPassword(config.profileName);
-                        console.log(`🔍 DEBUG: getStoredPassword returned:`, password ? '***found***' : 'null');
                         
                         if (password) {
                             credentialSource = 'localStorage (simple)';
-                            console.log(`✅ Found saved password for ${config.profileName} (source: ${credentialSource})`);
                         }
                         
                         // 🔐 STRATEGY 2: Fallback to secure credential storage
                         if (!password) {
-                            console.log(`🔍 DEBUG: Trying SecureCredentialStorage for ${config.profileName}...`);
                             const storedCreds = await this.credentialUI.getStoredCredentials(config.profileName);
-                            console.log(`🔍 DEBUG: SecureCredentialStorage result:`, storedCreds);
                             
                             if (storedCreds.success && storedCreds.credentials.password) {
                                 password = storedCreds.credentials.password;
                                 credentialSource = `SecureCredentialStorage (${storedCreds.method})`;
-                                console.log(`✅ Found saved credentials for ${config.profileName} (source: ${credentialSource})`);
                             }
                         }
                         
@@ -114,10 +101,8 @@ export class BaikalUIController {
                             // List all localStorage keys for debugging
                             const allKeys = Object.keys(localStorage);
                             const baikalKeys = allKeys.filter(k => k.includes('baikal'));
-                            console.log(`🔍 DEBUG: All baikal-related localStorage keys:`, baikalKeys);
                             
                             console.warn(`⚠️ No saved credentials for ${config.profileName} - skipping auto-connect`);
-                            console.log(`💡 User will need to reconnect to save credentials`);
                             continue;
                         }
                         
@@ -129,13 +114,11 @@ export class BaikalUIController {
                         
                         const result = await this.baikalConnector.connectToServer(configWithPassword);
                         if (result.success) {
-                            console.log(`✅ Auto-connected to ${config.profileName}`);
                             
                             // 🆕 Start auto-sync with 15-minute intervals
                             try {
                                 const autoSyncResult = await this.baikalConnector.initializeAutoSync(config.profileName);
                                 if (autoSyncResult.success) {
-                                    console.log(`🔄 Auto-sync started for ${config.profileName} (15-minute intervals)`);
                                 }
                             } catch (autoSyncError) {
                                 console.warn(`⚠️ Auto-sync error for ${config.profileName}:`, autoSyncError.message);
@@ -159,7 +142,6 @@ export class BaikalUIController {
     setupEventListeners() {
         // 🛡️ Prevent duplicate event listener setup
         if (this.eventListenersSetup) {
-            console.log('⚠️ Event listeners already setup, skipping duplicate setup');
             return;
         }
         this.eventListenersSetup = true;
@@ -242,13 +224,11 @@ export class BaikalUIController {
         // 🆕 Event bus listeners for Baikal contact handling
         this.eventBus.on('baikal:contactsReceived', async (data) => {
             const { contacts, profileName } = data;
-            console.log(`📥 Received ${contacts.length} contacts from Baikal profile: ${profileName}`);
             await this.handleReceivedContacts(contacts, profileName);
         });
         
         // 🔐 Listen for logout events to clear stored passwords
         this.eventBus.on('auth:logout', (data) => {
-            console.log(`🔐 Logout detected (${data.reason}), clearing CardDAV/iCloud passwords`);
             this.clearAllStoredPasswords();
         });
     }
@@ -281,7 +261,6 @@ export class BaikalUIController {
     createBaikalModal() {
         // Avoid inserting modal multiple times
         if (document.getElementById('baikal-modal')) {
-            console.log('🔍 DEBUG: Baikal modal already exists, skipping creation');
             return;
         }
 
@@ -432,11 +411,9 @@ export class BaikalUIController {
      * Create sync status widget for main interface
      */
     createSyncStatusWidget() {
-        console.log('🔍 DEBUG: createSyncStatusWidget called');
         // Add to header or create a dedicated area
         const existing = document.getElementById('baikal-settings-btn');
         if (existing) {
-            console.log('🔍 DEBUG: Baikal settings button already present');
             return;
         }
 
@@ -455,20 +432,17 @@ export class BaikalUIController {
             const logoutBtn = document.getElementById('logout-btn');
             if (logoutBtn) headerRight.insertBefore(syncWidget, logoutBtn);
             else headerRight.appendChild(syncWidget);
-            console.log('✅ DEBUG: Baikal widget created and inserted into .header-right');
             return;
         }
 
         const header = document.querySelector('header');
         if (header) {
             header.appendChild(syncWidget);
-            console.log('✅ DEBUG: Baikal widget created and appended to <header>');
             return;
         }
 
         // Final fallback: append to body
         document.body.appendChild(syncWidget);
-        console.log('✅ DEBUG: Baikal widget appended to <body> as fallback');
     }
 
     /**
@@ -509,12 +483,10 @@ export class BaikalUIController {
      * Open Baikal settings modal
      */
     openBaikalModal() {
-        console.log('🔍 DEBUG: openBaikalModal called');
         const modal = document.getElementById('baikal-modal');
         if (modal) {
             modal.style.display = 'block';
             this.isModalOpen = true;
-            console.log('🔍 DEBUG: Modal opened successfully');
             
             // Load existing configurations
             this.loadExistingConfigurations();
@@ -592,15 +564,6 @@ export class BaikalUIController {
                 isUpdate: isUpdate
             };
 
-            // 🐛 DEBUG: Log config before sending to catch any issues
-            console.log('📋 Connection config being sent:', {
-                serverUrl: config.serverUrl,
-                username: config.username,
-                profileName: config.profileName,
-                passwordPresent: !!config.password,
-                isUpdate: config.isUpdate
-            });
-
             // Show URL warnings if any
             if (urlWarnings.length > 0) {
                 this.showConnectionStatus(`URL Auto-Fix: ${urlWarnings.join(' | ')}`, 'warning');
@@ -618,23 +581,17 @@ export class BaikalUIController {
             let result;
             
             if (isICloud && this.iCloudConnector) {
-                console.log(`🍎 Routing connection to ICloudConnector for: ${config.profileName}`);
                 this.showConnectionStatus('Connecting to iCloud CardDAV...', 'info');
                 result = await this.iCloudConnector.connect(config);
             } else {
-                console.log(`📤 Routing connection to BaikalConnector for: ${config.profileName}`);
                 result = await this.baikalConnector.connectToServer(config);
             }
 
             if (result.success) {
                 // 🔐 Store password in simple localStorage for auto-reconnect
                 this.storePassword(config.profileName, finalPassword);
-                console.log(`🔐 Password stored for auto-reconnect: ${config.profileName}`);
                 
                 // 🔐 Ask user to save credentials securely (optional, advanced features)
-                console.log('🔐 DEBUG: About to show credential consent dialog');
-                console.log('🔐 DEBUG: credentialUI exists?', !!this.credentialUI);
-                console.log('🔐 DEBUG: showStorageConsent exists?', !!this.credentialUI?.showStorageConsent);
                 
                 try {
                     const credentialSaveResult = await this.credentialUI.showStorageConsent(
@@ -646,16 +603,12 @@ export class BaikalUIController {
                         }
                     );
                     
-                    console.log('🔐 DEBUG: Consent dialog returned:', credentialSaveResult);
                     
                     if (credentialSaveResult.saved) {
-                        console.log(`✅ Credentials saved using: ${credentialSaveResult.method}`);
                     } else {
-                        console.log('⚠️ User chose not to save credentials');
                     }
                 } catch (consentError) {
                     console.error('❌ DEBUG: Consent dialog error:', consentError);
-                    console.log('⚠️ Skipping credential save due to error');
                 }
                 
                 // Save configuration (without password)
@@ -692,11 +645,9 @@ export class BaikalUIController {
                     
                     // 🆕 Start/restart auto-sync with 15-minute default intervals (ONLY for non-iCloud profiles)
                     if (!isICloud) {
-                        console.log(`🔄 ${isUpdate ? 'Restarting' : 'Initializing'} auto-sync for ${config.profileName}`);
                         try {
                             const autoSyncResult = await this.baikalConnector.initializeAutoSync(config.profileName);
                             if (autoSyncResult.success) {
-                                console.log(`✅ Auto-sync ${isUpdate ? 'restarted' : 'started'} with 15-minute intervals`);
                             } else {
                                 console.warn('⚠️ Auto-sync initialization failed:', autoSyncResult.error);
                             }
@@ -704,7 +655,6 @@ export class BaikalUIController {
                             console.warn('⚠️ Auto-sync error:', autoSyncError.message);
                         }
                     } else {
-                        console.log(`🍎 iCloud profile - skipping auto-sync (one-way export mode)`);
                     }
                     
                 } else {
@@ -716,7 +666,6 @@ export class BaikalUIController {
                 
                 // 🍎 Special handling for iCloud configuration errors
                 if (result.serverType === 'iCloud' && result.help) {
-                    console.log('🍎 iCloud configuration help:', result.help);
                     
                     // Create a detailed iCloud help modal
                     errorMessage = `iCloud Setup Required\n\n${result.help.message}\n\n`;
@@ -761,7 +710,6 @@ export class BaikalUIController {
      */
     async handleReceivedContacts(contacts, profileName) {
         try {
-            console.log(`📥 Received ${contacts.length} contacts from Baikal profile: ${profileName}`);
             
             let addedCount = 0;
             let skippedCount = 0;
@@ -856,7 +804,6 @@ END:VCARD`;
             const existingContact = await this.contactManager.getContactByUID(contactData.contactId);
             
             if (existingContact) {
-                console.log(`🔍 Duplicate detected: Contact with UID ${contactData.contactId} already exists`);
                 return true;
             }
             
@@ -932,7 +879,6 @@ END:VCARD`;
      */
     showNotification(message, type = 'info', silent = false) {
         // Always log to console
-        console.log(`[${type.toUpperCase()}] ${message}`);
         
         // Skip UI notification if silent mode
         if (silent) {
@@ -976,15 +922,11 @@ END:VCARD`;
      */
     async loadExistingConfigurations() {
         try {
-            console.log('🔍 DEBUG: loadExistingConfigurations called');
             const configurations = this.configManager.getAllConfigurations();
-            console.log('🔍 DEBUG: Retrieved configurations:', configurations);
             
             if (configurations.length > 0) {
                 this.updateSyncIndicator('connected');
-                console.log(`📖 Loaded ${configurations.length} Baikal configurations`);
             } else {
-                console.log('📝 No Baikal configurations found');
             }
 
             // Always render profiles list to update UI
@@ -999,15 +941,12 @@ END:VCARD`;
      * Render profiles list
      */
     renderProfilesList() {
-        console.log('🔍 DEBUG: renderProfilesList called');
         const profilesList = document.getElementById('baikal-profiles-list');
         if (!profilesList) {
-            console.log('❌ DEBUG: baikal-profiles-list element not found');
             return;
         }
 
         const configurations = this.configManager.getAllConfigurations();
-        console.log('🔍 DEBUG: Found configurations:', configurations);
         
         if (configurations.length === 0) {
             profilesList.innerHTML = `
@@ -1016,7 +955,6 @@ END:VCARD`;
                     <p>Use the Connection tab to add your first profile.</p>
                 </div>
             `;
-            console.log('📝 DEBUG: Rendered no-profiles message');
             return;
         }
 
@@ -1056,7 +994,6 @@ END:VCARD`;
         }).join('');
 
         profilesList.innerHTML = profilesHTML;
-        console.log(`✅ DEBUG: Rendered ${configurations.length} profiles`);
     }
 
     /**
@@ -1148,7 +1085,6 @@ END:VCARD`;
             const existingConnection = connections.find(c => c.profileName === profileName);
             
             if (!existingConnection) {
-                console.log(`🔗 No active connection for ${profileName}, connecting first...`);
                 // Note: This will fail without password - need to prompt user or store encrypted password
                 console.warn(`⚠️ Cannot auto-reconnect ${profileName} - password not stored for security`);
                 throw new Error(`Profile ${profileName} is not connected and password is not stored for security. Please reconnect manually.`);
@@ -1168,10 +1104,8 @@ END:VCARD`;
                     
                     // Show detailed message about one-way mode
                     if (result.message) {
-                        console.log(`ℹ️ ${result.message}`);
                     }
                     if (result.recommendation) {
-                        console.log(`💡 ${result.recommendation}`);
                     }
                 } else {
                     // Normal bidirectional sync
@@ -1196,13 +1130,11 @@ END:VCARD`;
     async pushAllContactsToProfile(profileName) {
         // Prevent multiple simultaneous push operations
         if (this.isPushing) {
-            console.log('⚠️ Push operation already in progress, ignoring duplicate request');
             return;
         }
         
         try {
             this.isPushing = true; // Set flag to prevent duplicates
-            console.log(`📤 Starting push all contacts to profile: ${profileName}`);
             
             // Update UI to show pushing in progress
             const pushButton = document.querySelector(`[data-profile="${profileName}"].baikal-profile-push`);
@@ -1224,7 +1156,6 @@ END:VCARD`;
             const isICloud = this.isICloudProfile(profileName);
             
             if (isICloud && this.iCloudConnector) {
-                console.log(`🍎 Routing to ICloudConnector for iCloud profile: ${profileName}`);
                 
                 // Check if iCloud connection exists
                 const iCloudConnection = this.iCloudConnector.getConnectionStatus(profileName);
@@ -1240,7 +1171,6 @@ END:VCARD`;
                         `✅ Pushed ${result.successCount}/${result.total} contacts to iCloud`,
                         'success'
                     );
-                    console.log(`✅ iCloud push complete: ${result.successCount}/${result.total} contacts`);
                 } else {
                     throw new Error(result.error || 'iCloud push failed');
                 }
@@ -1249,7 +1179,6 @@ END:VCARD`;
             }
             
             // 📤 Use BaikalConnector for standard CardDAV servers
-            console.log(`📤 Routing to BaikalConnector for CardDAV profile: ${profileName}`);
             
             // Check if connection exists
             const connections = this.baikalConnector.getConnections();
@@ -1275,11 +1204,6 @@ END:VCARD`;
             
             // 🔍 ENHANCED LOGGING: Show detailed contact analysis
             const totalContacts = this.contactManager.getAllContacts();
-            console.log(`🔍 CONTACT ANALYSIS FOR CARDDAV PUSH:`);
-            console.log(`   📊 Total contacts in system: ${totalContacts.length}`);
-            console.log(`   📤 Retrieved for push consideration: ${allContactsRaw.length}`);
-            console.log(`   ✅ Active contacts (after filtering): ${allContacts.length}`);
-            console.log(`   🚫 Filtered out (archived/deleted): ${allContactsRaw.length - allContacts.length}`);
             
             // Categorize contacts for better understanding
             let ownedCount = 0;
@@ -1322,24 +1246,14 @@ END:VCARD`;
                     skippedCount++;
                 }
                 
-                console.log(`   ${index + 1}. "${contact.cardName}" - ${status}`);
             });
             
-            console.log(`📋 PUSH SUMMARY:`);
-            console.log(`   ✅ Owned contacts (will push): ${ownedCount}`);
-            console.log(`   👥 Shared contacts (will push): ${sharedCount}`);
-            console.log(`   📦 Archived (excluded from push): ${archivedCount}`);
-            console.log(`   🗑️ Deleted (excluded from push): ${deletedCount}`);
-            console.log(`   ❓ Skipped (other reasons): ${skippedCount}`);
-            console.log(`   📤 Total to push to CardDAV: ${allContacts.length}`);
             
             if (allContacts.length === 0) {
                 this.showNotification('No active contacts found eligible for CardDAV push', 'warning');
-                console.log('💡 Tip: Archived contacts are excluded. Restore them to include in sync.');
                 return;
             }
             
-            console.log(`📤 Ready to push ${allContacts.length} active contacts to ${profileName}`);
             
             // Push filtered contacts (archived and deleted are excluded)
             const result = await this.baikalConnector.testPushOwnedContacts(profileName, allContacts);
@@ -1366,7 +1280,6 @@ END:VCARD`;
                     );
                 }
                 
-                console.log(`✅ Push completed: ${successCount}/${totalCount} contacts pushed, ${skippedCount} skipped (unchanged)`);
             } else {
                 throw new Error(result.error || 'Push operation failed');
             }
@@ -1391,7 +1304,6 @@ END:VCARD`;
      */
     async editProfile(profileName) {
         try {
-            console.log('✏️ Edit profile:', profileName);
             
             // Get the configuration
             const config = this.configManager.getConfiguration(profileName);
@@ -1498,7 +1410,6 @@ END:VCARD`;
      */
     async disconnectProfile(profileName) {
         try {
-            console.log(`🔌 Disconnecting profile: ${profileName}`);
             
             // Disconnect from BaikalConnector
             await this.baikalConnector.disconnect(profileName);
@@ -1507,7 +1418,6 @@ END:VCARD`;
             this.renderProfilesList();
             this.showNotification(`Profile "${profileName}" disconnected`, 'success');
             
-            console.log(`✅ Profile "${profileName}" disconnected successfully`);
             
         } catch (error) {
             console.error('❌ Disconnect profile error:', error);
@@ -1692,7 +1602,6 @@ END:VCARD`;
             // Use a prefixed key for organization
             const key = `baikal_password_${profileName}`;
             localStorage.setItem(key, password);
-            console.log(`🔐 Stored password for profile: ${profileName} (persists until logout)`);
         } catch (error) {
             console.error('❌ Failed to store password:', error);
         }
@@ -1706,7 +1615,6 @@ END:VCARD`;
             const key = `baikal_password_${profileName}`;
             const password = localStorage.getItem(key);
             if (password) {
-                console.log(`🔓 Retrieved stored password for profile: ${profileName}`);
             }
             return password;
         } catch (error) {
@@ -1722,7 +1630,6 @@ END:VCARD`;
         try {
             const key = `baikal_password_${profileName}`;
             localStorage.removeItem(key);
-            console.log(`🗑️ Removed password for profile: ${profileName}`);
         } catch (error) {
             console.error('❌ Failed to remove password:', error);
         }
@@ -1743,7 +1650,6 @@ END:VCARD`;
                 }
             });
             if (clearedCount > 0) {
-                console.log(`🗑️ Cleared ${clearedCount} stored CardDAV password(s) on logout`);
             }
         } catch (error) {
             console.error('❌ Failed to clear passwords:', error);

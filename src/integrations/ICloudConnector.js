@@ -30,7 +30,6 @@ class ICloudConnector {
      */
     async connect(config) {
         try {
-            console.log('🍎 Connecting to iCloud CardDAV (one-way export mode)...');
             
             // For one-way export, we don't need to discover addressbooks
             // Just store the connection config for push operations
@@ -48,10 +47,6 @@ class ICloudConnector {
             });
             this.isConnected = true;
             
-            console.log(`✅ iCloud connected in one-way export mode`);
-            console.log(`   Profile: ${config.profileName}`);
-            console.log(`   Server: ${config.serverUrl}`);
-            console.log(`   Username: ${config.username}`);
             
             return { 
                 success: true, 
@@ -78,7 +73,6 @@ class ICloudConnector {
             throw new Error(`Contact object is null`);
         }
 
-        console.log(`🍎 iCloud export: ${contact.cardName}`);
 
         const connectionInfo = this.connections.get(profileName);
         if (!connectionInfo) {
@@ -148,10 +142,6 @@ class ICloudConnector {
             // Regenerate fresh vCard 4.0
             vCardToSend = this.contactManager.vCardStandard.generateVCard(contactData);
 
-            console.log(`🔄 Regenerated fresh vCard from contact data`);
-            console.log(`📋 Using vCard with UID: ${uid}`);
-            console.log(`📄 vCard length: ${vCardToSend.length} bytes`);
-            console.log(`🔍 vCard preview: ${vCardToSend.substring(0, 200)}...`);
 
             // Convert to vCard 3.0 for iCloud compatibility
             // CRITICAL: Pass UID to ensure it's preserved during conversion
@@ -165,7 +155,6 @@ class ICloudConnector {
 
             if (vCard3Result && vCard3Result.content) {
                 vCardToSend = vCard3Result.content;
-                console.log(`✅ Converted to vCard 3.0 for iCloud`);
             }
 
             // Push to bridge server
@@ -186,7 +175,6 @@ class ICloudConnector {
             const result = await response.json();
 
             if (result.success) {
-                console.log(`✅ iCloud push successful: ${contact.cardName}`);
             } else {
                 console.error(`❌ iCloud push failed: ${result.error}`);
             }
@@ -207,23 +195,18 @@ class ICloudConnector {
      */
     async pushAllContacts(profileName) {
         try {
-            console.log(`🍎 iCloud: Starting push all contacts...`);
 
             // 🔒 CRITICAL: Set syncInProgress flag to prevent cache corruption during push
             // This prevents handleContactsChanged from clearing the contacts Map
             this.contactManager.syncInProgress = true;
-            console.log('🔒 Sync lock enabled - cache protected during push');
 
             // Get all contacts from ContactManager
             const allContacts = this.contactManager.getAllOwnedContacts();
             
-            console.log(`📤 Got ${allContacts.length} contacts from ContactManager`);
             
             // Log first contact to verify data freshness
             if (allContacts.length > 0) {
                 const firstContact = allContacts[0];
-                console.log(`🔍 Sample contact: ${firstContact.cardName}`);
-                console.log(`📄 Sample vCard preview: ${firstContact.vcard.substring(0, 200)}...`);
             }
 
             let successCount = 0;
@@ -252,14 +235,11 @@ class ICloudConnector {
                     }
                 });
 
-                console.log(`📦 Batch ${Math.floor(i / BATCH_SIZE) + 1} complete: ${results.filter(r => r.success).length}/${batch.length} succeeded`);
             }
 
-            console.log(`✅ iCloud push complete: ${successCount}/${allContacts.length} succeeded, ${errorCount} failed`);
 
             // 🔓 CRITICAL: Release sync lock
             this.contactManager.syncInProgress = false;
-            console.log('🔓 Sync lock released - cache operations resumed');
 
             return {
                 success: successCount > 0,
@@ -274,7 +254,6 @@ class ICloudConnector {
             
             // 🔓 CRITICAL: Always release sync lock, even on error
             this.contactManager.syncInProgress = false;
-            console.log('🔓 Sync lock released (error cleanup)');
             
             return { success: false, error: error.message };
         }
@@ -288,7 +267,6 @@ class ICloudConnector {
         if (this.connections.size === 0) {
             this.isConnected = false;
         }
-        console.log(`🍎 iCloud profile ${profileName} disconnected`);
     }
 
     /**

@@ -15,7 +15,6 @@ export class MobileNavigation {
         // Only initialize on mobile devices
         if (!this.isMobile()) return;
 
-        console.log('📱 Initializing mobile navigation');
         
         // Set initial page state
         this.setActivePage('contacts');
@@ -79,7 +78,6 @@ export class MobileNavigation {
     setActivePage(page) {
         if (!this.isMobile()) return;
 
-        console.log(`📱 Setting active page: ${page}`);
         
         // Remove all page classes
         const sections = document.querySelectorAll('.left-sidebar, .contact-list-section, .contact-detail-section');
@@ -130,56 +128,43 @@ export class MobileNavigation {
     }
 
     showContactDetail(contact) {
-        console.log('📱 showContactDetail called with:', contact);
         
         // Update mobile page title with contact name
         const titleElement = document.getElementById('mobile-contact-title');
         if (titleElement && contact) {
             titleElement.textContent = contact.cardName || 'Contact';
-            console.log('📱 Updated title to:', titleElement.textContent);
         }
         
         // Ensure contact detail content is visible
         const detailSection = document.querySelector('.contact-detail-section');
         if (detailSection) {
-            console.log('📱 Contact detail section found, content:', detailSection.innerHTML.length, 'chars');
         } else {
-            console.log('📱 ERROR: Contact detail section not found!');
         }
         
         // Check if there's actual content in the detail area
         const detailContent = document.getElementById('contact-detail-content');
         if (detailContent) {
-            console.log('📱 Detail content element found, innerHTML length:', detailContent.innerHTML.length);
-            console.log('📱 Detail content preview:', detailContent.innerHTML.substring(0, 100) + '...');
         } else {
-            console.log('📱 ERROR: Detail content element (contact-detail-content) not found!');
         }
         
         // Only add to history if not already on detail page
         if (this.currentPage !== 'detail') {
             this.pageHistory.push('detail');
-            console.log('📱 Added detail to pageHistory, new history:', this.pageHistory);
         } else {
-            console.log('📱 Already on detail page, not adding to history. Current history:', this.pageHistory);
         }
         
         this.setActivePage('detail');
         
-        console.log('📱 Mobile navigation switched to detail page');
     }
 
     goBack() {
-        console.log('📱 goBack() called, current pageHistory:', this.pageHistory);
         
         if (this.pageHistory.length > 1) {
             this.pageHistory.pop(); // Remove current page
             const previousPage = this.pageHistory[this.pageHistory.length - 1];
-            console.log('📱 Going back to:', previousPage);
             this.setActivePage(previousPage);
         } else {
             // Default back to contacts
-            console.log('📱 No history, defaulting to contacts');
             this.setActivePage('contacts');
             this.pageHistory = ['contacts'];
         }

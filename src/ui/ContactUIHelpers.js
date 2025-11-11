@@ -21,21 +21,32 @@ export class ContactUIHelpers {
     }
 
     /**
-     * Format phone number for display
+     * Format phone number for display in E.164 format (international standard)
+     * E.164 format: +[country code][subscriber number]
+     * Example: +46701234567 (Swedish number)
      */
     static formatPhoneNumber(phone) {
         if (!phone) return '';
         
+        // Trim whitespace first
+        phone = phone.trim();
+        
+        // If it already starts with +, clean it and return E.164 format
+        if (phone.startsWith('+')) {
+            // Remove all non-numeric characters except the leading +
+            const cleaned = '+' + phone.substring(1).replace(/\D/g, '');
+            return cleaned;
+        }
+        
         // Remove all non-numeric characters
         const numbers = phone.replace(/\D/g, '');
         
-        // Format US phone number
-        if (numbers.length === 10) {
-            return `(${numbers.substr(0, 3)}) ${numbers.substr(3, 3)}-${numbers.substr(6, 4)}`;
-        }
+        // If no numbers, return original
+        if (!numbers) return phone;
         
-        // Return original if not standard length
-        return phone;
+        // For numbers without country code, add + and return as-is
+        // This makes it clear to users they should include country code
+        return '+' + numbers;
     }
 
     /**

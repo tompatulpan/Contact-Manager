@@ -58,7 +58,6 @@ export class ContactDatabase {
      */
     async hasStoredSession() {
         try {
-            console.log('🔍 Checking for stored session...');
             
             // Check if Userbase has session data in localStorage
             if (typeof localStorage !== 'undefined') {
@@ -76,15 +75,10 @@ export class ContactDatabase {
                 const userbaseKeys = keys.filter(key => 
                     key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')
                 );
-                console.log('🔍 Userbase keys found:', userbaseKeys);
-                console.log('🔍 Remember me flag:', hasRememberMe);
-                console.log('🔍 Has userbase session data:', hasUserbaseSession);
                 
                 const result = hasRememberMe && hasUserbaseSession;
-                console.log('🔍 Final session check result:', result);
                 return result;
             }
-            console.log('🔍 localStorage not available');
             return false;
         } catch (error) {
             console.error('Error checking stored session:', error);
@@ -98,14 +92,12 @@ export class ContactDatabase {
      */
     async restoreSession() {
         try {
-            console.log('🔄 Attempting silent session restoration...');
             
             // Check session preferences first
             const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
             const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
             
             if (!hasRememberMe && !hasSessionOnly) {
-                console.log('⚠️ No session preference found');
                 return {
                     success: false,
                     error: 'No session preference found'
@@ -116,7 +108,6 @@ export class ContactDatabase {
             if (hasSessionOnly) {
                 const pageLoadFlag = sessionStorage.getItem('userbase-page-loaded');
                 if (!pageLoadFlag) {
-                    console.log('⚠️ Session-only auth expired on page refresh');
                     return {
                         success: false,
                         error: 'Session expired on page refresh'
@@ -137,7 +128,6 @@ export class ContactDatabase {
             });
             
             if (session.user) {
-                console.log('✅ Session restored for user:', session.user.username);
                 this.currentUser = session.user;
                 this.isInitialized = true;
                 
@@ -148,9 +138,7 @@ export class ContactDatabase {
                 
                 // 🚀 CRITICAL: Initialize databases immediately during restoration
                 try {
-                    console.log('📊 Setting up databases during restoration...');
                     await this.setupDatabases();
-                    console.log('✅ Databases setup complete during restoration');
                     
                     // Emit authentication event
                     this.eventBus.emit('database:authenticated', { user: this.currentUser });
@@ -172,7 +160,6 @@ export class ContactDatabase {
                     };
                 }
             } else {
-                console.log('⚠️ No valid session found during restoration');
                 return {
                     success: false,
                     error: 'No valid session found'
@@ -202,7 +189,6 @@ export class ContactDatabase {
         }
 
         try {
-            console.log('🚀 Initializing database with appId:', appId);
             
             // Check if Userbase SDK is available
             if (typeof window.userbase === 'undefined') {
@@ -226,7 +212,6 @@ export class ContactDatabase {
             } catch (initError) {
                 if (initError.message.includes('AppIdAlreadySet') || 
                     initError.message.includes('Application ID already set')) {
-                    console.log('🔄 Userbase already initialized, checking current state...');
                     
                     // Use existing session if available
                     if (window.userbase.user) {
@@ -241,12 +226,10 @@ export class ContactDatabase {
             
             // Simple session check - trust Userbase's session management completely
             if (session.user) {
-                console.log('✅ Resuming session for user:', session.user.username);
                 this.currentUser = session.user;
                 await this.setupDatabases();
                 this.eventBus.emit('database:authenticated', { user: this.currentUser });
             } else {
-                console.log('ℹ️ No active session found');
                 this.currentUser = null;
             }
             
@@ -283,7 +266,6 @@ export class ContactDatabase {
         this.userSettings.clear();
         this.activityLog.clear();
         
-        console.log('✅ Application session data cleared');
     }
 
     /**
@@ -305,7 +287,6 @@ export class ContactDatabase {
      */
     async signUp(username, password, email = null, profile = null, rememberMe = false) {
         try {
-            console.log('🔐 Database: Signing up new user with SDK spec parameters');
             
             const signUpParams = {
                 username,
@@ -320,8 +301,6 @@ export class ContactDatabase {
             
             const result = await userbase.signUp(signUpParams);
 
-            console.log('✅ Database: Sign up successful');
-            console.log('📋 Sign up result:', result); // Debug log
 
             this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
             await this.setupDatabases();
@@ -344,7 +323,6 @@ export class ContactDatabase {
      */
     async signIn(username, password, rememberMe = false) {
         try {
-            console.log('🔐 Database: Signing in with SDK spec parameters');
             
             // Follow SDK specification exactly - no custom session tracking
             const result = await userbase.signIn({
@@ -354,8 +332,6 @@ export class ContactDatabase {
                 sessionLength: 24 // Hours - SDK default
             });
             
-            console.log('✅ Database: Sign in successful');
-            console.log('📋 Sign in result:', result); // Debug log
             
             this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
             await this.setupDatabases();
@@ -372,7 +348,6 @@ export class ContactDatabase {
             
             // Handle UserAlreadySignedIn gracefully
             if (error.name === 'UserAlreadySignedIn') {
-                console.log('ℹ️ User already signed in, setting up databases');
                 
                 if (this.currentUser) {
                     await this.setupDatabases();
@@ -392,7 +367,6 @@ export class ContactDatabase {
      */
     async signOut() {
         try {
-            console.log('🔐 Database: Signing out...');
             
             // Let Userbase handle the logout completely - no manual storage clearing
             await userbase.signOut();
@@ -403,12 +377,10 @@ export class ContactDatabase {
             this.changeHandlers.clear();
             
             this.eventBus.emit('database:signedOut', {});
-            console.log('✅ User signed out successfully');
             return { success: true };
         } catch (error) {
             // Handle "Not signed in" gracefully per SDK docs
             if (error.message && error.message.includes('Not signed in')) {
-                console.log('ℹ️ User was already signed out');
                 this.currentUser = null;
                 this.clearSessionData();
                 this.eventBus.emit('database:signedOut', {});
@@ -462,7 +434,6 @@ export class ContactDatabase {
     async setupSharedDatabases() {
         // Prevent concurrent initialization
         if (this.isInitializingSharedDatabases) {
-            console.log('🔄 Shared database initialization already in progress, skipping...');
             return;
         }
 
@@ -472,12 +443,10 @@ export class ContactDatabase {
             // Use cached data to avoid redundant getDatabases() calls
             const allDatabases = await this.getAllSharedContactDatabasesCached();
             if (!allDatabases.success) {
-                console.log('📭 No shared databases found or error accessing them');
                 return;
             }
 
             const { ownedSharedDatabases, receivedSharedDatabases } = allDatabases;
-            console.log(`🚀 Setting up shared databases: ${ownedSharedDatabases.length} owned, ${receivedSharedDatabases.length} received`);
             
             // 🚀 PERFORMANCE: Open owned shared databases in parallel
             const ownedPromises = ownedSharedDatabases
@@ -492,7 +461,6 @@ export class ContactDatabase {
                             }
                         });
                         this.openedSharedDatabases.add(db.databaseName);
-                        console.log(`✅ Opened owned shared database: ${db.databaseName}`);
                     } catch (error) {
                         console.error(`❌ Failed to open owned shared database ${db.databaseName}:`, error);
                     }
@@ -575,7 +543,6 @@ export class ContactDatabase {
                             }
                         });
                         this.openedSharedDatabases.add(db.databaseId);
-                        console.log(`✅ Opened received shared database: ${db.databaseId} from ${db.receivedFromUsername}`);
                     } catch (error) {
                         console.error(`❌ Failed to open received shared database ${db.databaseId}:`, error);
                     }
@@ -588,7 +555,6 @@ export class ContactDatabase {
             const totalCount = ownedSharedDatabases.length + receivedSharedDatabases.length;
             this.lastKnownSharedCount = totalCount;
             
-            console.log(`✅ Shared database setup complete. ${this.openedSharedDatabases.size} databases opened.`);
 
         } catch (error) {
             console.error('❌ Setup shared databases failed:', error);
@@ -614,7 +580,6 @@ export class ContactDatabase {
                         }
                     });
                     this.openedSharedDatabases.add(db.databaseName);
-                    console.log(`✅ Opened new owned shared database: ${db.databaseName}`);
                 } catch (error) {
                     console.error(`❌ Failed to open new owned shared database ${db.databaseName}:`, error);
                 }
@@ -672,7 +637,6 @@ export class ContactDatabase {
                         }
                     });
                     this.openedSharedDatabases.add(db.databaseId);
-                    console.log(`✅ Opened new received shared database: ${db.databaseId} from ${db.receivedFromUsername}`);
                 } catch (error) {
                     console.error(`❌ Failed to open new received shared database ${db.databaseId}:`, error);
                 }
@@ -1145,7 +1109,6 @@ export class ContactDatabase {
                     throw new Error(`Failed to validate user: ${response.status} ${response.statusText}`);
                 }
                 
-                console.log(`✅ User ${trimmedUsername} exists and can receive shares`);
                 return true;
                 
             } catch (fetchError) {
@@ -1168,7 +1131,6 @@ export class ContactDatabase {
                         resharingAllowed: false
                     });
                     
-                    console.log(`✅ User ${trimmedUsername} validated via shareDatabase test`);
                     return true;
                     
                 } catch (shareError) {
@@ -1177,7 +1139,6 @@ export class ContactDatabase {
                     }
                     
                     // Other errors (like database doesn't exist) are expected and mean user exists
-                    console.log(`✅ User ${trimmedUsername} exists (shareDatabase gave expected error: ${shareError.message})`);
                     return true;
                 }
             }
@@ -1216,7 +1177,6 @@ export class ContactDatabase {
             let currentSize = this.calculateItemSize(optimizedContact);
             const MAX_SIZE = 10 * 1024; // 10KB in bytes
             
-            console.log(`📏 Contact size before optimization: ${(currentSize / 1024).toFixed(2)}KB`);
             
             if (currentSize <= MAX_SIZE) {
                 return optimizedContact; // No optimization needed
@@ -1226,19 +1186,16 @@ export class ContactDatabase {
             if (optimizedContact.metadata?.sharing?.shareHistory?.length > 10) {
                 optimizedContact.metadata.sharing.shareHistory = 
                     optimizedContact.metadata.sharing.shareHistory.slice(-10);
-                console.log(`🔧 Trimmed shareHistory to last 10 entries`);
             }
             
             if (optimizedContact.metadata?.usage?.interactionHistory?.length > 10) {
                 optimizedContact.metadata.usage.interactionHistory = 
                     optimizedContact.metadata.usage.interactionHistory.slice(-10);
-                console.log(`🔧 Trimmed interactionHistory to last 10 entries`);
             }
             
             // Step 2: Remove non-essential metadata
             if (optimizedContact.metadata?.ui) {
                 delete optimizedContact.metadata.ui;
-                console.log(`🔧 Removed UI state metadata`);
             }
             
             // Step 3: Compress sharing permissions (keep essential data only)
@@ -1252,12 +1209,10 @@ export class ContactDatabase {
                     };
                 });
                 optimizedContact.metadata.sharing.sharePermissions = compressedPerms;
-                console.log(`🔧 Compressed sharing permissions`);
             }
             
             // Check size after optimization
             currentSize = this.calculateItemSize(optimizedContact);
-            console.log(`📏 Contact size after optimization: ${(currentSize / 1024).toFixed(2)}KB`);
             
             if (currentSize > MAX_SIZE) {
                 console.warn(`⚠️ Contact still exceeds 10KB limit after optimization: ${(currentSize / 1024).toFixed(2)}KB`);
@@ -1281,9 +1236,7 @@ export class ContactDatabase {
                     }
                 };
                 
-                console.log(`🔧 Applied aggressive optimization - keeping only essential data`);
                 const finalSize = this.calculateItemSize(optimizedContact);
-                console.log(`📏 Final contact size: ${(finalSize / 1024).toFixed(2)}KB`);
             }
             
             return optimizedContact;
@@ -1310,7 +1263,6 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleInsertItemError(error, context) {
-        console.log(`🔍 insertItem Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'ParamsMustBeObject':
@@ -1360,7 +1312,6 @@ export class ContactDatabase {
                 this.eventBus.emit('database:unauthorized', { context });
                 break;
             case 'UserNotSignedIn':
-                console.log('🔐 User not signed in, emitting auth required event');
                 this.eventBus.emit('auth:required', { context });
                 break;
             case 'UserNotFound':
@@ -1387,7 +1338,6 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleUpdateItemError(error, context) {
-        console.log(`🔍 updateItem Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'ParamsMustBeObject':
@@ -1444,7 +1394,6 @@ export class ContactDatabase {
                 this.eventBus.emit('database:unauthorized', { context });
                 break;
             case 'UserNotSignedIn':
-                console.log('🔐 User not signed in, emitting auth required event');
                 this.eventBus.emit('auth:required', { context });
                 break;
             case 'UserNotFound':
@@ -1471,7 +1420,6 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleDeleteItemError(error, context) {
-        console.log(`🔍 deleteItem Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'ParamsMustBeObject':
@@ -1519,7 +1467,6 @@ export class ContactDatabase {
                 this.eventBus.emit('database:unauthorized', { context });
                 break;
             case 'UserNotSignedIn':
-                console.log('🔐 User not signed in, emitting auth required event');
                 this.eventBus.emit('auth:required', { context });
                 break;
             case 'UserNotFound':
@@ -1546,90 +1493,62 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleShareDatabaseError(error, context) {
-        console.log(`🔍 shareDatabase Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'ParamsMustBeObject':
-                console.log('❌ Parameters must be provided as an object');
                 break;
             case 'DatabaseNameMissing':
-                console.log('❌ databaseName is required when databaseId is not provided');
                 break;
             case 'DatabaseNameMustBeString':
-                console.log('❌ databaseName must be a string');
                 break;
             case 'DatabaseNameCannotBeBlank':
-                console.log('❌ databaseName cannot be empty');
                 break;
             case 'DatabaseNameTooLong':
-                console.log('❌ databaseName exceeds maximum length');
                 break;
             case 'DatabaseNameRestricted':
-                console.log('❌ databaseName uses restricted characters or words');
                 break;
             case 'DatabaseIdMustBeString':
-                console.log('❌ databaseId must be a string');
                 break;
             case 'DatabaseIdCannotBeBlank':
-                console.log('❌ databaseId cannot be empty');
                 break;
             case 'DatabaseIdInvalidLength':
-                console.log('❌ databaseId must be exactly 36 characters');
                 break;
             case 'DatabaseIdNotAllowed':
-                console.log('❌ databaseId format is not allowed');
                 break;
             case 'ShareTokenNotAllowed':
-                console.log('❌ shareToken parameter not allowed in this context');
                 break;
             case 'DatabaseNotFound':
-                console.log('❌ Database does not exist or user does not have access');
                 break;
             case 'UsernameCannotBeBlank':
-                console.log('❌ username cannot be empty when provided');
                 break;
             case 'UsernameMustBeString':
-                console.log('❌ username must be a string');
                 break;
             case 'ReadOnlyMustBeBoolean':
-                console.log('❌ readOnly must be a boolean value');
                 break;
             case 'ResharingAllowedMustBeBoolean':
-                console.log('❌ resharingAllowed must be a boolean value');
                 break;
             case 'ResharingNotAllowed':
-                console.log('❌ Resharing is not allowed for this database');
                 break;
             case 'ResharingWithWriteAccessNotAllowed':
-                console.log('❌ Cannot allow resharing when granting write access');
                 break;
             case 'RequireVerifiedMustBeBoolean':
-                console.log('❌ requireVerified must be a boolean value');
                 break;
             case 'SharingWithSelfNotAllowed':
-                console.log('❌ Cannot share database with yourself');
                 break;
             case 'UserNotSignedIn':
-                console.log('❌ User must be signed in to share databases');
                 this.eventBus.emit('auth:required', { context });
                 break;
             case 'UserNotFound':
-                console.log('❌ Target user does not exist');
                 break;
             case 'SubscriptionPlanNotSet':
-                console.log('❌ Subscription plan required for sharing');
                 break;
             case 'SubscriptionNotFound':
-                console.log('❌ Valid subscription required for sharing');
                 break;
             case 'SubscribedToIncorrectPlan':
-                console.log('❌ Current subscription plan does not support sharing');
                 break;
             case 'SubscriptionInactive':
-                console.log('❌ Subscription is not active');
                 break;
             case 'TrialExpired':
-                console.log('❌ Trial period has expired');
                 break;
             case 'TooManyRequests':
                 console.warn(`⚠️ Rate limited in ${context}, backing off`);
@@ -1651,7 +1570,6 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleModifyDatabasePermissionsError(error, context) {
-        console.log(`🔍 modifyDatabasePermissions Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'ParamsMustBeObject':
@@ -1883,16 +1801,6 @@ export class ContactDatabase {
                 throw error;
             }
             
-            // Log the permission modification attempt
-            console.log(`🔧 Modifying database permissions with validated parameters:`, {
-                databaseName: params.databaseName,
-                databaseId: params.databaseId,
-                username: params.username,
-                readOnly: params.readOnly,
-                resharingAllowed: params.resharingAllowed,
-                revoke: params.revoke
-            });
-            
             // Call SDK modifyDatabasePermissions
             return await userbase.modifyDatabasePermissions(params);
             
@@ -1911,11 +1819,9 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleSDKError(error, context) {
-        console.log(`🔍 SDK Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'DatabaseAlreadyOpening':
-                console.log('ℹ️ Database already opening, skipping...');
                 break;
             case 'DatabaseNameMissing':
             case 'DatabaseNameMustBeString':
@@ -1928,11 +1834,9 @@ export class ContactDatabase {
                 console.error(`❌ Invalid change handler in ${context}:`, error.message);
                 break;
             case 'UserNotSignedIn':
-                console.log('🔐 User not signed in, emitting auth required event');
                 this.eventBus.emit('auth:required', { context });
                 break;
             case 'DatabaseNotFound':
-                console.log(`📭 Database not found in ${context}, may need creation`);
                 break;
             case 'TooManyRequests':
                 console.warn(`⚠️ Rate limited in ${context}, backing off`);
@@ -1953,11 +1857,9 @@ export class ContactDatabase {
      * @param {string} context - Context where error occurred
      */
     handleGetDatabasesError(error, context) {
-        console.log(`🔍 getDatabases() Error in ${context}:`, error.name, error.message);
         
         switch (error.name) {
             case 'UserNotSignedIn':
-                console.log('🔐 User not signed in for getDatabases(), emitting auth required event');
                 this.eventBus.emit('auth:required', { context, method: 'getDatabases' });
                 break;
             case 'TooManyRequests':
@@ -2033,13 +1935,23 @@ export class ContactDatabase {
             // Use contactId as itemId to ensure we can reference it later
             const itemId = contact.contactId;
             
+            // Ensure metadata has proper timestamps for recent activity sorting
+            const now = new Date().toISOString();
+            const metadata = {
+                ...contact.metadata,
+                createdAt: contact.metadata?.createdAt || now,
+                lastUpdated: contact.metadata?.lastUpdated || now,
+                lastAccessedAt: contact.metadata?.lastAccessedAt || now
+            };
+            
             // ✅ SDK COMPLIANT: Use safe insertItem with validation
             await this.safeInsertItem({
                 databaseName: this.databases.contacts,
                 itemId: itemId, // Specify the itemId explicitly
                 item: {
                     ...contact,
-                    contactId: contact.contactId // Keep contactId for clarity
+                    contactId: contact.contactId, // Keep contactId for clarity
+                    metadata: metadata  // Use enhanced metadata with timestamps
                 }
             }, 'saveContact');
 
@@ -2086,9 +1998,7 @@ export class ContactDatabase {
                 try {
                     const sharedUpdateResult = await this.updateSharedContactDatabases(contact);
                     if (sharedUpdateResult.success) {
-                        console.log(`✅ Shared database update successful for contact ${contact.contactId}`);
                     } else {
-                        console.log(`ℹ️ Shared database update info: ${sharedUpdateResult.message || sharedUpdateResult.error}`);
                     }
                 } catch (sharedError) {
                     console.error(`⚠️ Shared database update failed (non-critical):`, sharedError);
@@ -2150,13 +2060,10 @@ export class ContactDatabase {
      */
     async updateSharedContactDatabases(contact) {
         try {
-            console.log(`🔄 Updating contact ${contact.contactId} across all shared databases`);
             
             // Update individual shared databases only (no group databases)
             const individualResult = await this.individualSharing.updateContactAcrossSharedDatabases(contact);
             
-            console.log(`📊 Contact update summary: ${individualResult.updatedCount || 0} databases updated`);
-            console.log(`📊 Individual databases: ${individualResult.updatedCount || 0} updated${individualResult.skippedCount > 0 ? ` (${individualResult.skippedCount} skipped)` : ''}`);
             
             return {
                 success: individualResult.success,
@@ -2247,7 +2154,6 @@ export class ContactDatabase {
         } catch (error) {
             // If item doesn't exist, create it
             if (error.name === 'ItemDoesNotExist') {
-                console.log('📝 Sharing record doesn\'t exist, creating new:', contactId, listName);
                 return await this.saveDistributionListSharing(contactId, listName, usernames);
             }
             
@@ -2379,7 +2285,6 @@ export class ContactDatabase {
                     itemId: sharedContactId
                 }, 'saveSharedContactMetadata');
                 
-                console.log('✅ Saved optimized shared contact metadata:', sharedContactId);
                 return { success: true, metadata: optimizedMetadata, optimized: true };
             }
 
@@ -2390,7 +2295,6 @@ export class ContactDatabase {
                 itemId: sharedContactId
             }, 'saveSharedContactMetadata');
 
-            console.log('✅ Saved shared contact metadata:', sharedContactId);
             return { success: true, metadata: metadataItem };
             
         } catch (error) {
@@ -2458,7 +2362,6 @@ export class ContactDatabase {
                     item: optimizedMetadata
                 }, 'updateSharedContactMetadata');
                 
-                console.log('✅ Updated optimized shared contact metadata:', sharedContactId);
                 return { success: true, metadata: optimizedMetadata, optimized: true };
             }
 
@@ -2469,13 +2372,13 @@ export class ContactDatabase {
                 item: metadataItem
             }, 'updateSharedContactMetadata');
 
-            console.log('✅ Updated shared contact metadata:', sharedContactId);
             return { success: true, metadata: metadataItem };
             
         } catch (error) {
             // If item doesn't exist, create it
-            if (error.name === 'ItemDoesNotExist') {
-                console.log('📝 Metadata doesn\'t exist, creating new:', sharedContactId);
+            if (error.name === 'ItemDoesNotExist' || 
+                (error.message && error.message.includes('does not exist'))) {
+                console.log(`📝 Creating new shared contact metadata for ${sharedContactId}`);
                 return await this.saveSharedContactMetadata(sharedContactId, metadata);
             }
             
@@ -2602,13 +2505,11 @@ export class ContactDatabase {
      */
     async verifyUser(verificationMessage) {
         try {
-            console.log(`🔐 Verifying user with verification message`);
             
             await userbase.verifyUser({
                 verificationMessage: verificationMessage.trim()
             });
             
-            console.log(`✅ User verified successfully`);
             return { success: true };
             
         } catch (error) {
@@ -2623,11 +2524,9 @@ export class ContactDatabase {
      */
     async getVerificationMessage() {
         try {
-            console.log(`🔐 Getting verification message for current user`);
             
             const result = await userbase.getVerificationMessage();
             
-            console.log(`✅ Verification message retrieved successfully`);
             return { success: true, verificationMessage: result.verificationMessage };
             
         } catch (error) {
@@ -2648,7 +2547,6 @@ export class ContactDatabase {
      */
     async shareContact(contact, username, readOnly = true, resharingAllowed = false) {
         // Redirect all legacy sharing calls to individual sharing strategy
-        console.log(`� Redirecting legacy shareContact to individual sharing`);
         return await this.shareContactIndividually(contact, username, readOnly, resharingAllowed);
     }
 
@@ -2667,7 +2565,6 @@ export class ContactDatabase {
      */
     async shareContactIndividually(contact, username, readOnly = true, resharingAllowed = false) {
         try {
-            console.log(`📤 Sharing contact individually with ${username}`);
 
             const result = await this.individualSharing.shareContactIndividually(contact, username);
             
@@ -2695,7 +2592,6 @@ export class ContactDatabase {
                     duration: result.duration
                 });
                 
-                console.log(`✅ Individual contact shared successfully with ${username} (${result.duration}ms)`);
             } else {
                 console.error(`❌ Failed to share contact individually with ${username}:`, result.error);
             }
@@ -2718,7 +2614,6 @@ export class ContactDatabase {
      */
     async shareContactWithMultipleUsers(contact, usernames) {
         try {
-            console.log(`📤 Bulk sharing contact with ${usernames.length} users individually`);
             
             const result = await this.individualSharing.shareContactWithMultipleUsers(contact, usernames);
             
@@ -2749,7 +2644,6 @@ export class ContactDatabase {
                 averageDuration: result.averageDuration
             });
             
-            console.log(`📊 Bulk sharing completed: ${result.successCount}/${usernames.length} successful in ${result.totalDuration}ms`);
             
             return result;
             
@@ -2770,7 +2664,6 @@ export class ContactDatabase {
      */
     async revokeIndividualContactAccess(contactId, username, contact = null) {
         try {
-            console.log(`🗑️ Revoking individual access for ${username} to contact ${contactId}`);
             
             // 🔧 ENHANCED: Pass contact object for Baikal deletion
             const result = await this.individualSharing.revokeIndividualAccess(contactId, username, contact);
@@ -2795,7 +2688,6 @@ export class ContactDatabase {
                     duration: result.duration
                 });
                 
-                console.log(`✅ Individual access revoked for ${username} (${result.duration}ms)`);
             } else {
                 console.error(`❌ Failed to revoke individual access for ${username}:`, result.error);
             }
@@ -2849,7 +2741,6 @@ export class ContactDatabase {
             this.individualSharing.clearCache();
         }
         
-        console.log('⚙️ Individual sharing strategy configured');
     }
 
     // ==================================================================================
@@ -2965,7 +2856,6 @@ export class ContactDatabase {
     configureIndividualSharing(config = {}) {
         try {
             // Individual sharing strategy is always used
-            console.log('⚙️ Individual sharing strategy configured (no additional configuration needed)');
         } catch (error) {
             console.error('❌ Failed to configure individual sharing:', error);
         }
@@ -2987,7 +2877,6 @@ export class ContactDatabase {
      */
     async updateSharedContactDatabase(contact, sharedDbName) {
         try {
-            console.log('🔄 Updating contact in shared database:', sharedDbName);
             
             // Update the contact in the shared database to ensure recipients get updates
             await this.safeUpdateItem({
@@ -3003,7 +2892,6 @@ export class ContactDatabase {
                 itemId: contact.contactId
             }, 'updateSharedContactDatabase');
             
-            console.log('✅ Contact updated in shared database:', sharedDbName);
             return { success: true };
             
         } catch (error) {
@@ -3021,13 +2909,11 @@ export class ContactDatabase {
      */
     async updateSharedContactDatabase(contact, sharedDbName) {
         try {
-            console.log(`📝 Updating existing shared contact in database: ${sharedDbName}`);
             
             // Open the shared database
             await userbase.openDatabase({
                 databaseName: sharedDbName,
                 changeHandler: (items) => {
-                    console.log(`📄 Shared database ${sharedDbName} items:`, items);
                 }
             });
 
@@ -3039,7 +2925,6 @@ export class ContactDatabase {
                 item: contact
             }, 'updateSharedContactDatabase');
 
-            console.log(`✅ Successfully updated contact in shared database: ${sharedDbName}`);
             return { success: true };
 
         } catch (error) {
@@ -3066,12 +2951,10 @@ export class ContactDatabase {
             this.sharedDatabaseCache.lastFetch && 
             (now - this.sharedDatabaseCache.lastFetch) < this.sharedDatabaseCache.ttl) {
             
-            console.log('🚀 Using cached shared database data');
             return this.sharedDatabaseCache.data;
         }
         
         // Fetch fresh data
-        console.log('🔄 Fetching fresh shared database data');
         const result = await this.getAllSharedContactDatabases();
         
         // Update cache
@@ -3092,7 +2975,6 @@ export class ContactDatabase {
     invalidateSharedDatabaseCache() {
         this.sharedDatabaseCache.isValid = false;
         this.sharedDatabaseCache.data = null;
-        console.log('🗑️ Shared database cache invalidated');
     }
 
     /**
@@ -3104,9 +2986,6 @@ export class ContactDatabase {
      */
     async updateSharedContact(contact, databaseId) {
         try {
-            console.log(`🔄 Updating SHARED contact in database: ${databaseId}`);
-            console.log(`   Contact: ${contact.cardName}`);
-            console.log(`   ItemId: ${contact.itemId}`);
             
             // Validate inputs
             if (!contact || !contact.itemId) {
@@ -3126,7 +3005,6 @@ export class ContactDatabase {
                 return { success: false, error: 'Database not found' };
             }
             
-            console.log(`📂 Found shared database: ${targetDb.databaseName}`);
             
             // Open the database
             await userbase.openDatabase({
@@ -3141,7 +3019,6 @@ export class ContactDatabase {
                 item: contact
             }, 'updateSharedContact');
             
-            console.log(`✅ Successfully updated shared contact in database`);
             return { success: true, databaseName: targetDb.databaseName };
             
         } catch (error) {
@@ -3164,7 +3041,6 @@ export class ContactDatabase {
             // Track that we created a new shared database
             this.lastKnownSharedCount = (this.lastKnownSharedCount || 0) + 1;
             
-            console.log(`📤 New shared database created: ${databaseName} → ${sharedWith}`);
             
             // The new shared database will be picked up by the next monitoring cycle
             // or can be handled immediately if needed
@@ -3201,8 +3077,6 @@ export class ContactDatabase {
             
             // ✅ SDK COMPLIANT: Log all SDK properties for debugging compliance
             if (sharedContactDatabases.length > 0) {
-                console.log('🔍 SDK Database Properties Sample:', sharedContactDatabases[0]);
-                console.log('🔍 Available SDK properties:', Object.keys(sharedContactDatabases[0]));
             }
             
             // Separate owned vs received shared databases
@@ -3238,7 +3112,6 @@ export class ContactDatabase {
         try {
             // ✅ SDK COMPLIANT: getDatabases() returns { databases: [...] } according to spec
             const result = options ? await userbase.getDatabases(options) : await userbase.getDatabases();
-            console.log('🔍 Raw result from getDatabases():', result);
             
             // SDK guarantees this format: { databases: [...] }
             if (!result || !Array.isArray(result.databases)) {
@@ -3367,7 +3240,6 @@ export class ContactDatabase {
         
         // If page was refreshed and we had session-only auth, consider it expired
         if (hasSessionOnly && !this.currentUser) {
-            console.log('🔄 Session-only authentication expired on refresh');
             this.clearSessionData();
             return {
                 isAuthenticated: false,
@@ -3482,7 +3354,6 @@ export class ContactDatabase {
             if (!allDatabases.success) {
                 // Don't log "Not signed in" as an error since it's expected before authentication
                 if (allDatabases.error !== 'Not signed in.') {
-                    console.log('❌ Failed to check for new shared databases:', allDatabases.error);
                 }
                 return;
             }
@@ -3494,8 +3365,6 @@ export class ContactDatabase {
             const currentSharedCount = this.lastKnownSharedCount || 0;
             
             if (totalSharedCount > currentSharedCount) {
-                console.log(`🔄 Detected new shared database(s)! Total: ${totalSharedCount}, Previous: ${currentSharedCount}`);
-                console.log(`🔄 Owned: ${ownedSharedDatabases.length}, Received: ${receivedSharedDatabases.length}`);
                 
                 // 🚀 PERFORMANCE: Only setup NEW databases, not all databases
                 const newOwnedDatabases = ownedSharedDatabases.filter(db => 
@@ -3504,7 +3373,6 @@ export class ContactDatabase {
                     !this.openedSharedDatabases.has(db.databaseId));
                 
                 if (newOwnedDatabases.length > 0 || newReceivedDatabases.length > 0) {
-                    console.log(`🔄 Setting up ${newOwnedDatabases.length + newReceivedDatabases.length} new shared databases...`);
                     
                     // Setup only new databases instead of all databases
                     await this.setupSpecificSharedDatabases(newOwnedDatabases, newReceivedDatabases);
@@ -3512,10 +3380,8 @@ export class ContactDatabase {
                 
                 this.lastKnownSharedCount = totalSharedCount;
                 
-                console.log(`✅ Shared database monitoring updated. Now monitoring ${totalSharedCount} total shared databases.`);
             } else if (totalSharedCount < currentSharedCount) {
                 // Handle case where shared databases were removed
-                console.log(`🔄 Detected removed shared database(s). Total: ${totalSharedCount}, Previous: ${currentSharedCount}`);
                 this.lastKnownSharedCount = totalSharedCount;
                 
                 // TODO: Clean up opened database tracking for removed databases
@@ -3536,10 +3402,6 @@ export class ContactDatabase {
      * - Unknown edge cases
      */
     async performFallbackSharedContactSync() {
-        console.log('\n🛡️ ====================================');
-        console.log('🛡️ FALLBACK SHARED CONTACT SYNC');
-        console.log('🛡️ Hourly Safety Net - Catching Missed Updates');
-        console.log('🛡️ ====================================\n');
         
         const startTime = Date.now();
         let refreshedCount = 0;
@@ -3549,19 +3411,15 @@ export class ContactDatabase {
             // Get all received shared databases
             const allDatabases = await this.getAllSharedContactDatabasesCached(true);
             if (!allDatabases.success) {
-                console.log('⏭️ Skipping fallback sync - not signed in or no databases');
                 return;
             }
             
             const { receivedSharedDatabases } = allDatabases;
             
             if (receivedSharedDatabases.length === 0) {
-                console.log('ℹ️ No shared contacts to sync');
-                console.log('🛡️ ====================================\n');
                 return;
             }
             
-            console.log(`📊 Processing ${receivedSharedDatabases.length} shared database(s)...`);
             
             // Re-fetch items from each shared database
             for (const db of receivedSharedDatabases) {
@@ -3584,7 +3442,6 @@ export class ContactDatabase {
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
                     if (!capturedItems || capturedItems.length === 0) {
-                        console.log(`   ⏭️ No items in database ${db.databaseName}`);
                         continue;
                     }
                     
@@ -3627,15 +3484,9 @@ export class ContactDatabase {
             
             const duration = Date.now() - startTime;
             
-            console.log('\n🛡️ ====================================');
-            console.log('🛡️ FALLBACK SYNC COMPLETE');
-            console.log(`📊 Refreshed: ${refreshedCount} shared contacts`);
-            console.log(`⏱️ Duration: ${duration}ms`);
-            console.log('🛡️ ====================================\n');
             
         } catch (error) {
             console.error('❌ Fallback shared contact sync failed:', error);
-            console.log('🛡️ ====================================\n');
         }
     }
 
@@ -3652,7 +3503,6 @@ export class ContactDatabase {
             }
             
             // Return default settings if no settings exist yet
-            console.log('📋 No settings found, returning defaults');
             return this.getDefaultSettings();
             
         } catch (error) {
@@ -3669,7 +3519,6 @@ export class ContactDatabase {
     async updateSettings(settings) {
         // Queue updates if mutex is locked
         if (this.settingsUpdateMutex) {
-            console.log('⏳ Settings update queued due to concurrent operation');
             return new Promise((resolve) => {
                 this.settingsUpdateQueue.push({ settings, resolve });
             });
@@ -3796,7 +3645,6 @@ export class ContactDatabase {
                     profileName,
                     configuration
                 });
-                console.log('✅ Baical configuration updated:', profileName);
             }
             
             return success;
@@ -3862,7 +3710,6 @@ export class ContactDatabase {
                 this.eventBus.emit('database:baicalConfigurationDeleted', {
                     profileName
                 });
-                console.log('✅ Baical configuration deleted:', profileName);
             }
             
             return success;

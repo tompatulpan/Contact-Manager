@@ -159,7 +159,6 @@ class ContactManagementApp {
         });
 
         this.eventBus.on('database:signedOut', () => {
-            console.log('User signed out');
             this.showToast('Signed out successfully', 'info');
         });
 
@@ -171,6 +170,10 @@ class ContactManagementApp {
 
         this.eventBus.on('contact:updated', (data) => {
             // Contact updated: ${data.contact?.cardName}
+            // Suppress toast if this update is part of a deletion (soft-delete marking)
+            if (data.contact?.metadata?.isDeleted) {
+                return; // Skip toast - deletion event will handle notification
+            }
             this.showToast('Contact updated successfully', 'success');
         });
 
@@ -196,7 +199,6 @@ class ContactManagementApp {
         this.eventBus.on('contact:importFromBaikal', async (data) => {
             try {
                 // Import contact from Baikal using vCard format
-                console.log(`📥 Importing contact from Baikal: ${data.contact.cardName}`, data.contact);
                 
                 const result = await this.modules.contactManager.importContactFromVCard(
                     data.contact.vcard,
@@ -205,7 +207,6 @@ class ContactManagementApp {
                 );
                 
                 if (result.success) {
-                    console.log(`✅ Imported contact from Baikal: ${data.contact.cardName}`);
                     
                     // Update UI if contact view is active
                     this.eventBus.emit('contact:imported', {
@@ -378,7 +379,6 @@ class ContactManagementApp {
      */
     reportError(error, context) {
         // This would integrate with error monitoring services like Sentry
-        console.log('Error reported:', { error: error.message, context, timestamp: new Date().toISOString() });
     }
 
     /**
@@ -408,7 +408,6 @@ class ContactManagementApp {
      */
     async shutdown() {
         try {
-            console.log('🛑 Shutting down application...');
             
             // Close database connections
             if (this.modules.database) {
@@ -423,7 +422,6 @@ class ContactManagementApp {
             window.removeEventListener('unload', this.shutdown);
             
             this.isInitialized = false;
-            console.log('✅ Application shutdown complete');
             
         } catch (error) {
             console.error('Error during shutdown:', error);
@@ -496,20 +494,17 @@ function reloadUserbaseScript() {
         const existingScript = document.querySelector('script[src*="userbase"]');
         if (existingScript) {
             existingScript.remove();
-            console.log('🗑️ Removed existing Userbase script');
         }
 
         // Clear window.userbase
         if (window.userbase) {
             delete window.userbase;
-            console.log('🗑️ Cleared window.userbase');
         }
 
         // Add new script
         const script = document.createElement('script');
         script.src = 'lib/userbase.js';
         script.onload = () => {
-            console.log('✅ Userbase script reloaded successfully');
             resolve();
         };
         script.onerror = () => {
@@ -533,7 +528,6 @@ function clearURLParametersOnStartup() {
         // Clear all URL parameters and hash parameters
         const cleanUrl = `${currentUrl.origin}${currentUrl.pathname}${currentUrl.hash.split('?')[0]}`;
         window.history.replaceState({}, document.title, cleanUrl);
-        console.log('🔒 SECURITY: Cleared URL parameters on startup');
     }
 }
 

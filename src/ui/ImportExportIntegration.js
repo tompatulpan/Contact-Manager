@@ -393,12 +393,10 @@ export class ImportExportIntegration {
     }
 
     handleImportCompleted(data) {
-        console.log('Import completed:', data);
         this.showNotification(`Import completed: ${data.result.statistics.imported} contacts imported`, 'success');
     }
 
     handleExportCompleted(data) {
-        console.log('Export completed:', data);
         this.showNotification(`Export completed: ${data.successful} contacts exported`, 'success');
     }
 
@@ -428,7 +426,6 @@ export class ImportExportIntegration {
 
     showExportProgress(progress) {
         // Similar to import progress but for export
-        console.log('Export progress:', progress);
     }
 
     // Configuration methods

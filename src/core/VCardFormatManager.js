@@ -97,7 +97,6 @@ export class VCardFormatManager {
     importVCard(vCardString, cardName = null, markAsImported = true) {
         const detection = this.detectFormat(vCardString);
         
-        console.log(`📥 Importing ${detection.format} vCard (confidence: ${detection.confidence}%)`);
         
         if (!detection.isValid) {
             return {
@@ -109,23 +108,11 @@ export class VCardFormatManager {
 
         try {
             const processor = this.getProcessorForVersion(detection.version);
-            console.log(`� Using processor for version ${detection.version}`);
             
             const contact = processor.import(vCardString, cardName, markAsImported);
             
-            console.log(`✅ Successfully parsed contact: ${contact.cardName}`);
-            
-            // Debug: Check the contact's actual vCard content
-            console.log('🔍 Contact vCard content after processing:', {
-                hasVCard: !!contact.vcard,
-                vCardLength: contact.vcard?.length || 0,
-                vCardPreview: contact.vcard?.substring(0, 200) + (contact.vcard?.length > 200 ? '...' : ''),
-                originalLength: vCardString.length
-            });
-            
             // Create a simple preview by parsing the vCard directly
             const vCardPreview = this.createVCardPreview(contact.vcard || vCardString);
-            console.log('📊 Parsed contact data preview:', vCardPreview);
 
             return {
                 success: true,
@@ -155,7 +142,6 @@ export class VCardFormatManager {
             throw new Error(`Unsupported export format: ${targetFormat}`);
         }
 
-        console.log(`📤 Exporting to ${formatInfo.description}`);
         
         const processor = formatInfo.processor;
         return processor.export(contact);
@@ -184,7 +170,6 @@ export class VCardFormatManager {
             };
         }
 
-        console.log(`🔄 Converting vCard ${sourceDetection.version} → ${targetVersion}`);
         
         // Import with source processor
         const sourceProcessor = this.getProcessorForVersion(sourceDetection.version);
@@ -277,8 +262,6 @@ export class VCardFormatManager {
         };
 
         // Reduced logging - only log when explicitly needed
-        // console.log('🔍 VCardFormatManager: Starting format detection...');
-        // console.log('📄 vCard content preview:', vCardString.substring(0, 200));
 
         // Check for explicit version declaration
         if (this.patterns.version3.test(vCardString)) {
@@ -286,28 +269,21 @@ export class VCardFormatManager {
             result.format = 'vcard-3.0';
             result.confidence = 90;
             result.indicators.push('VERSION:3.0 found');
-            // console.log('✅ Detected VERSION:3.0 explicitly');
         } else if (this.patterns.version4.test(vCardString)) {
             result.version = '4.0';
             result.format = 'vcard-4.0';
             result.confidence = 90;
             result.indicators.push('VERSION:4.0 found');
-            // console.log('✅ Detected VERSION:4.0 explicitly');
         } else {
-            // console.log('⚠️ No explicit version found, checking patterns...');
-            // console.log('🧪 Version 3.0 pattern test:', this.patterns.version3.test(vCardString));
-            // console.log('🧪 Version 4.0 pattern test:', this.patterns.version4.test(vCardString));
         }
 
         // Check for Apple-specific indicators (suggests 3.0)
         if (this.patterns.appleIndicators.test(vCardString)) {
             result.indicators.push('Apple-specific properties found');
-            // console.log('🍎 Apple indicators found');
             if (!result.version) {
                 result.version = '3.0';
                 result.format = 'vcard-3.0';
                 result.confidence = 75;
-                // console.log('🔄 Set version to 3.0 based on Apple indicators');
             } else if (result.version === '3.0') {
                 result.confidence = Math.min(result.confidence + 10, 95);
             }
@@ -315,12 +291,10 @@ export class VCardFormatManager {
 
         // Fallback detection based on common patterns
         if (!result.version) {
-            // console.log('🔄 Using fallback content detection...');
             result.version = this.detectVersionFromContent(vCardString);
             result.format = result.version === '3.0' ? 'vcard-3.0' : 'vcard-4.0';
             result.confidence = 60;
             result.indicators.push('Version inferred from content patterns');
-            // console.log(`🔄 Fallback detected version: ${result.version}`);
         }
 
         // Additional confidence adjustments
@@ -329,7 +303,6 @@ export class VCardFormatManager {
             result.indicators.push('ITEM prefix or lowercase type found');
         }
 
-        // console.log(`📊 Final detection result: version=${result.version}, format=${result.format}, confidence=${result.confidence}%`);
         
         return result;
     }

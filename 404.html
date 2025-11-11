@@ -74,15 +74,15 @@
                     </div>
                 </div>
 
-                <!-- Sharing Lists -->
+                <!-- User Groups -->
                 <div class="sidebar-section">
-                    <h3>Sharing Lists</h3>
+                    <h3>User Groups</h3>
                     <div id="distribution-lists" class="distribution-lists">
-                        <!-- Dynamic sharing lists will be inserted here -->
+                        <!-- Dynamic user groups will be inserted here -->
                     </div>
                     <button id="create-list-btn" class="btn btn-ghost btn-small">
                         <i class="fas fa-plus"></i>
-                        Create Sharing List
+                        Create User Group
                     </button>
                 </div>
 
@@ -481,14 +481,14 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p>Share this contact with all users in a sharing list simultaneously.</p>
+                                    <p>Share this contact with all users in a user group simultaneously.</p>
                                 </div>
                             </div>
                             
                             <div class="form-group">
-                                <label for="share-with-distribution-list">Select Sharing List *</label>
+                                <label for="share-with-distribution-list">Select User Group *</label>
                                 <select id="share-with-distribution-list" name="shareWithList">
-                                    <option value="">Choose a sharing list...</option>
+                                    <option value="">Choose a user group...</option>
                                 </select>
                                 <div class="field-error" id="share-with-distribution-list-error"></div>
                             </div>
@@ -518,12 +518,15 @@
                                 <input type="checkbox" id="share-readonly" name="readonly" checked>
                                 <span>Read-only access (recipient cannot edit)</span>
                             </label>
+                            <small class="form-help-text" style="margin-left: 28px; display: block; color: #888; margin-top: 4px; font-size: 0.85em;">
+                                ℹ️ Recommended: Prevents accidental changes. Uncheck to allow collaborative editing.
+                            </small>
                         </div>
                         
                         <div class="share-info">
                             <div class="info-box">
                                 <i class="fas fa-info-circle"></i>
-                                <p id="share-info-text">The recipient will receive this contact in their "Shared with Me" section and can view all contact details. They cannot share it further with others.</p>
+                                <p id="share-info-text">Recipients will see this contact in their "Shared with Me" section. You can enter multiple usernames separated by commas (e.g., user1, user2, user3).</p>
                             </div>
                         </div>
                         
@@ -559,22 +562,22 @@
     </div>
 
     <!-- Create Distribution List Modal -->
-        <!-- Create Sharing List Modal -->
+        <!-- Create User Group Modal -->
     <div id="create-list-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Create Sharing List</h2>
+                <h2>Create User Group</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="info-box">
                     <i class="fas fa-info-circle"></i>
-                    <p>Create a list of usernames to share your contact information with. For example, create a "Work" list with colleagues' usernames to quickly share your work contact details.</p>
+                    <p>Create a group of usernames to share your contact information with. For example, create a "Work" group with colleagues' usernames to quickly share your work contact details.</p>
                 </div>
                 
                 <form id="create-list-form" class="create-list-form">
                     <div class="form-group">
-                        <label for="list-name">Sharing List Name *</label>
+                        <label for="list-name">User Group Name *</label>
                         <input type="text" id="list-name" name="listName" required 
                                placeholder="e.g., Work Colleagues, Family, Clients" maxlength="50">
                         <div class="field-error" id="list-name-error"></div>
@@ -624,11 +627,12 @@
                         <div class="form-group">
                             <label for="new-username">Add Username</label>
                             <div class="input-group">
-                                <input type="text" id="new-username" placeholder="Enter username to add">
+                                <input type="text" id="new-username" placeholder="Enter username (or multiple separated by commas)">
                                 <button type="button" id="add-username-btn" class="btn btn-primary">
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
+                            <small class="help-text">💡 Tip: Add multiple users at once using commas (e.g., alice, bob, charlie)</small>
                         </div>
                         
                         <div class="current-usernames">

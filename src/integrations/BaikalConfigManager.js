@@ -26,7 +26,6 @@ export class BaikalConfigManager {
         try {
             await this.loadConfigurations();
             this.isInitialized = true;
-            console.log('🔧 BaikalConfigManager initialized');
         } catch (error) {
             console.error('❌ Failed to initialize BaikalConfigManager:', error);
         }
@@ -72,7 +71,6 @@ export class BaikalConfigManager {
             // Cache in memory
             this.configurations.set(config.profileName, sanitizedConfig);
 
-            console.log('✅ Baikal configuration saved:', config.profileName);
 
             this.eventBus.emit('baikal:configurationSaved', {
                 profileName: config.profileName,
@@ -174,7 +172,6 @@ export class BaikalConfigManager {
             
             this.configurations.delete(profileName);
 
-            console.log('✅ Baikal configuration deleted:', profileName);
 
             this.eventBus.emit('baikal:configurationDeleted', {
                 profileName
@@ -202,7 +199,6 @@ export class BaikalConfigManager {
         try {
             // Check if database is authenticated
             if (!this.database.currentUser) {
-                console.log('⏳ Database not authenticated yet, skipping Baikal configuration load');
                 return;
             }
             
@@ -215,7 +211,6 @@ export class BaikalConfigManager {
                 this.configurations.set(config.profileName, config);
             });
 
-            console.log(`📖 Loaded ${Object.keys(baikalConfigurations).length} Baikal configurations`);
 
             this.eventBus.emit('baikal:configurationsLoaded', {
                 count: Object.keys(baikalConfigurations).length,
@@ -295,7 +290,6 @@ export class BaikalConfigManager {
                 addressBookCount: 1 // Mock address book count
             };
 
-            console.log('✅ Baikal configuration test successful');
 
             return testResult;
 
@@ -404,7 +398,6 @@ export class BaikalConfigManager {
                 }
             }
 
-            console.log(`📦 Imported ${importedCount} Baikal configurations, skipped ${skippedCount}`);
 
             return {
                 success: true,

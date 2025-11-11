@@ -17,7 +17,6 @@ class UserbaseConnectionFix {
         const originalErrorHandler = window.onerror;
         window.onerror = (message, source, lineno, colno, error) => {
             if (message.includes('XML Parsing Error') || message.includes('no root element found')) {
-                console.log('🔧 Detected XML parsing error, attempting fix...');
                 this.handleXMLParsingError(error);
                 return true; // Prevent default error handling
             }
@@ -31,7 +30,6 @@ class UserbaseConnectionFix {
         window.addEventListener('unhandledrejection', (event) => {
             if (event.reason && event.reason.message && 
                 event.reason.message.includes('XML Parsing Error')) {
-                console.log('🔧 Detected XML parsing error in Promise, attempting fix...');
                 this.handleXMLParsingError(event.reason);
                 event.preventDefault(); // Prevent default rejection handling
             }
@@ -39,7 +37,6 @@ class UserbaseConnectionFix {
     }
 
     async handleXMLParsingError(error) {
-        console.log('🔧 Handling XML parsing error:', error);
         
         if (this.retryCount >= this.maxRetries) {
             console.error('❌ Max retries reached for Userbase connection');
@@ -48,7 +45,6 @@ class UserbaseConnectionFix {
         }
 
         this.retryCount++;
-        console.log(`🔄 Attempt ${this.retryCount}/${this.maxRetries} to fix connection...`);
 
         // Strategy 1: Clear Userbase-related storage
         this.clearUserbaseStorage();
@@ -69,7 +65,6 @@ class UserbaseConnectionFix {
 
     clearUserbaseStorage() {
         try {
-            console.log('🧹 Clearing Userbase-related storage...');
             
             // Clear localStorage items related to Userbase
             if (typeof localStorage !== 'undefined') {
@@ -77,7 +72,6 @@ class UserbaseConnectionFix {
                 keys.forEach(key => {
                     if (key.includes('userbase') || key.includes('Userbase')) {
                         localStorage.removeItem(key);
-                        console.log(`🗑️ Cleared localStorage: ${key}`);
                     }
                 });
             }
@@ -88,12 +82,10 @@ class UserbaseConnectionFix {
                 keys.forEach(key => {
                     if (key.includes('userbase') || key.includes('Userbase')) {
                         sessionStorage.removeItem(key);
-                        console.log(`🗑️ Cleared sessionStorage: ${key}`);
                     }
                 });
             }
 
-            console.log('✅ Userbase storage cleared');
         } catch (error) {
             console.error('❌ Error clearing storage:', error);
         }
@@ -101,19 +93,16 @@ class UserbaseConnectionFix {
 
     async reloadUserbaseSDK() {
         try {
-            console.log('🔄 Attempting to reload Userbase SDK...');
             
             // Remove existing Userbase script
             const existingScript = document.querySelector('script[src*="userbase"]');
             if (existingScript) {
                 existingScript.remove();
-                console.log('🗑️ Removed existing Userbase script');
             }
 
             // Clear window.userbase
             if (window.userbase) {
                 delete window.userbase;
-                console.log('🗑️ Cleared window.userbase');
             }
 
             // Wait a moment
@@ -124,7 +113,6 @@ class UserbaseConnectionFix {
                 const script = document.createElement('script');
                 script.src = 'lib/userbase.js';
                 script.onload = () => {
-                    console.log('✅ Userbase SDK reloaded successfully');
                     resolve();
                 };
                 script.onerror = () => {
@@ -234,7 +222,6 @@ If the problem persists, the Userbase service may be temporarily unavailable.`;
         const originalFetch = window.fetch;
         window.fetch = async (url, options) => {
             try {
-                console.log('🌐 Network request:', url);
                 const response = await originalFetch(url, options);
                 
                 if (!response.ok) {
@@ -253,7 +240,6 @@ If the problem persists, the Userbase service may be temporarily unavailable.`;
     static initialize() {
         const fix = new UserbaseConnectionFix();
         fix.setupNetworkDebugging();
-        console.log('🔧 Userbase connection fix initialized');
         return fix;
     }
 }

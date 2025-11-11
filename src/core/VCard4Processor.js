@@ -69,7 +69,6 @@ export class VCard4Processor {
      * @returns {Object} Processed contact object
      */
     import(vCardString, cardName = null, markAsImported = true) {
-        console.log('📄 Processing vCard 4.0 (RFC 9553 standard)...');
         
         try {
             // Validate basic structure
@@ -86,14 +85,12 @@ export class VCard4Processor {
             
             // 🔧 Convert vCard 4.0 to vCard 3.0 for storage (CardDAV standard)
             // This ensures all contacts use the same format and prevents duplicates
-            console.log('🔄 Converting vCard 4.0 → 3.0 for consistent storage...');
             const vCard3Processor = this.getVCard3Processor();
             const vCard3String = vCard3Processor.generateVCard3(displayData);
             
             // Create contact object with vCard 3.0 format
             const contact = this.createContactObject(displayData, vCard3String, cardName, markAsImported);
             
-            console.log('✅ Successfully imported vCard 4.0 (stored as vCard 3.0)');
             return contact;
             
         } catch (error) {
@@ -108,7 +105,6 @@ export class VCard4Processor {
      * @returns {Object} Export result with content and metadata
      */
     export(contact) {
-        console.log('📤 Exporting to vCard 4.0 (RFC 9553 standard)...');
         
         try {
             // Extract display data from contact
@@ -711,14 +707,12 @@ export class VCard4Processor {
                 const existingUID = this.extractUIDFromVCard(contact.vcard);
                 if (existingUID) {
                     baseData.uid = existingUID;
-                    console.log(`🔑 Preserved existing UID from vCard: ${existingUID}`);
                 }
             }
 
             // Fallback: Use contactId if no UID found
             if (!baseData.uid && contact.contactId) {
                 baseData.uid = contact.contactId;
-                console.log(`🔑 Using contactId as UID: ${contact.contactId}`);
             }
 
             return baseData;
@@ -726,7 +720,6 @@ export class VCard4Processor {
 
         // If the contact has a vCard string, parse it to extract display data
         if (contact.vcard) {
-            console.log('🔍 Extracting display data from vCard string...');
             const parsedContact = this.parseVCard4(contact.vcard);
             const displayData = this.convertToDisplayData(parsedContact);
             

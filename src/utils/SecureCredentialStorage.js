@@ -33,10 +33,8 @@ export class SecureCredentialStorage {
             localStorage.setItem(testKey, 'test');
             localStorage.removeItem(testKey);
             this.isPrivateBrowsing = false;
-            console.log('📦 Regular browsing mode detected - localStorage available');
         } catch (e) {
             this.isPrivateBrowsing = true;
-            console.log('🔒 Private browsing mode detected - using memory storage');
         }
     }
 
@@ -59,7 +57,6 @@ export class SecureCredentialStorage {
                 ['encrypt', 'decrypt']
             );
             
-            console.log('🔐 Master password set - encrypted storage enabled');
             return true;
         } catch (error) {
             console.error('❌ Failed to set master password:', error);
@@ -167,7 +164,6 @@ export class SecureCredentialStorage {
                     });
                     
                     await navigator.credentials.store(credential);
-                    console.log('✅ Stored credentials using Credential Management API');
                     return { success: true, method: 'credential_api' };
                 } catch (error) {
                     console.warn('⚠️ Credential API failed, falling back:', error.message);
@@ -179,7 +175,6 @@ export class SecureCredentialStorage {
                 try {
                     const encrypted = await this.encrypt(credentialsData);
                     localStorage.setItem(`${this.storagePrefix}${profileName}`, encrypted);
-                    console.log('✅ Stored encrypted credentials in localStorage');
                     return { success: true, method: 'encrypted_localStorage' };
                 } catch (error) {
                     console.warn('⚠️ Encrypted localStorage failed:', error.message);
@@ -190,7 +185,6 @@ export class SecureCredentialStorage {
             if (usePersistentStorage && !this.isPrivateBrowsing && !useEncryption) {
                 try {
                     localStorage.setItem(`${this.storagePrefix}${profileName}`, credentialsData);
-                    console.log('⚠️ Stored credentials in localStorage (unencrypted)');
                     return { success: true, method: 'localStorage_plain', warning: 'Credentials stored unencrypted' };
                 } catch (error) {
                     console.warn('⚠️ localStorage failed:', error.message);
@@ -202,7 +196,6 @@ export class SecureCredentialStorage {
                 try {
                     const encrypted = await this.encrypt(credentialsData);
                     this.memoryStorage.set(profileName, encrypted);
-                    console.log('✅ Stored encrypted credentials in memory (private browsing)');
                     return { success: true, method: 'encrypted_memory' };
                 } catch (error) {
                     console.warn('⚠️ Encrypted memory storage failed:', error.message);
@@ -212,7 +205,6 @@ export class SecureCredentialStorage {
             // Strategy 5: SessionStorage fallback (temporary)
             try {
                 sessionStorage.setItem(`${this.storagePrefix}${profileName}`, credentialsData);
-                console.log('✅ Stored credentials in sessionStorage (temporary)');
                 return { success: true, method: 'sessionStorage', warning: 'Credentials will be lost on tab close' };
             } catch (error) {
                 console.error('❌ All storage methods failed:', error);
@@ -239,7 +231,6 @@ export class SecureCredentialStorage {
                     });
                     
                     if (credential && credential.id.startsWith(profileName)) {
-                        console.log('✅ Retrieved credentials from Credential Management API');
                         return {
                             success: true,
                             credentials: {
@@ -261,12 +252,10 @@ export class SecureCredentialStorage {
                     if (encrypted && this.encryptionKey) {
                         const decrypted = await this.decrypt(encrypted);
                         const credentials = JSON.parse(decrypted);
-                        console.log('✅ Retrieved encrypted credentials from localStorage');
                         return { success: true, credentials, method: 'encrypted_localStorage' };
                     } else if (encrypted) {
                         // Try plain localStorage
                         const credentials = JSON.parse(encrypted);
-                        console.log('✅ Retrieved credentials from localStorage');
                         return { success: true, credentials, method: 'localStorage_plain' };
                     }
                 } catch (error) {
@@ -281,7 +270,6 @@ export class SecureCredentialStorage {
                     if (this.encryptionKey) {
                         const decrypted = await this.decrypt(encrypted);
                         const credentials = JSON.parse(decrypted);
-                        console.log('✅ Retrieved encrypted credentials from memory');
                         return { success: true, credentials, method: 'encrypted_memory' };
                     }
                 } catch (error) {
@@ -294,7 +282,6 @@ export class SecureCredentialStorage {
                 const stored = sessionStorage.getItem(`${this.storagePrefix}${profileName}`);
                 if (stored) {
                     const credentials = JSON.parse(stored);
-                    console.log('✅ Retrieved credentials from sessionStorage');
                     return { success: true, credentials, method: 'sessionStorage' };
                 }
             } catch (error) {
@@ -330,7 +317,6 @@ export class SecureCredentialStorage {
             }
 
             if (removed) {
-                console.log(`✅ Removed credentials for profile: ${profileName}`);
             }
 
             return { success: true };
@@ -366,7 +352,6 @@ export class SecureCredentialStorage {
             // Clear memory storage
             this.memoryStorage.clear();
 
-            console.log('✅ Cleared all stored credentials');
             return { success: true };
         } catch (error) {
             console.error('❌ Failed to clear credentials:', error);

@@ -36,7 +36,6 @@ class ProfileRouter {
                 this.currentProfile = username;
                 this.isProfileLink = true;
                 
-                console.log(`🔗 Profile link detected for user: ${username}`);
             }
         }
     }

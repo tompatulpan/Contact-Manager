@@ -271,12 +271,20 @@ export class ContactRenderer {
      * @returns {string} - 'owned', 'shared', or 'imported'
      */
     static getContactType(contact) {
-        if (contact.metadata?.isImported) {
-            return 'imported';
-        } else if (contact.metadata?.isOwned === false) {
-            return 'shared';
-        } else {
-            return 'owned';
+        const isOwned = contact.metadata?.isOwned;
+        const isImported = contact.metadata?.isImported;
+        
+        // Check shared first (not owned by current user)
+        if (isOwned === false) {
+            return 'shared';  // Green - contacts shared with you
+        }
+        // Then check if imported (owned but from external source)
+        else if (isImported === true) {
+            return 'imported';  // Orange - imported from files/CardDAV
+        }
+        // Default to owned (created locally)
+        else {
+            return 'owned';  // Blue - contacts you created
         }
     }
 }

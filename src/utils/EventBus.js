@@ -145,9 +145,7 @@ export class EventBus {
      * Debug method to log current event subscriptions
      */
     debug() {
-        console.log('EventBus Debug Info:');
         for (const [eventName, listeners] of this.events.entries()) {
-            console.log(`  ${eventName}: ${listeners.length} listeners`);
         }
     }
 }

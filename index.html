@@ -18,7 +18,7 @@
             <div class="header-left">
                 <h1 class="app-title">
                     <i class="fas fa-address-book"></i>
-                    Contact Manager
+                    Kontakt
                 </h1>
             </div>
             <div class="header-right">
@@ -94,11 +94,11 @@
                     
                     <!-- Distribution Lists Container -->
                     <div id="distribution-lists" class="distribution-lists">
-                        <!-- Dynamic sharing lists will be inserted here -->
+                        <!-- Dynamic user groups will be inserted here -->
                     </div>
                     <button id="create-list-btn" class="btn btn-ghost btn-small">
                         <i class="fas fa-plus"></i>
-                        Create Sharing List
+                        Create User Group
                     </button>
                 </div>
 
@@ -149,6 +149,10 @@
                 <div class="panel-header">
                     <h2 id="contact-list-title">All Contacts</h2>
                     <div class="view-controls">
+                        <button id="bulk-select-btn" class="btn btn-ghost" title="Select multiple contacts">
+                            <i class="fas fa-check-square"></i>
+                            Select
+                        </button>
                         <button id="view-card" class="btn btn-ghost active">
                             <i class="fas fa-th-large"></i>
                         </button>
@@ -159,6 +163,26 @@
                             <i class="fas fa-sort"></i>
                             Name
                             <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Bulk Actions Toolbar (hidden by default) -->
+                <div id="bulk-actions-toolbar" class="bulk-actions-toolbar hidden">
+                    <div class="bulk-selection-info">
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="select-all-contacts">
+                            <span id="bulk-selection-count">0 selected</span>
+                        </label>
+                    </div>
+                    <div class="bulk-actions">
+                        <button id="bulk-delete-btn" class="btn btn-danger btn-small" title="Delete selected contacts">
+                            <i class="fas fa-trash"></i>
+                            Delete Selected
+                        </button>
+                        <button id="bulk-cancel-btn" class="btn btn-ghost btn-small" title="Cancel selection">
+                            <i class="fas fa-times"></i>
+                            Cancel
                         </button>
                     </div>
                 </div>
@@ -502,7 +526,7 @@
                                 </button>
                                 <button type="button" class="share-type-tab" data-type="share-with-list">
                                     <i class="fas fa-users"></i>
-                                    Share with List
+                                    Share with Group
                                 </button>
                             </div>
                         </div>
@@ -524,10 +548,10 @@
                             </div>
                             
                             <div class="form-group">
-                                <label for="share-username">Share with Username *</label>
+                                <label for="share-username">Share with Username(s) *</label>
                                 <div class="input-group">
                                     <input type="text" id="share-username" name="username" 
-                                           placeholder="Enter username..." required>
+                                           placeholder="Enter username(s), comma-separated..." required>
                                     <button type="button" id="get-verification-btn" class="btn btn-secondary">
                                         <i class="fas fa-key"></i> Get My Code
                                     </button>
@@ -553,7 +577,7 @@
                             </div>
                         </div>
 
-                        <!-- Share with Distribution List -->
+                        <!-- Share with User Group -->
                         <div id="share-with-list-section" class="share-section">
                             <div class="contact-preview">
                                 <h3>Sharing Contact:</h3>
@@ -565,14 +589,14 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p>Share this contact with all users in a sharing list simultaneously.</p>
+                                    <p>Share this contact with all users in a user group simultaneously.</p>
                                 </div>
                             </div>
                             
                             <div class="form-group">
-                                <label for="share-with-distribution-list">Select Sharing List *</label>
+                                <label for="share-with-distribution-list">Select User Group *</label>
                                 <select id="share-with-distribution-list" name="shareWithList">
-                                    <option value="">Choose a sharing list...</option>
+                                    <option value="">Choose a user group...</option>
                                 </select>
                                 <div class="field-error" id="share-with-distribution-list-error"></div>
                             </div>
@@ -602,16 +626,17 @@
                                 <input type="checkbox" id="share-readonly" name="readonly" checked>
                                 <span>Read-only access (recipient cannot edit)</span>
                             </label>
+                            <small class="form-help-text" style="margin-left: 28px; display: block; color: #888; margin-top: 4px; font-size: 0.85em;">
+                                ℹ️ Recommended: Prevents accidental changes. Uncheck to allow collaborative editing.
+                            </small>
                         </div>
                         
-                        <div class="share-info">
-                            <div class="info-box">
-                                <i class="fas fa-info-circle"></i>
-                                <p id="share-info-text">The recipient will receive this contact in their "Shared with Me" section and can view all contact details. They cannot share it further with others.</p>
-                            </div>
-                        </div>
-                        
-                        <div class="form-actions">
+                            <div class="share-info">
+                                <div class="info-box">
+                                    <i class="fas fa-info-circle"></i>
+                                    <p id="share-info-text">Recipients will see this contact in their "Shared with Me" section. You can enter multiple usernames separated by commas (e.g., user1, user2, user3).</p>
+                                </div>
+                            </div>                        <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary" id="share-submit-btn">
                                 <i class="fas fa-share"></i>
@@ -671,23 +696,22 @@
         </div>
     </div>
 
-    <!-- Create Distribution List Modal -->
-        <!-- Create Sharing List Modal -->
+    <!-- Create User Group Modal -->
     <div id="create-list-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Create Sharing List</h2>
+                <h2>Create User Group</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="info-box">
                     <i class="fas fa-info-circle"></i>
-                    <p>Create a list of usernames to share your contact information with. For example, create a "Work" list with colleagues' usernames to quickly share your work contact details.</p>
+                    <p>Create a group of usernames to share your contact information with. For example, create a "Work" group with colleagues' usernames to quickly share your work contact details.</p>
                 </div>
                 
                 <form id="create-list-form" class="create-list-form">
                     <div class="form-group">
-                        <label for="list-name">Sharing List Name *</label>
+                        <label for="list-name">User Group Name *</label>
                         <input type="text" id="list-name" name="listName" required 
                                placeholder="e.g., Work Colleagues, Family, Clients" maxlength="50">
                         <div class="field-error" id="list-name-error"></div>
@@ -737,11 +761,12 @@
                         <div class="form-group">
                             <label for="new-username">Add Username</label>
                             <div class="input-group">
-                                <input type="text" id="new-username" placeholder="Enter username to add">
+                                <input type="text" id="new-username" placeholder="Enter username (or multiple separated by commas)">
                                 <button type="button" id="add-username-btn" class="btn btn-primary">
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
+                            <small class="help-text">💡 Tip: Add multiple users at once using commas (e.g., alice, bob, charlie)</small>
                         </div>
                         
                         <div class="current-usernames">
@@ -790,9 +815,12 @@
                     <div class="form-group">
                         <label class="checkbox-item">
                             <input type="checkbox" id="mark-as-imported" name="markAsImported" checked>
-                            <span>Mark as "Imported Files" for filtering</span>
+                            <span>Mark as "Imported Files" (Orange)</span>
                         </label>
-                        <small class="help-text">When enabled, imported contacts can be filtered using the "Imported Files" option</small>
+                        <small class="help-text">
+                            ✅ <strong>Checked:</strong> Orange avatar (imported contact)<br>
+                            ⬜ <strong>Unchecked:</strong> Blue avatar (owned contact)
+                        </small>
                     </div>
                     
                     <div class="form-actions">

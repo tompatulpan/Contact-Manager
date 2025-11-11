@@ -72,11 +72,6 @@ export class ContactValidator {
         if (!isEdit && (!formData.cardName || formData.cardName.trim() === '')) {
             formData.cardName = formData.fn || 'Unnamed Contact';
             warnings.push('Card name was empty, using full name as default');
-            console.log('🔧 Validator: Applied cardName fallback for new contact:', formData.cardName);
-        } else if (isEdit) {
-            console.log('🔧 Validator: Edit mode - preserving cardName:', formData.cardName);
-        } else {
-            console.log('🔧 Validator: New contact with cardName provided:', formData.cardName);
         }
 
         // Field length validation
@@ -116,8 +111,9 @@ export class ContactValidator {
      * @param {Array} errors - Errors array
      */
     validateRequiredFields(contactData, errors) {
-        // Full name is required
-        if (!contactData.fn || typeof contactData.fn !== 'string' || contactData.fn.trim() === '') {
+        // Full name is required (accept both 'fn' and 'fullName')
+        const fullName = contactData.fn || contactData.fullName;
+        if (!fullName || typeof fullName !== 'string' || fullName.trim() === '') {
             errors.push('Full name is required');
         }
 
@@ -520,17 +516,13 @@ export class ContactValidator {
         if (phone.startsWith('tel:')) {
             const telNumber = phone.substring(4); // Remove 'tel:' prefix
             const cleaned = telNumber.replace(/\s/g, '');
-            console.log(`🔍 Validating tel: URI phone: "${phone}" → cleaned: "${cleaned}"`);
             const isValid = this.patterns.phone.test(cleaned) && cleaned.length >= 7 && cleaned.length <= 20;
-            console.log(`📞 Tel URI validation result: ${isValid} (pattern: ${this.patterns.phone.test(cleaned)}, length: ${cleaned.length})`);
             return isValid;
         }
 
         // Handle standard phone number format
         const cleaned = phone.replace(/\s/g, '');
-        console.log(`🔍 Validating standard phone: "${phone}" → cleaned: "${cleaned}"`);
         const isValid = this.patterns.phone.test(cleaned) && cleaned.length >= 7 && cleaned.length <= 20;
-        console.log(`📞 Standard validation result: ${isValid} (pattern: ${this.patterns.phone.test(cleaned)}, length: ${cleaned.length})`);
         return isValid;
     }
 
@@ -620,6 +612,15 @@ export class ContactValidator {
             }
         });
 
+        // 🔧 CRITICAL FIX: Map 'fn' to 'fullName' for VCard3Processor compatibility
+        // ContactUIController provides 'fn', but VCard3Processor.generateVCard3() expects 'fullName'
+        if (sanitized.fn) {
+            sanitized.fullName = sanitized.fn;
+        } else if (contactData.fullName && typeof contactData.fullName === 'string') {
+            // Support both 'fn' and 'fullName' property names
+            sanitized.fullName = contactData.fullName.trim().substring(0, this.fieldRequirements.fn?.maxLength || 255);
+        }
+
         // Sanitize multi-value fields
         ['phones', 'emails', 'urls'].forEach(field => {
             if (contactData[field] && Array.isArray(contactData[field])) {
@@ -683,12 +684,10 @@ export class ContactValidator {
         // Without this, a new random UID is generated, causing duplicate contacts after sync
         if (contactData.vcard && typeof contactData.vcard === 'string') {
             sanitized.vcard = contactData.vcard;
-            console.log('🔑 ContactValidator: Preserved original vCard for UID extraction');
         }
 
         if (contactData.contactId && typeof contactData.contactId === 'string') {
             sanitized.contactId = contactData.contactId;
-            console.log('🔑 ContactValidator: Preserved contactId as UID fallback');
         }
         
         // ⭐ CRITICAL FIX #2: Ensure UID is always a string, never an object
@@ -701,7 +700,6 @@ export class ContactValidator {
             } else {
                 sanitized.uid = String(contactData.uid); // Force string conversion
             }
-            console.log('🔑 ContactValidator: Sanitized UID to string:', sanitized.uid);
         }
 
         return sanitized;

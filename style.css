@@ -698,6 +698,75 @@ body {
     color: white;
 }
 
+/* Bulk Actions Toolbar */
+.bulk-actions-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: var(--primary-light);
+    border-bottom: 1px solid var(--primary-color);
+    animation: slideDown 0.2s ease-out;
+}
+
+.bulk-actions-toolbar.hidden {
+    display: none;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bulk-selection-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.bulk-selection-info .checkbox-item {
+    margin: 0;
+    font-weight: 600;
+    color: var(--primary-dark);
+}
+
+.bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Contact Card Checkbox */
+.contact-card {
+    position: relative;
+}
+
+.contact-card-checkbox {
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-2);
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    z-index: 10;
+    accent-color: var(--primary-color);
+}
+
+.contact-card.bulk-select-mode {
+    padding-left: var(--space-8);
+}
+
+.contact-card.selected {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
 .contact-list {
     overflow-y: auto;
     flex: 1;

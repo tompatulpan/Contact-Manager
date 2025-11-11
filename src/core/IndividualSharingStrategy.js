@@ -35,7 +35,6 @@ export class IndividualSharingStrategy {
             const cleanContactId = contact.contactId.startsWith('contact_') ? contact.contactId.substring(8) : contact.contactId;
             sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
             
-            console.log(`📤 Creating individual shared database: ${sharedDbName}`);
 
             // Validate parameters before SDK call
             const insertValidation = this.database.validateInsertItemParams({
@@ -61,7 +60,6 @@ export class IndividualSharingStrategy {
 
             // Create and open the individual database
             await this.database.openDatabase(sharedDbName, () => {
-                console.log(`📡 Individual database ${sharedDbName} change detected`);
             });
             
             databaseOpened = true; // 🔧 Mark database as successfully opened
@@ -90,16 +88,13 @@ export class IndividualSharingStrategy {
                     item: sharedContact,
                     itemId: contact.contactId
                 }, 'shareContactIndividually');
-                console.log(`✅ Contact inserted into individual database: ${sharedDbName}`);
             } catch (insertError) {
                 if (insertError.name === 'ItemAlreadyExists') {
-                    console.log(`🔄 Contact already exists in ${sharedDbName}, updating instead`);
                     await this.database.safeUpdateItem({
                         databaseName: sharedDbName,
                         item: sharedContact,
                         itemId: contact.contactId
                     }, 'shareContactIndividually');
-                    console.log(`✅ Contact updated in individual database: ${sharedDbName}`);
                 } else {
                     throw insertError; // Re-throw other errors
                 }
@@ -115,7 +110,6 @@ export class IndividualSharingStrategy {
             }, 'shareContactIndividually');
 
             const duration = Date.now() - startTime;
-            console.log(`✅ Individual share created: ${sharedDbName} → ${username} (${duration}ms)`);
             
             // Cache the result for performance
             const cacheKey = `${contact.contactId}-${username}`;
@@ -141,7 +135,6 @@ export class IndividualSharingStrategy {
             // Only attempt cleanup if we successfully opened the database AND have the database name
             if (databaseOpened && sharedDbName) {
                 try {
-                    console.log(`🧹 Cleaning up failed sharing database: ${sharedDbName}`);
                     
                     // Try to delete the contact from the database if it was inserted
                     try {
@@ -149,7 +142,6 @@ export class IndividualSharingStrategy {
                             databaseName: sharedDbName,
                             itemId: contact.contactId
                         }, 'cleanup_failed_share');
-                        console.log(`🗑️ Removed contact from failed sharing database: ${sharedDbName}`);
                     } catch (deleteError) {
                         console.warn(`⚠️ Could not clean up contact from failed database:`, deleteError.message);
                     }
@@ -160,7 +152,6 @@ export class IndividualSharingStrategy {
                     console.warn(`⚠️ Cleanup process failed:`, cleanupError.message);
                 }
             } else {
-                console.log(`⏭️ Skipping cleanup - database was never opened for ${username}`);
             }
             
             this.database.handleShareDatabaseError(error, 'shareContactIndividually');
@@ -195,7 +186,6 @@ export class IndividualSharingStrategy {
                 };
             }
 
-            console.log(`📤 Bulk sharing contact with ${usernames.length} users individually`);
 
             const results = [];
             const uniqueUsernames = [...new Set(usernames.map(u => u.trim()).filter(u => u))];
@@ -205,7 +195,6 @@ export class IndividualSharingStrategy {
                 const batch = uniqueUsernames.slice(i, i + this.batchSize);
                 const batchStartTime = Date.now();
                 
-                console.log(`🔄 Processing batch ${Math.floor(i/this.batchSize) + 1}/${Math.ceil(uniqueUsernames.length/this.batchSize)} (${batch.length} users)`);
                 
                 const batchPromises = batch.map(async (username) => {
                     try {
@@ -232,7 +221,6 @@ export class IndividualSharingStrategy {
                 
                 const batchDuration = Date.now() - batchStartTime;
                 const batchSuccessCount = batchResults.filter(r => r.success).length;
-                console.log(`✅ Batch completed: ${batchSuccessCount}/${batch.length} successful in ${batchDuration}ms`);
                 
                 // Small delay between batches to be respectful to the service
                 if (i + this.batchSize < uniqueUsernames.length) {
@@ -246,7 +234,6 @@ export class IndividualSharingStrategy {
             const averageDuration = results.length > 0 ? 
                 results.reduce((sum, r) => sum + (r.duration || 0), 0) / results.length : 0;
             
-            console.log(`📊 Bulk sharing performance: ${successCount}/${uniqueUsernames.length} successful in ${totalDuration}ms (avg: ${averageDuration.toFixed(0)}ms per user)`);
             
             return {
                 success: successCount > 0,
@@ -295,7 +282,6 @@ export class IndividualSharingStrategy {
             const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
             const sharedDbName = `shared-contact-${cleanContactId}-to-${trimmedUsername}`;
             
-            console.log(`🗑️ Revoking individual access: ${sharedDbName}`);
 
             // Enhanced revocation: Query database first to find the actual item
             let databaseItems = [];
@@ -311,10 +297,8 @@ export class IndividualSharingStrategy {
                     }).catch(reject);
                 });
                 
-                console.log(`🔍 Found ${databaseItems.length} items in shared database ${sharedDbName}`);
                 
                 if (databaseItems.length === 0) {
-                    console.log(`ℹ️ Database ${sharedDbName} is empty, access already revoked`);
                     // Still try Baikal deletion if contact provided
                     if (contact) {
                         await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
@@ -335,14 +319,12 @@ export class IndividualSharingStrategy {
                 if (foundItem) {
                     actualItemId = foundItem.itemId;
                     foundContactData = foundItem.item;
-                    console.log(`✅ Found contact using direct itemId match: ${actualItemId}`);
                 } else {
                     // Approach 2: Search by item.contactId property
                     foundItem = databaseItems.find(item => item.item?.contactId === contactId);
                     if (foundItem) {
                         actualItemId = foundItem.itemId;
                         foundContactData = foundItem.item;
-                        console.log(`✅ Found contact using item.contactId match: ${actualItemId}`);
                     } else {
                         // Approach 3: Search by item content (vCard or other fields)
                         foundItem = databaseItems.find(item => {
@@ -354,13 +336,11 @@ export class IndividualSharingStrategy {
                         if (foundItem) {
                             actualItemId = foundItem.itemId;
                             foundContactData = foundItem.item;
-                            console.log(`✅ Found contact using content search: ${actualItemId}`);
                         }
                     }
                 }
                 
                 if (!actualItemId) {
-                    console.log(`⚠️ Contact not found in database ${sharedDbName}, access already revoked`);
                     // Still try Baikal deletion if contact provided
                     if (contact) {
                         await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
@@ -375,7 +355,6 @@ export class IndividualSharingStrategy {
                 
             } catch (openError) {
                 if (openError.name === 'DatabaseNotFound') {
-                    console.log(`ℹ️ Database ${sharedDbName} doesn't exist, access already revoked`);
                     // Still try Baikal deletion if contact provided
                     if (contact) {
                         await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
@@ -392,7 +371,6 @@ export class IndividualSharingStrategy {
             }
 
             // Now delete the contact using the correct itemId
-            console.log(`🗑️ Deleting item with actualItemId: ${actualItemId} from database: ${sharedDbName}`);
             
             await this.database.safeDeleteItem({
                 databaseName: sharedDbName,
@@ -413,7 +391,6 @@ export class IndividualSharingStrategy {
             this.shareCache.delete(cacheKey);
 
             const duration = Date.now() - startTime;
-            console.log(`✅ Revoked individual access for ${trimmedUsername} to contact ${contactId} (${duration}ms)`);
             
             return { 
                 success: true, 
@@ -449,17 +426,14 @@ export class IndividualSharingStrategy {
         try {
             // Check if BaikalConnector is available
             if (!this.database.BaikalConnector) {
-                console.log(`ℹ️ BaikalConnector not available - skipping Baikal deletion for revoked contact`);
                 return { success: false, reason: 'connector_not_available' };
             }
 
-            console.log(`🗑️ Deleting revoked contact "${contact.cardName}" from Baikal server`);
             
             // Get all connected Baikal profiles from BaikalConnector
             const connections = this.database.BaikalConnector.connections || new Map();
             
             if (connections.size === 0) {
-                console.log(`ℹ️ No active Baikal connections - skipping Baikal deletion`);
                 return { success: false, reason: 'no_active_connections' };
             }
 
@@ -469,7 +443,6 @@ export class IndividualSharingStrategy {
             
             for (const [profileName, connectionInfo] of connections.entries()) {
                 try {
-                    console.log(`🗑️ Attempting to delete from profile "${profileName}"...`);
                     
                     // Delete from shared-contacts addressbook (where shared contacts are stored)
                     const deleteResult = await this.database.BaikalConnector.deleteContactFromBaikal(
@@ -480,7 +453,6 @@ export class IndividualSharingStrategy {
                     
                     if (deleteResult && deleteResult.success) {
                         deletedCount++;
-                        console.log(`✅ Deleted revoked contact from Baikal profile "${profileName}"`);
                     } else {
                         errorCount++;
                         console.warn(`⚠️ Failed to delete from Baikal profile "${profileName}":`, deleteResult?.error || 'Unknown error');
@@ -492,7 +464,6 @@ export class IndividualSharingStrategy {
             }
 
             if (deletedCount > 0) {
-                console.log(`✅ Revoked contact deleted from ${deletedCount} Baikal profile(s) (${errorCount} failed)`);
                 return { success: true, deletedCount, errorCount };
             } else {
                 console.warn(`⚠️ Could not delete revoked contact from any Baikal profiles (${errorCount} errors)`);
@@ -531,7 +502,6 @@ export class IndividualSharingStrategy {
                 };
             }
             
-            console.log(`🔄 Updating contact across ${sharedDatabases.length} individual databases`);
             
             // Update all databases in parallel (with batching for large numbers)
             const updateResults = [];
@@ -552,7 +522,6 @@ export class IndividualSharingStrategy {
                             });
                             
                             if (!hasItems) {
-                                console.log(`⏭️ Skipping empty database: ${dbName}`);
                                 return { 
                                     database: dbName, 
                                     success: true, 
@@ -561,7 +530,6 @@ export class IndividualSharingStrategy {
                                 };
                             }
                         } catch (checkError) {
-                            console.log(`⏭️ Skipping inaccessible database: ${dbName}`);
                             return { 
                                 database: dbName, 
                                 success: true, 
@@ -615,7 +583,6 @@ export class IndividualSharingStrategy {
             const skippedCount = updateResults.filter(r => r.skipped).length;
             const errorCount = updateResults.filter(r => !r.success).length;
             
-            console.log(`✅ Updated ${successCount}/${sharedDatabases.length} databases in ${duration}ms${skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}`);
             
             return {
                 success: successCount > 0 || skippedCount > 0,
@@ -778,7 +745,6 @@ export class IndividualSharingStrategy {
         this.shareCache.clear();
         this.updateQueue.clear();
         this.sharingQueue = [];
-        console.log('📋 Individual sharing cache cleared');
     }
 
     /**
@@ -788,7 +754,6 @@ export class IndividualSharingStrategy {
     setBatchSize(size) {
         if (size >= 1 && size <= 10) {
             this.batchSize = size;
-            console.log(`⚙️ Batch size set to ${size}`);
         } else {
             console.warn('⚠️ Batch size must be between 1 and 10');
         }

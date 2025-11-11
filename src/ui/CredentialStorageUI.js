@@ -290,16 +290,13 @@ export class CredentialStorageUI {
      * Show storage consent dialog before storing credentials
      */
     async showStorageConsent(profileName, credentials) {
-        console.log('🔐 showStorageConsent called with:', { profileName, hasCredentials: !!credentials });
         
         return new Promise((resolve) => {
             const info = this.credentialStorage.getStorageInfo();
-            console.log('🔐 Storage info:', info);
             
             const modal = document.createElement('div');
             modal.id = 'storage-consent-modal';
             modal.className = 'modal-overlay active';
-            console.log('🔐 Modal element created:', modal);
             
             let storageOptionsHTML = '';
             
@@ -401,15 +398,12 @@ export class CredentialStorageUI {
             `;
 
             document.body.appendChild(modal);
-            console.log('🔐 Modal appended to body');
-            console.log('🔐 Modal in DOM?', document.getElementById('storage-consent-modal'));
 
             // Event listeners
             const confirmBtn = document.getElementById('confirm-storage-consent');
             const cancelBtn = document.getElementById('cancel-storage-consent');
             const closeBtn = document.getElementById('close-storage-consent');
             
-            console.log('🔐 Buttons found:', { confirmBtn: !!confirmBtn, cancelBtn: !!cancelBtn, closeBtn: !!closeBtn });
 
             const cleanup = () => {
                 modal.remove();
@@ -466,7 +460,6 @@ export class CredentialStorageUI {
             this.eventBus.emit('ui:notification', { message, type });
         } else {
             // Fallback to console
-            console.log(`[${type.toUpperCase()}] ${message}`);
         }
     }
 

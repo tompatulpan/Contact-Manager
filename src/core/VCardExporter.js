@@ -362,7 +362,6 @@ export class VCardExporter {
             
             if (this.isFormatManagerAvailable() && (options.format === 'vcard-3.0' || options.format === 'apple-contacts')) {
                 // Use format manager for vCard 3.0 and Apple formats (includes fixed type mappings)
-                console.log(`📤 Using format manager for ${options.format} export`);
                 vCardResult = this.vCardStandard.formatManager.exportVCard(contactData, 'vcard-3.0');
                 
                 // Convert format manager result to expected structure
@@ -387,7 +386,6 @@ export class VCardExporter {
                 const methodReason = !this.isFormatManagerAvailable() ? 
                     'format manager unavailable' : 
                     `${options.format} format`;
-                console.log(`📤 Using standard method for ${methodReason} export`);
                 const generateOptions = {
                     version: formatConfig.version,
                     includeFolding: true,
@@ -456,7 +454,6 @@ export class VCardExporter {
             
             if (this.isFormatManagerAvailable() && (options.format === 'vcard-3.0' || options.format === 'apple-contacts')) {
                 // Use format manager for vCard 3.0 (includes our fixed type mappings)
-                console.log(`📱 QR: Using format manager for ${options.format}`);
                 vCardResult = this.vCardStandard.formatManager.exportVCard(
                     { ...qrContactData, contactId: contact.contactId }, 
                     options.format === 'apple-contacts' ? 'vcard-3.0' : options.format
@@ -484,7 +481,6 @@ export class VCardExporter {
                 const methodReason = !this.isFormatManagerAvailable() ? 
                     'format manager unavailable' : 
                     `${options.format} format`;
-                console.log(`📱 QR: Using standard method for ${methodReason}`);
                 vCardResult = this.vCardStandard.generateVCard(qrContactData, {
                     version: this.config.formats[options.format]?.version || '4.0',
                     includeFolding: false, // No folding for QR codes

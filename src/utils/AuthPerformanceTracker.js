@@ -103,7 +103,6 @@ export class AuthPerformanceTracker {
         
         // Use appropriate console method based on performance
         if (result.category === 'ultra-fast' || result.category === 'fast') {
-            console.log(message);
         } else if (result.category === 'normal') {
             console.info(message);
         } else {
@@ -120,7 +119,6 @@ export class AuthPerformanceTracker {
             delete details.timestamp;
             
             if (Object.keys(details).length > 0) {
-                console.log('📊 Additional metrics:', details);
             }
         }
     }

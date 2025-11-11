@@ -15,7 +15,6 @@
 export class BaikalConnector {
     constructor(bridgeUrl = 'http://localhost:3001/api', eventBus = null) {
         this.version = '2025-11-05-baikal-only';
-        console.log(`🔧 BaikalConnector v${this.version} - Baikal/Nextcloud Bidirectional Sync`);
         
         this.bridgeUrl = bridgeUrl;
         this.eventBus = eventBus;
@@ -46,7 +45,6 @@ export class BaikalConnector {
      */
     setContactManager(contactManager) {
         this.contactManager = contactManager;
-        console.log('🔗 BaikalConnector integrated with ContactManager');
     }
 
     /**
@@ -58,7 +56,6 @@ export class BaikalConnector {
      */
     async discoverAddressbooks(config) {
         try {
-            console.log(`🔍 Discovering addressbooks: ${config.serverUrl}`);
             
             const response = await fetch(`${this.bridgeUrl}/discover`, {
                 method: 'POST',
@@ -74,9 +71,7 @@ export class BaikalConnector {
             const result = await response.json();
 
             if (result.success) {
-                console.log(`✅ Found ${result.addressbooks.length} addressbook(s)`);
                 result.addressbooks.forEach(ab => {
-                    console.log(`   📂 ${ab.displayName} (${ab.href})`);
                 });
                 
                 // Store addressbooks in connection for later use
@@ -104,7 +99,6 @@ export class BaikalConnector {
      */
     async connectToServer(config) {
         try {
-            console.log('🔗 Connecting to CardDAV server:', config.serverUrl);
             
             const response = await fetch(`${this.bridgeUrl}/connect`, {
                 method: 'POST',
@@ -130,12 +124,6 @@ export class BaikalConnector {
                 });
                 
                 this.isConnected = true;
-                console.log(`✅ Connected to ${capabilities.serverType}: ${config.profileName}`);
-                console.log(`   📊 Server Capabilities:`);
-                console.log(`      - ACL Support: ${capabilities.supportsACL ? '✅ Yes' : '❌ No'}`);
-                console.log(`      - Separate Addressbooks: ${capabilities.supportsSeparateAddressbooks ? '✅ Yes' : '❌ No'}`);
-                console.log(`      - Protection Strategy: ${capabilities.protectionStrategy}`);
-                console.log(`      - ${capabilities.notes}`);
                 
                 if (this.onStatusChange) {
                     this.onStatusChange({ connected: true, profile: config.profileName, capabilities });
@@ -159,7 +147,6 @@ export class BaikalConnector {
             this.connections.delete(profileName);
             this.isConnected = this.connections.size > 0;
 
-            console.log(`🔌 Disconnected from Baikal: ${profileName}`);
             this.onStatusChange?.({ connected: false, profileName });
 
             return { success: true };
@@ -239,7 +226,6 @@ export class BaikalConnector {
     async syncFromBaikal(profileName) {
         // 🔒 Prevent concurrent sync operations (fixes ItemUpdateConflict)
         if (this.syncInProgress) {
-            console.log('⏸️ Sync already in progress, queuing...');
             return await this.queueSync(() => this._syncFromBaikalInternal(profileName));
         }
         
@@ -273,7 +259,6 @@ export class BaikalConnector {
         }
         
         try {
-            console.log(`🔄 Syncing from Baikal: ${profileName}`);
             
             // Track last used profile for orphan cleanup
             this.lastUsedProfile = profileName;
@@ -300,30 +285,22 @@ export class BaikalConnector {
             }
 
             const serverContacts = result.syncResult?.contacts || result.contacts || [];
-            console.log(`📥 Received ${serverContacts.length} contacts from server`);
 
             // Import contacts with ownership preservation (includes vCard 3.0 conversion for Apple)
             const importResults = await this.importContactsWithOwnershipPreservation(serverContacts, profileName);
 
             // 🐛 DEBUG: Verify imported contact metadata
             if (this.contactManager && importResults.imported > 0) {
-                console.log('🐛 DEBUG: Verifying imported contact metadata...');
                 const allContacts = Array.from(this.contactManager.contacts.values());
                 const recentImports = allContacts
                     .filter(c => c.metadata?.cardDAV?.lastSyncedAt)
                     .slice(-Math.min(3, importResults.imported)); // Check last 3 imported
                 
                 recentImports.forEach(contact => {
-                    console.log(`   Contact: ${contact.cardName}`);
-                    console.log(`   - isOwned: ${contact.metadata?.isOwned}`);
-                    console.log(`   - isImported: ${contact.metadata?.isImported}`);
-                    console.log(`   - contactId: ${contact.contactId}`);
-                    console.log(`   - has CardDAV metadata: ${!!contact.metadata?.cardDAV}`);
                 });
             }
 
             // 🛡️ SAFETY: Only detect deletions if server sync was fully successful
-            console.log('🔍 Checking for server-side deletions...');
             const deletionResults = await this.detectAndHandleServerDeletions(serverContacts, profileName);
 
             this.onContactsReceived?.({
@@ -354,7 +331,6 @@ export class BaikalConnector {
                 this.contactManager.syncInProgress = false;
             }
             
-            console.log('🔓 Sync lock released');
         }
     }
 
@@ -387,7 +363,6 @@ export class BaikalConnector {
             try {
                 // 🔑 Skip if this UID was already deleted as an orphan during this sync
                 if (deletedOrphanUIDs.has(serverContact.uid)) {
-                    console.log(`⏭️ Skipping already-deleted orphan: ${serverContact.name || serverContact.uid}`);
                     continue;
                 }
                 
@@ -464,7 +439,6 @@ export class BaikalConnector {
                         
                         const deleteResult = await this.deleteContactFromBaikal(deleteContact, activeProfile);
                         if (deleteResult.success) {
-                            console.log(`✅ Successfully deleted orphaned contact from ${targetAddressbook}`);
                             orphanedDeleted++;
                             // 🔑 Mark this UID as deleted to prevent duplicate deletion attempts
                             deletedOrphanUIDs.add(processedContact.uid);
@@ -481,17 +455,13 @@ export class BaikalConnector {
             }
         }
 
-        console.log(`✅ Import complete: ${imported} imported, ${updated} updated, ${skipped} skipped (unchanged), ${failed} failed`);
         if (vCard3Converted > 0) {
-            console.log(`🍎 Converted ${vCard3Converted} contacts from vCard 3.0 → 4.0`);
         }
         if (orphanedDeleted > 0) {
-            console.log(`🗑️ Cleaned up ${orphanedDeleted} orphaned shared contacts from Baikal`);
         }
 
         // ✅ FIX: Emit event to trigger UI refresh after batch import
         if ((imported > 0 || updated > 0) && this.eventBus) {
-            console.log(`🔔 Emitting contactManager:contactsUpdated event (${imported} imported, ${updated} updated)`);
             this.eventBus.emit('contactManager:contactsUpdated', {
                 source: 'baikal-sync',
                 imported,
@@ -523,11 +493,9 @@ export class BaikalConnector {
             return { deleted: 0, checked: 0 };
         }
 
-        console.log('🔍 Checking for server-side deletions...');
 
         // Build set of UIDs currently on server
         const serverUIDs = new Set(serverContacts.map(c => c.uid).filter(uid => uid));
-        console.log(`📊 Server has ${serverUIDs.size} contacts`);
         
         // 🚨 CRITICAL SAFETY CHECK: NEVER delete if server returns 0 contacts
         if (serverUIDs.size === 0) {
@@ -560,7 +528,6 @@ export class BaikalConnector {
         if (serverUIDs.size > 0) {
             const uidArray = Array.from(serverUIDs);
             const sampleUIDs = uidArray.slice(0, Math.min(5, uidArray.length));
-            console.log(`   Sample server UIDs: ${sampleUIDs.join(', ')}`);
         }
 
         // Get all local contacts that are synced with this profile
@@ -574,13 +541,11 @@ export class BaikalConnector {
                 return hasCardDAVMetadata && notDeleted && notArchived;
             });
 
-        console.log(`📊 Local has ${localContacts.length} synced contacts to check`);
         
         // 🐛 DEBUG: Log contact ownership breakdown
         const ownedCount = localContacts.filter(c => c.metadata?.isOwned === true).length;
         const importedCount = localContacts.filter(c => c.metadata?.isImported === true).length;
         const sharedCount = localContacts.filter(c => c.contactId?.startsWith('shared_')).length;
-        console.log(`   📊 Breakdown: ${ownedCount} owned, ${importedCount} imported, ${sharedCount} shared`);
         
         // 🐛 DEBUG: Log first few local UIDs for comparison
         const localUIDs = localContacts
@@ -588,7 +553,6 @@ export class BaikalConnector {
             .filter(uid => uid);
         if (localUIDs.length > 0) {
             const sampleLocalUIDs = localUIDs.slice(0, Math.min(5, localUIDs.length));
-            console.log(`   Sample local UIDs: ${sampleLocalUIDs.join(', ')}`);
         }
 
         let deleted = 0;
@@ -616,16 +580,9 @@ export class BaikalConnector {
                     const isImported = localContact.metadata?.isImported === true;
                     
                     // 🐛 DEBUG: Log deletion candidate details
-                    console.log(`🔍 Deletion candidate: ${localContact.cardName} (UID: ${localUID})`);
-                    console.log(`   - isOwned: ${isOwned}`);
-                    console.log(`   - isShared: ${isShared}`);
-                    console.log(`   - isImported: ${isImported}`);
-                    console.log(`   - metadata.isOwned: ${localContact.metadata?.isOwned}`);
-                    console.log(`   - metadata.isImported: ${localContact.metadata?.isImported}`);
 
                     // 🔒 NEVER delete shared contacts (managed separately)
                     if (isShared) {
-                        console.log(`⏭️ Skipping shared contact (managed separately): ${localContact.cardName}`);
                         skipped++;
                         continue;
                     }
@@ -644,21 +601,13 @@ export class BaikalConnector {
                     
                     const shouldDelete = isImported || !isOwned;
                     
-                    console.log(`🎯 Deletion decision for ${localContact.cardName}:`);
-                    console.log(`   - isImported=${isImported} → ${isImported ? 'DELETE' : 'keep'}`);
-                    console.log(`   - isOwned=${isOwned} → ${!isOwned ? 'DELETE' : 'keep'}`);
-                    console.log(`   - Final decision: ${shouldDelete ? '🗑️ DELETE' : '⏭️ SKIP'}`);
                     
                     if (!shouldDelete) {
-                        console.log(`⏭️ Skipping owned contact (user has authority): ${localContact.cardName}`);
-                        console.log(`   Not imported and marked as owned - preserving local version`);
                         skipped++;
                         continue;
                     }
 
                     // ✅ Safe to delete - this is an imported contact deleted on server
-                    console.log(`🗑️ Server-side deletion detected: ${localContact.cardName} (UID: ${localUID})`);
-                    console.log(`   Reason: Contact missing from server (isImported=${isImported}, isOwned=${isOwned})`);
                     
                     // Delete from Contact Manager
                     const deleteResult = await this.contactManager.deleteContact(localContact.contactId);
@@ -671,7 +620,6 @@ export class BaikalConnector {
                             reason: 'deleted_on_server',
                             wasImported: isImported
                         });
-                        console.log(`✅ Removed from Contact Manager: ${localContact.cardName}`);
                     } else {
                         console.error(`❌ Failed to delete from Contact Manager: ${localContact.cardName}`);
                         console.error(`   Error: ${deleteResult.error || 'Unknown error'}`);
@@ -684,14 +632,10 @@ export class BaikalConnector {
         }
 
         if (deleted > 0) {
-            console.log(`✅ Server deletion sync: Removed ${deleted} contacts deleted on server`);
-            deletedContacts.forEach(c => console.log(`   🗑️ ${c.name}`));
         } else {
-            console.log(`✅ Server deletion sync: No deletions detected`);
         }
 
         if (skipped > 0) {
-            console.log(`ℹ️ Skipped ${skipped} contacts (owned/shared/non-imported)`);
         }
 
         return {
@@ -735,22 +679,14 @@ export class BaikalConnector {
             const hasETag = !!contact.metadata?.cardDAV?.etag;
             
             // 🐛 DEBUG: Log timestamp comparison
-            console.log(`🔍 PUSH TIMESTAMP CHECK for: ${contact.cardName}`);
-            console.log(`   - lastSyncedAt: ${lastSyncedAt || 'none'}`);
-            console.log(`   - lastUpdated: ${lastUpdated || 'none'}`);
-            console.log(`   - hasETag: ${hasETag}`);
             
             if (lastSyncedAt && lastUpdated && hasETag) {
                 const syncTime = new Date(lastSyncedAt).getTime();
                 const updateTime = new Date(lastUpdated).getTime();
                 
-                console.log(`   - syncTime: ${syncTime} (${new Date(syncTime).toISOString()})`);
-                console.log(`   - updateTime: ${updateTime} (${new Date(updateTime).toISOString()})`);
-                console.log(`   - syncTime >= updateTime: ${syncTime >= updateTime}`);
                 
                 // Skip if last sync happened AFTER last update (contact unchanged)
                 if (syncTime >= updateTime) {
-                    console.log(`⏭️ SKIPPING PUSH - unchanged since last sync`);
                     // Reduced logging - only summary shown in batch results
                     return { 
                         success: true, 
@@ -761,7 +697,6 @@ export class BaikalConnector {
                 }
             }
             
-            console.log(`📤 Pushing contact to ${addressbook}:`, contact.cardName);
 
             // Extract or ensure UID exists in vCard
             let uid = this.contactManager?.extractUIDFromVCard(contact.vcard);
@@ -774,12 +709,10 @@ export class BaikalConnector {
                 if (contact.metadata?.isOwned === false) {
                     // Use contactId as stable UID for shared contacts
                     uid = contact.contactId;
-                    console.log(`🔒 SHARED contact: Using stable contactId as UID: ${uid}`);
                 } else {
                     // Generate UID for owned contacts
-                    uid = this.contactManager?.vCardStandard?.generateContactId() || 
+                    uid = this.contactManager?.vCardStandard?.generateUID() || 
                           `contact_${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    console.log(`⚠️ OWNED contact missing UID, adding: ${uid}`);
                 }
                 
                 // Insert UID before END:VCARD
@@ -806,13 +739,10 @@ export class BaikalConnector {
                     // Save updated contact with UID (skip for shared contacts)
                     await this.contactManager.database.updateContact(updatedContact);
                 } else if (contact.metadata?.isOwned === false) {
-                    console.log(`⏭️ Skipping database update for SHARED contact (contactId used as stable UID)`);
                 }
             }
 
             // 🔍 DEBUG: Log ETag being used for push
-            console.log(`🔍 Push using ETag:`, contact.metadata?.cardDAV?.etag || 'none');
-            console.log(`🔍 Last synced:`, contact.metadata?.cardDAV?.lastSyncedAt || 'never');
             
             const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
                 method: 'POST',
@@ -843,10 +773,8 @@ export class BaikalConnector {
                         lastSyncedAt: new Date().toISOString()
                     });
                 } else if (contact.metadata?.isOwned === false) {
-                    console.log(`⏭️ Skipping CardDAV metadata update for SHARED contact (read-only)`);
                 }
 
-                console.log(`✅ Pushed contact to Baikal:`, contact.cardName);
             }
 
             return result;
@@ -865,7 +793,6 @@ export class BaikalConnector {
      */
     async deleteContactFromBaikal(contact, profileName) {
         try {
-            console.log(`🗑️ Deleting contact from Baikal:`, contact.cardName);
 
             // Extract UID from vCard (primary identifier per RFC 9553)
             const uid = this.contactManager?.extractUIDFromVCard(contact.vcard) || contact.contactId;
@@ -873,8 +800,6 @@ export class BaikalConnector {
             // Get correct addressbook based on contact type AND server capabilities
             const addressbook = this.getAddressbookForContact(contact, profileName);
             
-            console.log(`📂 Delete from addressbook: ${addressbook}`);
-            console.log(`🆔 Contact UID: ${uid}`);
 
             // Send delete request to bridge server
             const response = await fetch(`${this.bridgeUrl}/delete/${profileName}`, {
@@ -890,7 +815,6 @@ export class BaikalConnector {
             const result = await response.json();
 
             if (result.success) {
-                console.log(`✅ Deleted contact from Baikal:`, contact.cardName);
             }
 
             return result;
@@ -929,7 +853,6 @@ export class BaikalConnector {
         
         // Servers without separate addressbook support (iCloud, Google)
         if (!supportsSeparateAddressbooks) {
-            console.log(`📂 Single addressbook server - routing all contacts to 'default'`);
             return 'default';
         }
         
@@ -952,7 +875,6 @@ export class BaikalConnector {
             const response = await fetch(`${this.bridgeUrl}/health`);
             const result = await response.json();
 
-            console.log('🏥 Bridge server health:', result);
 
             return {
                 success: true,
@@ -1016,7 +938,6 @@ export class BaikalConnector {
         try {
             if (this.connections.has(profileName)) {
                 this.connections.delete(profileName);
-                console.log(`🔌 Disconnected from Baikal: ${profileName}`);
                 
                 if (this.connections.size === 0) {
                     this.isConnected = false;
@@ -1068,7 +989,6 @@ export class BaikalConnector {
             if (contactsToSync && Array.isArray(contactsToSync)) {
                 // Use provided contacts (already filtered by caller)
                 eligibleContacts = contactsToSync;
-                console.log(`📤 Using ${contactsToSync.length} pre-filtered contacts for push`);
             } else {
                 // Fallback: Get all contacts eligible for CardDAV push
                 // BIDIRECTIONAL SYNC: Push ALL contacts (owned, imported, shared)
@@ -1083,7 +1003,6 @@ export class BaikalConnector {
                     !contact.metadata?.isArchived
                 );
 
-                console.log(`📤 Fetched ${eligibleContacts.length} eligible contacts from ContactManager (including imported for bidirectional sync)`);
             }
 
             // Separate by type for logging
@@ -1098,17 +1017,8 @@ export class BaikalConnector {
                 const deletedCount = allContacts.filter(c => c.metadata?.isDeleted).length;
                 const archivedCount = allContacts.filter(c => c.metadata?.isArchived).length;
                 
-                console.log(`📊 Sync filtering stats:`);
-                console.log(`   Total contacts in Contact Manager: ${totalContacts}`);
-                console.log(`   Deleted: ${deletedCount} (excluded)`);
-                console.log(`   Archived: ${archivedCount} (excluded)`);
-                console.log(`   ✅ Eligible for push: ${eligibleContacts.length}`);
-                console.log(`      - Owned: ${ownedContacts.length}`);
-                console.log(`      - Imported: ${importedContacts.length}`);
-                console.log(`      - Shared: ${sharedContacts.length}`);
             }
 
-            console.log(`📤 Pushing ${eligibleContacts.length} contacts to ${profileName} (${ownedContacts.length} owned, ${importedContacts.length} imported, ${sharedContacts.length} shared)`);
 
             let successCount = 0;
             let errorCount = 0;
@@ -1123,14 +1033,12 @@ export class BaikalConnector {
                 batches.push(eligibleContacts.slice(i, i + BATCH_SIZE));
             }
             
-            console.log(`⚡ Using parallel push: ${batches.length} batches of up to ${BATCH_SIZE} contacts`);
             
             const startTime = Date.now();
             
             for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
                 const batch = batches[batchIndex];
                 const progress = Math.round(((batchIndex) / batches.length) * 100);
-                console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} contacts) - ${progress}% complete...`);
                 
                 // Push all contacts in this batch in parallel
                 const batchPromises = batch.map(async (contact) => {
@@ -1167,14 +1075,11 @@ export class BaikalConnector {
                     }
                 });
                 
-                console.log(`   ✅ Batch ${batchIndex + 1} complete: ${batchResults.filter(r => r.success).length}/${batch.length} succeeded`);
             }
             
             const duration = ((Date.now() - startTime) / 1000).toFixed(1);
             const avgTimePerContact = (duration / eligibleContacts.length).toFixed(2);
             
-            console.log(`✅ Push complete: ${successCount} updated, ${skippedCount} skipped (unchanged), ${errorCount} failed`);
-            console.log(`⏱️  Total time: ${duration}s (avg ${avgTimePerContact}s per contact)`);
 
             return {
                 success: successCount > 0 || skippedCount > 0,
@@ -1219,11 +1124,9 @@ export class BaikalConnector {
             });
 
             if (contactsToDelete.length === 0) {
-                console.log(`🧹 No archived/deleted contacts to clean up from Baikal`);
                 return { success: true, deletedCount: 0 };
             }
 
-            console.log(`🧹 Cleaning up ${contactsToDelete.length} archived/deleted contacts from Baikal...`);
 
             let deletedCount = 0;
             const errors = [];
@@ -1231,7 +1134,6 @@ export class BaikalConnector {
             for (const contact of contactsToDelete) {
                 try {
                     const contactType = contact.metadata?.isArchived ? 'archived' : 'deleted';
-                    console.log(`🗑️ Deleting ${contactType} contact from Baikal: ${contact.cardName}`);
                     
                     const result = await this.deleteContactFromBaikal(contact, profileName);
                     
@@ -1253,7 +1155,6 @@ export class BaikalConnector {
                                 // Non-critical error - deletion from Baikal was successful
                             }
                         } else if (!isOwnedContact) {
-                            console.log(`⏭️ Skipping metadata clear for shared contact: ${contact.cardName} (read-only)`);
                         }
                     } else {
                         errors.push({
@@ -1270,7 +1171,6 @@ export class BaikalConnector {
                 }
             }
 
-            console.log(`✅ Cleanup complete: ${deletedCount}/${contactsToDelete.length} contacts deleted from Baikal`);
 
             return {
                 success: deletedCount > 0 || contactsToDelete.length === 0,
@@ -1306,15 +1206,9 @@ export class BaikalConnector {
         
         const capabilities = connection.capabilities;
         
-        console.log('🛡️ Initializing shared contact protection...');
-        console.log(`   📊 Server: ${capabilities.serverType}`);
-        console.log(`   🔒 Strategy: ${capabilities.protectionStrategy}`);
         
         if (capabilities.supportsACL) {
             // Strategy 1: Server-side ACL protection (Baikal, Nextcloud)
-            console.log('✅ Server supports ACL - using server-side read-only addressbook');
-            console.log('   🔒 Shared contacts pushed to /shared-contacts/ (read-only via ACL)');
-            console.log('   ⚡ No periodic re-push needed - server blocks unauthorized edits');
             
             return {
                 success: true,
@@ -1326,11 +1220,6 @@ export class BaikalConnector {
             };
         } else {
             // Strategy 2: Client-side validation (iCloud, Google)
-            console.log('⚠️ Server does NOT support ACL - using client-side protection');
-            console.log(`   📊 Interval: ${interval / 60000} minutes`);
-            console.log('   🔍 Method 1: Detect unauthorized edits and re-push original');
-            console.log('   🔍 Method 2: Refresh shared contacts to maintain ecosystem');
-            console.log('   ⚠️ Note: ~5 min delay before corrections are applied');
             
             // Setup periodic protection for shared contacts
             const protectionKey = `${profileName}_shared_protection`;
@@ -1343,13 +1232,8 @@ export class BaikalConnector {
             // Setup new protection interval (runs TWO operations)
             const protectionInterval = setInterval(async () => {
                 const now = new Date();
-                console.log(`\n🛡️ SHARED CONTACT PROTECTION CYCLE - ${now.toLocaleTimeString()}`);
-                console.log(`   Profile: ${profileName}`);
-                console.log(`   Interval: ${interval / 60000} minutes`);
-                console.log('');
                 
                 // Operation 1: Detect and correct unauthorized edits
-                console.log('🔍 Step 1: Checking for unauthorized edits...');
                 try {
                     await this.detectAndCorrectUnauthorizedEdits(profileName);
                 } catch (error) {
@@ -1357,22 +1241,16 @@ export class BaikalConnector {
                 }
                 
                 // Operation 2: Refresh shared contacts (maintain ecosystem)
-                console.log('🔄 Step 2: Refreshing shared contacts to maintain ecosystem...');
                 try {
                     await this.refreshSharedContactsToCardDAV(profileName);
                 } catch (error) {
                     console.error('❌ Shared contact refresh failed:', error.message);
                 }
                 
-                console.log(`   ⏰ Next protection cycle at: ${new Date(Date.now() + interval).toLocaleTimeString()}\n`);
             }, interval);
             
             this.protectionIntervals.set(protectionKey, protectionInterval);
             
-            console.log('✅ Client-side protection enabled');
-            console.log(`   🔍 Unauthorized edit detection: Active`);
-            console.log(`   🔄 Shared contact refresh: Active`);
-            console.log(`   ⏰ First protection cycle at: ${new Date(Date.now() + interval).toLocaleTimeString()}`);
             
             return {
                 success: true,
@@ -1400,16 +1278,10 @@ export class BaikalConnector {
     async detectAndCorrectUnauthorizedEdits(profileName) {
         // 🔒 Skip if sync is already in progress to avoid conflicts
         if (this.syncInProgress) {
-            console.log('⏸️ Skipping unauthorized edit detection - sync in progress');
             return { corrected: 0, checked: 0 };
         }
         
         const startTime = Date.now();
-        console.log('\n🔍 =================================================');
-        console.log('🔍 UNAUTHORIZED EDIT DETECTION STARTED');
-        console.log(`🔍 Profile: ${profileName}`);
-        console.log(`🔍 Time: ${new Date().toLocaleString()}`);
-        console.log('🔍 =================================================\n');
         
         if (!this.contactManager) {
             console.warn('⚠️ ContactManager not available');
@@ -1418,7 +1290,6 @@ export class BaikalConnector {
         
         // Get all shared contacts (green)
         const allContacts = Array.from(this.contactManager.contacts.values());
-        console.log(`📊 Total contacts in Contact Manager: ${allContacts.length}`);
         
         const sharedContacts = allContacts.filter(c => 
                 c.metadata?.isOwned === false && 
@@ -1427,20 +1298,13 @@ export class BaikalConnector {
                 !c.metadata?.isArchived
             );
         
-        console.log(`📊 Shared contacts found: ${sharedContacts.length}`);
         
         if (sharedContacts.length > 0) {
-            console.log('\n📋 Shared contacts to check:');
             sharedContacts.forEach((c, idx) => {
-                console.log(`   ${idx + 1}. ${c.cardName} (${c.contactId})`);
-                console.log(`      ETag: ${c.metadata?.cardDAV?.etag || 'none'}`);
             });
-            console.log('');
         }
         
         if (sharedContacts.length === 0) {
-            console.log('   ℹ️ No shared contacts to check');
-            console.log('🔍 =================================================\n');
             return { corrected: 0, checked: 0 };
         }
         
@@ -1449,21 +1313,17 @@ export class BaikalConnector {
         const etagComparisons = [];
         
         try {
-            console.log('📥 Pulling current state from server...');
             
             // Pull current state from server
             const serverResult = await this.syncFromBaikal(profileName);
             
             if (!serverResult.success) {
                 console.error('❌ Failed to check server state');
-                console.log('🔍 =================================================\n');
                 return { corrected: 0, checked: sharedContacts.length };
             }
             
             const serverContacts = serverResult.contacts || [];
-            console.log(`📥 Server returned ${serverContacts.length} contacts\n`);
             
-            console.log('🔍 Starting ETag comparison...\n');
             
             for (const localContact of sharedContacts) {
                 try {
@@ -1472,9 +1332,6 @@ export class BaikalConnector {
                     const serverContact = serverContacts.find(sc => sc.uid === uid);
                     
                     if (!serverContact) {
-                        console.log(`⏭️ ${localContact.cardName}`);
-                        console.log(`   Status: NOT FOUND on server`);
-                        console.log(`   UID: ${uid}\n`);
                         continue;
                     }
                     
@@ -1491,10 +1348,6 @@ export class BaikalConnector {
                     };
                     etagComparisons.push(comparison);
                     
-                    console.log(`📋 ${localContact.cardName}`);
-                    console.log(`   Local ETag:  ${localETag || 'none'}`);
-                    console.log(`   Server ETag: ${serverETag || 'none'}`);
-                    console.log(`   Match: ${comparison.match ? '✅ YES' : '❌ NO (EDIT DETECTED!)'}\n`);
                     
                     if (localETag && serverETag && localETag !== serverETag) {
                         // ETag mismatch → Contact was modified externally (unauthorized edit)
@@ -1512,7 +1365,6 @@ export class BaikalConnector {
                         if (pushResult.success) {
                             correctedCount++;
                             correctedContacts.push(localContact.cardName);
-                            console.log(`✅ Corrected: ${localContact.cardName}`);
                             
                             // Emit event for UI notification
                             if (this.eventBus) {
@@ -1533,32 +1385,19 @@ export class BaikalConnector {
             
             const duration = Date.now() - startTime;
             
-            console.log('\n🔍 =================================================');
-            console.log('🔍 DETECTION SUMMARY');
-            console.log('🔍 =================================================');
-            console.log(`   Shared contacts checked: ${sharedContacts.length}`);
-            console.log(`   Unauthorized edits found: ${correctedCount}`);
-            console.log(`   Corrections applied: ${correctedCount}`);
-            console.log(`   Duration: ${duration}ms`);
             
             if (etagComparisons.length > 0) {
-                console.log('\n   📊 ETag Comparison Results:');
                 etagComparisons.forEach((comp, idx) => {
                     const status = comp.match ? '✅' : '❌';
-                    console.log(`   ${idx + 1}. ${status} ${comp.name} - ${comp.match ? 'No changes' : 'EDITED!'}`);
                 });
             }
             
             if (correctedCount > 0) {
-                console.log('\n   🔄 Corrected contacts:');
                 correctedContacts.forEach((name, idx) => {
-                    console.log(`   ${idx + 1}. ${name}`);
                 });
             } else {
-                console.log('\n   ✅ All shared contacts intact - no unauthorized edits detected');
             }
             
-            console.log('🔍 =================================================\n');
             
             return { 
                 corrected: correctedCount, 
@@ -1589,7 +1428,6 @@ export class BaikalConnector {
      */
     async forcePushSharedContact(contact, profileName) {
         try {
-            console.log(`🔄 Force-pushing shared contact (override mode): ${contact.cardName}`);
             
             // Extract UID
             const uid = this.contactManager?.extractUIDFromVCard(contact.vcard) || contact.contactId;
@@ -1621,7 +1459,6 @@ export class BaikalConnector {
             const result = await response.json();
             
             if (result.success) {
-                console.log(`✅ Force-push successful: ${contact.cardName}`);
                 
                 // Update local ETag to match server
                 if (result.etag && this.contactManager) {
@@ -1664,11 +1501,6 @@ export class BaikalConnector {
         }
 
         const startTime = Date.now();
-        console.log('\n🔄 =================================================');
-        console.log('🔄 SHARED CONTACT REFRESH - Maintaining Ecosystem');
-        console.log(`🔄 Profile: ${profileName}`);
-        console.log(`🔄 Time: ${new Date().toLocaleString()}`);
-        console.log('🔄 =================================================\n');
 
         // Get all shared contacts (green 🟢)
         const allContacts = Array.from(this.contactManager.contacts.values());
@@ -1679,21 +1511,14 @@ export class BaikalConnector {
             !c.metadata?.isArchived
         );
 
-        console.log(`📊 Total contacts: ${allContacts.length}`);
-        console.log(`📊 Shared contacts (green): ${sharedContacts.length}`);
 
         if (sharedContacts.length === 0) {
-            console.log('   ℹ️ No shared contacts to refresh');
-            console.log('🔄 =================================================\n');
             return { success: true, refreshed: 0 };
         }
 
-        console.log('\n📋 Shared contacts to refresh:');
         sharedContacts.forEach((c, idx) => {
             const sharedBy = c.metadata?.sharedBy || 'unknown';
-            console.log(`   ${idx + 1}. ${c.cardName} (shared by: ${sharedBy})`);
         });
-        console.log('');
 
         let refreshedCount = 0;
         let errorCount = 0;
@@ -1702,21 +1527,18 @@ export class BaikalConnector {
         // Re-push each shared contact (simulates "save contact")
         for (const contact of sharedContacts) {
             try {
-                console.log(`🔄 Refreshing: ${contact.cardName}`);
                 
                 // Force-push to override any iCloud overwrites
                 const result = await this.forcePushSharedContact(contact, profileName);
                 
                 if (result.success) {
                     refreshedCount++;
-                    console.log(`   ✅ Refreshed successfully`);
                 } else {
                     errorCount++;
                     errors.push({
                         contact: contact.cardName,
                         error: result.error
                     });
-                    console.log(`   ❌ Failed: ${result.error}`);
                 }
             } catch (error) {
                 errorCount++;
@@ -1724,28 +1546,17 @@ export class BaikalConnector {
                     contact: contact.cardName,
                     error: error.message
                 });
-                console.log(`   ❌ Error: ${error.message}`);
             }
         }
 
         const duration = Date.now() - startTime;
 
-        console.log('\n🔄 =================================================');
-        console.log('🔄 REFRESH SUMMARY');
-        console.log('🔄 =================================================');
-        console.log(`   Shared contacts found: ${sharedContacts.length}`);
-        console.log(`   Successfully refreshed: ${refreshedCount}`);
-        console.log(`   Errors: ${errorCount}`);
-        console.log(`   Duration: ${duration}ms`);
 
         if (errors.length > 0) {
-            console.log('\n   ❌ Failed contacts:');
             errors.forEach((err, idx) => {
-                console.log(`   ${idx + 1}. ${err.contact} - ${err.error}`);
             });
         }
 
-        console.log('🔄 =================================================\n');
 
         return {
             success: refreshedCount > 0,
@@ -1769,7 +1580,6 @@ export class BaikalConnector {
             clearInterval(this.protectionIntervals.get(protectionKey));
             this.protectionIntervals.delete(protectionKey);
             
-            console.log(`🛑 Shared contact protection stopped for: ${profileName}`);
             
             return { success: true, profileName, stopped: true };
         }
@@ -1803,14 +1613,6 @@ export class BaikalConnector {
 
             const syncConfig = { ...defaultIntervals, ...intervals };
 
-            console.log('🔄 Initializing automatic synchronization:');
-            console.log(`   📥 Pull interval (sync from Baikal): ${syncConfig.pull / 1000}s (${syncConfig.pull / 60000} min)`);
-            console.log(`   📤 Push interval (push to Baikal): ${syncConfig.push / 1000}s (${syncConfig.push / 60000} min)`);
-            console.log('');
-            console.log('📊 Contact Categories:');
-            console.log('   🔵 BLUE = Owned (created by you) → Push to /my-contacts/');
-            console.log('   🟢 GREEN = Shared (from others) → Push to /shared-contacts/');
-            console.log('   🟠 ORANGE = Imported (from Baikal) → Preserve external edits');
 
             // Stop any existing intervals for this profile
             this.stopAutoSync(profileName);
@@ -1825,16 +1627,10 @@ export class BaikalConnector {
             // 1. Pull interval - Sync FROM Baikal (imports external edits)
             if (syncConfig.pull > 0) {
                 profileIntervals.pullInterval = setInterval(async () => {
-                    console.log(`\n📥 ========================================`);
-                    console.log(`📥 AUTO-SYNC (PULL) - ${new Date().toLocaleTimeString()}`);
-                    console.log(`📥 Profile: ${profileName}`);
-                    console.log(`📥 ========================================`);
                     try {
                         const result = await this.syncFromBaikal(profileName);
                         if (result.success) {
-                            console.log(`✅ Auto-sync (pull): Imported ${result.imported?.imported || 0} contacts, updated ${result.imported?.updated || 0}`);
                             if (result.deletions?.deleted > 0) {
-                                console.log(`🗑️ Auto-sync (pull): Detected ${result.deletions.deleted} server-side deletions`);
                             }
                         } else {
                             console.error(`❌ Auto-sync (pull) failed:`, result.error);
@@ -1843,13 +1639,9 @@ export class BaikalConnector {
                         console.error(`❌ Auto-sync (pull) error (continuing...):`, error.message);
                         // Don't throw - let the interval continue
                     }
-                    console.log(`📥 ========================================\n`);
                 }, syncConfig.pull);
 
-                console.log(`✅ Pull auto-sync enabled (every ${syncConfig.pull / 60000} minutes)`);
-                console.log(`   Next pull sync at: ${new Date(Date.now() + syncConfig.pull).toLocaleTimeString()}`);
             } else {
-                console.log(`ℹ️ Pull auto-sync disabled (interval = 0)`);
             }
 
             // 2. Push interval - Push TO Baikal (sends local changes)
@@ -1859,10 +1651,6 @@ export class BaikalConnector {
                 setTimeout(() => {
                     // Run first push after delay
                     (async () => {
-                        console.log(`\n📤 ========================================`);
-                        console.log(`📤 AUTO-SYNC (PUSH) - ${new Date().toLocaleTimeString()}`);
-                        console.log(`📤 Profile: ${profileName} (initial delayed push)`);
-                        console.log(`📤 ========================================`);
                         
                         if (!this.contactManager) {
                             console.warn('⚠️ Auto-sync (push): ContactManager not available, skipping this cycle');
@@ -1873,17 +1661,14 @@ export class BaikalConnector {
                             // 1. Push all contacts
                             const result = await this.testPushOwnedContacts(profileName);
                             if (result.success) {
-                                console.log(`✅ Auto-sync (push): Pushed ${result.successCount} contacts`);
                             } else {
                                 console.error(`❌ Auto-sync (push) failed:`, result.error);
                             }
                             
                             // 2. 🔄 Force-refresh shared contacts
-                            console.log(`\n🔄 Refreshing shared contacts to maintain Userbase ecosystem...`);
                             try {
                                 const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
                                 if (refreshResult.success) {
-                                    console.log(`✅ Refreshed ${refreshResult.refreshed} shared contacts`);
                                 }
                             } catch (refreshError) {
                                 console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
@@ -1891,15 +1676,10 @@ export class BaikalConnector {
                         } catch (error) {
                             console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
                         }
-                        console.log(`📤 ========================================\n`);
                     })();
                     
                     // Then set up recurring interval
                     profileIntervals.pushInterval = setInterval(async () => {
-                        console.log(`\n📤 ========================================`);
-                        console.log(`📤 AUTO-SYNC (PUSH) - ${new Date().toLocaleTimeString()}`);
-                        console.log(`📤 Profile: ${profileName}`);
-                        console.log(`📤 ========================================`);
                         
                         // Safety check: ensure ContactManager is available
                         if (!this.contactManager) {
@@ -1911,18 +1691,15 @@ export class BaikalConnector {
                             // 1. Push all contacts (owned, imported, shared)
                             const result = await this.testPushOwnedContacts(profileName);
                             if (result.success) {
-                                console.log(`✅ Auto-sync (push): Pushed ${result.successCount} contacts`);
                             } else {
                                 console.error(`❌ Auto-sync (push) failed:`, result.error);
                             }
                             
                             // 2. 🔄 ADDITIONAL: Force-refresh shared contacts (maintains ecosystem)
                             // This ensures shared contacts are always pushed even if iCloud overwrites them
-                            console.log(`\n🔄 Refreshing shared contacts to maintain Userbase ecosystem...`);
                             try {
                                 const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
                                 if (refreshResult.success) {
-                                    console.log(`✅ Refreshed ${refreshResult.refreshed} shared contacts`);
                                 }
                             } catch (refreshError) {
                                 console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
@@ -1931,31 +1708,19 @@ export class BaikalConnector {
                             console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
                             // Don't throw - let the interval continue
                         }
-                        console.log(`📤 ========================================\n`);
                     }, syncConfig.push);
                 }, 30000); // 30-second delay before first push
 
-                console.log(`✅ Push auto-sync enabled (every ${syncConfig.push / 60000} minutes)`);
-                console.log(`   ⏰ STAGGERED: Push runs 30s after pull to allow deletions to complete`);
-                console.log(`   First push at: ${new Date(Date.now() + 30000).toLocaleTimeString()}`);
-                console.log(`   Next push at: ${new Date(Date.now() + 30000 + syncConfig.push).toLocaleTimeString()}`);
             }
 
             this.autoSyncEnabled = true;
-            console.log(`✅ Auto-sync intervals registered for profile: ${profileName}`);
-            console.log(`🔍 Interval IDs: pull=${profileIntervals.pullInterval?._id || 'active'}, push=${profileIntervals.pushInterval?._id || 'active'}`);
 
             // 🆕 DIAGNOSTIC: Add heartbeat to verify intervals stay alive
             let heartbeatCount = 0;
             profileIntervals.heartbeatInterval = setInterval(() => {
                 heartbeatCount++;
-                console.log(`💓 Auto-sync heartbeat [${profileName}]: Intervals still running (count: ${heartbeatCount})`);
-                console.log(`   📥 Pull interval: ${profileIntervals.pullInterval ? '✅ active' : '❌ stopped'}`);
-                console.log(`   📤 Push interval: ${profileIntervals.pushInterval ? '✅ active' : '❌ stopped'}`);
-                console.log(`   ⏰ Next sync in ~${Math.floor(syncConfig.pull / 60000)} minutes`);
             }, 60000); // Heartbeat every 1 minute
 
-            console.log(`💓 Heartbeat diagnostic enabled (1 minute intervals)`);
 
             // 🛡️ Initialize shared contact protection
             try {
@@ -1965,7 +1730,6 @@ export class BaikalConnector {
                 );
                 
                 if (protectionResult.success) {
-                    console.log(`✅ Shared contact protection: ${protectionResult.strategy}`);
                 }
             } catch (protectionError) {
                 console.warn('⚠️ Shared contact protection setup failed (continuing):', protectionError.message);
@@ -1973,7 +1737,6 @@ export class BaikalConnector {
 
             // Perform initial sync immediately (optional - skip if ContactManager not ready)
             if (this.contactManager) {
-                console.log('🔄 Performing initial sync...');
                 try {
                     await this.performInitialSync(profileName);
                 } catch (syncError) {
@@ -2003,22 +1766,15 @@ export class BaikalConnector {
      */
     async performInitialSync(profileName) {
         try {
-            console.log('📥 Initial sync: Pulling from Baikal...');
             const pullResult = await this.syncFromBaikal(profileName);
 
             // ⏰ Wait 2 seconds for deletions to commit to database
             // This prevents deleted contacts from being immediately re-pushed
-            console.log('⏸️ Waiting 2s for database operations to complete...');
             await new Promise(resolve => setTimeout(resolve, 2000));
 
-            console.log('📤 Initial sync: Pushing to Baikal...');
             const pushResult = await this.testPushOwnedContacts(profileName);
 
-            console.log('✅ Initial sync completed');
-            console.log(`   📥 Pulled: ${pullResult.imported?.total || 0} contacts`);
-            console.log(`   📤 Pushed: ${pushResult.successCount || 0} contacts`);
             if (pullResult.deletions?.deleted > 0) {
-                console.log(`   🗑️ Deletions detected: ${pullResult.deletions.deleted} contacts removed`);
             }
 
             return {
@@ -2044,17 +1800,14 @@ export class BaikalConnector {
         if (profileIntervals) {
             if (profileIntervals.pullInterval) {
                 clearInterval(profileIntervals.pullInterval);
-                console.log('🛑 Pull auto-sync stopped');
             }
 
             if (profileIntervals.pushInterval) {
                 clearInterval(profileIntervals.pushInterval);
-                console.log('🛑 Push auto-sync stopped');
             }
 
             if (profileIntervals.heartbeatInterval) {
                 clearInterval(profileIntervals.heartbeatInterval);
-                console.log('🛑 Heartbeat diagnostic stopped');
             }
 
             this.syncIntervals.delete(profileName);
@@ -2066,7 +1819,6 @@ export class BaikalConnector {
         // Check if any profiles still have auto-sync enabled
         this.autoSyncEnabled = this.syncIntervals.size > 0;
 
-        console.log(`🛑 Auto-sync stopped for profile: ${profileName}`);
 
         return {
             success: true,
@@ -2082,7 +1834,6 @@ export class BaikalConnector {
      * @returns {Promise<Object>} Result
      */
     async updateSyncIntervals(profileName, intervals) {
-        console.log(`🔄 Updating sync intervals for ${profileName}:`, intervals);
 
         // Stop current intervals
         this.stopAutoSync(profileName);

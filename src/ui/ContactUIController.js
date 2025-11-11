@@ -33,6 +33,10 @@ export class ContactUIController {
             distributionList: null   // Current selected distribution list filter
         };
         
+        // Bulk selection state
+        this.bulkSelectMode = false;
+        this.selectedContacts = new Set();
+        
         // DOM elements cache
         this.elements = {};
         
@@ -59,9 +63,7 @@ export class ContactUIController {
     log(message, data = null) {
         if (this.debugMode) {
             if (data) {
-                console.log(message, data);
             } else {
-                console.log(message);
             }
         }
     }
@@ -677,7 +679,6 @@ export class ContactUIController {
                 }
             });
         } else {
-            console.log('❌ Card view button not found!');
         }
         if (this.elements.viewListBtn) {
             this.elements.viewListBtn.addEventListener('click', () => {
@@ -688,7 +689,6 @@ export class ContactUIController {
                 }
             });
         } else {
-            console.log('❌ List view button not found!');
         }
         
         if (this.elements.sortSelect) {
@@ -699,7 +699,6 @@ export class ContactUIController {
         if (this.elements.createListBtn) {
             this.elements.createListBtn.addEventListener('click', this.showCreateListModal.bind(this));
         } else {
-            console.log('⚠️ Create List button not found');
         }
         
         // Navigation
@@ -796,6 +795,27 @@ export class ContactUIController {
             this.elements.exportForm.addEventListener('submit', this.handleExportSubmit.bind(this));
         }
         
+        // Bulk actions
+        const bulkSelectBtn = document.getElementById('bulk-select-btn');
+        if (bulkSelectBtn) {
+            bulkSelectBtn.addEventListener('click', this.toggleBulkSelectMode.bind(this));
+        }
+        
+        const selectAllCheckbox = document.getElementById('select-all-contacts');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', this.handleSelectAll.bind(this));
+        }
+        
+        const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+        if (bulkDeleteBtn) {
+            bulkDeleteBtn.addEventListener('click', this.handleBulkDelete.bind(this));
+        }
+        
+        const bulkCancelBtn = document.getElementById('bulk-cancel-btn');
+        if (bulkCancelBtn) {
+            bulkCancelBtn.addEventListener('click', this.exitBulkSelectMode.bind(this));
+        }
+        
         // Export form radio changes to update preview
         if (this.elements.exportForm) {
             const exportRadios = this.elements.exportForm.querySelectorAll('input[name="exportType"], input[name="exportFormat"]');
@@ -823,7 +843,6 @@ export class ContactUIController {
         retryShareButtons.forEach(button => {
             button.addEventListener('click', (event) => {
                 event.preventDefault();
-                console.log('🔄 Retry share button clicked');
                 this.setShareModalState('form');
             });
         });
@@ -1092,7 +1111,6 @@ export class ContactUIController {
     setupComponents() {
         // Components will be created when UI components are implemented
         // This is a placeholder for component initialization
-        console.log('Setting up UI components...');
         
         // Initialize default view mode
         this.initializeViewMode();
@@ -1151,7 +1169,6 @@ export class ContactUIController {
             return;
         }
         
-        console.log('📝 Form submission data:', { username, keepSignedIn, isSignUp });
         
         // Show loading state
         this.showAuthLoading(true);
@@ -1186,8 +1203,6 @@ export class ContactUIController {
      * Handle authentication success
      */
     handleAuthenticated(data) {
-        console.log('🔐 Authentication event received:', data);
-        console.log('📋 User data structure:', data?.user); // Debug log
         
         // More robust user data validation
         const user = data?.user;
@@ -1205,7 +1220,6 @@ export class ContactUIController {
             // Try to recover by checking database connection status
             const status = this.contactManager?.database?.getConnectionStatus();
             if (status?.isAuthenticated && status?.currentUser) {
-                console.log('🔄 Recovering from database connection status');
                 this.currentUser = { username: status.currentUser };
                 this.updateUserInterface();
                 this.hideAuthenticationModal();
@@ -1222,7 +1236,6 @@ export class ContactUIController {
     async handleMobileSignOut() {
         // Check if user is already signed out
         if (!this.currentUser) {
-            console.log('ℹ️ User already signed out, skipping mobile logout');
             return;
         }
 
@@ -1241,7 +1254,6 @@ export class ContactUIController {
         try {
             // Check if user is already signed out
             if (!this.currentUser) {
-                console.log('ℹ️ User already signed out, skipping logout process');
                 return;
             }
 
@@ -1275,7 +1287,6 @@ export class ContactUIController {
             } else {
                 // Handle case where user is already signed out
                 if (result.error && result.error.includes('Not signed in')) {
-                    console.log('ℹ️ User was already signed out, updating UI state');
                     this.currentUser = null;
                     
                     // 🔐 Clear CardDAV/iCloud passwords even on error
@@ -1295,7 +1306,6 @@ export class ContactUIController {
             console.error('Sign out error:', error);
             // Handle "Not signed in" error gracefully
             if (error.message && error.message.includes('Not signed in')) {
-                console.log('ℹ️ User was already signed out, updating UI state');
                 this.currentUser = null;
                 
                 // 🔐 Clear CardDAV/iCloud passwords on error logout
@@ -1623,7 +1633,6 @@ export class ContactUIController {
             if (this.selectedContactId) {
                 const freshContact = this.contactManager.getContact(this.selectedContactId);
                 if (freshContact) {
-                    console.log(`🔄 Detail panel refresh: Updating "${freshContact.cardName}" with latest data`);
                     this.displayContactDetail(freshContact);
                 } else {
                     console.warn(`⚠️ Selected contact ${this.selectedContactId} no longer exists, clearing detail panel`);
@@ -1658,14 +1667,9 @@ export class ContactUIController {
         this.hideContactModal();
         
         if (this.selectedContactId === data.contact.contactId) {
-            // Always fetch fresh contact data to avoid stale data issues
-            const freshContact = this.contactManager.getContact(data.contact.contactId);
-            if (freshContact) {
-                this.displayContactDetail(freshContact);
-            } else {
-                console.warn('⚠️ Could not fetch fresh contact data, using event data as fallback');
-                this.displayContactDetail(data.contact);
-            }
+            // Use the updated contact from the event data directly
+            // The event is emitted AFTER the cache is updated, so this is the freshest data
+            this.displayContactDetail(data.contact);
         }
     }
 
@@ -1701,7 +1705,6 @@ export class ContactUIController {
      */
     async renderDistributionLists() {
         if (!this.elements.distributionListsContainer) {
-            console.log('❌ UI: distributionListsContainer not found');
             return;
         }
 
@@ -1717,17 +1720,17 @@ export class ContactUIController {
             if (distributionLists.length === 0) {
                 this.elements.distributionListsContainer.innerHTML = `
                     <div class="no-lists-message">
-                        <p style="margin-top: 10px; opacity: 0.7;">No sharing lists yet</p>
+                        <p style="margin-top: 10px; opacity: 0.7;">No user groups yet</p>
                     </div>
                 `;
                 return;
             }
 
-            // Add sharing lists section header
+            // Add user groups section header
             const sharingListsHeader = distributionLists.length > 0 ? `
                 <div class="sharing-lists-header">
                     <h4 style="margin: 16px 0 8px 0; font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">
-                        <i class="fas fa-users" style="margin-right: 8px;"></i>Sharing Lists
+                        <i class="fas fa-users" style="margin-right: 8px;"></i>User Groups
                     </h4>
                 </div>
             ` : '';
@@ -1735,21 +1738,18 @@ export class ContactUIController {
             const listItems = distributionLists.map(list => {
                 const userCount = list.usernames ? list.usernames.length : 0;
                 return `
-                    <div class="distribution-list-item" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">
+                    <div class="distribution-list-item" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}" title="">
                         <div class="list-item-content" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">
                             <span class="distribution-list-name" style="color: ${list.color || '#007bff'}" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">${ContactUIHelpers.escapeHtml(list.name)}</span>
                             <span class="distribution-list-count">${userCount}</span>
                         </div>
-                        <div class="distribution-list-users">
-                            <span class="user-count">${userCount} user${userCount !== 1 ? 's' : ''}</span>
-                            <div class="distribution-list-actions">
-                                <button class="manage-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Manage users in this list">
-                                    <i class="fas fa-users"></i> Manage
-                                </button>
-                                <button class="delete-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Delete this sharing list">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
+                        <div class="distribution-list-actions">
+                            <button class="manage-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Manage users in this list">
+                                <i class="fas fa-users"></i> Manage
+                            </button>
+                            <button class="delete-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Delete this user group">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </div>
                 `;
@@ -1810,7 +1810,6 @@ export class ContactUIController {
      * Show create list modal (placeholder for Phase 2)
      */
     showCreateListModal() {
-        console.log('📋 Create List button clicked');
         this.showModal({ modalId: 'create-list-modal' });
         this.resetCreateListForm();
     }
@@ -1863,19 +1862,9 @@ export class ContactUIController {
         const isEdit = event.target.dataset.mode === 'edit';
         const contactId = event.target.dataset.contactId;
         
-        // 🔍 Debug: Log form submission details
-        console.log('📝 Form submission details:', {
-            mode: event.target.dataset.mode,
-            isEdit: isEdit,
-            contactId: contactId,
-            hasContactId: !!contactId
-        });
-        
         // Convert form data to contact data object
         // ⭐ CRITICAL FIX: Pass contactId to preserve vcard for UID extraction
-        console.log('🔍 ABOUT TO CALL formDataToContactData with contactId:', contactId);
         const contactData = this.formDataToContactData(formData, contactId);
-        console.log('🔍 RETURNED FROM formDataToContactData, contactData has vcard:', !!contactData.vcard);
         
         // Show loading state
         this.showFormLoading(true);
@@ -1883,26 +1872,21 @@ export class ContactUIController {
         try {
             let result;
             if (isEdit && contactId) {
-                console.log('🔄 Updating existing contact:', contactId);
                 result = await this.contactManager.updateContact(contactId, contactData);
             } else {
-                console.log('✨ Creating new contact');
                 result = await this.contactManager.createContact(contactData);
             }
             
             if (!result.success) {
-                console.log('❌ Form submission failed:', result.error);
                 this.showFormError(result.error);
                 if (result.validationErrors) {
                     this.highlightFormErrors(result.validationErrors);
                 }
                 // Don't close modal on validation errors - let user fix them
             } else {
-                console.log('✅ Form submission successful');
                 
                 // ⭐ IMMEDIATE REFRESH: Update detail view if this is the currently selected contact
                 if (isEdit && contactId && this.selectedContactId === contactId) {
-                    console.log('🔄 Refreshing detail view for updated contact');
                     const freshContact = this.contactManager.getContact(contactId);
                     if (freshContact) {
                         this.displayContactDetail(freshContact);
@@ -2074,6 +2058,11 @@ export class ContactUIController {
             // Attach event listeners to the card buttons
             this.attachContactCardListeners(card, contact);
             
+            // Add checkbox if in bulk select mode
+            if (this.bulkSelectMode) {
+                this.addCheckboxToCard(card);
+            }
+            
             return card;
             
         } catch (error) {
@@ -2109,7 +2098,6 @@ export class ContactUIController {
         
         // Attach click listener for selection
         card.addEventListener('click', (event) => {
-            console.log('🎯 Fallback card clicked for:', contact.contactId);
             this.selectContact(contact.contactId);
         });
         
@@ -2121,9 +2109,12 @@ export class ContactUIController {
      */
     attachContactCardListeners(card, contact) {
         
-        // Click on card to select
+        // Click on card to select (but not when clicking checkbox in bulk mode)
         card.addEventListener('click', (event) => {
-            console.log('🎯 Card clicked for:', contact.contactId);
+            // Ignore clicks on checkboxes or when in bulk select mode
+            if (this.bulkSelectMode || event.target.classList.contains('contact-card-checkbox')) {
+                return;
+            }
             this.selectContact(contact.contactId);
         });
     }
@@ -2166,9 +2157,12 @@ export class ContactUIController {
      */
     attachContactListItemListeners(listItem, contact) {
         
-        // Click on list item to select
+        // Click on list item to select (but not in bulk select mode)
         listItem.addEventListener('click', (event) => {
-            console.log('🎯 List item clicked for:', contact.contactId);
+            // Ignore clicks when in bulk select mode
+            if (this.bulkSelectMode) {
+                return;
+            }
             this.selectContact(contact.contactId);
         });
     }
@@ -2192,7 +2186,6 @@ export class ContactUIController {
         this.displayContactDetail(contact);
         
         // No access tracking for newly created contacts
-        console.log('📝 Contact selected without access tracking:', contactId);
     }
 
     /**
@@ -2221,32 +2214,13 @@ export class ContactUIController {
      * Display contact details
      */
     displayContactDetail(contact) {
-        
-        // Essential logging for contact display debugging
-        if (this.debugMode) {
-            console.log(`� Displaying contact: ${contact.contactId}`, {
-                isShared: contact.metadata?.sharing?.isShared,
-                shareCount: contact.metadata?.sharing?.shareCount
-            });
-        }
-        
         const container = this.elements.contactDetail;
         if (!container) {
             console.error('❌ No contact detail container found!');
             return;
         }
         
-        console.log('🔍 Contact detail - Raw contact data:', contact);
-        console.log('🔍 Contact vCard field:', contact.vcard);
-        
         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
-        console.log('🎯 Extracted display data:', displayData);
-        console.log('🔍 DEBUG: displayData.emails from extractDisplayData:', displayData.emails);
-        console.log('🔍 DEBUG: Email types JSON:', JSON.stringify(displayData.emails, null, 2));
-        console.log('🔍 DEBUG: Email [0] type directly:', displayData.emails?.[0]?.type);
-        console.log('🔍 DEBUG: displayData object keys:', Object.keys(displayData));
-        console.log('🔍 DEBUG: contact object keys:', Object.keys(contact));
-        console.log('🔍 DEBUG: contact.emails (cached?):', contact.emails);
         const contactType = ContactRenderer.getContactType(contact);
         
         container.innerHTML = `
@@ -2297,7 +2271,6 @@ export class ContactUIController {
             </div>
         `;
         
-        console.log('🎯 Contact detail content populated, length:', container.innerHTML.length, 'chars');
         
         // Add event listeners for detail actions
         this.setupContactDetailListeners(container, contact.contactId);
@@ -2306,7 +2279,6 @@ export class ContactUIController {
         setTimeout(() => this.populateDistributionListSelects(), 100);
         
         // Emit event for mobile navigation AFTER content is rendered
-        console.log('🎯 Emitting contact:selected event for mobile navigation');
         this.eventBus.emit('contact:selected', { contact });
     }
 
@@ -2322,7 +2294,6 @@ export class ContactUIController {
         }
         
         if (displayData.emails.length > 0) {
-            console.log('📧 UI DEBUG: About to render emails in detail view:', JSON.stringify(displayData.emails, null, 2));
             html += ContactRenderer.renderContactFields('email', displayData.emails);
         }
         
@@ -2332,12 +2303,10 @@ export class ContactUIController {
         
         // Keep address rendering for now (more complex structure)
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
-            console.log('🏠 UI DEBUG: Rendering addresses:', displayData.addresses);
             html += `
                 <div class="field-group">
                     <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
                     ${displayData.addresses.map((address, index) => {
-                        console.log(`🏠 UI DEBUG: Address ${index}:`, address);
                         return `
                         <div class="field-item address-item">
                             <div class="address-content">
@@ -2437,12 +2406,10 @@ export class ContactUIController {
         
         // Keep address rendering for now (more complex structure)
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
-            console.log('🏠 UI DEBUG: Rendering addresses:', displayData.addresses);
             html += `
                 <div class="field-group">
                     <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
                     ${displayData.addresses.map((address, index) => {
-                        console.log(`🏠 UI DEBUG: Address ${index}:`, address);
                         return `
                         <div class="field-item address-item">
                             <div class="address-content">
@@ -2632,17 +2599,8 @@ export class ContactUIController {
     renderSharingInfo(contact) {
         const sharing = contact.metadata?.sharing;
         
-        // 🔍 DEBUG: Log sharing info rendering
-        console.log(`🔍 renderSharingInfo called for ${contact.contactId}:`, {
-            isOwned: contact.metadata?.isOwned,
-            isShared: sharing?.isShared,
-            sharedWithUsers: sharing?.sharedWithUsers,
-            sharedUsersLength: sharing?.sharedWithUsers?.length
-        });
-        
         // Only show sharing info for owned contacts that are shared
         if (!contact.metadata?.isOwned || !sharing?.isShared || !sharing?.sharedWithUsers?.length) {
-            console.log(`🔍 Hiding sharing info - conditions not met`);
             return '';
         }
         
@@ -2654,11 +2612,9 @@ export class ContactUIController {
         
         // If no unique users after deduplication, don't show sharing info
         if (uniqueUsers.length === 0) {
-            console.log(`🔍 Hiding sharing info - no unique users after deduplication`);
             return '';
         }
         
-        console.log(`🔍 Showing sharing info for ${uniqueUsers.length} users:`, uniqueUsers);
         
         // Create user list with permissions and revoke buttons
         const userList = uniqueUsers.map(username => {
@@ -3034,7 +2990,7 @@ export class ContactUIController {
         if (this.elements.distributionListsContainer) {
             this.elements.distributionListsContainer.innerHTML = `
                 <div class="no-lists-message">
-                    <p style="margin-top: 10px; opacity: 0.7;">No sharing lists</p>
+                    <p style="margin-top: 10px; opacity: 0.7;">No user groups</p>
                 </div>
             `;
         }
@@ -3059,7 +3015,6 @@ export class ContactUIController {
                 }
             }
             
-            console.log(`✅ Modal opened: ${modalId} (mode: ${data?.mode || 'default'})`);
             
             // Focus first input field after a short delay
             setTimeout(() => {
@@ -3079,7 +3034,6 @@ export class ContactUIController {
         
         if (modal) {
             modal.style.display = 'none';
-            console.log(`✅ Modal closed: ${modalId}`);
         } else {
             console.warn(`⚠️ Modal not found: ${modalId}`);
         }
@@ -3132,7 +3086,6 @@ export class ContactUIController {
             }
         }, 100);
         
-        console.log('✅ Share modal opened for contact:', contact.cardName);
     }
 
     /**
@@ -3184,10 +3137,10 @@ export class ContactUIController {
             const distributionLists = await this.contactManager.getDistributionLists();
             
             // Clear existing options (except the first placeholder)
-            this.elements.shareWithListSelect.innerHTML = '<option value="">Choose a sharing list...</option>';
+            this.elements.shareWithListSelect.innerHTML = '<option value="">Choose a user group...</option>';
             
             if (distributionLists.length === 0) {
-                this.elements.shareWithListSelect.innerHTML += '<option value="" disabled>No sharing lists created yet</option>';
+                this.elements.shareWithListSelect.innerHTML += '<option value="" disabled>No user groups created yet</option>';
                 return;
             }
             
@@ -3209,7 +3162,7 @@ export class ContactUIController {
     }
 
     /**
-     * Show preview of users in selected sharing list
+     * Show preview of users in selected user group
      */
     async showShareListPreview(listName) {
         if (!this.elements.shareListPreview || !this.elements.shareListUsers) return;
@@ -3429,18 +3382,39 @@ export class ContactUIController {
         const shareType = activeTab?.dataset.type || 'contact';
         
         if (shareType === 'contact') {
-            // Get form data for single user sharing
+            // Get form data for single or multiple user sharing
             const formData = new FormData(event.target);
-            const username = formData.get('username')?.trim();
+            const usernameInput = formData.get('username')?.trim();
             const isReadOnly = formData.get('readonly') === 'on';
             
             // Validate input
-            if (!username) {
+            if (!usernameInput) {
                 this.showFieldError('share-username', 'Username is required');
                 return;
             }
             
-            await this.handleContactShare(username, isReadOnly);
+            // Parse comma-separated usernames
+            const usernames = usernameInput
+                .split(',')
+                .map(u => u.trim())
+                .filter(u => u.length > 0);
+            
+            // Remove duplicates
+            const uniqueUsernames = [...new Set(usernames)];
+            
+            if (uniqueUsernames.length === 0) {
+                this.showFieldError('share-username', 'At least one valid username is required');
+                return;
+            }
+            
+            // Handle single or multiple users
+            if (uniqueUsernames.length === 1) {
+                // Single user - use existing flow
+                await this.handleContactShare(uniqueUsernames[0], isReadOnly);
+            } else {
+                // Multiple users - batch share
+                await this.handleBatchContactShare(uniqueUsernames, isReadOnly);
+            }
             
         } else if (shareType === 'share-with-list') {
             // Get form data for list sharing
@@ -3450,7 +3424,7 @@ export class ContactUIController {
             
             // Validate input
             if (!listName) {
-                this.showFieldError('share-with-distribution-list', 'Please select a sharing list');
+                this.showFieldError('share-with-distribution-list', 'Please select a user group');
                 return;
             }
             
@@ -3470,7 +3444,6 @@ export class ContactUIController {
         // Clear previous errors
         this.clearShareFormErrors();
         
-        console.log(`🔄 Sharing contact "${this.currentShareContact.cardName}" with distribution list "${listName}"`);
         
         // Show loading state
         this.setShareModalState('loading');
@@ -3610,7 +3583,6 @@ export class ContactUIController {
                 // Also copy to clipboard if possible
                 if (navigator.clipboard) {
                     navigator.clipboard.writeText(result.verificationMessage);
-                    console.log('✅ Verification message copied to clipboard');
                 }
             } else {
                 this.showVerificationStatus('error', result.error || 'Failed to get verification message');
@@ -3670,8 +3642,6 @@ export class ContactUIController {
             return;
         }
         
-        console.log('🔄 Sharing individual contact with:', username, 'readonly:', isReadOnly);
-        console.log('ℹ️  Note: Now sharing individual contacts instead of entire database');
         
         // Show loading state
         this.setShareModalState('loading');
@@ -3691,7 +3661,6 @@ export class ContactUIController {
                 // Refresh contacts list to show sharing indicators
                 this.refreshContactsList();
                 
-                console.log('✅ Individual contact shared successfully with:', username);
                 
                 // Auto-close after 3 seconds
                 setTimeout(() => {
@@ -3720,6 +3689,175 @@ export class ContactUIController {
             
             this.showShareFormError('share-username', errorMessage);
         }
+    }
+
+    /**
+     * Handle sharing contact with multiple users (comma-separated input)
+     * @param {Array<string>} usernames - Array of usernames to share with
+     * @param {boolean} isReadOnly - Whether sharing is read-only
+     */
+    async handleBatchContactShare(usernames, isReadOnly) {
+        if (!this.currentShareContact) {
+            console.error('No contact selected for sharing');
+            return;
+        }
+        
+        // Clear previous errors
+        this.clearShareFormErrors();
+        
+        // Filter out self from usernames
+        const currentUsername = this.contactManager.database.currentUser?.username;
+        const validUsernames = usernames.filter(u => u !== currentUsername);
+        
+        if (validUsernames.length === 0) {
+            this.showShareFormError('share-username', 'Cannot share with yourself');
+            return;
+        }
+        
+        // Show loading state
+        this.setShareModalState('loading');
+        
+        try {
+            const results = [];
+            let successCount = 0;
+            let alreadySharedCount = 0;
+            let errorCount = 0;
+            
+            // Share with each user
+            for (const username of validUsernames) {
+                try {
+                    const result = await this.contactManager.shareContact(
+                        this.currentShareContact.contactId, 
+                        username, 
+                        isReadOnly, 
+                        false
+                    );
+                    
+                    if (result.success) {
+                        successCount++;
+                        results.push({ username, success: true });
+                    } else if (result.error && result.error.includes('already shared')) {
+                        alreadySharedCount++;
+                        results.push({ username, success: true, alreadyShared: true });
+                    } else {
+                        errorCount++;
+                        results.push({ username, success: false, error: result.error });
+                    }
+                } catch (error) {
+                    errorCount++;
+                    results.push({ username, success: false, error: error.message });
+                }
+            }
+            
+            // Show results
+            const totalProcessed = successCount + alreadySharedCount;
+            
+            if (totalProcessed > 0 && errorCount === 0) {
+                // Complete success
+                let message = '';
+                if (successCount > 0 && alreadySharedCount > 0) {
+                    message = `Successfully shared with ${successCount} new users. ${alreadySharedCount} users already had access.`;
+                } else if (successCount > 0) {
+                    message = `Successfully shared with ${successCount} user${successCount > 1 ? 's' : ''}.`;
+                } else {
+                    message = `All ${alreadySharedCount} users already had access.`;
+                }
+                
+                this.setShareModalState('success', {
+                    title: 'Sharing Complete',
+                    message: message
+                });
+                
+                // Refresh contacts list
+                this.refreshContactsList();
+                
+                // Auto-close after 3 seconds
+                setTimeout(() => {
+                    this.hideModal({ modalId: 'share-modal' });
+                }, 3000);
+                
+            } else if (totalProcessed > 0 && errorCount > 0) {
+                // Partial success
+                const errorDetails = this.formatBatchShareErrors(results.filter(r => !r.success));
+                this.setShareModalState('error', {
+                    title: 'Partial Success',
+                    message: `Shared with ${totalProcessed} user${totalProcessed > 1 ? 's' : ''}, but ${errorCount} failed.`,
+                    details: errorDetails
+                });
+                
+                // Refresh contacts list to show successful shares
+                this.refreshContactsList();
+                
+            } else {
+                // Complete failure
+                const errorDetails = this.formatBatchShareErrors(results.filter(r => !r.success));
+                this.setShareModalState('error', {
+                    title: 'Sharing Failed',
+                    message: `Failed to share with all ${errorCount} user${errorCount > 1 ? 's' : ''}.`,
+                    details: errorDetails
+                });
+            }
+            
+        } catch (error) {
+            console.error('❌ Batch share failed:', error);
+            this.setShareModalState('error', {
+                title: 'Sharing Error',
+                message: 'An unexpected error occurred while sharing.',
+                details: error.message
+            });
+        }
+    }
+
+    /**
+     * Format batch share errors for display
+     * @param {Array} errorResults - Array of failed share results
+     * @returns {string} Formatted error details
+     */
+    formatBatchShareErrors(errorResults) {
+        if (!errorResults || errorResults.length === 0) {
+            return '';
+        }
+        
+        const errorsByType = {
+            userNotFound: [],
+            subscription: [],
+            network: [],
+            other: []
+        };
+        
+        // Categorize errors
+        errorResults.forEach(result => {
+            const username = result.username || 'Unknown';
+            const error = (result.error || '').toLowerCase();
+            
+            if (error.includes('user not found') || error.includes('usernotfound')) {
+                errorsByType.userNotFound.push(username);
+            } else if (error.includes('subscription') || error.includes('trial') || error.includes('plan')) {
+                errorsByType.subscription.push(username);
+            } else if (error.includes('network') || error.includes('connection')) {
+                errorsByType.network.push(username);
+            } else {
+                errorsByType.other.push(`${username}: ${result.error}`);
+            }
+        });
+        
+        // Format error message
+        const errorParts = [];
+        
+        if (errorsByType.userNotFound.length > 0) {
+            errorParts.push(`User(s) not found: ${errorsByType.userNotFound.join(', ')}`);
+        }
+        if (errorsByType.subscription.length > 0) {
+            errorParts.push(`Subscription required for: ${errorsByType.subscription.join(', ')}`);
+        }
+        if (errorsByType.network.length > 0) {
+            errorParts.push(`Network errors for: ${errorsByType.network.join(', ')}`);
+        }
+        if (errorsByType.other.length > 0) {
+            errorParts.push(errorsByType.other.join('\n'));
+        }
+        
+        return errorParts.join('\n');
     }
 
     /**
@@ -3931,7 +4069,6 @@ export class ContactUIController {
             return;
         }
         
-        console.log(`🔄 Sharing ${contacts.length} contacts from "${listName}" with:`, username, 'readonly:', isReadOnly);
         
         // Show loading state
         this.setShareModalState('loading');
@@ -3949,7 +4086,6 @@ export class ContactUIController {
                     
                     if (result.success) {
                         successCount++;
-                        console.log('✅ Individual contact shared:', contact.cardName);
                     } else {
                         errorCount++;
                         errors.push(`${contact.cardName}: ${result.error}`);
@@ -3980,7 +4116,6 @@ export class ContactUIController {
                 // Refresh contacts list to show sharing indicators
                 this.refreshContactsList();
                 
-                console.log(`✅ Distribution list shared: ${successCount} success, ${errorCount} errors`);
                 
                 // Auto-close after 5 seconds (longer for bulk operations)
                 setTimeout(() => {
@@ -4098,8 +4233,8 @@ export class ContactUIController {
             
         } else if (shareType === 'share-with-list') {
             document.getElementById('share-with-list-section').classList.add('active');
-            this.elements.shareInfoText.textContent = 'This contact will be shared with ALL users in the selected sharing list simultaneously.';
-            this.elements.shareSubmitText.textContent = 'Share with List';
+            this.elements.shareInfoText.textContent = 'This contact will be shared with ALL users in the selected user group simultaneously.';
+            this.elements.shareSubmitText.textContent = 'Share with Group';
             
             // Remove required attribute from username field for list sharing
             if (this.elements.shareUsernameInput) {
@@ -4249,7 +4384,6 @@ export class ContactUIController {
             const fieldElements = form.querySelectorAll('.field-error-highlight');
             fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
             
-            console.log('✅ Contact form reset');
         }
     }
 
@@ -4296,7 +4430,6 @@ export class ContactUIController {
             const fieldElements = form.querySelectorAll('.field-error-highlight');
             fieldElements.forEach(el => el.classList.remove('field-error-highlight'));
             
-            console.log('✅ Create list form reset');
         }
     }
 
@@ -4305,7 +4438,6 @@ export class ContactUIController {
      */
     async handleCreateListSubmit(event) {
         event.preventDefault();
-        console.log('📋 Create list form submitted');
         
         const formData = new FormData(event.target);
         const listData = {
@@ -4314,7 +4446,6 @@ export class ContactUIController {
             color: formData.get('color') || '#007bff'
         };
         
-        console.log('📋 Creating list with data:', listData);
         
         // Validate form data
         const validation = this.validateCreateListForm(listData);
@@ -4328,7 +4459,6 @@ export class ContactUIController {
             const result = await this.contactManager.createDistributionList(listData);
             
             if (result.success) {
-                console.log('✅ Distribution list created successfully:', result.list);
                 this.hideModal({ modalId: 'create-list-modal' });
                 this.showToast({ 
                     message: `Distribution list "${listData.name}" created successfully!`, 
@@ -4416,8 +4546,6 @@ export class ContactUIController {
     }
 
     populateContactForm(contact) {
-        console.log('Populate contact form:', contact);
-        console.log('🔍 DEBUG: Raw contact.emails:', contact.emails);
         
         const form = document.getElementById('contact-form');
         if (!form) {
@@ -4432,7 +4560,6 @@ export class ContactUIController {
         try {
             // Extract display data from vCard
             const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
-            console.log('🔍 DEBUG: displayData.emails after extraction:', displayData.emails);
             
             // Populate basic fields
             this.setFormFieldValue('fullName', displayData.fullName);
@@ -4452,7 +4579,6 @@ export class ContactUIController {
             // Clear any previous errors
             this.clearFormErrors(form);
             
-            console.log('✅ Contact form populated successfully');
 
         } catch (error) {
             console.error('Failed to populate contact form:', error);
@@ -4491,7 +4617,6 @@ export class ContactUIController {
 
     formDataToContactData(formData, contactId = null) {
         // ⭐ DEBUG: Verify method is being called
-        console.log('🔍 formDataToContactData CALLED with contactId:', contactId);
         
         // Convert form data to contact data format expected by ContactManager
         const contactData = {
@@ -4503,7 +4628,6 @@ export class ContactUIController {
         const form = document.getElementById('contact-form');
         const isEdit = form && form.dataset.mode === 'edit';
         
-        console.log('🔍 Edit mode detection:', { isEdit, formMode: form?.dataset.mode, contactId });
         
         // ⭐ CRITICAL FIX: Preserve original vcard and contactId for UID extraction
         if (isEdit && contactId) {
@@ -4511,35 +4635,18 @@ export class ContactUIController {
             if (originalContact) {
                 if (originalContact.vcard) {
                     contactData.vcard = originalContact.vcard;
-                    console.log('� formDataToContactData: Preserved original vCard for UID extraction');
                 }
                 if (originalContact.contactId) {
                     contactData.contactId = originalContact.contactId;
-                    console.log('🔑 formDataToContactData: Preserved contactId as UID fallback');
                 }
             } else {
                 console.warn('⚠️ formDataToContactData: Could not find original contact:', contactId);
             }
         }
         
-        // �🔧 DEBUG: Log form data processing
-        console.log('🔧 formDataToContactData DEBUG:', {
-            isEdit,
-            contactId,
-            hasOriginalVcard: !!contactData.vcard,
-            hasOriginalContactId: !!contactData.contactId,
-            fullName: contactData.fn,
-            cardName: contactData.cardName,
-            formMode: form?.dataset.mode,
-            rawCardName: formData.get('cardName'),
-            rawFullName: formData.get('fullName')
-        });
-        
         if (!isEdit && !contactData.cardName.trim()) {
             contactData.cardName = contactData.fn || 'Unnamed Contact';
-            console.log('🔧 Applied fallback cardName for new contact:', contactData.cardName);
         } else if (isEdit) {
-            console.log('🔧 Edit mode: preserving cardName as-is:', contactData.cardName);
         }
 
         // Handle organization
@@ -4609,13 +4716,11 @@ export class ContactUIController {
             cancelButton.disabled = show;
         }
         
-        console.log('Show form loading:', show);
     }
 
     showFormError(error) {
         // Show error in a toast or form error area
         this.showToast({ message: error, type: 'error' });
-        console.log('Show form error:', error);
     }
 
     highlightFormErrors(errors) {
@@ -4627,11 +4732,9 @@ export class ContactUIController {
         // Clear previous error highlights
         this.clearFormErrors(form);
         
-        console.log('🔍 Processing form errors:', errors);
         
         // Highlight fields with errors
         errors.forEach(errorMessage => {
-            console.log('🔍 Processing error:', errorMessage);
             
             // Try to map error messages to form fields
             if (errorMessage.toLowerCase().includes('phone')) {
@@ -4672,11 +4775,9 @@ export class ContactUIController {
                 }
             } else {
                 // Generic error - show in a general error area
-                console.log('🔍 Generic error message:', errorMessage);
             }
         });
         
-        console.log('Highlight form errors:', errors);
     }
 
     /**
@@ -4691,7 +4792,6 @@ export class ContactUIController {
             // Clear all URL parameters and hash parameters
             const cleanUrl = `${currentUrl.origin}${currentUrl.pathname}${currentUrl.hash.split('?')[0]}`;
             window.history.replaceState({}, document.title, cleanUrl);
-            console.log('🧹 Cleared URL parameters for security');
         }
     }
 
@@ -4815,14 +4915,12 @@ export class ContactUIController {
 
     setupContactDetailListeners(container, contactId) {
         // Setup listeners for contact detail actions
-        console.log('🔗 Setting up contact detail listeners for:', contactId);
         
         // Edit contact button
         const editBtn = container.querySelector('.edit-contact');
         if (editBtn) {
             editBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                console.log('✏️ Edit button clicked in detail view for:', contactId);
                 this.showEditContactModal(contactId);
             });
         }
@@ -4832,7 +4930,6 @@ export class ContactUIController {
         if (shareBtn) {
             shareBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                console.log('📤 Share button clicked in detail view for:', contactId);
                 this.showShareContactModal(contactId);
             });
         }
@@ -4842,7 +4939,6 @@ export class ContactUIController {
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                console.log('🗑️ Delete button clicked in detail view for:', contactId);
                 this.showDeleteConfirmModal(contactId);
             });
         }
@@ -4852,7 +4948,6 @@ export class ContactUIController {
         if (exportBtn) {
             exportBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                console.log('📄 Export button clicked in detail view for:', contactId);
                 this.exportContact(contactId);
             });
         }
@@ -4862,7 +4957,6 @@ export class ContactUIController {
         if (archiveBtn) {
             archiveBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                console.log('📦 Archive button clicked in detail view for:', contactId);
                 this.archiveContact(contactId);
             });
         }
@@ -4872,7 +4966,6 @@ export class ContactUIController {
         if (restoreBtn) {
             restoreBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                console.log('🔄 Restore button clicked in detail view for:', contactId);
                 this.restoreContact(contactId);
             });
         }
@@ -4886,7 +4979,6 @@ export class ContactUIController {
                 const contactId = button.dataset.contactId;
                 const username = button.dataset.username;
                 
-                console.log('🚫 Revoke button clicked for:', { contactId, username });
                 
                 if (contactId && username) {
                     await this.handleRevokeSharing(contactId, username);
@@ -4954,7 +5046,6 @@ export class ContactUIController {
         // Update view mode based on screen size
         const optimalViewMode = this.getDefaultViewMode();
         if (this.viewMode !== optimalViewMode) {
-            console.log(`🔄 Responsive view mode change: ${this.viewMode} → ${optimalViewMode}`);
             this.setViewMode(optimalViewMode);
         }
     }
@@ -4970,7 +5061,6 @@ export class ContactUIController {
         if (confirmed) {
             try {
                 await this.contactManager.deleteContact(contactId);
-                console.log('✅ Contact deleted successfully:', contactId);
             } catch (error) {
                 console.error('❌ Failed to delete contact:', error);
                 alert('Failed to delete contact. Please try again.');
@@ -4988,14 +5078,12 @@ export class ContactUIController {
         // Show confirmation dialog
         const confirmed = confirm(`Are you sure you want to archive "${contact.cardName}"?\n\nArchived contacts will be hidden from the main view but can be restored later.`);
         if (!confirmed) {
-            console.log('📦 Archive cancelled by user for:', contactId);
             return;
         }
 
         try {
             const result = await this.contactManager.archiveContact(contactId);
             if (result.success) {
-                console.log('✅ Contact archived successfully:', contactId);
                 this.showToast({ 
                     message: 'Contact archived successfully', 
                     type: 'success' 
@@ -5034,14 +5122,12 @@ export class ContactUIController {
         // Show confirmation dialog
         const confirmed = confirm(`Are you sure you want to restore "${contact.cardName}" from archive?\n\nThe contact will be moved back to your active contacts.`);
         if (!confirmed) {
-            console.log('🔄 Restore cancelled by user for:', contactId);
             return;
         }
 
         try {
             const result = await this.contactManager.restoreContact(contactId);
             if (result.success) {
-                console.log('✅ Contact restored successfully:', contactId);
                 this.showToast({ 
                     message: 'Contact restored successfully', 
                     type: 'success' 
@@ -5069,6 +5155,329 @@ export class ContactUIController {
             this.showToast({ 
                 message: 'Failed to restore contact. Please try again.', 
                 type: 'error' 
+            });
+        }
+    }
+
+    // ========== BULK ACTIONS ==========
+    
+    /**
+     * Toggle bulk select mode
+     */
+    toggleBulkSelectMode() {
+        this.bulkSelectMode = !this.bulkSelectMode;
+        
+        if (this.bulkSelectMode) {
+            this.enterBulkSelectMode();
+        } else {
+            this.exitBulkSelectMode();
+        }
+    }
+    
+    /**
+     * Enter bulk select mode
+     */
+    enterBulkSelectMode() {
+        this.bulkSelectMode = true;
+        this.selectedContacts.clear();
+        
+        // Show bulk actions toolbar
+        const toolbar = document.getElementById('bulk-actions-toolbar');
+        if (toolbar) {
+            toolbar.classList.remove('hidden');
+        }
+        
+        // Add checkboxes to all contact cards
+        const contactCards = document.querySelectorAll('.contact-card');
+        contactCards.forEach(card => {
+            this.addCheckboxToCard(card);
+        });
+        
+        // Update button state
+        const bulkSelectBtn = document.getElementById('bulk-select-btn');
+        if (bulkSelectBtn) {
+            bulkSelectBtn.classList.add('active');
+        }
+        
+        this.updateBulkSelectionCount();
+    }
+    
+    /**
+     * Exit bulk select mode
+     */
+    exitBulkSelectMode() {
+        this.bulkSelectMode = false;
+        this.selectedContacts.clear();
+        
+        // Hide bulk actions toolbar
+        const toolbar = document.getElementById('bulk-actions-toolbar');
+        if (toolbar) {
+            toolbar.classList.add('hidden');
+        }
+        
+        // Remove checkboxes from all contact cards
+        const contactCards = document.querySelectorAll('.contact-card');
+        contactCards.forEach(card => {
+            this.removeCheckboxFromCard(card);
+        });
+        
+        // Update button state
+        const bulkSelectBtn = document.getElementById('bulk-select-btn');
+        if (bulkSelectBtn) {
+            bulkSelectBtn.classList.remove('active');
+        }
+        
+        // Uncheck select all checkbox
+        const selectAllCheckbox = document.getElementById('select-all-contacts');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+        }
+    }
+    
+    /**
+     * Add checkbox to contact card
+     */
+    addCheckboxToCard(card) {
+        if (card.querySelector('.contact-card-checkbox')) return; // Already has checkbox
+        
+        const contactId = card.dataset.contactId;
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'contact-card-checkbox';
+        checkbox.dataset.contactId = contactId;
+        checkbox.checked = this.selectedContacts.has(contactId);
+        
+        checkbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.handleContactCheckboxChange(contactId, e.target.checked);
+        });
+        
+        card.classList.add('bulk-select-mode');
+        card.insertBefore(checkbox, card.firstChild);
+    }
+    
+    /**
+     * Remove checkbox from contact card
+     */
+    removeCheckboxFromCard(card) {
+        const checkbox = card.querySelector('.contact-card-checkbox');
+        if (checkbox) {
+            checkbox.remove();
+        }
+        card.classList.remove('bulk-select-mode', 'selected');
+    }
+    
+    /**
+     * Handle contact checkbox change
+     */
+    handleContactCheckboxChange(contactId, checked) {
+        if (checked) {
+            this.selectedContacts.add(contactId);
+        } else {
+            this.selectedContacts.delete(contactId);
+        }
+        
+        // Update card appearance
+        const card = document.querySelector(`.contact-card[data-contact-id="${contactId}"]`);
+        if (card) {
+            if (checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        }
+        
+        this.updateBulkSelectionCount();
+        this.updateSelectAllCheckbox();
+    }
+    
+    /**
+     * Handle select all checkbox
+     */
+    handleSelectAll(event) {
+        const checked = event.target.checked;
+        
+        if (checked) {
+            // Select all visible contacts
+            const contactCards = document.querySelectorAll('.contact-card');
+            contactCards.forEach(card => {
+                const contactId = card.dataset.contactId;
+                if (contactId) {
+                    this.selectedContacts.add(contactId);
+                    const checkbox = card.querySelector('.contact-card-checkbox');
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                    card.classList.add('selected');
+                }
+            });
+        } else {
+            // Deselect all
+            this.selectedContacts.clear();
+            const contactCards = document.querySelectorAll('.contact-card');
+            contactCards.forEach(card => {
+                const checkbox = card.querySelector('.contact-card-checkbox');
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+                card.classList.remove('selected');
+            });
+        }
+        
+        this.updateBulkSelectionCount();
+    }
+    
+    /**
+     * Update bulk selection count display
+     */
+    updateBulkSelectionCount() {
+        const countElement = document.getElementById('bulk-selection-count');
+        if (countElement) {
+            const count = this.selectedContacts.size;
+            countElement.textContent = count === 0 ? '0 selected' : 
+                                        count === 1 ? '1 selected' : 
+                                        `${count} selected`;
+        }
+    }
+    
+    /**
+     * Update select all checkbox state
+     */
+    updateSelectAllCheckbox() {
+        const selectAllCheckbox = document.getElementById('select-all-contacts');
+        if (!selectAllCheckbox) return;
+        
+        const totalVisible = document.querySelectorAll('.contact-card').length;
+        const selectedCount = this.selectedContacts.size;
+        
+        if (selectedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (selectedCount === totalVisible) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+    
+    /**
+     * Handle bulk delete with rate limiting
+     */
+    async handleBulkDelete() {
+        const count = this.selectedContacts.size;
+        
+        if (count === 0) {
+            this.showToast({
+                message: 'No contacts selected',
+                type: 'warning'
+            });
+            return;
+        }
+        
+        // Filter out shared contacts (cannot delete contacts you don't own)
+        const deletableContacts = [];
+        const sharedContacts = [];
+        
+        for (const contactId of this.selectedContacts) {
+            const contact = this.contactManager.getContact(contactId);
+            if (contact && contact.metadata.isOwned) {
+                deletableContacts.push(contactId);
+            } else if (contact && !contact.metadata.isOwned) {
+                sharedContacts.push(contactId);
+            }
+        }
+        
+        if (deletableContacts.length === 0) {
+            this.showToast({
+                message: 'Cannot delete shared contacts. You can only delete contacts you own.',
+                type: 'warning'
+            });
+            return;
+        }
+        
+        let confirmMessage = `Are you sure you want to delete ${deletableContacts.length} contact${deletableContacts.length > 1 ? 's' : ''}?\n\n` +
+            `This action cannot be undone.`;
+        
+        if (sharedContacts.length > 0) {
+            confirmMessage += `\n\nNote: ${sharedContacts.length} shared contact${sharedContacts.length > 1 ? 's' : ''} will be skipped (cannot delete).`;
+        }
+        
+        const confirmed = confirm(confirmMessage);
+        
+        if (!confirmed) return;
+        
+        try {
+            let successCount = 0;
+            let errorCount = 0;
+            let skippedCount = sharedContacts.length;
+            
+            console.log(`🗑️ Bulk delete: ${deletableContacts.length} contacts to delete (skipping ${skippedCount} shared)`);
+            
+            // Delete each contact with rate limiting (~1.67 req/sec = 100 req/min Userbase limit)
+            for (let i = 0; i < deletableContacts.length; i++) {
+                const contactId = deletableContacts[i];
+                
+                try {
+                    // Get contact name BEFORE deletion
+                    const contact = this.contactManager.getContact(contactId);
+                    const contactName = contact ? (contact.cardName || contactId) : contactId;
+                    
+                    console.log(`🗑️ Deleting ${i + 1}/${deletableContacts.length}: ${contactName}`);
+                    
+                    const result = await this.contactManager.deleteContact(contactId);
+                    
+                    if (result.success) {
+                        successCount++;
+                        console.log(`✅ Deleted: ${contactName}`);
+                    } else {
+                        errorCount++;
+                        console.error(`❌ Failed to delete ${contactName}:`, result.error);
+                    }
+                    
+                    // Rate limiting: Wait 600ms between deletions (Userbase allows ~100 req/min = 1.67 req/sec)
+                    if (i < deletableContacts.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 600));
+                    }
+                    
+                } catch (error) {
+                    errorCount++;
+                    console.error(`❌ Error deleting contact ${contactId}:`, error);
+                    
+                    // Still wait on error to avoid rate limiting
+                    if (i < deletableContacts.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 600));
+                    }
+                }
+            }
+            
+            // Exit bulk select mode
+            this.exitBulkSelectMode();
+            
+            // Show result message
+            if (errorCount === 0 && skippedCount === 0) {
+                this.showToast({
+                    message: `Successfully deleted ${successCount} contact${successCount > 1 ? 's' : ''}`,
+                    type: 'success'
+                });
+            } else if (errorCount === 0 && skippedCount > 0) {
+                this.showToast({
+                    message: `Deleted ${successCount} contact${successCount > 1 ? 's' : ''} (${skippedCount} shared contact${skippedCount > 1 ? 's' : ''} skipped)`,
+                    type: 'success'
+                });
+            } else {
+                this.showToast({
+                    message: `Deleted ${successCount}, ${errorCount} failed, ${skippedCount} skipped (shared)`,
+                    type: 'warning'
+                });
+            }
+            
+        } catch (error) {
+            console.error('❌ Bulk delete error:', error);
+            this.showToast({
+                message: 'Failed to delete contacts. Please try again.',
+                type: 'error'
             });
         }
     }
@@ -5129,11 +5538,8 @@ export class ContactUIController {
             const listItem = event.target.closest('.distribution-list-item');
             const listName = listItem?.dataset.listName;
             
-            console.log('🎯 Distribution list clicked:', listName);
-            console.log('🎯 Event target:', event.target);
             
             // Regular distribution list clicked - no automatic filtering
-            console.log('🎯 Regular distribution list clicked - no automatic filtering');
             // Don't auto-filter for regular distribution lists
             // User must use a different method to filter (like a separate filter button)
             
@@ -5357,12 +5763,12 @@ export class ContactUIController {
     }
 
     /**
-     * Handle add username button click
+     * Handle add username button click (supports comma-separated usernames)
      */
     async handleAddUsername() {
-        const username = this.elements.newUsernameInput.value.trim();
+        const input = this.elements.newUsernameInput.value.trim();
         
-        if (!username) {
+        if (!input) {
             this.showToast({ message: 'Please enter a username', type: 'warning' });
             return;
         }
@@ -5373,66 +5779,114 @@ export class ContactUIController {
         }
 
         try {
-            const result = await this.contactManager.addUsernameToDistributionList(
-                this.currentDistributionList, 
-                username
-            );
+            // Split by comma and trim each username
+            const usernames = input.split(',')
+                .map(u => u.trim())
+                .filter(u => u.length > 0);
 
-            if (result.success) {
+            if (usernames.length === 0) {
+                this.showToast({ message: 'Please enter valid username(s)', type: 'warning' });
+                return;
+            }
+
+            // Track results for multiple usernames
+            const results = {
+                total: usernames.length,
+                successful: 0,
+                failed: 0,
+                alreadyExists: 0,
+                errors: [],
+                retroactiveStats: {
+                    totalContactsShared: 0,
+                    totalAlreadyShared: 0
+                }
+            };
+
+            // Process each username
+            for (const username of usernames) {
+                const result = await this.contactManager.addUsernameToDistributionList(
+                    this.currentDistributionList, 
+                    username
+                );
+
+                if (result.success) {
+                    results.successful++;
+                    
+                    // Aggregate retroactive sharing stats
+                    if (result.retroactiveSharing) {
+                        results.retroactiveStats.totalContactsShared += result.retroactiveSharing.successfulShares || 0;
+                        results.retroactiveStats.totalAlreadyShared += result.retroactiveSharing.alreadyShared || 0;
+                    }
+                } else {
+                    results.failed++;
+                    if (result.error?.includes('already exists') || result.error?.includes('duplicate')) {
+                        results.alreadyExists++;
+                    }
+                    results.errors.push(`${username}: ${result.error || 'Failed'}`);
+                }
+            }
+
+            // Clear input on any success
+            if (results.successful > 0) {
                 this.elements.newUsernameInput.value = '';
                 this.loadUsernamesForList(this.currentDistributionList);
-                
-                // Enhanced feedback for retroactive sharing
-                let message = `Added "${username}" to distribution list`;
-                let toastType = 'success';
-                
-                if (result.retroactiveSharing && result.retroactiveSharing.contactsFound > 0) {
-                    const { contactsFound, successfulShares, alreadyShared, failedShares } = result.retroactiveSharing;
-                    
-                    if (successfulShares > 0) {
-                        message += ` and automatically shared ${successfulShares} existing contact${successfulShares === 1 ? '' : 's'}`;
-                        if (alreadyShared > 0) {
-                            message += ` (${alreadyShared} already shared)`;
-                        }
-                    } else if (alreadyShared > 0) {
-                        message += ` (${alreadyShared} existing contact${alreadyShared === 1 ? ' was' : 's were'} already shared)`;
-                    }
-                    
-                    if (failedShares > 0) {
-                        message += ` (${failedShares} failed to share)`;
-                        toastType = 'warning';
-                    }
-                }
-                
-                this.showToast({ 
-                    message: message, 
-                    type: toastType 
-                });
-                
-                // Refresh distribution lists in sidebar
                 this.renderDistributionLists();
-            } else {
-                // 🆕 Enhanced error feedback for username validation
-                let errorMessage = result.error || 'Failed to add username';
-                let errorIcon = '❌';
-                
-                if (result.errorType === 'userNotFound') {
-                    errorIcon = '👤';
-                } else if (result.errorType === 'subscription') {
-                    errorIcon = '💳';
-                } else if (result.errorType === 'network') {
-                    errorIcon = '🌐';
-                }
-                
-                this.showToast({ 
-                    message: `${errorIcon} ${errorMessage}`, 
-                    type: 'error',
-                    duration: 5000  // Show longer for error messages
-                });
             }
+
+            // Generate comprehensive feedback message
+            let message = '';
+            let toastType = 'success';
+
+            if (results.successful > 0) {
+                if (results.total === 1) {
+                    message = `Added "${usernames[0]}" to distribution list`;
+                } else {
+                    message = `Successfully added ${results.successful} of ${results.total} user${results.total === 1 ? '' : 's'}`;
+                }
+
+                // Add retroactive sharing info
+                if (results.retroactiveStats.totalContactsShared > 0) {
+                    message += ` and shared ${results.retroactiveStats.totalContactsShared} contact${results.retroactiveStats.totalContactsShared === 1 ? '' : 's'}`;
+                    if (results.retroactiveStats.totalAlreadyShared > 0) {
+                        message += ` (${results.retroactiveStats.totalAlreadyShared} already shared)`;
+                    }
+                }
+
+                if (results.failed > 0) {
+                    if (results.alreadyExists === results.failed) {
+                        message += ` (${results.failed} already in list)`;
+                    } else {
+                        message += ` (${results.failed} failed)`;
+                    }
+                    toastType = 'warning';
+                }
+            } else {
+                // All failed
+                toastType = 'error';
+                if (results.total === 1) {
+                    message = `❌ ${results.errors[0] || 'Failed to add username'}`;
+                } else {
+                    message = `❌ Failed to add ${results.total} user${results.total === 1 ? '' : 's'}`;
+                    if (results.alreadyExists === results.total) {
+                        message += ' (all already in list)';
+                    }
+                }
+            }
+
+            this.showToast({ 
+                message: message, 
+                type: toastType,
+                duration: results.total > 1 ? 5000 : 3000  // Longer for multiple users
+            });
+
+            // Log detailed errors if any
+            if (results.errors.length > 0) {
+                console.log('Username addition errors:', results.errors);
+            }
+
         } catch (error) {
-            console.error('Error adding username:', error);
-            this.showToast({ message: 'Failed to add username', type: 'error' });
+            console.error('Error adding username(s):', error);
+            this.showToast({ message: 'Failed to add username(s)', type: 'error' });
         }
     }
 
@@ -5493,12 +5947,9 @@ export class ContactUIController {
      */
     async deleteDistributionList(listName) {
         try {
-            console.log('🗑️ UI: Starting deletion of distribution list:', listName);
             const result = await this.contactManager.deleteDistributionList(listName);
-            console.log('🗑️ UI: Deletion result:', result);
             
             if (result.success) {
-                console.log('✅ UI: Distribution list deleted successfully, updating UI...');
                 this.showToast({ 
                     message: `Distribution list "${listName}" deleted successfully`, 
                     type: 'success' 
@@ -5506,15 +5957,12 @@ export class ContactUIController {
                 
                 // Clear the filter if the deleted list was active
                 if (this.activeFilters.distributionList === listName) {
-                    console.log('🔄 UI: Clearing active filter for deleted list');
                     this.activeFilters.distributionList = null;
                     await this.refreshContactsList();
                 }
                 
                 // Refresh distribution lists in sidebar
-                console.log('🔄 UI: Refreshing distribution lists display...');
                 await this.renderDistributionLists();
-                console.log('✅ UI: Distribution lists display refreshed');
             } else {
                 console.error('❌ UI: Distribution list deletion failed:', result.error);
                 this.showToast({ 
@@ -5679,21 +6127,18 @@ export class ContactUIController {
             phone: [
                 { value: 'work', label: 'Work' },
                 { value: 'home', label: 'Home' },
-                { value: 'mobile', label: 'Mobile' },
-                { value: 'fax', label: 'Fax' },
-                { value: 'other', label: 'Other' }
+                { value: 'cell', label: 'Mobile' },
+                { value: 'fax', label: 'Fax' }
             ],
             email: [
                 { value: 'work', label: 'Work' },
                 { value: 'home', label: 'Home' },
-                { value: 'personal', label: 'Personal' },
+                { value: 'internet', label: 'Internet' },
                 { value: 'other', label: 'Other' }
             ],
             url: [
                 { value: 'work', label: 'Work' },
                 { value: 'home', label: 'Home' },
-                { value: 'personal', label: 'Personal' },
-                { value: 'blog', label: 'Blog' },
                 { value: 'other', label: 'Other' }
             ],
             address: [
@@ -5786,22 +6231,13 @@ export class ContactUIController {
         const container = document.getElementById(`${fieldType}-fields`);
         if (!container) return;
 
-        // Don't allow removing the last item
-        const items = container.querySelectorAll('.multi-field-item');
-        if (items.length <= 1) {
-            this.showToast({
-                message: `At least one ${fieldType} field must remain`,
-                type: 'error'
-            });
-            return;
-        }
-
+        // Allow removing all items - contacts can exist without phones/emails/urls
         item.remove();
         this.updateRemoveButtonStates(fieldType);
     }
 
     /**
-     * Update remove button states (disable if only one item)
+     * Update remove button states (always enabled)
      */
     updateRemoveButtonStates(fieldType) {
         const container = document.getElementById(`${fieldType}-fields`);
@@ -5810,8 +6246,9 @@ export class ContactUIController {
         const items = container.querySelectorAll('.multi-field-item');
         const removeButtons = container.querySelectorAll('.remove-field-btn');
 
+        // All remove buttons should be enabled - allow removing all fields
         removeButtons.forEach(button => {
-            button.disabled = items.length <= 1;
+            button.disabled = false;
         });
     }
 
@@ -5936,6 +6373,10 @@ export class ContactUIController {
             if (typeSelect) {
                 const normalizedType = this.normalizeFieldType(fieldType, item.type);
                 typeSelect.value = normalizedType;
+                // Verify it was set correctly
+                if (typeSelect.value !== normalizedType) {
+                    console.warn(`⚠️ Failed to set ${fieldType} type: requested "${normalizedType}", got "${typeSelect.value}"`);
+                }
             }
             
             if (valueInput) valueInput.value = item.value || '';
@@ -5975,7 +6416,6 @@ export class ContactUIController {
             return;
         }
 
-        console.log(`🏠 DEBUG: Processing ${data.length} addresses`);
         // Add items for each address
         data.forEach((address, index) => {
             const fieldItem = this.createMultiFieldItem('address');
@@ -6052,8 +6492,8 @@ export class ContactUIController {
             phone: {
                 'work': 'work',
                 'home': 'home',
-                'mobile': 'mobile',
-                'cell': 'mobile',  // Map 'cell' to 'mobile'
+                'mobile': 'cell',  // Map 'mobile' to 'cell' (dropdown uses 'cell')
+                'cell': 'cell',    // Keep 'cell' as 'cell'
                 'fax': 'fax',
                 'voice': 'other',
                 'text': 'other',
@@ -6173,7 +6613,9 @@ export class ContactUIController {
         
         const file = fileInput.files[0];
         const cardName = cardNameInput?.value?.trim() || null;
-        const markAsImported = markAsImportedInput?.checked !== false; // Default to true if element not found
+        
+        // Read checkbox value - if unchecked, should be false
+        const markAsImported = markAsImportedInput ? markAsImportedInput.checked : true;
         
         // Validate file type
         if (!file.name.match(/\.(vcf|vcard)$/i)) {
@@ -6244,14 +6686,15 @@ export class ContactUIController {
                     
                     if (saveResult.success) {
                         results.imported++;
-                        console.log(`✅ Imported contact: ${saveResult.contact ? saveResult.contact.cardName : 'Unknown'}`);
                     } else if (saveResult.isDuplicate) {
                         results.duplicates++;
                         
                         // Try to get the contact name from vCard for duplicate display
                         let contactName = 'New Contact';
                         try {
-                            const tempContact = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, false);
+                            const importResult = this.contactManager.vCardStandard.importFromVCard(vCardString, contactCardName, false);
+                            // Extract contact from result object
+                            const tempContact = importResult.success ? importResult.contact : importResult;
                             const displayData = this.contactManager.vCardStandard.extractDisplayData(tempContact, true, true);
                             contactName = displayData.fullName || tempContact.cardName || 'New Contact';
                         } catch (e) {
@@ -6264,7 +6707,6 @@ export class ContactUIController {
                             matchPercentage: saveResult.matchPercentage,
                             matchedFields: saveResult.matchedFields
                         });
-                        console.log(`⚠️ Skipped duplicate: ${contactName} (${Math.round(saveResult.matchPercentage * 100)}% match with ${saveResult.duplicateOf.cardName})`);
                     } else {
                         results.failed++;
                         results.errors.push(`Contact ${i + 1}: ${saveResult.error}`);
@@ -6521,7 +6963,6 @@ export class ContactUIController {
     async exportContacts(contacts, filename) {
         try {
             // Export as vCard 3.0 format (universal compatibility)
-            console.log('📄 Exporting as vCard 3.0 format');
             const vCardContent = contacts
                 .map(contact => contact.vcard)
                 .join('\n\n');
@@ -6542,7 +6983,6 @@ export class ContactUIController {
             // Clean up
             URL.revokeObjectURL(url);
             
-            console.log(`✅ Exported ${contacts.length} contacts to ${filename}.vcf (vCard 3.0 format)`);
             
         } catch (error) {
             console.error('Error exporting contacts:', error);
@@ -6806,11 +7246,6 @@ export class ContactUIController {
             }
 
             let sharing = contact.metadata.sharing;
-            console.log(`🔍 Before revocation - sharing metadata:`, {
-                sharedWithUsers: sharing?.sharedWithUsers,
-                shareCount: sharing?.shareCount,
-                isShared: sharing?.isShared
-            });
             
             if (!sharing?.sharedWithUsers?.includes(username)) {
                 return {
@@ -6844,12 +7279,6 @@ export class ContactUIController {
             // Update derived flags based on remaining users
             updatedSharing.isShared = updatedSharing.sharedWithUsers.length > 0;
             updatedSharing.shareCount = updatedSharing.sharedWithUsers.length;
-            
-            console.log(`🔍 After revocation - updated sharing metadata:`, {
-                sharedWithUsers: updatedSharing.sharedWithUsers,
-                shareCount: updatedSharing.shareCount,
-                isShared: updatedSharing.isShared
-            });
 
             // Add revocation tracking
             const revokedFrom = contact.metadata.revokedFrom || [];
