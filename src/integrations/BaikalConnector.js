@@ -1,24 +1,21 @@
-import { VCard3Processor } from '../core/VCard3Processor.js';
-
 /**
- * BaikalConnector - REFACTORED VERSION
- * Simplified CardDAV sync with ownership preservation
+ * BaikalConnector - CardDAV Sync for Baikal/Nextcloud
+ * Bidirectional sync with ownership preservation
  * 
- * KEY CHANGES FROM OLD VERSION:
- * ❌ REMOVED: Authority override strategy (loses external changes)
- * ❌ REMOVED: Complex categorized sync intervals
- * ❌ REMOVED: forcePushWithAuthorityOverride()
+ * KEY FEATURES:
+ * ✅ Ownership preservation (preserves external edits)
+ * ✅ UID-based contact matching
+ * ✅ Addressbook routing (/my-contacts/ vs /shared-contacts/)
+ * ✅ Simple pull → import → preserve pattern
+ * ✅ Bidirectional sync (pull and push)
+ * ✅ Shared contact protection with read-only addressbooks
  * 
- * ✅ ADDED: Ownership preservation (preserves external edits)
- * ✅ ADDED: UID-based contact matching
- * ✅ ADDED: Addressbook routing (/my-contacts/ vs /shared-contacts/)
- * ✅ ADDED: Simple pull → import → preserve pattern
- * ✅ ADDED: vCard 3.0 conversion for iCloud/Apple compatibility
+ * NOTE: For iCloud, use ICloudConnector instead (one-way export only)
  */
 export class BaikalConnector {
     constructor(bridgeUrl = 'http://localhost:3001/api', eventBus = null) {
-        this.version = '2025-10-30-shared-protection';
-        console.log(`🔧 BaikalConnector v${this.version} - Shared Contact Protection + Server Detection`);
+        this.version = '2025-11-05-baikal-only';
+        console.log(`🔧 BaikalConnector v${this.version} - Baikal/Nextcloud Bidirectional Sync`);
         
         this.bridgeUrl = bridgeUrl;
         this.eventBus = eventBus;
@@ -32,7 +29,7 @@ export class BaikalConnector {
         this.onError = null;
         
         // 🆕 Auto-sync intervals
-        this.syncIntervals = new Map(); // Map<profileName, { syncInterval, pushInterval }>
+        this.syncIntervals = new Map(); // Map<profileName, { pullInterval, pushInterval }>
         this.autoSyncEnabled = false;
         
         // 🛡️ Shared contact protection intervals
@@ -41,10 +38,6 @@ export class BaikalConnector {
         // 🔒 Sync lock to prevent concurrent operations
         this.syncInProgress = false;
         this.syncQueue = Promise.resolve(); // Chain sync operations
-        
-        // 🍎 vCard 3.0 processor for Apple/iCloud compatibility
-        this.vCard3Processor = new VCard3Processor({});
-        console.log('🍎 VCard3Processor initialized for iCloud/Apple compatibility');
     }
 
     /**
@@ -178,28 +171,6 @@ export class BaikalConnector {
     }
 
     /**
-     * 🍎 Detect if server is Apple/iCloud CardDAV (requires vCard 3.0)
-     * @param {string} profileName - Profile name to check
-     * @returns {boolean} True if Apple/iCloud server
-     */
-    isAppleCardDAVServer(profileName) {
-        const connection = this.connections.get(profileName);
-        if (!connection) return false;
-        
-        const serverUrl = (connection.serverUrl || '').toLowerCase();
-        const isApple = serverUrl.includes('icloud.com') || 
-                       serverUrl.includes('apple.com') || 
-                       serverUrl.includes('me.com') || 
-                       serverUrl.includes('mac.com');
-        
-        if (isApple) {
-            console.log(`🍎 Detected Apple CardDAV server: ${profileName}`);
-        }
-        
-        return isApple;
-    }
-
-    /**
      * 🔍 Detect server capabilities and choose protection strategy
      * @param {string} serverUrl - Server URL to analyze
      * @returns {Object} Server capabilities
@@ -208,18 +179,7 @@ export class BaikalConnector {
         const url = serverUrl.toLowerCase();
         
         // Detect server type and capabilities
-        if (url.includes('icloud.com') || url.includes('apple.com') || 
-            url.includes('me.com') || url.includes('mac.com')) {
-            return {
-                serverType: 'iCloud',
-                supportsACL: false,
-                supportsSeparateAddressbooks: false,
-                protectionStrategy: 'client_side_validation',
-                supportsVCard3: true,
-                vCardVersion: '3.0',
-                notes: 'Single addressbook, no ACL - client-side protection required'
-            };
-        } else if (url.includes('dav.php') || url.includes('baikal')) {
+        if (url.includes('dav.php') || url.includes('baikal')) {
             return {
                 serverType: 'Baikal',
                 supportsACL: true,
@@ -306,6 +266,12 @@ export class BaikalConnector {
      */
     async _syncFromBaikalInternal(profileName) {
         this.syncInProgress = true;
+        
+        // 🔒 Notify ContactManager to suppress database change handlers during sync
+        if (this.contactManager) {
+            this.contactManager.syncInProgress = true;
+        }
+        
         try {
             console.log(`🔄 Syncing from Baikal: ${profileName}`);
             
@@ -319,8 +285,18 @@ export class BaikalConnector {
 
             const result = await response.json();
 
-            if (!result.success) {
-                throw new Error(result.error || 'Sync failed');
+            // 🛡️ CRITICAL SAFETY CHECK: Detect server error state
+            const serverError = result.isServerDown || 
+                               result.syncResult?.skippedDueToError || 
+                               !result.success;
+            
+            if (serverError) {
+                console.error('🛡️ SERVER ERROR DETECTED - ABORTING SYNC TO PROTECT DATA');
+                console.error(`   Error: ${result.error || 'Server returned error state'}`);
+                console.warn('   ⚠️ Skipping import and deletion to prevent data loss');
+                console.warn('   ✅ Your local contacts remain unchanged and safe');
+                
+                throw new Error(result.error || 'CardDAV server unavailable - sync aborted to prevent data loss');
             }
 
             const serverContacts = result.syncResult?.contacts || result.contacts || [];
@@ -346,7 +322,8 @@ export class BaikalConnector {
                 });
             }
 
-            // 🆕 Detect and handle server-side deletions (bidirectional sync)
+            // 🛡️ SAFETY: Only detect deletions if server sync was fully successful
+            console.log('🔍 Checking for server-side deletions...');
             const deletionResults = await this.detectAndHandleServerDeletions(serverContacts, profileName);
 
             this.onContactsReceived?.({
@@ -371,6 +348,12 @@ export class BaikalConnector {
         } finally {
             // 🔒 Release sync lock
             this.syncInProgress = false;
+            
+            // 🔒 Re-enable ContactManager database change handlers
+            if (this.contactManager) {
+                this.contactManager.syncInProgress = false;
+            }
+            
             console.log('🔓 Sync lock released');
         }
     }
@@ -387,24 +370,19 @@ export class BaikalConnector {
     async importContactsWithOwnershipPreservation(serverContacts, profileName = null) {
         if (!this.contactManager) {
             console.warn('⚠️ ContactManager not set, cannot import contacts');
-            return { imported: 0, updated: 0, failed: 0 };
+            return { imported: 0, updated: 0, failed: 0, skipped: 0 };
         }
 
         let imported = 0;
         let updated = 0;
         let failed = 0;
+        let skipped = 0;  // ⚡ PERFORMANCE: Track contacts skipped due to ETag match
         let orphanedDeleted = 0;
         let vCard3Converted = 0;
         
         // 🔑 Track deleted orphans to avoid duplicate deletion attempts
         const deletedOrphanUIDs = new Set();
         
-        // 🍎 Detect if this is an Apple server requiring vCard 3.0 conversion
-        const isAppleServer = profileName && this.isAppleCardDAVServer(profileName);
-        if (isAppleServer) {
-            console.log(`🍎 Apple server detected - will convert vCard 3.0 → 4.0`);
-        }
-
         for (const serverContact of serverContacts) {
             try {
                 // 🔑 Skip if this UID was already deleted as an orphan during this sync
@@ -413,34 +391,17 @@ export class BaikalConnector {
                     continue;
                 }
                 
-                // 🍎 Convert vCard 3.0 → 4.0 if from Apple server
-                let processedContact = serverContact;
-                if (isAppleServer && serverContact.vcard) {
-                    try {
-                        // VCard3Processor.import() returns contact object directly (throws on error)
-                        const importedContact = this.vCard3Processor.import(
-                            serverContact.vcard,
-                            serverContact.name || 'Imported Contact',
-                            true // markAsImported
-                        );
-                        
-                        // Use the converted vCard 4.0 from the imported contact
-                        if (importedContact && importedContact.vcard) {
-                            processedContact = {
-                                ...serverContact,
-                                vcard: importedContact.vcard, // Use converted vCard 4.0
-                                uid: serverContact.uid // ⚠️ CRITICAL: Preserve original UID from server
-                            };
-                            vCard3Converted++;
-                            console.log(`🍎 Converted "${serverContact.name}" from vCard 3.0 → 4.0 (UID: ${serverContact.uid})`);
-                        } else {
-                            console.warn(`⚠️ vCard 3.0 conversion returned invalid contact for "${serverContact.name}", using original`);
-                        }
-                    } catch (conversionError) {
-                        console.error(`❌ vCard 3.0 conversion error for "${serverContact.name}":`, conversionError);
-                        console.warn(`⚠️ Using original vCard without conversion`);
-                    }
+                // ⚡ PERFORMANCE OPTIMIZATION: Check ETag BEFORE calling importOrUpdateContact
+                // This prevents unnecessary parsing, logging, and database operations for unchanged contacts
+                const existingContact = this.contactManager.findContactByUID(serverContact.uid);
+                if (existingContact && serverContact.etag && existingContact.metadata?.cardDAV?.etag === serverContact.etag) {
+                    // Contact exists locally and ETag matches - skip entirely (no parsing, no logging, no work)
+                    skipped++;
+                    continue;
                 }
+                
+                // Use server contact as-is (Baikal uses vCard 4.0)
+                let processedContact = serverContact;
                 
                 // Determine addressbook context from contact data
                 const syncContext = {
@@ -520,7 +481,7 @@ export class BaikalConnector {
             }
         }
 
-        console.log(`✅ Import complete: ${imported} imported, ${updated} updated, ${failed} failed`);
+        console.log(`✅ Import complete: ${imported} imported, ${updated} updated, ${skipped} skipped (unchanged), ${failed} failed`);
         if (vCard3Converted > 0) {
             console.log(`🍎 Converted ${vCard3Converted} contacts from vCard 3.0 → 4.0`);
         }
@@ -528,7 +489,19 @@ export class BaikalConnector {
             console.log(`🗑️ Cleaned up ${orphanedDeleted} orphaned shared contacts from Baikal`);
         }
 
-        return { imported, updated, failed, orphanedDeleted, vCard3Converted, total: serverContacts.length };
+        // ✅ FIX: Emit event to trigger UI refresh after batch import
+        if ((imported > 0 || updated > 0) && this.eventBus) {
+            console.log(`🔔 Emitting contactManager:contactsUpdated event (${imported} imported, ${updated} updated)`);
+            this.eventBus.emit('contactManager:contactsUpdated', {
+                source: 'baikal-sync',
+                imported,
+                updated,
+                skipped,
+                total: serverContacts.length
+            });
+        }
+
+        return { imported, updated, failed, skipped, orphanedDeleted, vCard3Converted, total: serverContacts.length };
     }
 
     /**
@@ -556,7 +529,34 @@ export class BaikalConnector {
         const serverUIDs = new Set(serverContacts.map(c => c.uid).filter(uid => uid));
         console.log(`📊 Server has ${serverUIDs.size} contacts`);
         
-        // 🐛 DEBUG: Log first few server UIDs for comparison
+        // 🚨 CRITICAL SAFETY CHECK: NEVER delete if server returns 0 contacts
+        if (serverUIDs.size === 0) {
+            const localImportedCount = Array.from(this.contactManager.contacts.values())
+                .filter(c => c.metadata?.isImported && !c.metadata?.isDeleted)
+                .length;
+            
+            if (localImportedCount > 0) {
+                console.error('🚨 CRITICAL SAFETY ABORT: Server returned 0 contacts but you have imported contacts locally!');
+                console.error(`   Local imported contacts: ${localImportedCount}`);
+                console.error('   Possible causes:');
+                console.error('   1. tsdav fetchVCards is failing silently');
+                console.error('   2. Wrong addressbook being synced');
+                console.error('   3. Authentication/permission issue');
+                console.error('   ');
+                console.error('   🛑 ABORTING DELETION to prevent data loss!');
+                console.error('   Your imported contacts will NOT be deleted.');
+                
+                // ABORT - return immediately without deleting anything
+                return { 
+                    deleted: 0, 
+                    checked: localImportedCount,
+                    aborted: true,
+                    reason: 'server_returned_zero_contacts_safety_abort'
+                };
+            }
+        }
+        
+        // �🐛 DEBUG: Log first few server UIDs for comparison
         if (serverUIDs.size > 0) {
             const uidArray = Array.from(serverUIDs);
             const sampleUIDs = uidArray.slice(0, Math.min(5, uidArray.length));
@@ -726,8 +726,40 @@ export class BaikalConnector {
      */
     async pushContactToBaikal(contact, profileName) {
         try {
-            // Determine addressbook based on contact type AND server capabilities
+            // Determine addressbook based on contact type
             const addressbook = this.getAddressbookForContact(contact, profileName);
+            
+            // ⚡ OPTIMIZATION: Skip push if contact hasn't changed since last sync
+            const lastSyncedAt = contact.metadata?.cardDAV?.lastSyncedAt;
+            const lastUpdated = contact.metadata?.lastUpdated;
+            const hasETag = !!contact.metadata?.cardDAV?.etag;
+            
+            // 🐛 DEBUG: Log timestamp comparison
+            console.log(`🔍 PUSH TIMESTAMP CHECK for: ${contact.cardName}`);
+            console.log(`   - lastSyncedAt: ${lastSyncedAt || 'none'}`);
+            console.log(`   - lastUpdated: ${lastUpdated || 'none'}`);
+            console.log(`   - hasETag: ${hasETag}`);
+            
+            if (lastSyncedAt && lastUpdated && hasETag) {
+                const syncTime = new Date(lastSyncedAt).getTime();
+                const updateTime = new Date(lastUpdated).getTime();
+                
+                console.log(`   - syncTime: ${syncTime} (${new Date(syncTime).toISOString()})`);
+                console.log(`   - updateTime: ${updateTime} (${new Date(updateTime).toISOString()})`);
+                console.log(`   - syncTime >= updateTime: ${syncTime >= updateTime}`);
+                
+                // Skip if last sync happened AFTER last update (contact unchanged)
+                if (syncTime >= updateTime) {
+                    console.log(`⏭️ SKIPPING PUSH - unchanged since last sync`);
+                    // Reduced logging - only summary shown in batch results
+                    return { 
+                        success: true, 
+                        skipped: true, 
+                        reason: 'unchanged_since_last_sync',
+                        etag: contact.metadata.cardDAV.etag 
+                    };
+                }
+            }
             
             console.log(`📤 Pushing contact to ${addressbook}:`, contact.cardName);
 
@@ -778,35 +810,6 @@ export class BaikalConnector {
                 }
             }
 
-            // 🍎 Convert vCard 4.0 → 3.0 for Apple/iCloud servers
-            if (this.isAppleCardDAVServer(profileName)) {
-                console.log(`🍎 Converting vCard 4.0 → 3.0 for Apple server`);
-                
-                // Create temporary contact object for VCard3Processor.export()
-                const tempContact = {
-                    contactId: contact.contactId,
-                    cardName: contact.cardName,
-                    vcard: vCardToSend,
-                    metadata: contact.metadata
-                };
-                
-                try {
-                    // Export as vCard 3.0
-                    const vCard3Result = this.vCard3Processor.export(tempContact);
-                    
-                    // VCard3Processor.export() returns { content, filename, mimeType, format }
-                    if (vCard3Result && vCard3Result.content) {
-                        vCardToSend = vCard3Result.content;
-                        console.log(`✅ Converted to vCard 3.0 (${vCard3Result.content.length} bytes)`);
-                    } else {
-                        console.warn(`⚠️ VCard3Processor export failed, using original vCard 4.0`);
-                    }
-                } catch (conversionError) {
-                    console.error(`❌ vCard 3.0 conversion failed:`, conversionError);
-                    console.warn(`⚠️ Falling back to original vCard 4.0`);
-                }
-            }
-
             // 🔍 DEBUG: Log ETag being used for push
             console.log(`🔍 Push using ETag:`, contact.metadata?.cardDAV?.etag || 'none');
             console.log(`🔍 Last synced:`, contact.metadata?.cardDAV?.lastSyncedAt || 'never');
@@ -818,7 +821,10 @@ export class BaikalConnector {
                     contact: {
                         uid: uid,
                         vcard: vCardToSend,
-                        etag: contact.metadata?.cardDAV?.etag
+                        // 🔧 FIX: Don't send ETag for manually edited contacts
+                        // The ETag we have is from BEFORE the edit, so it causes false matches
+                        // Let the bridge server fetch fresh ETag from server for comparison
+                        etag: null  // Force fresh comparison
                     },
                     addressbook: addressbook
                 })
@@ -930,12 +936,10 @@ export class BaikalConnector {
         // Servers with separate addressbooks (Baikal, Nextcloud)
         // SHARED contacts → read-only addressbook
         if (contact.metadata?.isOwned === false && contact.contactId?.startsWith('shared_')) {
-            console.log(`📂 SHARED contact - routing to 'shared-contacts' (read-only)`);
             return 'shared-contacts';
         }
         
         // OWNED and IMPORTED contacts → read-write addressbook
-        console.log(`📂 OWNED/IMPORTED contact - routing to 'my-contacts' (read-write)`);
         return 'my-contacts';
     }
 
@@ -1030,15 +1034,17 @@ export class BaikalConnector {
     }
 
     /**
-     * Test sync operation (pulls contacts from server)
+     * Test sync operation (pulls contacts from server) - with iCloud one-way export detection
      * This is the same as syncFromBaikal but used by UI
      * @param {string} profileName - Profile name
      * @returns {Promise<Object>} Sync result
      */
     async testSync(profileName) {
+        // Bidirectional sync for Baikal/Nextcloud
         return await this.syncFromBaikal(profileName);
     }
 
+    /**
     /**
      * Push owned contacts to Baikal
      * Used by UI to push all owned contacts
@@ -1106,38 +1112,77 @@ export class BaikalConnector {
 
             let successCount = 0;
             let errorCount = 0;
+            let skippedCount = 0; // ✅ Track skipped contacts
             const errors = [];
 
-            // Push all eligible contacts (owned go to my-contacts, shared go to shared-contacts)
-            for (const contact of eligibleContacts) {
-                try {
-                    const result = await this.pushContactToBaikal(contact, profileName);
-                    
+            // 🚀 PARALLEL PUSH: Process contacts in batches for better performance
+            const BATCH_SIZE = 10; // Push 10 contacts at once
+            const batches = [];
+            
+            for (let i = 0; i < eligibleContacts.length; i += BATCH_SIZE) {
+                batches.push(eligibleContacts.slice(i, i + BATCH_SIZE));
+            }
+            
+            console.log(`⚡ Using parallel push: ${batches.length} batches of up to ${BATCH_SIZE} contacts`);
+            
+            const startTime = Date.now();
+            
+            for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+                const batch = batches[batchIndex];
+                const progress = Math.round(((batchIndex) / batches.length) * 100);
+                console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} contacts) - ${progress}% complete...`);
+                
+                // Push all contacts in this batch in parallel
+                const batchPromises = batch.map(async (contact) => {
+                    try {
+                        const result = await this.pushContactToBaikal(contact, profileName);
+                        return { 
+                            success: result.success, 
+                            contact, 
+                            result,
+                            skipped: result.skipped || false // ✅ Track skip flag
+                        };
+                    } catch (error) {
+                        return { success: false, contact, error: error.message, skipped: false };
+                    }
+                });
+                
+                // Wait for all contacts in this batch to complete
+                const batchResults = await Promise.all(batchPromises);
+                
+                // Count results
+                batchResults.forEach(result => {
                     if (result.success) {
-                        successCount++;
+                        if (result.skipped) {
+                            skippedCount++; // ✅ Count skipped contacts
+                        } else {
+                            successCount++;
+                        }
                     } else {
                         errorCount++;
                         errors.push({
-                            contact: contact.cardName,
-                            error: result.error
+                            contact: result.contact.cardName,
+                            error: result.error || result.result?.error
                         });
                     }
-                } catch (error) {
-                    errorCount++;
-                    errors.push({
-                        contact: contact.cardName,
-                        error: error.message
-                    });
-                }
+                });
+                
+                console.log(`   ✅ Batch ${batchIndex + 1} complete: ${batchResults.filter(r => r.success).length}/${batch.length} succeeded`);
             }
-
-            console.log(`✅ Push complete: ${successCount} succeeded, ${errorCount} failed`);
+            
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+            const avgTimePerContact = (duration / eligibleContacts.length).toFixed(2);
+            
+            console.log(`✅ Push complete: ${successCount} updated, ${skippedCount} skipped (unchanged), ${errorCount} failed`);
+            console.log(`⏱️  Total time: ${duration}s (avg ${avgTimePerContact}s per contact)`);
 
             return {
-                success: successCount > 0,
+                success: successCount > 0 || skippedCount > 0,
                 total: eligibleContacts.length,
                 successCount,
+                skippedCount, // ✅ Include skipped count
                 errorCount,
+                totalCount: eligibleContacts.length,
                 errors: errors.length > 0 ? errors : undefined
             };
 
@@ -1248,10 +1293,10 @@ export class BaikalConnector {
      * - Servers WITHOUT ACL (iCloud, Google): Client-side protection (periodic re-push)
      * 
      * @param {string} profileName - Profile name
-     * @param {number} interval - Protection interval in ms (default: 5 min)
+     * @param {number} interval - Protection interval in ms (default: 30 min)
      * @returns {Promise<Object>} Result
      */
-    async initializeSharedContactProtection(profileName, interval = 300000) {
+    async initializeSharedContactProtection(profileName, interval = 1800000) {
         const connection = this.connections.get(profileName);
         
         if (!connection) {
@@ -1283,10 +1328,11 @@ export class BaikalConnector {
             // Strategy 2: Client-side validation (iCloud, Google)
             console.log('⚠️ Server does NOT support ACL - using client-side protection');
             console.log(`   📊 Interval: ${interval / 60000} minutes`);
-            console.log('   🔍 Method: Periodic re-push to override unauthorized edits');
+            console.log('   🔍 Method 1: Detect unauthorized edits and re-push original');
+            console.log('   🔍 Method 2: Refresh shared contacts to maintain ecosystem');
             console.log('   ⚠️ Note: ~5 min delay before corrections are applied');
             
-            // Setup periodic re-push for shared contacts
+            // Setup periodic protection for shared contacts
             const protectionKey = `${profileName}_shared_protection`;
             
             // Clear existing protection interval
@@ -1294,29 +1340,52 @@ export class BaikalConnector {
                 clearInterval(this.protectionIntervals.get(protectionKey));
             }
             
-            // Setup new protection interval
+            // Setup new protection interval (runs TWO operations)
             const protectionInterval = setInterval(async () => {
                 const now = new Date();
-                console.log(`\n🛡️ SHARED CONTACT PROTECTION CHECK - ${now.toLocaleTimeString()}`);
+                console.log(`\n🛡️ SHARED CONTACT PROTECTION CYCLE - ${now.toLocaleTimeString()}`);
                 console.log(`   Profile: ${profileName}`);
                 console.log(`   Interval: ${interval / 60000} minutes`);
-                await this.detectAndCorrectUnauthorizedEdits(profileName);
-                console.log(`   ⏰ Next check at: ${new Date(Date.now() + interval).toLocaleTimeString()}\n`);
+                console.log('');
+                
+                // Operation 1: Detect and correct unauthorized edits
+                console.log('🔍 Step 1: Checking for unauthorized edits...');
+                try {
+                    await this.detectAndCorrectUnauthorizedEdits(profileName);
+                } catch (error) {
+                    console.error('❌ Unauthorized edit detection failed:', error.message);
+                }
+                
+                // Operation 2: Refresh shared contacts (maintain ecosystem)
+                console.log('🔄 Step 2: Refreshing shared contacts to maintain ecosystem...');
+                try {
+                    await this.refreshSharedContactsToCardDAV(profileName);
+                } catch (error) {
+                    console.error('❌ Shared contact refresh failed:', error.message);
+                }
+                
+                console.log(`   ⏰ Next protection cycle at: ${new Date(Date.now() + interval).toLocaleTimeString()}\n`);
             }, interval);
             
             this.protectionIntervals.set(protectionKey, protectionInterval);
             
             console.log('✅ Client-side protection enabled');
-            console.log(`   ⏰ First protection check at: ${new Date(Date.now() + interval).toLocaleTimeString()}`);
+            console.log(`   🔍 Unauthorized edit detection: Active`);
+            console.log(`   🔄 Shared contact refresh: Active`);
+            console.log(`   ⏰ First protection cycle at: ${new Date(Date.now() + interval).toLocaleTimeString()}`);
             
             return {
                 success: true,
                 profileName,
                 strategy: 'client_side_validation',
-                protectionMethod: 'periodic_repush',
+                protectionMethod: 'dual_protection',
+                operations: [
+                    'detect_unauthorized_edits',
+                    'refresh_shared_contacts'
+                ],
                 requiresPeriodicPush: true,
                 interval,
-                notes: 'Periodic re-push every 5 minutes to override unauthorized edits'
+                notes: 'Dual protection: (1) Detect/correct unauthorized edits, (2) Refresh shared contacts every 5 minutes to maintain Userbase ecosystem'
             };
         }
     }
@@ -1528,26 +1597,11 @@ export class BaikalConnector {
             // Get addressbook (will be 'default' for iCloud/Google)
             const addressbook = this.getAddressbookForContact(contact, profileName);
             
-            // Prepare vCard for push
+            // Prepare vCard for push (Baikal/Nextcloud use vCard 4.0 natively)
             let vCardToSend = contact.vcard;
             
-            // Convert to vCard 3.0 if Apple server
-            if (this.isAppleCardDAVServer(profileName)) {
-                try {
-                    const vCard3Result = this.vCard3Processor.export({
-                        contactId: contact.contactId,
-                        cardName: contact.cardName,
-                        vcard: vCardToSend,
-                        metadata: contact.metadata
-                    });
-                    
-                    if (vCard3Result?.content) {
-                        vCardToSend = vCard3Result.content;
-                    }
-                } catch (conversionError) {
-                    console.warn('⚠️ vCard 3.0 conversion failed, using original');
-                }
-            }
+            // Note: For iCloud, use ICloudConnector instead
+            // BaikalConnector is for Baikal/Nextcloud which support vCard 4.0 natively
             
             // Force-push with NULL ETag (overrides server version)
             const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
@@ -1590,7 +1644,121 @@ export class BaikalConnector {
     }
 
     /**
-     * 🛑 Stop shared contact protection
+     * � Refresh shared contacts to CardDAV server
+     * Simulates user2 pressing "save contact" to maintain Userbase sharing ecosystem
+     * 
+     * USE CASE:
+     * - User1 receives shared contacts from User2 (via Userbase)
+     * - User1 connects to iCloud
+     * - iCloud overwrites shared contacts (doesn't know about Userbase)
+     * - This method re-pushes shared contacts every 5 minutes
+     * - Maintains User2's shared contacts in User1's iCloud
+     * 
+     * @param {string} profileName - Profile name
+     * @returns {Promise<Object>} Refresh result
+     */
+    async refreshSharedContactsToCardDAV(profileName) {
+        if (!this.contactManager) {
+            console.warn('⚠️ ContactManager not available, cannot refresh shared contacts');
+            return { success: false, refreshed: 0 };
+        }
+
+        const startTime = Date.now();
+        console.log('\n🔄 =================================================');
+        console.log('🔄 SHARED CONTACT REFRESH - Maintaining Ecosystem');
+        console.log(`🔄 Profile: ${profileName}`);
+        console.log(`🔄 Time: ${new Date().toLocaleString()}`);
+        console.log('🔄 =================================================\n');
+
+        // Get all shared contacts (green 🟢)
+        const allContacts = Array.from(this.contactManager.contacts.values());
+        const sharedContacts = allContacts.filter(c => 
+            c.metadata?.isOwned === false && 
+            c.contactId?.startsWith('shared_') &&
+            !c.metadata?.isDeleted &&
+            !c.metadata?.isArchived
+        );
+
+        console.log(`📊 Total contacts: ${allContacts.length}`);
+        console.log(`📊 Shared contacts (green): ${sharedContacts.length}`);
+
+        if (sharedContacts.length === 0) {
+            console.log('   ℹ️ No shared contacts to refresh');
+            console.log('🔄 =================================================\n');
+            return { success: true, refreshed: 0 };
+        }
+
+        console.log('\n📋 Shared contacts to refresh:');
+        sharedContacts.forEach((c, idx) => {
+            const sharedBy = c.metadata?.sharedBy || 'unknown';
+            console.log(`   ${idx + 1}. ${c.cardName} (shared by: ${sharedBy})`);
+        });
+        console.log('');
+
+        let refreshedCount = 0;
+        let errorCount = 0;
+        const errors = [];
+
+        // Re-push each shared contact (simulates "save contact")
+        for (const contact of sharedContacts) {
+            try {
+                console.log(`🔄 Refreshing: ${contact.cardName}`);
+                
+                // Force-push to override any iCloud overwrites
+                const result = await this.forcePushSharedContact(contact, profileName);
+                
+                if (result.success) {
+                    refreshedCount++;
+                    console.log(`   ✅ Refreshed successfully`);
+                } else {
+                    errorCount++;
+                    errors.push({
+                        contact: contact.cardName,
+                        error: result.error
+                    });
+                    console.log(`   ❌ Failed: ${result.error}`);
+                }
+            } catch (error) {
+                errorCount++;
+                errors.push({
+                    contact: contact.cardName,
+                    error: error.message
+                });
+                console.log(`   ❌ Error: ${error.message}`);
+            }
+        }
+
+        const duration = Date.now() - startTime;
+
+        console.log('\n🔄 =================================================');
+        console.log('🔄 REFRESH SUMMARY');
+        console.log('🔄 =================================================');
+        console.log(`   Shared contacts found: ${sharedContacts.length}`);
+        console.log(`   Successfully refreshed: ${refreshedCount}`);
+        console.log(`   Errors: ${errorCount}`);
+        console.log(`   Duration: ${duration}ms`);
+
+        if (errors.length > 0) {
+            console.log('\n   ❌ Failed contacts:');
+            errors.forEach((err, idx) => {
+                console.log(`   ${idx + 1}. ${err.contact} - ${err.error}`);
+            });
+        }
+
+        console.log('🔄 =================================================\n');
+
+        return {
+            success: refreshedCount > 0,
+            refreshed: refreshedCount,
+            total: sharedContacts.length,
+            errorCount,
+            errors: errors.length > 0 ? errors : undefined,
+            duration
+        };
+    }
+
+    /**
+     * �🛑 Stop shared contact protection
      * @param {string} profileName - Profile name
      * @returns {Object} Result
      */
@@ -1627,10 +1795,10 @@ export class BaikalConnector {
      */
     async initializeAutoSync(profileName, intervals = {}) {
         try {
-            // Default: 5 minutes for both pull and push (for testing)
+            // Default: 30 minutes for both pull and push
             const defaultIntervals = {
-                pull: 300000,  // 5 minutes - sync FROM Baikal
-                push: 300000   // 5 minutes - push TO Baikal
+                pull: 1800000,  // 30 minutes - sync FROM Baikal
+                push: 1800000   // 30 minutes - push TO Baikal
             };
 
             const syncConfig = { ...defaultIntervals, ...intervals };
@@ -1680,6 +1848,8 @@ export class BaikalConnector {
 
                 console.log(`✅ Pull auto-sync enabled (every ${syncConfig.pull / 60000} minutes)`);
                 console.log(`   Next pull sync at: ${new Date(Date.now() + syncConfig.pull).toLocaleTimeString()}`);
+            } else {
+                console.log(`ℹ️ Pull auto-sync disabled (interval = 0)`);
             }
 
             // 2. Push interval - Push TO Baikal (sends local changes)
@@ -1700,11 +1870,23 @@ export class BaikalConnector {
                         }
                         
                         try {
+                            // 1. Push all contacts
                             const result = await this.testPushOwnedContacts(profileName);
                             if (result.success) {
                                 console.log(`✅ Auto-sync (push): Pushed ${result.successCount} contacts`);
                             } else {
                                 console.error(`❌ Auto-sync (push) failed:`, result.error);
+                            }
+                            
+                            // 2. 🔄 Force-refresh shared contacts
+                            console.log(`\n🔄 Refreshing shared contacts to maintain Userbase ecosystem...`);
+                            try {
+                                const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
+                                if (refreshResult.success) {
+                                    console.log(`✅ Refreshed ${refreshResult.refreshed} shared contacts`);
+                                }
+                            } catch (refreshError) {
+                                console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
                             }
                         } catch (error) {
                             console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
@@ -1726,11 +1908,24 @@ export class BaikalConnector {
                         }
                         
                         try {
+                            // 1. Push all contacts (owned, imported, shared)
                             const result = await this.testPushOwnedContacts(profileName);
                             if (result.success) {
                                 console.log(`✅ Auto-sync (push): Pushed ${result.successCount} contacts`);
                             } else {
                                 console.error(`❌ Auto-sync (push) failed:`, result.error);
+                            }
+                            
+                            // 2. 🔄 ADDITIONAL: Force-refresh shared contacts (maintains ecosystem)
+                            // This ensures shared contacts are always pushed even if iCloud overwrites them
+                            console.log(`\n🔄 Refreshing shared contacts to maintain Userbase ecosystem...`);
+                            try {
+                                const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
+                                if (refreshResult.success) {
+                                    console.log(`✅ Refreshed ${refreshResult.refreshed} shared contacts`);
+                                }
+                            } catch (refreshError) {
+                                console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
                             }
                         } catch (error) {
                             console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);

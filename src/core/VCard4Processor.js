@@ -16,10 +16,15 @@
  * - Birthday (BDAY) validation
  */
 
+import { VCard3Processor } from './VCard3Processor.js';
+
 export class VCard4Processor {
     constructor(config) {
         this.config = config;
         this.version = '4.0';
+        
+        // Lazy-loaded VCard3Processor for conversion to standard format
+        this._vCard3Processor = null;
         
         // vCard 4.0 specific patterns
         this.patterns = {
@@ -46,6 +51,17 @@ export class VCard4Processor {
     }
 
     /**
+     * Get VCard3Processor instance (lazy initialization)
+     * @returns {VCard3Processor}
+     */
+    getVCard3Processor() {
+        if (!this._vCard3Processor) {
+            this._vCard3Processor = new VCard3Processor(this.config);
+        }
+        return this._vCard3Processor;
+    }
+
+    /**
      * Import vCard 4.0 content and convert to internal format
      * @param {string} vCardString - Raw vCard 4.0 content
      * @param {string} cardName - Optional card name override
@@ -68,10 +84,16 @@ export class VCard4Processor {
             // Convert to internal display format
             const displayData = this.convertToDisplayData(parsedContact);
             
-            // Create contact object
-            const contact = this.createContactObject(displayData, vCardString, cardName, markAsImported);
+            // 🔧 Convert vCard 4.0 to vCard 3.0 for storage (CardDAV standard)
+            // This ensures all contacts use the same format and prevents duplicates
+            console.log('🔄 Converting vCard 4.0 → 3.0 for consistent storage...');
+            const vCard3Processor = this.getVCard3Processor();
+            const vCard3String = vCard3Processor.generateVCard3(displayData);
             
-            console.log('✅ Successfully imported vCard 4.0');
+            // Create contact object with vCard 3.0 format
+            const contact = this.createContactObject(displayData, vCard3String, cardName, markAsImported);
+            
+            console.log('✅ Successfully imported vCard 4.0 (stored as vCard 3.0)');
             return contact;
             
         } catch (error) {

@@ -6,6 +6,7 @@
     <title>Contact Management System</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="src/ui/credential-storage.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -865,18 +866,11 @@
                     
                     <div class="form-group">
                         <label>Export Format</label>
-                        <div class="radio-group">
-                            <label class="radio-item">
-                                <input type="radio" name="exportFormat" value="standard" checked>
-                                <span>📄 Standard vCard 4.0 (Recommended)</span>
-                                <small class="help-text">Compatible with most modern contact applications</small>
-                            </label>
-                            <label class="radio-item">
-                                <input type="radio" name="exportFormat" value="apple">
-                                <span>🍎 Apple/iCloud vCard 3.0</span>
-                                <small class="help-text">Optimized for Apple Contacts, iPhone, and iCloud</small>
-                            </label>
+                        <div class="info-box">
+                            <span>📄 vCard 3.0</span>
+                            <small class="help-text">Compatible with all CardDAV servers, Apple Contacts, iPhone, iCloud, and contact applications</small>
                         </div>
+                        <input type="hidden" name="exportFormat" value="standard">
                     </div>
                     
                     <div class="form-group">

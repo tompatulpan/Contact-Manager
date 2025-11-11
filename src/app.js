@@ -14,6 +14,9 @@ import { profileRouter } from './utils/ProfileRouter.js';
 import { BaikalConnector } from './integrations/BaikalConnector.js';
 import { BaikalConfigManager } from './integrations/BaikalConfigManager.js';
 import { BaikalUIController } from './ui/BaikalUIController.js';
+// 🍎 iCloud Dedicated Integration
+import { ICloudConnector } from './integrations/ICloudConnector.js';
+import { VCard3Processor } from './core/VCard3Processor.js';
 
 /**
  * Main Application Class
@@ -93,6 +96,14 @@ class ContactManagementApp {
             this.modules.database
         );
         
+        // 🍎 Initialize iCloud-specific connector with VCard3Processor
+        this.modules.vCard3Processor = new VCard3Processor({});
+        this.modules.iCloudConnector = new ICloudConnector(
+            this.eventBus,
+            this.modules.contactManager,
+            this.modules.vCard3Processor
+        );
+        
         // IMPORTANT: Do NOT initialize database here - let UI Controller handle it optimally
         // The optimizedAuthenticationCheck() will decide when/how to initialize database
         // Core modules ready, database initialization deferred to UI Controller
@@ -113,7 +124,8 @@ class ContactManagementApp {
             this.eventBus,
             this.modules.baikalConnector,
             this.modules.baikalConfigManager,
-            this.modules.contactManager  // ⭐ Add ContactManager reference
+            this.modules.contactManager,  // ⭐ Add ContactManager reference
+            this.modules.iCloudConnector  // 🍎 Add ICloudConnector reference
         );
 
         // ⭐ Set ContactManager reference in BaikalConnector

@@ -2350,22 +2350,73 @@ export class ContactDatabase {
      */
     async saveSharedContactMetadata(sharedContactId, metadata) {
         try {
+            // 🔧 CRITICAL FIX: Optimize metadata to prevent exceeding 10KB limit
             const metadataItem = {
                 sharedContactId,
                 ...metadata,
                 lastUpdated: new Date().toISOString()
             };
 
-            // ✅ SDK COMPLIANT: Use safe insertItem with validation
+            // Check size before inserting
+            const itemSize = this.calculateItemSize(metadataItem);
+            if (itemSize > 10240) {
+                console.warn(`⚠️ Shared contact metadata too large (${(itemSize/1024).toFixed(2)}KB), optimizing...`);
+                
+                // Keep only essential metadata
+                const optimizedMetadata = {
+                    sharedContactId,
+                    isArchived: metadata.isArchived || false,
+                    usage: {
+                        accessCount: metadata.usage?.accessCount || 0,
+                        lastAccessedAt: metadata.usage?.lastAccessedAt || new Date().toISOString()
+                    },
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                await this.safeInsertItem({
+                    databaseName: this.databases.sharedContactMeta,
+                    item: optimizedMetadata,
+                    itemId: sharedContactId
+                }, 'saveSharedContactMetadata');
+                
+                console.log('✅ Saved optimized shared contact metadata:', sharedContactId);
+                return { success: true, metadata: optimizedMetadata, optimized: true };
+            }
+
+            // Normal save if size is OK
             await this.safeInsertItem({
                 databaseName: this.databases.sharedContactMeta,
                 item: metadataItem,
-                itemId: sharedContactId // Use shared contact ID as the item ID
+                itemId: sharedContactId
             }, 'saveSharedContactMetadata');
 
+            console.log('✅ Saved shared contact metadata:', sharedContactId);
             return { success: true, metadata: metadataItem };
+            
         } catch (error) {
             console.error('❌ Save shared contact metadata failed:', error);
+            
+            // If still fails, try minimal metadata
+            if (error.name === 'ItemTooLarge') {
+                console.warn('⚠️ Using minimal metadata fallback');
+                const minimalMetadata = {
+                    sharedContactId,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                try {
+                    await this.safeInsertItem({
+                        databaseName: this.databases.sharedContactMeta,
+                        item: minimalMetadata,
+                        itemId: sharedContactId
+                    }, 'saveSharedContactMetadata-minimal');
+                    
+                    return { success: true, metadata: minimalMetadata, minimal: true };
+                } catch (minimalError) {
+                    console.error('❌ Even minimal metadata failed:', minimalError);
+                }
+            }
+            
             return { success: false, error: error.message };
         }
     }
@@ -2378,26 +2429,79 @@ export class ContactDatabase {
      */
     async updateSharedContactMetadata(sharedContactId, metadata) {
         try {
+            // 🔧 CRITICAL FIX: Optimize metadata to prevent exceeding 10KB limit
             const metadataItem = {
                 sharedContactId,
                 ...metadata,
                 lastUpdated: new Date().toISOString()
             };
 
+            // Check size before updating
+            const itemSize = this.calculateItemSize(metadataItem);
+            if (itemSize > 10240) {
+                console.warn(`⚠️ Shared contact metadata too large (${(itemSize/1024).toFixed(2)}KB), optimizing...`);
+                
+                // Keep only essential metadata
+                const optimizedMetadata = {
+                    sharedContactId,
+                    isArchived: metadata.isArchived || false,
+                    usage: {
+                        accessCount: metadata.usage?.accessCount || 0,
+                        lastAccessedAt: metadata.usage?.lastAccessedAt || new Date().toISOString()
+                    },
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                await this.safeUpdateItem({
+                    databaseName: this.databases.sharedContactMeta,
+                    itemId: sharedContactId,
+                    item: optimizedMetadata
+                }, 'updateSharedContactMetadata');
+                
+                console.log('✅ Updated optimized shared contact metadata:', sharedContactId);
+                return { success: true, metadata: optimizedMetadata, optimized: true };
+            }
+
+            // Normal update if size is OK
             await this.safeUpdateItem({
                 databaseName: this.databases.sharedContactMeta,
                 itemId: sharedContactId,
                 item: metadataItem
             }, 'updateSharedContactMetadata');
 
+            console.log('✅ Updated shared contact metadata:', sharedContactId);
             return { success: true, metadata: metadataItem };
+            
         } catch (error) {
             // If item doesn't exist, create it
             if (error.name === 'ItemDoesNotExist') {
                 console.log('📝 Metadata doesn\'t exist, creating new:', sharedContactId);
                 return await this.saveSharedContactMetadata(sharedContactId, metadata);
             }
+            
             console.error('❌ Update shared contact metadata failed:', error);
+            
+            // If size error, try minimal metadata
+            if (error.name === 'ItemTooLarge') {
+                console.warn('⚠️ Using minimal metadata fallback for update');
+                const minimalMetadata = {
+                    sharedContactId,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                try {
+                    await this.safeUpdateItem({
+                        databaseName: this.databases.sharedContactMeta,
+                        itemId: sharedContactId,
+                        item: minimalMetadata
+                    }, 'updateSharedContactMetadata-minimal');
+                    
+                    return { success: true, metadata: minimalMetadata, minimal: true };
+                } catch (minimalError) {
+                    console.error('❌ Even minimal metadata update failed:', minimalError);
+                }
+            }
+            
             return { success: false, error: error.message };
         }
     }
@@ -2992,6 +3096,61 @@ export class ContactDatabase {
     }
 
     /**
+     * 🔄 UPDATE SHARED CONTACT: Update a received shared contact in its database
+     * Used when owner updates a contact and changes need to be persisted on recipient's side
+     * @param {Object} contact - Updated contact object
+     * @param {string} databaseId - Database ID where the shared contact lives
+     * @returns {Promise<Object>} Update result
+     */
+    async updateSharedContact(contact, databaseId) {
+        try {
+            console.log(`🔄 Updating SHARED contact in database: ${databaseId}`);
+            console.log(`   Contact: ${contact.cardName}`);
+            console.log(`   ItemId: ${contact.itemId}`);
+            
+            // Validate inputs
+            if (!contact || !contact.itemId) {
+                throw new Error('Contact and itemId are required');
+            }
+            
+            if (!databaseId) {
+                throw new Error('Database ID is required for shared contact update');
+            }
+            
+            // Get all databases to find the one matching databaseId
+            const databases = await userbase.getDatabases();
+            const targetDb = databases.databases.find(db => db.databaseId === databaseId);
+            
+            if (!targetDb) {
+                console.warn(`⚠️ Database ${databaseId} not found - contact may have been unshared`);
+                return { success: false, error: 'Database not found' };
+            }
+            
+            console.log(`📂 Found shared database: ${targetDb.databaseName}`);
+            
+            // Open the database
+            await userbase.openDatabase({
+                databaseName: targetDb.databaseName,
+                changeHandler: () => {} // No-op handler
+            });
+            
+            // Update the contact using the original itemId (not the shared_ prefixed contactId)
+            await this.safeUpdateItem({
+                databaseName: targetDb.databaseName,
+                itemId: contact.itemId, // Use original itemId, not shared_user_contactId
+                item: contact
+            }, 'updateSharedContact');
+            
+            console.log(`✅ Successfully updated shared contact in database`);
+            return { success: true, databaseName: targetDb.databaseName };
+            
+        } catch (error) {
+            console.error(`❌ Failed to update shared contact:`, error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * 🚀 PERFORMANCE: Handle new shared database notification
      * Call this when you know a new shared database was created
      * @param {string} databaseName - Name of the new shared database
@@ -3266,6 +3425,12 @@ export class ContactDatabase {
                 this.sharedDatabaseMonitor = null;
             }
             
+            // Stop fallback sync
+            if (this.sharedContactFallbackSync) {
+                clearInterval(this.sharedContactFallbackSync);
+                this.sharedContactFallbackSync = null;
+            }
+            
             // Userbase handles this automatically, but we can clear our handlers
             this.changeHandlers.clear();
             this.eventBus.emit('database:closed', {});
@@ -3289,6 +3454,22 @@ export class ContactDatabase {
                 }
             }, 10000); // 10 seconds
         }, 15000); // Start monitoring after 15 seconds to allow initial setup to complete
+        
+        // 🛡️ SAFETY NET: Hourly fallback sync for shared contacts
+        // This catches any WebSocket updates that may have been dropped due to:
+        // - syncInProgress blocking (now fixed, but extra safety)
+        // - Network issues
+        // - Browser background tab throttling
+        // - Unknown edge cases
+        setTimeout(() => {
+            this.sharedContactFallbackSync = setInterval(async () => {
+                try {
+                    await this.performFallbackSharedContactSync();
+                } catch (error) {
+                    console.error('🔄 Error in fallback shared contact sync:', error);
+                }
+            }, 3600000); // 1 hour (60 * 60 * 1000)
+        }, 300000); // Start after 5 minutes (don't run immediately on startup)
     }
 
     /**
@@ -3342,6 +3523,119 @@ export class ContactDatabase {
             
         } catch (error) {
             console.error('🔄 Error checking for new shared databases:', error);
+        }
+    }
+
+    /**
+     * 🛡️ SAFETY NET: Fallback sync for shared contacts (hourly)
+     * Re-fetches all shared contacts from Userbase to catch any missed WebSocket updates
+     * This provides redundancy in case updates were dropped due to:
+     * - syncInProgress blocking
+     * - Network issues
+     * - Browser tab throttling
+     * - Unknown edge cases
+     */
+    async performFallbackSharedContactSync() {
+        console.log('\n🛡️ ====================================');
+        console.log('🛡️ FALLBACK SHARED CONTACT SYNC');
+        console.log('🛡️ Hourly Safety Net - Catching Missed Updates');
+        console.log('🛡️ ====================================\n');
+        
+        const startTime = Date.now();
+        let refreshedCount = 0;
+        let unchangedCount = 0;
+        
+        try {
+            // Get all received shared databases
+            const allDatabases = await this.getAllSharedContactDatabasesCached(true);
+            if (!allDatabases.success) {
+                console.log('⏭️ Skipping fallback sync - not signed in or no databases');
+                return;
+            }
+            
+            const { receivedSharedDatabases } = allDatabases;
+            
+            if (receivedSharedDatabases.length === 0) {
+                console.log('ℹ️ No shared contacts to sync');
+                console.log('🛡️ ====================================\n');
+                return;
+            }
+            
+            console.log(`📊 Processing ${receivedSharedDatabases.length} shared database(s)...`);
+            
+            // Re-fetch items from each shared database
+            for (const db of receivedSharedDatabases) {
+                try {
+                    // Re-open database with a one-time handler to get fresh data
+                    // This triggers the changeHandler with current items from Userbase
+                    let capturedItems = null;
+                    
+                    await userbase.openDatabase({
+                        databaseId: db.databaseId,
+                        changeHandler: (items) => {
+                            // Capture items on first call (immediate delivery of current state)
+                            if (!capturedItems) {
+                                capturedItems = items;
+                            }
+                        }
+                    });
+                    
+                    // Wait a moment for the initial changeHandler to fire
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    if (!capturedItems || capturedItems.length === 0) {
+                        console.log(`   ⏭️ No items in database ${db.databaseName}`);
+                        continue;
+                    }
+                    
+                    // Process the captured items
+                    for (const userbaseItem of capturedItems) {
+                        const item = userbaseItem.item || {};
+                        const contactId = item.contactId || userbaseItem.itemId;
+                        
+                        // Build the shared contact object
+                        const sharedContact = {
+                            contactId: contactId,
+                            itemId: userbaseItem.itemId,
+                            cardName: item.cardName || 'Unnamed Contact',
+                            vcard: item.vcard || '',
+                            metadata: {
+                                ...item.metadata,
+                                isOwned: false,
+                                sharedBy: db.receivedFromUsername,
+                                databaseId: db.databaseId,
+                                shareType: 'individual'
+                            }
+                        };
+                        
+                        // Emit as a contacts:changed event to trigger normal processing
+                        this.eventBus.emit('contacts:changed', {
+                            contacts: [sharedContact],
+                            isOwned: false,
+                            sharedBy: db.receivedFromUsername,
+                            databaseId: db.databaseId,
+                            source: 'fallback-sync'
+                        });
+                        
+                        refreshedCount++;
+                    }
+                    
+                } catch (dbError) {
+                    console.error(`❌ Error syncing database ${db.databaseId}:`, dbError.message);
+                }
+            }
+            
+            const duration = Date.now() - startTime;
+            
+            console.log('\n🛡️ ====================================');
+            console.log('🛡️ FALLBACK SYNC COMPLETE');
+            console.log(`📊 Refreshed: ${refreshedCount} shared contacts`);
+            console.log(`⏱️ Duration: ${duration}ms`);
+            console.log('🛡️ ====================================\n');
+            
+        } catch (error) {
+            console.error('❌ Fallback shared contact sync failed:', error);
+            console.log('🛡️ ====================================\n');
         }
     }
 

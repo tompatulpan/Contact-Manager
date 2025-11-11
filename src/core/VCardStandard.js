@@ -13,7 +13,7 @@ import { VCardFormatManager } from './VCardFormatManager.js';
 
 export class VCardStandard {
     constructor() {
-        this.version = '4.0';
+        this.version = '3.0';  // ✅ Using vCard 3.0 (Baikal/iCloud standard)
         
         // Centralized configuration for vCard properties
         this.config = this.initializeConfiguration();
@@ -138,7 +138,7 @@ export class VCardStandard {
      * @returns {string} Generated vCard content
      */
     generateVCard(contactData) {
-        console.log('🔧 Generating vCard via format manager...');
+        console.log('🔧 Generating vCard 3.0 (Baikal/iCloud standard)...');
         
         try {
             // Create a temporary contact object for the format manager
@@ -147,7 +147,7 @@ export class VCardStandard {
                 cardName: contactData.cardName || contactData.fn || 'Generated Contact'
             };
             
-            const exportResult = this.formatManager.exportVCard(tempContact, 'vcard-4.0');
+            const exportResult = this.formatManager.exportVCard(tempContact, 'vcard-3.0');
             return exportResult.content;
             
         } catch (error) {
@@ -172,33 +172,9 @@ export class VCardStandard {
             console.warn('⚠️ VCardStandard.extractDisplayData: Contact missing itemId:', contact.contactId);
         }
         
-        const cacheKey = this.generateCacheKey(contact.vcard + (contact.contactId || contact.itemId || 'unknown'));
-        
-        if (useCache && this.cache.displayData.has(cacheKey)) {
-            const cachedData = this.cache.displayData.get(cacheKey);
-            // Ensure cached data also has itemId if source contact has it
-            if (contact.itemId && !cachedData.itemId) {
-                cachedData.itemId = contact.itemId;
-            }
-            return cachedData;
-        }
-
-        const vCardData = this.parseVCard(contact.vcard, useCache);
-        const displayData = this.buildDisplayData(contact, vCardData);
-        
-        // Double-check that itemId is preserved
-        if (contact.itemId && !displayData.itemId) {
-            console.error('🚨 CRITICAL: itemId lost during buildDisplayData!', {
-                contactId: contact.contactId,
-                originalItemId: contact.itemId,
-                displayDataKeys: Object.keys(displayData)
-            });
-            displayData.itemId = contact.itemId; // Emergency preservation
-        }
-        
-        if (useCache) {
-            this.cacheResult(this.cache.displayData, cacheKey, displayData);
-        }
+        // 🔧 CRITICAL FIX: Delegate to VCard3Processor which has correct type parsing logic
+        // VCard3Processor.extractDisplayData() properly handles "WORK,INTERNET" → "work"
+        const displayData = this.formatManager.vCard3Processor.extractDisplayData(contact);
         
         return displayData;
     }
@@ -264,10 +240,10 @@ export class VCardStandard {
         console.log('📤 Exporting vCard using structured format manager...');
         
         try {
-            // Use format manager for vCard 4.0 export (default)
-            const exportResult = this.formatManager.exportVCard(contact, 'vcard-4.0');
+            // Use format manager for vCard 3.0 export (Baikal/iCloud standard)
+            const exportResult = this.formatManager.exportVCard(contact, 'vcard-3.0');
             
-            console.log('✅ vCard 4.0 export completed via format manager');
+            console.log('✅ vCard 3.0 export completed via format manager');
             return exportResult;
             
         } catch (error) {
@@ -369,17 +345,32 @@ export class VCardStandard {
     }
 
     /**
-     * Performance-optimized line unfolding
+     * RFC 6350 compliant line unfolding
+     * Lines starting with space or tab are continuations of the previous line
+     * This fixes multi-line vCard properties from Apple/iCloud exports
+     * 
+     * CRITICAL: Preserves escaped newlines (\n) in property values during unfolding
      */
     unfoldLines(vCardString) {
-        const lines = vCardString.split(/\r?\n/);
+        if (!vCardString) return [];
+        
+        // Step 1: Protect escaped newlines by replacing them with a placeholder
+        // This prevents them from being treated as actual line breaks
+        const NEWLINE_PLACEHOLDER = '\u0000ESCAPED_NEWLINE\u0000';
+        const protectedStr = vCardString.replace(/\\n/g, NEWLINE_PLACEHOLDER);
+        
+        // Step 2: Split on actual line breaks (not escaped \n)
+        const lines = protectedStr.split(/\r\n|\r|\n/);
         const unfolded = [];
         let currentLine = '';
 
         for (const line of lines) {
-            if (this.patterns.unfoldContinuation.test(line)) {
+            // RFC 6350: Lines starting with space/tab are continuations
+            if (line.startsWith(' ') || line.startsWith('\t')) {
+                // Remove leading whitespace and append to current line
                 currentLine += line.substring(1);
             } else {
+                // New property line
                 if (currentLine) {
                     unfolded.push(currentLine);
                 }
@@ -387,11 +378,17 @@ export class VCardStandard {
             }
         }
 
+        // Add last line
         if (currentLine) {
             unfolded.push(currentLine);
         }
 
-        return unfolded.filter(line => line.trim().length > 0);
+        // Step 3: Restore escaped newlines in the unfolded lines
+        const restored = unfolded
+            .filter(line => line.trim().length > 0)
+            .map(line => line.replace(new RegExp(NEWLINE_PLACEHOLDER, 'g'), '\\n'));
+        
+        return restored;
     }
 
     /**
@@ -439,7 +436,7 @@ export class VCardStandard {
     performLegacyParsing(vCardString) {
         const lines = this.unfoldLines(vCardString);
         const contact = { 
-            version: '4.0', 
+            version: '3.0', 
             properties: new Map(),
             rawProperties: new Map()
         };
@@ -698,14 +695,86 @@ export class VCardStandard {
 
     parseAddressValue(addressValue) {
         const parts = addressValue.split(';');
+        
+        // Extract and unescape street component
+        let street = this.unescapeValue(parts[2] || '');
+        
+        // Extract raw components
+        let postalCode = this.unescapeValue(parts[5] || '');
+        let city = this.unescapeValue(parts[3] || '');
+        let country = this.unescapeValue(parts[6] || '');
+        
+        // Handle newlines in street address (e.g., "Bergsgatan 5\n112 23 Stockholm")
+        // This occurs when vCards have escaped newlines that should be parsed as separate components
+        if (street && street.includes('\n')) {
+            const streetLines = street.split('\n').map(s => s.trim()).filter(s => s);
+            
+            if (streetLines.length > 1) {
+                // Try to extract postal code, city, and country from the newline-separated components
+                const lastLine = streetLines[streetLines.length - 1];
+                const secondLastLine = streetLines.length > 2 ? streetLines[streetLines.length - 2] : null;
+                
+                // Pattern 1: Last line is "Postal City" (e.g., "112 23 Stockholm")
+                // Swedish postal: 3 digits + space + 2 digits, then city name
+                const postalCityMatch = lastLine.match(/^(\d{3}\s\d{2})\s+(.+)$/) || 
+                                       lastLine.match(/^(\d{5,6})\s+(.+)$/);
+                
+                if (postalCityMatch && !postalCode) {
+                    // Extract postal code and city from last line
+                    postalCode = postalCityMatch[1];
+                    city = postalCityMatch[2];
+                    streetLines.pop();
+                } 
+                // Pattern 2: Last line is just postal code (e.g., "179 63" or "17963")
+                else if (lastLine.match(/^\d{3}\s\d{2}$/) || lastLine.match(/^\d{5,6}$/)) {
+                    if (!postalCode) {
+                        postalCode = lastLine;
+                        streetLines.pop();
+                        
+                        // Check if second-last line is the city (not a number)
+                        if (secondLastLine && !secondLastLine.match(/^\d/) && !city) {
+                            city = secondLastLine;
+                            streetLines.pop();
+                        }
+                    }
+                }
+                // Pattern 3: Last line might be country/city without postal code
+                else if (!lastLine.match(/^\d/) && !city) {
+                    // If it's likely a city or country name (no numbers at start)
+                    // and city is empty, use it as city
+                    city = lastLine;
+                    streetLines.pop();
+                }
+                
+                // Join remaining lines as street address
+                street = streetLines.join(', ');
+            }
+        }
+        
+        // Fix malformed postal codes from Apple/iCloud exports
+        // Swedish format: "123 45" or sometimes "12345 CITYNAME"
+        if (postalCode) {
+            // Extract postal code pattern: digits with optional space/dash
+            const postalMatch = postalCode.match(/^(\d[\d\s-]*\d|\d+)/);
+            if (postalMatch) {
+                const extractedPostal = postalMatch[1];
+                // Remaining text after postal code goes to city if city is empty
+                const remainingText = postalCode.substring(extractedPostal.length).trim();
+                if (remainingText && !city) {
+                    city = remainingText;
+                }
+                postalCode = extractedPostal;
+            }
+        }
+        
         return {
             poBox: this.unescapeValue(parts[0] || ''),
             extended: this.unescapeValue(parts[1] || ''),
-            street: this.unescapeValue(parts[2] || ''),
-            city: this.unescapeValue(parts[3] || ''),
+            street: street,
+            city: city,
             state: this.unescapeValue(parts[4] || ''),
-            postalCode: this.unescapeValue(parts[5] || ''),
-            country: this.unescapeValue(parts[6] || '')
+            postalCode: postalCode,
+            country: country
         };
     }
 

@@ -1255,6 +1255,12 @@ export class ContactUIController {
                 this.selectedContactId = null;
                 this.searchQuery = '';
                 
+                // 🔐 Clear CardDAV/iCloud passwords on logout
+                this.eventBus.emit('auth:logout', { 
+                    timestamp: new Date().toISOString(),
+                    reason: 'user_signout'
+                });
+                
                 // Clear authentication form completely
                 this.clearAuthenticationForm();
                 
@@ -1271,6 +1277,13 @@ export class ContactUIController {
                 if (result.error && result.error.includes('Not signed in')) {
                     console.log('ℹ️ User was already signed out, updating UI state');
                     this.currentUser = null;
+                    
+                    // 🔐 Clear CardDAV/iCloud passwords even on error
+                    this.eventBus.emit('auth:logout', { 
+                        timestamp: new Date().toISOString(),
+                        reason: 'already_signed_out'
+                    });
+                    
                     this.showAuthenticationModal();
                     this.hideMainApplication();
                     this.clearDistributionLists();
@@ -1284,6 +1297,13 @@ export class ContactUIController {
             if (error.message && error.message.includes('Not signed in')) {
                 console.log('ℹ️ User was already signed out, updating UI state');
                 this.currentUser = null;
+                
+                // 🔐 Clear CardDAV/iCloud passwords on error logout
+                this.eventBus.emit('auth:logout', { 
+                    timestamp: new Date().toISOString(),
+                    reason: 'error_not_signed_in'
+                });
+                
                 this.showAuthenticationModal();
                 this.hideMainApplication();
                 this.clearDistributionLists();
@@ -1598,6 +1618,18 @@ export class ContactUIController {
             this.renderDistributionLists(); // Update distribution lists when contacts change
             this.performSearch();
             this.updateStats();
+            
+            // 🆕 REFRESH DETAIL PANEL: If a contact is currently selected, refresh it with latest data
+            if (this.selectedContactId) {
+                const freshContact = this.contactManager.getContact(this.selectedContactId);
+                if (freshContact) {
+                    console.log(`🔄 Detail panel refresh: Updating "${freshContact.cardName}" with latest data`);
+                    this.displayContactDetail(freshContact);
+                } else {
+                    console.warn(`⚠️ Selected contact ${this.selectedContactId} no longer exists, clearing detail panel`);
+                    this.clearContactDetail();
+                }
+            }
         }, 100); // 100ms debounce
     }
 
@@ -1615,15 +1647,13 @@ export class ContactUIController {
      * Handle contact updates
      */
     handleContactUpdated(data) {
-        // Only refresh the list if we're in a sorting mode that would be affected
-        if (this.activeFilters.sortBy === 'recent-activity' || this.activeFilters.recentOnly) {
-            // Add a small delay to ensure the contact cache is fully updated
-            // This is especially important for shared contacts where metadata updates
-            // happen asynchronously
-            setTimeout(() => {
-                this.performSearch();
-            }, 10);
-        }
+        // ✅ ALWAYS refresh the contact list to show updated info in "All Contacts" column
+        // Add a small delay to ensure the contact cache is fully updated
+        // This is especially important for shared contacts where metadata updates
+        // happen asynchronously
+        setTimeout(() => {
+            this.performSearch();
+        }, 10);
         
         this.hideContactModal();
         
@@ -1869,6 +1899,16 @@ export class ContactUIController {
                 // Don't close modal on validation errors - let user fix them
             } else {
                 console.log('✅ Form submission successful');
+                
+                // ⭐ IMMEDIATE REFRESH: Update detail view if this is the currently selected contact
+                if (isEdit && contactId && this.selectedContactId === contactId) {
+                    console.log('🔄 Refreshing detail view for updated contact');
+                    const freshContact = this.contactManager.getContact(contactId);
+                    if (freshContact) {
+                        this.displayContactDetail(freshContact);
+                    }
+                }
+                
                 // Success is handled by event listeners which will close the modal
             }
             
@@ -2201,6 +2241,12 @@ export class ContactUIController {
         
         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
         console.log('🎯 Extracted display data:', displayData);
+        console.log('🔍 DEBUG: displayData.emails from extractDisplayData:', displayData.emails);
+        console.log('🔍 DEBUG: Email types JSON:', JSON.stringify(displayData.emails, null, 2));
+        console.log('🔍 DEBUG: Email [0] type directly:', displayData.emails?.[0]?.type);
+        console.log('🔍 DEBUG: displayData object keys:', Object.keys(displayData));
+        console.log('🔍 DEBUG: contact object keys:', Object.keys(contact));
+        console.log('🔍 DEBUG: contact.emails (cached?):', contact.emails);
         const contactType = ContactRenderer.getContactType(contact);
         
         container.innerHTML = `
@@ -2276,6 +2322,7 @@ export class ContactUIController {
         }
         
         if (displayData.emails.length > 0) {
+            console.log('📧 UI DEBUG: About to render emails in detail view:', JSON.stringify(displayData.emails, null, 2));
             html += ContactRenderer.renderContactFields('email', displayData.emails);
         }
         
@@ -4370,6 +4417,7 @@ export class ContactUIController {
 
     populateContactForm(contact) {
         console.log('Populate contact form:', contact);
+        console.log('🔍 DEBUG: Raw contact.emails:', contact.emails);
         
         const form = document.getElementById('contact-form');
         if (!form) {
@@ -4384,6 +4432,7 @@ export class ContactUIController {
         try {
             // Extract display data from vCard
             const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+            console.log('🔍 DEBUG: displayData.emails after extraction:', displayData.emails);
             
             // Populate basic fields
             this.setFormFieldValue('fullName', displayData.fullName);
@@ -6014,6 +6063,9 @@ export class ContactUIController {
                 'work': 'work',
                 'home': 'home',
                 'personal': 'personal',
+                'other': 'other',
+                // 🔧 Note: 'internet' is automatically added to all emails in vCard 3.0
+                // If we receive 'internet' alone, it means no specific type was set
                 'internet': 'other'
             },
             url: {
@@ -6425,13 +6477,12 @@ export class ContactUIController {
                 return;
             }
             
-            // Generate and download vCard file based on format
-            await this.exportContacts(contactsToExport, filename, exportFormat);
+            // Generate and download vCard file
+            await this.exportContacts(contactsToExport, filename);
             
             // Show success and close modal
-            const formatLabel = exportFormat === 'apple' ? 'Apple/iCloud vCard 3.0' : 'Standard vCard 4.0';
             this.showToast({
-                message: `Exported ${contactsToExport.length} contact${contactsToExport.length !== 1 ? 's' : ''} as ${formatLabel}`,
+                message: `Exported ${contactsToExport.length} contact${contactsToExport.length !== 1 ? 's' : ''} as vCard 3.0`,
                 type: 'success'
             });
             
@@ -6467,28 +6518,13 @@ export class ContactUIController {
     /**
      * Export contacts to vCard file
      */
-    async exportContacts(contacts, filename, format = 'standard') {
+    async exportContacts(contacts, filename) {
         try {
-            let vCardContent;
-            let fileExtension = '.vcf';
-            
-            if (format === 'apple') {
-                // Export as Apple/iCloud vCard 3.0 format
-                console.log('🍎 Exporting as Apple/iCloud vCard 3.0 format');
-                vCardContent = contacts
-                    .map(contact => {
-                        const appleExport = this.contactManager.vCardStandard.exportAsAppleVCard(contact);
-                        return appleExport.content;
-                    })
-                    .join('\n\n');
-                fileExtension = '_apple.vcf';
-            } else {
-                // Export as standard vCard 4.0 format
-                console.log('📄 Exporting as Standard vCard 4.0 format');
-                vCardContent = contacts
-                    .map(contact => contact.vcard)
-                    .join('\n\n');
-            }
+            // Export as vCard 3.0 format (universal compatibility)
+            console.log('📄 Exporting as vCard 3.0 format');
+            const vCardContent = contacts
+                .map(contact => contact.vcard)
+                .join('\n\n');
             
             // Create and download file
             const blob = new Blob([vCardContent], { type: 'text/vcard;charset=utf-8' });
@@ -6496,7 +6532,7 @@ export class ContactUIController {
             
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${filename}${fileExtension}`;
+            a.download = `${filename}.vcf`;
             a.style.display = 'none';
             
             document.body.appendChild(a);
@@ -6506,7 +6542,7 @@ export class ContactUIController {
             // Clean up
             URL.revokeObjectURL(url);
             
-            console.log(`✅ Exported ${contacts.length} contacts to ${filename}${fileExtension} (${format} format)`);
+            console.log(`✅ Exported ${contacts.length} contacts to ${filename}.vcf (vCard 3.0 format)`);
             
         } catch (error) {
             console.error('Error exporting contacts:', error);
@@ -6522,14 +6558,11 @@ export class ContactUIController {
         
         const formData = new FormData(this.elements.exportForm);
         const exportType = formData.get('exportType') || 'all';
-        const exportFormat = formData.get('exportFormat') || 'standard';
         
         const contactsToExport = this.getContactsForExport(exportType);
         const count = contactsToExport.length;
         
-        const formatInfo = exportFormat === 'apple' 
-            ? '<span class="format-badge apple">🍎 Apple/iCloud 3.0</span>'
-            : '<span class="format-badge standard">📄 Standard 4.0</span>';
+        const formatInfo = '<span class="format-badge standard">📄 vCard 3.0</span>';
         
         this.elements.exportContactCount.innerHTML = `
             <span class="count-number">${count}</span> contact${count !== 1 ? 's' : ''} will be exported as ${formatInfo}

@@ -15,6 +15,9 @@ export class ContactManager {
         this.settings = {};
         this.isLoaded = false;
         
+        // 🔒 Sync state flag to prevent double-processing during CardDAV sync
+        this.syncInProgress = false;
+        
         // Search and filter cache
         this.searchCache = new Map();
         this.lastSearchQuery = '';
@@ -228,6 +231,20 @@ export class ContactManager {
                 }
             };
 
+            // 🔧 CRITICAL FIX: Remove cached properties to ensure vCard is single source of truth
+            // These properties may contain stale data and interfere with vCard parsing
+            delete contact.phones;
+            delete contact.emails;
+            delete contact.urls;
+            delete contact.addresses;
+            delete contact.fullName;
+            delete contact.organization;
+            delete contact.title;
+            delete contact.birthday;
+            delete contact.structuredName;
+            delete contact.notes;
+            console.log('🧹 New contact: Cleaned cached properties - vCard is single source of truth');
+
             // Save to database
             const saveResult = await this.database.saveContact(contact);
             if (!saveResult.success) {
@@ -314,13 +331,18 @@ export class ContactManager {
      */
     async updateContact(contactId, contactData) {
         try {
+            // 🔒 Set syncInProgress to prevent handleContactsChanged from overwriting our update
+            this.syncInProgress = true;
+            
             const existingContact = this.contacts.get(contactId);
             if (!existingContact) {
+                this.syncInProgress = false;
                 return { success: false, error: 'Contact not found' };
             }
 
             // Validate permissions
             if (!this.canEditContact(existingContact)) {
+                this.syncInProgress = false;
                 return { success: false, error: 'No permission to edit this contact' };
             }
 
@@ -330,6 +352,7 @@ export class ContactManager {
             const validation = this.validator.validateContactData(sanitizedData, '4.0', true);
             
             if (!validation.isValid) {
+                this.syncInProgress = false; // Clear flag before returning
                 return {
                     success: false,
                     error: 'Validation failed',
@@ -341,9 +364,12 @@ export class ContactManager {
             // Generate updated vCard string
             const vCardString = this.vCardStandard.generateVCard(sanitizedData);
             
-            // Create updated contact with preserved metadata
+            // 🔧 CRITICAL FIX: Create updated contact WITHOUT spreading existingContact
+            // Spreading existingContact would copy stale cached properties (emails, phones, etc.)
+            // Instead, explicitly copy only the properties we need
             const updatedContact = {
-                ...existingContact,
+                contactId: existingContact.contactId,
+                itemId: existingContact.itemId,
                 cardName: sanitizedData.cardName !== undefined ? sanitizedData.cardName : existingContact.cardName,
                 vcard: vCardString,
                 metadata: {
@@ -371,6 +397,9 @@ export class ContactManager {
                 fieldsChanged: this.getChangedFields(existingContact, updatedContact)
             });
 
+            // ✅ No need to delete cached properties - updatedContact was created without them
+            console.log('✅ Contact created without cached properties - vCard is single source of truth');
+
             // Save to database
             const saveResult = await this.database.updateContact(updatedContact);
             if (!saveResult.success) {
@@ -386,7 +415,8 @@ export class ContactManager {
             // Shared database updates are handled by the database layer's updateSharedContactDatabases method
             // This ensures consistent Individual Database Strategy usage
 
-            // Update local cache
+            // Update cache with clean version (no cached properties, only contactId, cardName, vcard, metadata)
+            console.log('🔄 Updating cache with clean contact (no cached properties)');
             this.setContactInCache(contactId, updatedContact, 'updateContact');
             
             // Clear search cache
@@ -401,14 +431,20 @@ export class ContactManager {
                 }
             });
 
-            this.eventBus.emit('contact:updated', { 
-                contact: updatedContact, 
-                validationWarnings: validation.warnings 
-            });
-
             // 🆕 AUTO-PUSH TO BAIKAL: Push updated contact to all connected Baikal profiles
             // This ensures changes made in Contact Manager are synced to Baikal server
             // Works for both OWNED and IMPORTED contacts
+            let actuallyUpdated = false; // Track if any server was actually updated
+            
+            // 🐛 DEBUG: Log auto-push conditions
+            console.log(`🔍 AUTO-PUSH DEBUG for contact: ${updatedContact.cardName}`);
+            console.log(`   - BaikalConnector exists: ${!!this.baikalConnector}`);
+            console.log(`   - Connections exist: ${!!this.baikalConnector?.connections}`);
+            console.log(`   - Connections count: ${this.baikalConnector?.connections?.size || 0}`);
+            console.log(`   - isOwned: ${updatedContact.metadata.isOwned}`);
+            console.log(`   - isImported: ${updatedContact.metadata.isImported}`);
+            console.log(`   - Should push: ${(updatedContact.metadata.isOwned || updatedContact.metadata.isImported)}`);
+            
             if (this.baikalConnector && this.baikalConnector.connections && 
                 this.baikalConnector.connections.size > 0 && 
                 (updatedContact.metadata.isOwned || updatedContact.metadata.isImported)) {
@@ -424,8 +460,11 @@ export class ContactManager {
                             profileName      // ✅ FIX: Profile name second
                         );
                         
-                        if (pushResult.success) {
+                        if (pushResult.success && !pushResult.skipped) {
+                            actuallyUpdated = true; // Content was different, server updated
                             console.log(`✅ Auto-pushed updated contact to Baikal profile "${profileName}"`);
+                        } else if (pushResult.success && pushResult.skipped) {
+                            console.log(`⏭️ Skipped push to "${profileName}" - content unchanged`);
                         } else {
                             console.warn(`⚠️ Failed to auto-push to profile "${profileName}": ${pushResult.error}`);
                         }
@@ -433,6 +472,17 @@ export class ContactManager {
                         console.warn(`⚠️ Error auto-pushing to profile "${profileName}":`, pushError.message);
                     }
                 }
+            }
+
+            // Only emit contact:updated if content actually changed
+            // This prevents "Contact updated successfully" toast when nothing changed
+            if (actuallyUpdated || !this.baikalConnector || this.baikalConnector.connections.size === 0) {
+                this.eventBus.emit('contact:updated', { 
+                    contact: updatedContact, 
+                    validationWarnings: validation.warnings 
+                });
+            } else {
+                console.log(`ℹ️ Contact unchanged on server - skipping update notification`);
             }
 
             return {
@@ -452,6 +502,9 @@ export class ContactManager {
                 success: false,
                 error: error.message
             };
+        } finally {
+            // 🔒 Always clear syncInProgress flag, even if error occurs
+            this.syncInProgress = false;
         }
     }
 
@@ -1597,7 +1650,21 @@ export class ContactManager {
             console.trace('🚨 CALL STACK for missing itemId retrieval:');
         }
         
-        return contact || null;
+        // 🔧 CRITICAL FIX: Strip cached properties before returning contact
+        // This ensures extractDisplayData always parses vCard (single source of truth)
+        if (contact) {
+            // Create clean contact with only essential properties
+            return {
+                contactId: contact.contactId,
+                itemId: contact.itemId,
+                cardName: contact.cardName,
+                vcard: contact.vcard,
+                metadata: contact.metadata
+                // Explicitly exclude: phones, emails, urls, addresses, fullName, organization, title, birthday, structuredName, notes
+            };
+        }
+        
+        return null;
     }
 
     /**
@@ -1750,7 +1817,19 @@ export class ContactManager {
                 console.log(`🔍 OLD ETag: ${existingContact.metadata?.cardDAV?.etag || 'none'}`);
                 console.log(`🔍 NEW ETag: ${serverContact.etag || 'none'}`);
                 
-                // 🔒 CONFLICT DETECTION: Skip update if local contact was recently edited (within last 2 minutes)
+                // � OPTIMIZATION: Skip update if ETag hasn't changed (content identical)
+                if (serverContact.etag && existingContact.metadata?.cardDAV?.etag === serverContact.etag) {
+                    console.log(`⏭️ SKIPPED - ETag unchanged (content identical on server)`);
+                    console.log(`   📊 Performance: Prevented unnecessary database write and UI update`);
+                    return { 
+                        success: true, 
+                        action: 'skipped', 
+                        reason: 'etag_match',
+                        contact: existingContact 
+                    };
+                }
+                
+                // �🔒 CONFLICT DETECTION: Skip update if local contact was recently edited (within last 2 minutes)
                 const localLastUpdated = new Date(existingContact.metadata?.lastUpdated || 0);
                 const localLastSynced = new Date(existingContact.metadata?.cardDAV?.lastSyncedAt || 0);
                 const now = new Date();
@@ -1807,11 +1886,25 @@ export class ContactManager {
                 };
                 
                 // 🔒 SHARED CONTACT HANDLING
-                // If this is a received shared contact (from another user), only update in-memory
-                // Don't try to update in database - it lives in a separate shared database
+                // Shared contacts need to be updated in their shared database when owner makes changes
                 if (!existingContact.metadata.isOwned && existingContact.contactId.startsWith('shared_')) {
-                    console.log(`⏭️ Skipping database update for received shared contact (read-only)`);
-                    this.contacts.set(existingContact.contactId, updatedContact);
+                    console.log(`🔄 Updating SHARED contact from owner's changes via Baikal sync`);
+                    console.log(`   Contact: ${existingContact.cardName}`);
+                    console.log(`   Shared by: ${existingContact.metadata.sharedBy}`);
+                    console.log(`   Database ID: ${existingContact.metadata.databaseId}`);
+                    
+                    // ✅ FIX: Update contact in its shared database so changes persist
+                    // This ensures when User2 (owner) updates contact, User1 (recipient) sees the update
+                    try {
+                        // Update in the shared database using the original itemId
+                        await this.database.updateSharedContact(updatedContact, existingContact.metadata.databaseId);
+                        this.contacts.set(existingContact.contactId, updatedContact);
+                        console.log(`✅ Shared contact updated in database (changes from owner preserved)`);
+                    } catch (error) {
+                        console.error(`❌ Failed to update shared contact in database:`, error);
+                        // Still update in memory to show the changes
+                        this.contacts.set(existingContact.contactId, updatedContact);
+                    }
                 } else {
                     // Normal update for owned or imported contacts
                     console.log(`💾 Updating contact in database with NEW ETag: ${serverContact.etag}`);
@@ -2004,6 +2097,22 @@ export class ContactManager {
         
         const { contacts = [], isOwned = true, sharedBy = null, databaseId = null } = data;
         
+        // 🔒 CRITICAL: Skip OWNED contacts during sync to prevent ItemUpdateConflict
+        // BUT allow SHARED contacts through since they can't conflict with Baikal sync
+        if (this.syncInProgress && isOwned) {
+            console.log('⏸️ Skipping OWNED contacts update - Baikal sync in progress (prevents ItemUpdateConflict)');
+            console.log('   ℹ️ Shared contact updates will still be processed');
+            return;
+        }
+        
+        // ✅ SHARED CONTACTS: Always process, even during sync
+        // Shared contacts are read-only and updated by owner via Userbase WebSocket
+        // They don't conflict with Baikal sync since we're not pulling them from server
+        if (this.syncInProgress && !isOwned) {
+            console.log(`📥 Processing SHARED contact update during sync (from: ${sharedBy})`);
+            console.log(`   ℹ️ Safe to process - shared contacts don't conflict with Baikal operations`);
+        }
+        
         // Ensure contacts is an array
         const contactsArray = Array.isArray(contacts) ? contacts : [];
         
@@ -2022,10 +2131,14 @@ export class ContactManager {
                 // CRITICAL: Preserve the Userbase itemId before any processing
                 const originalItemId = contact.itemId;
                 
-                // Ensure owned contacts have correct metadata and preserve itemId
+                // 🔧 CRITICAL FIX: Create contact WITHOUT spreading to avoid copying cached properties
+                // Only explicitly copy the properties we need (contactId, itemId, cardName, vcard, metadata)
+                // This ensures no stale cached properties (emails, phones, etc.) are stored in cache
                 const processedContact = {
-                    ...contact,
+                    contactId: contact.contactId,
                     itemId: originalItemId, // Explicitly preserve itemId
+                    cardName: contact.cardName,
+                    vcard: contact.vcard,
                     metadata: {
                         ...contact.metadata,
                         isOwned: true,
@@ -2133,11 +2246,13 @@ export class ContactManager {
                 // Create unique ID for shared contacts to avoid conflicts
                 const sharedContactId = `shared_${sharedBy}_${originalContactId}`;
                 
-                // Create new contact object to avoid modifying the original
+                // 🔧 CRITICAL FIX: Create contact WITHOUT spreading to avoid copying cached properties
+                // Only explicitly copy the properties we need (contactId, itemId, cardName, vcard, metadata)
                 const processedContact = {
-                    ...contact,
                     contactId: sharedContactId,
                     itemId: originalItemId, // Explicitly preserve itemId
+                    cardName: contact.cardName,
+                    vcard: contact.vcard,
                     metadata: {
                         ...contact.metadata,
                         isOwned: false,
@@ -3920,6 +4035,79 @@ export class ContactManager {
             
         } catch (error) {
             console.error('❌ Error during sharing cleanup:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Convert contact type between OWNED and IMPORTED
+     * Allows users to change how a contact is categorized
+     * 
+     * @param {string} contactId - Contact ID to convert
+     * @param {boolean} makeImported - true = convert to IMPORTED (🟠), false = convert to OWNED (🔵)
+     * @returns {Promise<Object>} Result with old/new type
+     */
+    async convertContactType(contactId, makeImported) {
+        try {
+            const contact = this.contacts.get(contactId);
+            
+            if (!contact) {
+                return { success: false, error: 'Contact not found' };
+            }
+            
+            // Validate: Cannot convert SHARED contacts (owned by someone else)
+            if (contact.metadata?.isOwned === false) {
+                return { 
+                    success: false, 
+                    error: 'Cannot convert shared contacts (owned by someone else)' 
+                };
+            }
+            
+            const oldType = contact.metadata?.isImported ? 'IMPORTED' : 'OWNED';
+            const newType = makeImported ? 'IMPORTED' : 'OWNED';
+            
+            console.log(`🔄 Converting contact type: ${oldType} → ${newType}`);
+            console.log(`   Contact: ${contact.cardName}`);
+            
+            // Update metadata
+            const updatedContact = {
+                ...contact,
+                metadata: {
+                    ...contact.metadata,
+                    isOwned: true,  // Always true for owned/imported
+                    isImported: makeImported,  // Toggle import status
+                    lastUpdated: new Date().toISOString(),
+                    conversionHistory: [
+                        ...(contact.metadata?.conversionHistory || []).slice(-4),  // Keep last 5
+                        {
+                            timestamp: new Date().toISOString(),
+                            from: oldType,
+                            to: newType
+                        }
+                    ]
+                }
+            };
+            
+            // Save to database
+            await this.database.updateContact(updatedContact);
+            
+            // Update in-memory map
+            this.contacts.set(contactId, updatedContact);
+            
+            // Emit event for UI refresh
+            this.eventBus.emit('contact:typeConverted', {
+                contactId,
+                oldType,
+                newType,
+                contact: updatedContact
+            });
+            
+            console.log(`✅ Contact type converted successfully`);
+            
+            return { success: true, oldType, newType, contact: updatedContact };
+            
+        } catch (error) {
+            console.error('❌ Contact type conversion failed:', error);
             return { success: false, error: error.message };
         }
     }

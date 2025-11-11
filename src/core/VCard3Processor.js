@@ -95,13 +95,13 @@ export class VCard3Processor {
             // Convert to internal display format
             const displayData = this.convertToDisplayData(parsedContact);
             
-            // Generate vCard 4.0 for internal storage
-            const vCard40String = this.convertTo40Format(displayData);
+            // Generate vCard 3.0 for internal storage (keep original format)
+            const vCard30String = this.generateVCard3(displayData);
             
             // Create contact object
-            const contact = this.createContactObject(displayData, vCard40String, cardName, markAsImported);
+            const contact = this.createContactObject(displayData, vCard30String, cardName, markAsImported);
             
-            console.log('✅ Successfully imported vCard 3.0');
+            console.log('✅ Successfully imported vCard 3.0 (kept as vCard 3.0)');
             return contact;
             
         } catch (error) {
@@ -407,6 +407,10 @@ export class VCard3Processor {
         const addresses = this.convertMultiValueProperty(parsedContact, 'ADR', 'address');
         console.log('🏠 Converted addresses:', addresses);
         
+        console.log('📧 VCard3Processor.convertToDisplayData - Parsing emails...');
+        const emails = this.convertMultiValueProperty(parsedContact, 'EMAIL', 'email');
+        console.log('📧 Converted emails:', emails);
+        
         const birthday = parsedContact.properties.get('BDAY') || '';
         console.log('🎂 Raw birthday from vCard:', birthday);
         
@@ -424,7 +428,7 @@ export class VCard3Processor {
             organization: this.normalizeOrganizationValue(parsedContact.properties.get('ORG')),
             title: parsedContact.properties.get('TITLE') || '',
             phones,
-            emails: this.convertMultiValueProperty(parsedContact, 'EMAIL', 'email'),
+            emails,
             urls: this.convertMultiValueProperty(parsedContact, 'URL', 'url'),
             addresses,
             notes: this.convertNotesProperty(parsedContact),
@@ -448,6 +452,8 @@ export class VCard3Processor {
 
         return values.map((value, index) => {
             const originalType = value.parameters?.TYPE;
+            console.log(`🔍 ${property}[${index}] - originalType from parameters:`, originalType);
+            
             const convertedType = this.convertType(originalType, propertyType);
             
             console.log(`📋 ${property}[${index}]: "${originalType || 'undefined'}" → "${convertedType}"`);
@@ -478,16 +484,23 @@ export class VCard3Processor {
      * @returns {string} Converted type
      */
     convertType(originalType, propertyType) {
+        console.log(`🔄 convertType called: originalType="${originalType}", propertyType="${propertyType}"`);
+        
         if (!originalType) return 'other';
         
         const mapping = this.typeMappings[propertyType];
-        if (!mapping) return 'other';
+        if (!mapping) {
+            console.warn(`⚠️ No type mapping for propertyType: ${propertyType}`);
+            return 'other';
+        }
         
         const upperType = originalType.toUpperCase();
+        console.log(`🔄 upperType: "${upperType}"`);
         
         // Handle compound types like "WORK,VOICE" or "CELL,VOICE" by checking individual components
         if (upperType.includes(',')) {
             const types = upperType.split(',').map(t => t.trim());
+            console.log(`🔄 Compound type detected, split into:`, types);
             
             // Priority order based on property type
             let priorityOrder;
@@ -502,14 +515,21 @@ export class VCard3Processor {
                 priorityOrder = ['WORK', 'HOME', 'OTHER'];
             }
             
+            console.log(`🔄 Priority order for ${propertyType}:`, priorityOrder);
+            
             for (const priority of priorityOrder) {
+                console.log(`🔍 Checking priority "${priority}": types.includes=${types.includes(priority)}, mapping[priority]="${mapping[priority]}"`);
                 if (types.includes(priority) && mapping[priority]) {
+                    console.log(`✅ convertType result: "${priority}" → "${mapping[priority]}"`);
                     return mapping[priority];
                 }
             }
+            console.log(`❌ No priority match found, falling through to default`);
         }
         
-        return mapping[upperType] || 'other';
+        const result = mapping[upperType] || 'other';
+        console.log(`✅ convertType result (direct): "${upperType}" → "${result}"`);
+        return result;
     }
 
     /**
@@ -601,25 +621,33 @@ export class VCard3Processor {
         if (displayData.phones && displayData.phones.length > 0) {
             displayData.phones.forEach(phone => {
                 const type = this.convertToVCard3Type(phone.type, 'phone');
-                const prefType = phone.primary ? ';TYPE=pref' : '';
+                const prefParam = phone.primary ? ';PREF=1' : '';
                 
-                // 🐛 FIX: Only add VOICE for generic "voice" type or "other"
+                // � Sanitize phone number to E.164 international format
+                const sanitizedPhone = this.sanitizePhoneNumber(phone.value);
+                
+                // �🐛 FIX: Only add VOICE for generic "voice" type or "other"
                 // Do NOT add VOICE for specific types (WORK, HOME, CELL, etc.)
                 // This prevents type corruption when re-importing from iCloud
                 const needsVoice = (type === 'VOICE' || type === 'OTHER');
                 const voiceType = needsVoice ? ';TYPE=VOICE' : '';
                 
-                output += `TEL;TYPE=${type}${prefType}${voiceType}:${this.escapeValue(phone.value)}\n`;
+                output += `TEL;TYPE=${type}${voiceType}${prefParam}:${this.escapeValue(sanitizedPhone)}\n`;
             });
         }
 
         // Email addresses (with INTERNET type as iCloud expects)
         if (displayData.emails && displayData.emails.length > 0) {
+            console.log('📧 Generating email vCard properties:', displayData.emails);
             displayData.emails.forEach(email => {
+                console.log(`   Processing email: type="${email.type}", primary=${email.primary}`);
                 const type = this.convertToVCard3Type(email.type, 'email');
-                const prefType = email.primary ? ';TYPE=pref' : '';
+                console.log(`   Converted to vCard type: ${type}`);
+                const prefParam = email.primary ? ';PREF=1' : '';
                 // iCloud always adds INTERNET to email addresses
-                output += `EMAIL;TYPE=${type}${prefType};TYPE=INTERNET:${this.escapeValue(email.value)}\n`;
+                const vcardLine = `EMAIL;TYPE=${type};TYPE=INTERNET${prefParam}:${this.escapeValue(email.value)}`;
+                console.log(`   Generated vCard line: ${vcardLine}`);
+                output += vcardLine + '\n';
             });
         }
 
@@ -627,11 +655,11 @@ export class VCard3Processor {
         if (displayData.urls && displayData.urls.length > 0) {
             displayData.urls.forEach(url => {
                 const type = this.convertToVCard3Type(url.type, 'url');
-                const prefType = url.primary ? ';TYPE=pref' : '';
+                const prefParam = url.primary ? ';PREF=1' : '';
                 
                 // Use standard format for WORK, HOME, OTHER
                 if (['WORK', 'HOME', 'OTHER'].includes(type)) {
-                    output += `URL;TYPE=${type}${prefType}:${this.escapeValue(url.value)}\n`;
+                    output += `URL;TYPE=${type}${prefParam}:${this.escapeValue(url.value)}\n`;
                 } else {
                     // Use ITEM format for PERSONAL, BLOG, etc. (like iCloud does)
                     output += `item${itemCounter}.URL:${this.escapeValue(url.value)}\n`;
@@ -645,9 +673,9 @@ export class VCard3Processor {
         if (displayData.addresses && displayData.addresses.length > 0) {
             displayData.addresses.forEach(address => {
                 const type = this.convertToVCard3Type(address.type, 'address');
-                const prefType = address.primary ? ';TYPE=pref' : '';
+                const prefParam = address.primary ? ';PREF=1' : '';
                 const adrValue = this.formatAddressValue(address);
-                output += `ADR;TYPE=${type}${prefType}:${adrValue}\n`;
+                output += `ADR;TYPE=${type}${prefParam}:${adrValue}\n`;
             });
         }
 
@@ -662,9 +690,16 @@ export class VCard3Processor {
      */
     convertToVCard3Type(standardType, propertyType) {
         const reverseMapping = this.reverseTypeMappings[propertyType];
-        if (!reverseMapping) return 'OTHER';
+        if (!reverseMapping) {
+            console.warn(`⚠️ No reverse mapping for propertyType: ${propertyType}`);
+            return 'OTHER';
+        }
         
-        return reverseMapping[standardType] || 'OTHER';
+        const result = reverseMapping[standardType] || 'OTHER';
+        console.log(`🔄 convertToVCard3Type: ${standardType} (${propertyType}) → ${result}`);
+        console.log(`   Available mappings:`, Object.keys(reverseMapping));
+        
+        return result;
     }
 
     // ========== UTILITY METHODS ==========
@@ -682,6 +717,14 @@ export class VCard3Processor {
                 reverse[propertyType][standardType] = vcard3Type;
             });
         });
+        
+        // 🔧 FIX: Explicit email type mappings to prevent 'work' → 'internet' bug
+        reverse.email = {
+            'work': 'WORK',
+            'home': 'HOME',
+            'other': 'OTHER',
+            'internet': 'INTERNET'
+        };
         
         // Custom mappings to ensure correct type export
         reverse.url = {
@@ -822,8 +865,38 @@ export class VCard3Processor {
             uidValue: contact.uid
         });
         
-        // If the contact has direct display properties (from form data), use them
+        // � DEBUG: Log stale cached properties if they exist
+        if (contact.emails && Array.isArray(contact.emails) && contact.emails.length > 0) {
+            console.log('⚠️ VCard3: Contact has cached emails property (may be stale):', JSON.stringify(contact.emails));
+        }
+        
+        // �🔑 CRITICAL: vCard is the authoritative source of truth
+        // Always parse vCard if it exists (cached properties may be stale)
+        if (contact.vcard) {
+            console.log('✅ VCard3: Parsing vCard (source of truth)');
+            try {
+                const parsedContact = this.parseVCard3(contact.vcard);
+                const displayData = this.convertToDisplayData(parsedContact);
+                
+                // 🚨 DEBUG: Log displayData right after conversion
+                console.log('🎯 VCard3: displayData from convertToDisplayData:', JSON.stringify(displayData.emails));
+                
+                // Preserve contact identifiers
+                displayData.contactId = contact.contactId || contact.itemId;
+                displayData.cardName = contact.cardName;
+                
+                console.log('🎯 VCard3: Final displayData.emails before return:', JSON.stringify(displayData.emails));
+                
+                return displayData;
+            } catch (parseError) {
+                console.error('❌ VCard3: Failed to parse vCard, falling back to cached properties:', parseError);
+                // Fall through to cached properties as fallback
+            }
+        }
+        
+        // Fallback: If no vCard or parsing failed, use cached properties (from form data)
         if (contact.fullName || contact.phones || contact.emails) {
+            console.log('⚠️ VCard3: Using cached properties (no vCard or parse failed)');
             const baseData = {
                 fullName: contact.fullName || contact.cardName || 'Unnamed Contact',
                 structuredName: contact.structuredName || '',
@@ -842,27 +915,11 @@ export class VCard3Processor {
                 baseData.itemId = contact.itemId;
             }
 
-            // ⭐ CRITICAL FIX #3: Prefer contact.uid over vCard extraction
-            // PRIORITY: 1) contact.uid (already sanitized), 2) extract from vCard, 3) contactId
+            // Handle UID for contacts without vCard
             if (contact.uid && typeof contact.uid === 'string') {
-                // Use the already-sanitized UID from contact object (best source)
                 baseData.uid = contact.uid;
                 console.log(`🔑 VCard3: Using contact.uid (sanitized): ${contact.uid}`);
-            } else if (contact.vcard) {
-                // Fallback: Extract UID from vCard if contact.uid not available
-                const existingUID = this.extractUIDFromVCard(contact.vcard);
-                if (existingUID) {
-                    // ⭐ CRITICAL: Ensure extracted UID is a string, not "[object Object]"
-                    const uidValue = typeof existingUID === 'string' 
-                        ? existingUID 
-                        : (existingUID.value || String(existingUID));
-                    baseData.uid = uidValue;
-                    console.log(`🔑 VCard3: Extracted UID from vCard: ${uidValue}`);
-                }
-            }
-
-            // Last fallback: Use contactId if no UID found
-            if (!baseData.uid && contact.contactId) {
+            } else if (contact.contactId) {
                 baseData.uid = contact.contactId;
                 console.log(`🔑 VCard3: Using contactId as UID: ${contact.contactId}`);
             }
@@ -870,47 +927,8 @@ export class VCard3Processor {
             return baseData;
         }
 
-        // If the contact has a vCard string, parse it to extract display data
-        if (contact.vcard) {
-            console.log('🔍 VCard3Processor: Extracting display data from vCard string...');
-            const parsedContact = this.parseVCard3(contact.vcard);
-            const displayData = this.convertToDisplayData(parsedContact);
-            
-            // Preserve itemId if available
-            if (contact.itemId) {
-                displayData.itemId = contact.itemId;
-            }
-            
-            // ⭐ CRITICAL FIX #3: Prefer contact.uid over vCard extraction
-            // PRIORITY: 1) contact.uid (already sanitized), 2) extract from vCard, 3) contactId
-            if (contact.uid && typeof contact.uid === 'string') {
-                // Use the already-sanitized UID from contact object (best source)
-                displayData.uid = contact.uid;
-                console.log(`🔑 VCard3: Using contact.uid (sanitized): ${contact.uid}`);
-            } else if (!displayData.uid) {
-                // Fallback: Extract UID from vCard if contact.uid not available
-                const uid = this.extractUIDFromVCard(contact.vcard);
-                if (uid) {
-                    // ⭐ CRITICAL: Ensure extracted UID is a string, not "[object Object]"
-                    const uidValue = typeof uid === 'string' 
-                        ? uid 
-                        : (uid.value || String(uid));
-                    displayData.uid = uidValue;
-                    console.log(`🔑 VCard3: Extracted UID from vCard: ${uidValue}`);
-                }
-            }
-            
-            // Last fallback: contactId
-            if (!displayData.uid && contact.contactId) {
-                displayData.uid = contact.contactId;
-                console.log(`🔑 VCard3: Using contactId as UID: ${contact.contactId}`);
-            }
-            
-            return displayData;
-        }
-
-        // Fallback: create minimal display data
-        console.warn('⚠️ VCard3Processor: Contact has neither display properties nor vCard string, using fallback');
+        // Last fallback: Return minimal data
+        console.warn('⚠️ VCard3: No vCard or cached properties - returning minimal data');
         return {
             fullName: contact.cardName || 'Unnamed Contact',
             structuredName: '',
@@ -922,8 +940,9 @@ export class VCard3Processor {
             addresses: [],
             notes: [],
             birthday: '',
-            itemId: contact.itemId,
-            uid: contact.contactId  // Use contactId as fallback UID
+            contactId: contact.contactId || contact.itemId,
+            cardName: contact.cardName,
+            uid: contact.uid || contact.contactId
         };
     }
 
@@ -1055,8 +1074,18 @@ export class VCard3Processor {
             displayData.addresses.forEach((addr, index) => {
                 const type = addr.type || 'home';
                 const pref = (index === 0 || addr.primary) ? ';PREF=1' : '';
-                // Use correct field names from parseAddressValue
-                const addrValue = `${addr.poBox || ''};${addr.extended || ''};${addr.street || ''};${addr.city || ''};${addr.state || ''};${addr.postalCode || ''};${addr.country || ''}`;
+                // ⚠️ CRITICAL FIX: Must escape all address components to prevent \n from breaking vCard format
+                console.log('🔍 VCard3Processor.convertTo40Format - Address before escaping:', {
+                    street: addr.street,
+                    hasNewline: addr.street && addr.street.includes('\n'),
+                    streetLength: addr.street ? addr.street.length : 0
+                });
+                const addrValue = `${this.escapeValue(addr.poBox || '')};${this.escapeValue(addr.extended || '')};${this.escapeValue(addr.street || '')};${this.escapeValue(addr.city || '')};${this.escapeValue(addr.state || '')};${this.escapeValue(addr.postalCode || '')};${this.escapeValue(addr.country || '')}`;
+                console.log('🔍 VCard3Processor.convertTo40Format - After escaping:', {
+                    addrValue: addrValue,
+                    hasBackslashN: addrValue.includes('\\n'),
+                    hasRawNewline: addrValue.includes('\n')
+                });
                 vcard += `ADR;TYPE=${type}${pref}:${addrValue}\n`;
             });
         }
@@ -1109,6 +1138,42 @@ export class VCard3Processor {
         const notes = parsedContact.properties.get('NOTE') || [];
         if (!Array.isArray(notes)) return typeof notes === 'string' ? [notes] : [];
         return notes.map(note => typeof note === 'string' ? note : note.value || '');
+    }
+
+    /**
+     * Sanitize phone number to E.164 international format
+     * Examples:
+     * - "+46701234567" (Sweden) ✓
+     * - "+1-555-123-4567" (US) → "+15551234567"
+     * - "0701234567" (Sweden local) → "+46701234567"
+     * - "070-123 45 67" → "+46701234567"
+     * 
+     * @param {string} phone - Raw phone number
+     * @returns {string} Sanitized E.164 format
+     */
+    sanitizePhoneNumber(phone) {
+        if (!phone) return '';
+        
+        // Remove all non-digit/plus characters
+        let cleaned = phone.replace(/[^\d+]/g, '');
+        
+        // If starts with 00, replace with +
+        if (cleaned.startsWith('00')) {
+            cleaned = '+' + cleaned.substring(2);
+        }
+        
+        // If starts with 0 (local number), add default country code
+        // TODO: Make country code configurable (default: +46 for Sweden)
+        if (cleaned.startsWith('0') && !cleaned.startsWith('00')) {
+            cleaned = '+46' + cleaned.substring(1);
+        }
+        
+        // Ensure starts with +
+        if (!cleaned.startsWith('+')) {
+            cleaned = '+' + cleaned;
+        }
+        
+        return cleaned;
     }
 
     parseAddressValue(addressValue) {

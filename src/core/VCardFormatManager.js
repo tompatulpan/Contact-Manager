@@ -276,8 +276,9 @@ export class VCardFormatManager {
             indicators: []
         };
 
-        console.log('🔍 VCardFormatManager: Starting format detection...');
-        console.log('📄 vCard content preview:', vCardString.substring(0, 200));
+        // Reduced logging - only log when explicitly needed
+        // console.log('🔍 VCardFormatManager: Starting format detection...');
+        // console.log('📄 vCard content preview:', vCardString.substring(0, 200));
 
         // Check for explicit version declaration
         if (this.patterns.version3.test(vCardString)) {
@@ -285,28 +286,28 @@ export class VCardFormatManager {
             result.format = 'vcard-3.0';
             result.confidence = 90;
             result.indicators.push('VERSION:3.0 found');
-            console.log('✅ Detected VERSION:3.0 explicitly');
+            // console.log('✅ Detected VERSION:3.0 explicitly');
         } else if (this.patterns.version4.test(vCardString)) {
             result.version = '4.0';
             result.format = 'vcard-4.0';
             result.confidence = 90;
             result.indicators.push('VERSION:4.0 found');
-            console.log('✅ Detected VERSION:4.0 explicitly');
+            // console.log('✅ Detected VERSION:4.0 explicitly');
         } else {
-            console.log('⚠️ No explicit version found, checking patterns...');
-            console.log('🧪 Version 3.0 pattern test:', this.patterns.version3.test(vCardString));
-            console.log('🧪 Version 4.0 pattern test:', this.patterns.version4.test(vCardString));
+            // console.log('⚠️ No explicit version found, checking patterns...');
+            // console.log('🧪 Version 3.0 pattern test:', this.patterns.version3.test(vCardString));
+            // console.log('🧪 Version 4.0 pattern test:', this.patterns.version4.test(vCardString));
         }
 
         // Check for Apple-specific indicators (suggests 3.0)
         if (this.patterns.appleIndicators.test(vCardString)) {
             result.indicators.push('Apple-specific properties found');
-            console.log('🍎 Apple indicators found');
+            // console.log('🍎 Apple indicators found');
             if (!result.version) {
                 result.version = '3.0';
                 result.format = 'vcard-3.0';
                 result.confidence = 75;
-                console.log('🔄 Set version to 3.0 based on Apple indicators');
+                // console.log('🔄 Set version to 3.0 based on Apple indicators');
             } else if (result.version === '3.0') {
                 result.confidence = Math.min(result.confidence + 10, 95);
             }
@@ -314,12 +315,12 @@ export class VCardFormatManager {
 
         // Fallback detection based on common patterns
         if (!result.version) {
-            console.log('🔄 Using fallback content detection...');
+            // console.log('🔄 Using fallback content detection...');
             result.version = this.detectVersionFromContent(vCardString);
             result.format = result.version === '3.0' ? 'vcard-3.0' : 'vcard-4.0';
             result.confidence = 60;
             result.indicators.push('Version inferred from content patterns');
-            console.log(`🔄 Fallback detected version: ${result.version}`);
+            // console.log(`🔄 Fallback detected version: ${result.version}`);
         }
 
         // Additional confidence adjustments
@@ -328,7 +329,7 @@ export class VCardFormatManager {
             result.indicators.push('ITEM prefix or lowercase type found');
         }
 
-        console.log(`📊 Final detection result: version=${result.version}, format=${result.format}, confidence=${result.confidence}%`);
+        // console.log(`📊 Final detection result: version=${result.version}, format=${result.format}, confidence=${result.confidence}%`);
         
         return result;
     }
