@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Contact Management System</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-dark.css">
     <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="mobile-dark.css">
     <link rel="stylesheet" href="src/ui/credential-storage.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -38,6 +40,13 @@
                     <i class="fas fa-user-plus"></i>
                     Share Profile
                 </button>
+                <!-- Theme Toggle -->
+                <div class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
+                    <i class="fas fa-moon theme-toggle-icon"></i>
+                    <div class="theme-toggle-switch">
+                        <div class="theme-toggle-slider"></div>
+                    </div>
+                </div>
                 <button id="logout-btn" class="btn btn-ghost">
                     <i class="fas fa-sign-out-alt"></i>
                     Log Out (<span id="current-user">Guest</span>)
@@ -986,6 +995,7 @@
     <script src="lib/userbase.js"></script>
     <script src="src/ui/components/qrcode.js"></script>
     <script src="src/utils/UserbaseConnectionFix.js"></script>
+    <script src="src/utils/ThemeManager.js"></script>
     <script type="module" src="src/app.js"></script>
 
     <!-- Simple Footer -->

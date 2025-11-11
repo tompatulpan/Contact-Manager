@@ -1,0 +1,587 @@
+/* ========================================
+   DARK MODE THEME - CONTACT MANAGEMENT SYSTEM
+   ======================================== */
+
+/* ========== DARK MODE ROOT VARIABLES ========== */
+body.dark-mode {
+    /* Colors - Primary Palette (Keep blue) */
+    --primary-color: #3b82f6;
+    --primary-dark: #60a5fa;
+    --primary-light: #1e3a8a;
+    --success-color: #10b981;
+    --error-color: #ef4444;
+    --warning-color: #f59e0b;
+    
+    /* Text Colors (Light text for dark backgrounds) */
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    
+    /* Background Colors (Dark backgrounds) */
+    --bg-primary: #1f2937;
+    --bg-secondary: #111827;
+    --surface-color: #1f2937;
+    --hover-color: #374151;
+    --border-color: #374151;
+    
+    /* Shadows (Darker shadows for depth) */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+/* ========== DARK MODE SPECIFIC OVERRIDES ========== */
+
+/* Body and main background */
+body.dark-mode {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+/* Header */
+body.dark-mode .app-header {
+    border-bottom-color: var(--border-color);
+}
+
+body.dark-mode .app-title {
+    color: var(--text-primary);
+}
+
+body.dark-mode .app-title i {
+    color: var(--primary-color);
+}
+
+/* Buttons */
+body.dark-mode .btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+body.dark-mode .btn-primary:hover {
+    background: var(--primary-dark);
+}
+
+body.dark-mode .btn-secondary {
+    background: var(--surface-color);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+body.dark-mode .btn-secondary:hover {
+    background: var(--hover-color);
+}
+
+body.dark-mode .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+body.dark-mode .btn-ghost:hover {
+    color: var(--primary-color);
+    background: var(--hover-color);
+}
+
+/* Sidebar */
+body.dark-mode .sidebar {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .sidebar h3,
+body.dark-mode .sidebar h4 {
+    color: var(--text-primary);
+}
+
+body.dark-mode .filter-title {
+    color: var(--text-secondary);
+}
+
+body.dark-mode .checkbox-item {
+    color: var(--text-primary);
+}
+
+body.dark-mode .checkbox-item:hover {
+    background: var(--hover-color);
+}
+
+/* Contact List */
+body.dark-mode .contact-list {
+    background: var(--surface-color);
+}
+
+body.dark-mode .contact-item {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+body.dark-mode .contact-item:hover {
+    background: var(--hover-color);
+}
+
+body.dark-mode .contact-item.active {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
+body.dark-mode .contact-name {
+    color: var(--text-primary);
+}
+
+/* List view contact name - override hardcoded color */
+body.dark-mode .contact-list.list-view .contact-list-item .contact-name {
+    color: var(--text-primary) !important;
+}
+
+/* List view contact items */
+body.dark-mode .contact-list.list-view .contact-list-item {
+    background: var(--surface-color);
+    border-bottom-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+body.dark-mode .contact-list.list-view .contact-list-item:hover {
+    background: var(--hover-color);
+}
+
+body.dark-mode .contact-list.list-view .contact-list-item.selected {
+    background: var(--primary-light);
+    border-left-color: var(--primary-color);
+}
+
+body.dark-mode .contact-preview {
+    color: var(--text-secondary);
+}
+
+/* Contact Cards (Card View) */
+body.dark-mode .contact-card {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .contact-card:hover {
+    background: var(--hover-color);
+}
+
+body.dark-mode .contact-card.selected {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
+body.dark-mode .contact-card[data-archived="true"] {
+    background: var(--bg-primary);
+    border-left-color: var(--warning-color);
+}
+
+/* Contact Info within cards */
+body.dark-mode .contact-info .contact-name {
+    color: var(--text-primary);
+}
+
+body.dark-mode .contact-info .contact-card-name {
+    color: var(--primary-color);
+}
+
+body.dark-mode .contact-info .contact-phone,
+body.dark-mode .contact-info .contact-email {
+    color: var(--text-secondary);
+}
+
+body.dark-mode .contact-info .contact-phone i,
+body.dark-mode .contact-info .contact-email i {
+    color: var(--primary-color);
+}
+
+/* Shared indicators */
+body.dark-mode .shared-indicator {
+    color: var(--primary-color);
+}
+
+body.dark-mode .tag-shared-out {
+    color: var(--primary-color);
+}
+
+body.dark-mode .tag-shared {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Contact Detail Panel */
+body.dark-mode .contact-detail {
+    background: var(--surface-color);
+}
+
+body.dark-mode .contact-detail-header {
+    border-bottom-color: var(--border-color);
+}
+
+body.dark-mode .contact-detail-header h2 {
+    color: var(--text-primary);
+}
+
+body.dark-mode .contact-card {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .contact-field-label {
+    color: var(--text-secondary);
+}
+
+body.dark-mode .contact-field-value {
+    color: var(--text-primary);
+}
+
+body.dark-mode .contact-field-value a {
+    color: var(--primary-color);
+}
+
+/* Forms and Inputs */
+body.dark-mode .form-group label {
+    color: var(--text-primary);
+}
+
+body.dark-mode input[type="text"],
+body.dark-mode input[type="email"],
+body.dark-mode input[type="tel"],
+body.dark-mode input[type="url"],
+body.dark-mode input[type="date"],
+body.dark-mode input[type="password"],
+body.dark-mode textarea,
+body.dark-mode select {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode input[type="text"]:focus,
+body.dark-mode input[type="email"]:focus,
+body.dark-mode input[type="tel"]:focus,
+body.dark-mode input[type="url"]:focus,
+body.dark-mode input[type="date"]:focus,
+body.dark-mode input[type="password"]:focus,
+body.dark-mode textarea:focus,
+body.dark-mode select:focus {
+    border-color: var(--primary-color);
+    background: var(--surface-color);
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+/* Modals */
+body.dark-mode .modal {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-mode .modal-content {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+body.dark-mode .modal-header h2 {
+    color: var(--text-primary);
+}
+
+body.dark-mode .modal-body {
+    color: var(--text-primary);
+}
+
+/* Search */
+body.dark-mode .search-bar {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .search-bar input {
+    background: transparent;
+    color: var(--text-primary);
+}
+
+body.dark-mode .search-bar i {
+    color: var(--text-secondary);
+}
+
+/* Tags and Badges */
+body.dark-mode .badge {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
+body.dark-mode .badge-owned {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--primary-color);
+}
+
+body.dark-mode .badge-shared {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+body.dark-mode .badge-imported {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
+/* Notifications */
+body.dark-mode .notification {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+body.dark-mode .notification.success {
+    border-color: var(--success-color);
+}
+
+body.dark-mode .notification.error {
+    border-color: var(--error-color);
+}
+
+body.dark-mode .notification.warning {
+    background-color: rgba(245, 158, 11, 0.1);
+    border-color: var(--warning-color);
+    color: var(--text-primary);
+}
+
+/* Tables */
+body.dark-mode table {
+    background: var(--surface-color);
+}
+
+body.dark-mode th {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode td {
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+body.dark-mode tr:hover {
+    background: var(--hover-color);
+}
+
+/* Icons - Keep all blue */
+body.dark-mode .fa,
+body.dark-mode .fas,
+body.dark-mode .far,
+body.dark-mode .fab {
+    color: var(--primary-color);
+}
+
+/* Specific icon contexts where color should remain contextual */
+body.dark-mode .btn-primary i,
+body.dark-mode .btn-ghost:hover i {
+    color: inherit;
+}
+
+/* Contact type icons */
+body.dark-mode .contact-type-icon {
+    color: var(--primary-color);
+}
+
+/* Distribution Lists */
+body.dark-mode .distribution-lists {
+    background: var(--bg-primary);
+}
+
+body.dark-mode .list-item {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+body.dark-mode .list-item:hover {
+    background: var(--hover-color);
+}
+
+body.dark-mode .list-name {
+    color: var(--text-primary);
+}
+
+body.dark-mode .list-count {
+    color: var(--text-secondary);
+}
+
+/* CardDAV Sync Status */
+body.dark-mode .sync-status {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .sync-status-item {
+    color: var(--text-primary);
+}
+
+body.dark-mode .sync-indicator {
+    color: var(--primary-color);
+}
+
+/* Tooltips */
+body.dark-mode .tooltip {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* Scrollbars (Webkit browsers) */
+body.dark-mode ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 5px;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: var(--hover-color);
+}
+
+/* Loading Spinner */
+body.dark-mode .spinner {
+    border-color: var(--border-color);
+    border-top-color: var(--primary-color);
+}
+
+/* Empty States */
+body.dark-mode .empty-state {
+    color: var(--text-secondary);
+}
+
+body.dark-mode .empty-state i {
+    color: var(--primary-color);
+}
+
+/* Dropdown Menus */
+body.dark-mode .dropdown-menu {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .dropdown-item {
+    color: var(--text-primary);
+}
+
+body.dark-mode .dropdown-item:hover {
+    background: var(--hover-color);
+}
+
+/* Code blocks (if any) */
+body.dark-mode pre,
+body.dark-mode code {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+/* Links */
+body.dark-mode a {
+    color: var(--primary-color);
+}
+
+body.dark-mode a:hover {
+    color: var(--primary-dark);
+}
+
+/* Dividers */
+body.dark-mode hr {
+    border-color: var(--border-color);
+}
+
+/* Context Menus */
+body.dark-mode .context-menu {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .context-menu-item {
+    color: var(--text-primary);
+}
+
+body.dark-mode .context-menu-item:hover {
+    background: var(--hover-color);
+}
+
+/* Progress Bars */
+body.dark-mode .progress-bar {
+    background: var(--bg-primary);
+}
+
+body.dark-mode .progress-fill {
+    background: var(--primary-color);
+}
+
+/* Toggle Switch Styling */
+.theme-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: background 0.2s;
+}
+
+.theme-toggle:hover {
+    background: var(--hover-color);
+}
+
+.theme-toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: var(--border-color);
+    border-radius: 12px;
+    transition: background 0.3s;
+}
+
+body.dark-mode .theme-toggle-switch {
+    background: var(--primary-color);
+}
+
+.theme-toggle-slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+body.dark-mode .theme-toggle-slider {
+    transform: translateX(20px);
+}
+
+.theme-toggle-icon {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+body.dark-mode .theme-toggle-icon {
+    color: var(--primary-color);
+}
+
+/* Smooth transition for theme changes */
+body.theme-transitioning * {
+    transition: background-color 0.3s ease, 
+                color 0.3s ease, 
+                border-color 0.3s ease !important;
+}

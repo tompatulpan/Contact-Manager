@@ -1,0 +1,521 @@
+/* ========================================
+   MOBILE DARK MODE - CONTACT MANAGEMENT SYSTEM
+   Mobile-specific dark mode overrides
+   ======================================== */
+
+@media screen and (max-width: 768px) {
+    
+    /* ===== MOBILE DARK MODE SPECIFIC STYLES ===== */
+    
+    /* Mobile Header */
+    body.dark-mode .mobile-header {
+        background: var(--surface-color) !important;
+        border-bottom-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .mobile-page-title {
+        color: var(--text-primary) !important;
+    }
+    
+    /* Mobile Back/Menu Buttons */
+    body.dark-mode .mobile-back-btn,
+    body.dark-mode .mobile-menu-btn {
+        color: var(--primary-color) !important;
+        background: transparent !important;
+    }
+    
+    body.dark-mode .mobile-back-btn:hover,
+    body.dark-mode .mobile-menu-btn:hover {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .mobile-back-btn:active,
+    body.dark-mode .mobile-menu-btn:active {
+        background: var(--hover-color) !important;
+    }
+    
+    /* Mobile Action Buttons */
+    body.dark-mode .mobile-action-btn {
+        color: var(--text-secondary) !important;
+        background: transparent !important;
+    }
+    
+    body.dark-mode .mobile-action-btn:hover {
+        background: var(--hover-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode #mobile-share-profile {
+        color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode #mobile-share-profile:hover {
+        background: var(--hover-color) !important;
+        color: var(--primary-dark) !important;
+    }
+    
+    body.dark-mode #mobile-logout {
+        color: var(--error-color) !important;
+    }
+    
+    body.dark-mode #mobile-logout:hover {
+        background: rgba(239, 68, 68, 0.1) !important;
+        color: var(--error-color) !important;
+    }
+    
+    /* Mobile Sidebar/Pages */
+    body.dark-mode .sidebar {
+        background: var(--surface-color) !important;
+        border-top-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .page {
+        background: var(--bg-secondary) !important;
+    }
+    
+    /* Mobile App Header (when visible on small screens) */
+    body.dark-mode .app-header {
+        background: var(--surface-color) !important;
+        border-bottom-color: var(--border-color) !important;
+    }
+    
+    /* Mobile Contact List */
+    body.dark-mode .contact-list-section {
+        background: var(--bg-secondary) !important;
+    }
+    
+    body.dark-mode .contact-detail-section {
+        background: var(--surface-color) !important;
+    }
+    
+    /* Mobile Search Bar */
+    body.dark-mode .search-bar {
+        background: var(--bg-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .search-bar input {
+        color: var(--text-primary) !important;
+        background: transparent !important;
+    }
+    
+    body.dark-mode .search-bar input::placeholder {
+        color: var(--text-secondary) !important;
+    }
+    
+    body.dark-mode .search-bar i {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Mobile Forms and Inputs */
+    body.dark-mode input[type="text"],
+    body.dark-mode input[type="email"],
+    body.dark-mode input[type="tel"],
+    body.dark-mode input[type="url"],
+    body.dark-mode input[type="password"],
+    body.dark-mode textarea,
+    body.dark-mode select {
+        background: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode input::placeholder,
+    body.dark-mode textarea::placeholder {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Mobile Modals */
+    body.dark-mode .modal {
+        background: rgba(0, 0, 0, 0.9) !important;
+    }
+    
+    body.dark-mode .modal-content {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .modal-header {
+        background: var(--surface-color) !important;
+        border-bottom-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .modal-header h2,
+    body.dark-mode .modal-header h3 {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .modal-body {
+        background: var(--surface-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .modal-footer {
+        background: var(--surface-color) !important;
+        border-top-color: var(--border-color) !important;
+    }
+    
+    /* Mobile Buttons in Dark Mode */
+    body.dark-mode .btn-primary {
+        background: var(--primary-color) !important;
+        color: white !important;
+        border-color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .btn-primary:hover,
+    body.dark-mode .btn-primary:active {
+        background: var(--primary-dark) !important;
+        border-color: var(--primary-dark) !important;
+    }
+    
+    body.dark-mode .btn-secondary {
+        background: var(--hover-color) !important;
+        color: var(--text-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .btn-secondary:hover,
+    body.dark-mode .btn-secondary:active {
+        background: var(--border-color) !important;
+    }
+    
+    body.dark-mode .btn-ghost {
+        background: transparent !important;
+        color: var(--text-secondary) !important;
+    }
+    
+    body.dark-mode .btn-ghost:hover {
+        background: var(--hover-color) !important;
+        color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .btn-ghost:active {
+        background: var(--border-color) !important;
+    }
+    
+    /* Mobile Theme Toggle (ensure visibility on mobile) */
+    body.dark-mode .theme-toggle {
+        background: transparent !important;
+    }
+    
+    body.dark-mode .theme-toggle:hover {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .theme-toggle-icon {
+        color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .theme-toggle-switch {
+        background: var(--primary-color) !important;
+    }
+    
+    /* Mobile Contact Cards/Items */
+    body.dark-mode .contact-card {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .contact-card:hover,
+    body.dark-mode .contact-card:active {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .contact-card.selected {
+        background: var(--primary-light) !important;
+        border-color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .contact-list-item {
+        background: var(--surface-color) !important;
+        border-bottom-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .contact-list-item:hover,
+    body.dark-mode .contact-list-item:active {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .contact-list-item.selected {
+        background: var(--primary-light) !important;
+        border-left-color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .contact-list-item .contact-name {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .contact-info .contact-name {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .contact-info .contact-phone,
+    body.dark-mode .contact-info .contact-email {
+        color: var(--text-secondary) !important;
+    }
+    
+    body.dark-mode .contact-info .contact-phone i,
+    body.dark-mode .contact-info .contact-email i {
+        color: var(--primary-color) !important;
+    }
+    
+    /* Mobile Filter/Distribution Lists */
+    body.dark-mode .filter-controls {
+        background: var(--surface-color) !important;
+    }
+    
+    body.dark-mode .filter-title {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .filter-options label {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .filter-options label:hover {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .checkbox-item {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .checkbox-item:hover {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .distribution-lists {
+        background: var(--bg-primary) !important;
+    }
+    
+    body.dark-mode .list-item {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .list-item:hover,
+    body.dark-mode .list-item:active {
+        background: var(--hover-color) !important;
+    }
+    
+    body.dark-mode .list-name {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .list-count {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Mobile Notifications/Alerts */
+    body.dark-mode .notification {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .notification.success {
+        border-color: var(--success-color) !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+    }
+    
+    body.dark-mode .notification.error {
+        border-color: var(--error-color) !important;
+        background: rgba(239, 68, 68, 0.1) !important;
+    }
+    
+    body.dark-mode .notification.warning {
+        border-color: var(--warning-color) !important;
+        background: rgba(245, 158, 11, 0.1) !important;
+    }
+    
+    /* Mobile Error Messages */
+    body.dark-mode .field-error {
+        background: rgba(239, 68, 68, 0.1) !important;
+        border-color: var(--error-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .error-details,
+    body.dark-mode .warning-details {
+        background: var(--bg-primary) !important;
+        border-color: var(--border-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Mobile Badges */
+    body.dark-mode .badge {
+        background: var(--primary-light) !important;
+        color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .badge-owned {
+        background: rgba(59, 130, 246, 0.2) !important;
+        color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .badge-shared {
+        background: rgba(16, 185, 129, 0.2) !important;
+        color: var(--success-color) !important;
+    }
+    
+    body.dark-mode .badge-imported {
+        background: rgba(245, 158, 11, 0.2) !important;
+        color: var(--warning-color) !important;
+    }
+    
+    /* Mobile Scrollbars */
+    body.dark-mode ::-webkit-scrollbar {
+        width: 8px !important;
+        height: 8px !important;
+    }
+    
+    body.dark-mode ::-webkit-scrollbar-track {
+        background: var(--bg-primary) !important;
+    }
+    
+    body.dark-mode ::-webkit-scrollbar-thumb {
+        background: var(--border-color) !important;
+        border-radius: 4px !important;
+    }
+    
+    body.dark-mode ::-webkit-scrollbar-thumb:hover {
+        background: var(--hover-color) !important;
+    }
+    
+    /* Mobile Contact Detail Panel */
+    body.dark-mode .contact-detail {
+        background: var(--surface-color) !important;
+    }
+    
+    body.dark-mode .contact-detail-header {
+        background: var(--surface-color) !important;
+        border-bottom-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .contact-detail-header h2 {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .contact-field-label {
+        color: var(--text-secondary) !important;
+    }
+    
+    body.dark-mode .contact-field-value {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .contact-field-value a {
+        color: var(--primary-color) !important;
+    }
+    
+    /* Mobile Tables (if any) */
+    body.dark-mode table {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode th {
+        background: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode td {
+        border-color: var(--border-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode tr:hover {
+        background: var(--hover-color) !important;
+    }
+    
+    /* Mobile Dropdown Menus */
+    body.dark-mode .dropdown-menu {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .dropdown-item {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .dropdown-item:hover,
+    body.dark-mode .dropdown-item:active {
+        background: var(--hover-color) !important;
+    }
+    
+    /* Mobile Context Menus */
+    body.dark-mode .context-menu {
+        background: var(--surface-color) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .context-menu-item {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .context-menu-item:hover,
+    body.dark-mode .context-menu-item:active {
+        background: var(--hover-color) !important;
+    }
+    
+    /* Mobile Loading States */
+    body.dark-mode .spinner {
+        border-color: var(--border-color) !important;
+        border-top-color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .loading-overlay {
+        background: rgba(17, 24, 39, 0.95) !important;
+    }
+    
+    /* Mobile Empty States */
+    body.dark-mode .empty-state {
+        color: var(--text-secondary) !important;
+    }
+    
+    body.dark-mode .empty-state i {
+        color: var(--primary-color) !important;
+    }
+    
+    /* Mobile CardDAV Sync Status */
+    body.dark-mode .sync-status {
+        background: var(--bg-primary) !important;
+        border-color: var(--border-color) !important;
+    }
+    
+    body.dark-mode .sync-status-item {
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .sync-indicator {
+        color: var(--primary-color) !important;
+    }
+    
+    body.dark-mode .sync-indicator.syncing {
+        color: var(--warning-color) !important;
+    }
+    
+    body.dark-mode .sync-indicator.error {
+        color: var(--error-color) !important;
+    }
+    
+    /* Mobile Touch Feedback */
+    body.dark-mode .btn:active,
+    body.dark-mode button:active,
+    body.dark-mode a:active {
+        opacity: 0.8 !important;
+    }
+    
+    /* Mobile Text Selection */
+    body.dark-mode ::selection {
+        background: var(--primary-color) !important;
+        color: white !important;
+    }
+    
+    body.dark-mode ::-moz-selection {
+        background: var(--primary-color) !important;
+        color: white !important;
+    }
+}
