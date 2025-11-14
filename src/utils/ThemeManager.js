@@ -19,7 +19,7 @@ class ThemeManager {
             this.enableLightMode(false);
         }
 
-        // Setup toggle button listener
+        // Setup toggle button listener with retry for Firefox compatibility
         this.setupToggleListener();
     }
 
@@ -27,9 +27,41 @@ class ThemeManager {
         const toggleBtn = document.getElementById('theme-toggle');
         
         if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => {
+            // Click event (primary - works in all browsers)
+            toggleBtn.addEventListener('click', (e) => {
+                console.log('🔄 Click event fired');
+                e.preventDefault();
+                e.stopPropagation();
                 this.toggleTheme();
-            });
+            }, false);
+            
+            // Touch event (mobile devices)
+            toggleBtn.addEventListener('touchend', (e) => {
+                console.log('🔄 Touch event fired');
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleTheme();
+            }, false);
+            
+            // Keyboard event (accessibility - Enter or Space)
+            toggleBtn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    console.log('🔄 Keyboard event fired');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleTheme();
+                }
+            }, false);
+            
+            console.log('✅ Theme toggle listener attached successfully');
+            console.log('Toggle element:', toggleBtn);
+            console.log('Has role="button":', toggleBtn.getAttribute('role') === 'button');
+        } else {
+            console.warn('⚠️ Theme toggle button not found, retrying...');
+            // Retry after a short delay (Firefox might need this)
+            setTimeout(() => {
+                this.setupToggleListener();
+            }, 100);
         }
     }
 

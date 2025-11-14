@@ -536,10 +536,18 @@ body.dark-mode .progress-fill {
     padding: 0.5rem;
     border-radius: 0.5rem;
     transition: background 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .theme-toggle:hover {
     background: var(--hover-color);
+}
+
+.theme-toggle:active {
+    background: var(--border-color);
 }
 
 .theme-toggle-switch {

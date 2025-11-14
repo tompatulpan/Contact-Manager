@@ -77,26 +77,26 @@ npm run serve                               # Start contact manager (port 8080)
 - [x] QR code generation (for easy contact sharing with iOS/Android compatibility)
 - [x] Share your profile
 - [x] Revoke sharing per recipient (Individual Databases)
-- [ ] Improve phone menu system
+- [ ] Improve phone menu UI
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
 - [x] **Baical CardDAV Integration** (sync with any CardDAV server)
-- [ ] Sharing-List features (Rename, edit, copy, etc)
+- [ ] Group list features (Rename, edit, copy, etc)
 - [ ] Create e-mail distrubution list
-- [ ] Bulk operations (Delete, Export etc.)
+- [x] Bulk operations (Delete)
 - [ ] Multi-language support (i18n)
 - [ ] Advanced sharing permissions (cross edit contacts)
 - [x] Stay logged in feature
 - [ ] Change password
 - [ ] Set passwords rules
-- [ ] Dark mode
+- [x] Dark mode
 - [ ] Pictures as avatars
 
 ### Ideas
 - [ ] A Progressive Web App (PWA)
-- [ ] An Electron App
-- [ ] Better integration on phones, CardDAV support
+- [ ] An Electron or Tauri App
+- [(x)] Better integration on phones, CardDAV support
 - [ ] Improve decentralization using userbase
 
 ```  

@@ -27,7 +27,9 @@ export class ContactUIController {
         this.currentView = 'contacts'; // contacts, archived, shared
         this.viewMode = this.getDefaultViewMode(); // Responsive default: list for mobile, card for desktop
         this.searchQuery = '';
-        this.activeFilters = {
+        
+        // Load saved filter state from localStorage or use defaults
+        this.activeFilters = this.loadFilterState() || {
             includeArchived: false,  // Don't show archived contacts by default
             includeDeleted: false,   // Don't show deleted contacts by default
             distributionList: null   // Current selected distribution list filter
@@ -668,6 +670,9 @@ export class ContactUIController {
         if (filterArchived) {
             filterArchived.addEventListener('change', this.handleFilterChange.bind(this));
         }
+        
+        // Restore saved filter checkbox states
+        this.restoreFilterCheckboxes();
 
         // View toggle buttons
         if (this.elements.viewCardBtn) {
@@ -1444,7 +1449,7 @@ export class ContactUIController {
                 distributionList: this.activeFilters.distributionList
             };
         } 
-        // If only "Imported Files" is checked, show only imported contacts
+        // If only "Imported Contacts" is checked, show only imported contacts
         else if (importedChecked && !ownedChecked && !sharedChecked && !archivedChecked && !recentChecked) {
             this.activeFilters = {
                 includeArchived: false,
@@ -1500,7 +1505,87 @@ export class ContactUIController {
             this.mobileNavigation.updateMobileTitle();
         }
         
+        // Save filter state for persistence across page reloads
+        this.saveFilterState();
+        
         this.performSearch();
+    }
+
+    /**
+     * Save current filter state to localStorage
+     */
+    saveFilterState() {
+        try {
+            const filterState = {
+                filters: this.activeFilters,
+                checkboxes: {
+                    owned: document.getElementById('filter-owned')?.checked || false,
+                    shared: document.getElementById('filter-shared')?.checked || false,
+                    imported: document.getElementById('filter-imported')?.checked || false,
+                    recent: document.getElementById('filter-recent')?.checked || false,
+                    archived: document.getElementById('filter-archived')?.checked || false
+                }
+            };
+            localStorage.setItem('contact-manager-filters', JSON.stringify(filterState));
+        } catch (error) {
+            console.error('Failed to save filter state:', error);
+        }
+    }
+
+    /**
+     * Load filter state from localStorage
+     */
+    loadFilterState() {
+        try {
+            const saved = localStorage.getItem('contact-manager-filters');
+            if (saved) {
+                const filterState = JSON.parse(saved);
+                
+                // Restore checkbox states (will be applied when DOM is ready)
+                if (filterState.checkboxes) {
+                    // Store for later restoration when DOM is ready
+                    this.savedCheckboxStates = filterState.checkboxes;
+                }
+                
+                return filterState.filters;
+            }
+        } catch (error) {
+            console.error('Failed to load filter state:', error);
+        }
+        return null;
+    }
+
+    /**
+     * Restore checkbox states from saved state or set defaults
+     */
+    restoreFilterCheckboxes() {
+        try {
+            const filterOwned = document.getElementById('filter-owned');
+            const filterShared = document.getElementById('filter-shared');
+            const filterImported = document.getElementById('filter-imported');
+            const filterRecent = document.getElementById('filter-recent');
+            const filterArchived = document.getElementById('filter-archived');
+            
+            if (this.savedCheckboxStates) {
+                // Restore saved state
+                if (filterOwned) filterOwned.checked = this.savedCheckboxStates.owned;
+                if (filterShared) filterShared.checked = this.savedCheckboxStates.shared;
+                if (filterImported) filterImported.checked = this.savedCheckboxStates.imported;
+                if (filterRecent) filterRecent.checked = this.savedCheckboxStates.recent;
+                if (filterArchived) filterArchived.checked = this.savedCheckboxStates.archived;
+                
+                this.savedCheckboxStates = null; // Clear after restoration
+            } else {
+                // Set default state: "My Contacts" and "Shared with Me" checked
+                if (filterOwned) filterOwned.checked = true;
+                if (filterShared) filterShared.checked = true;
+                if (filterImported) filterImported.checked = false;
+                if (filterRecent) filterRecent.checked = false;
+                if (filterArchived) filterArchived.checked = false;
+            }
+        } catch (error) {
+            console.error('Failed to restore filter checkboxes:', error);
+        }
     }
 
     /**
@@ -1626,7 +1711,7 @@ export class ContactUIController {
         
         this.updateTimeout = setTimeout(() => {
             this.renderDistributionLists(); // Update distribution lists when contacts change
-            this.performSearch();
+            this.performSearch(); // This respects activeFilters
             this.updateStats();
             
             // 🆕 REFRESH DETAIL PANEL: If a contact is currently selected, refresh it with latest data
