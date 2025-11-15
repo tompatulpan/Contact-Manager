@@ -2702,6 +2702,7 @@ export class ContactUIController {
         
         
         // Create user list with permissions and revoke buttons
+        // Each user is an individual share (groups are just UI convenience)
         const userList = uniqueUsers.map(username => {
             const permissions = sharePermissions[username];
             const permissionText = permissions?.level === 'write' ? 'Can edit' : 'Read only';
@@ -2717,7 +2718,7 @@ export class ContactUIController {
                         <button class="btn-revoke" 
                                 data-contact-id="${contact.contactId}" 
                                 data-username="${this.escapeHtml(username)}"
-                                title="Revoke sharing from ${this.escapeHtml(username)}">
+                                title="Revoke access from ${this.escapeHtml(username)}">
                             <i class="fas fa-times"></i> Revoke
                         </button>
                     </div>
@@ -2730,14 +2731,14 @@ export class ContactUIController {
         return `
             <div class="metadata-item metadata-sharing">
                 <div class="metadata-label">
-                    <i class="fas fa-share"></i> Shared with:
+                    <i class="fas fa-share"></i> Shared individually with:
                 </div>
                 <div class="metadata-value">
                     <div class="shared-users-list">
                         ${userList}
                     </div>
                     <div class="share-summary">
-                        ${uniqueUsers.length} user${uniqueUsers.length !== 1 ? 's' : ''}
+                        ${uniqueUsers.length} user${uniqueUsers.length !== 1 ? 's' : ''} (individual shares - can revoke separately)
                     </div>
                 </div>
             </div>
@@ -3048,7 +3049,7 @@ export class ContactUIController {
             this.elements.contactDetail.innerHTML = `
                 <div class="welcome-state">
                     <i class="fas fa-hand-wave"></i>
-                    <h3>Welcome to Contact Manager</h3>
+                    <h3>Welcome to Kontakt</h3>
                     <p>Select a contact to view details, or create a new contact to get started.</p>
                     <button id="welcome-new-contact" class="btn btn-primary">
                         <i class="fas fa-plus"></i>
@@ -3559,25 +3560,31 @@ export class ContactUIController {
                 let message = '';
                 
                 if (successCount > 0 && alreadySharedCount > 0) {
-                    message = `Newly shared with ${successCount} users and ${alreadySharedCount} users already had access in "${listName}".`;
+                    message = `Shared individually with ${successCount} new users. ${alreadySharedCount} users already had access from group "${listName}".`;
                 } else if (successCount > 0) {
-                    message = `Your contact was shared with all ${successCount} users in "${listName}".`;
+                    message = `Successfully shared individually with all ${successCount} users from group "${listName}". Each user can now be managed separately.`;
                 } else if (alreadySharedCount > 0) {
-                    message = `All ${alreadySharedCount} users in "${listName}" already have access to this contact.`;
+                    message = `All ${alreadySharedCount} users from group "${listName}" already have individual access to this contact.`;
                 }
                 
                 this.setShareModalState('success', {
-                    title: 'Contact Sharing Complete!',
+                    title: 'Contact Shared Individually!',
                     message: message,
-                    details: result.results.map(r => `${r.success ? '✅' : '❌'} ${r.username}`).join('\n')
+                    details: result.results.map(r => `${r.success ? '✅' : '❌'} ${r.username} (individual share)`).join('\n')
                 });
+                
+                // 🔄 REFRESH UI: Update contact detail view to show new sharing info
+                const updatedContact = await this.contactManager.getContact(this.currentShareContact.contactId);
+                if (updatedContact) {
+                    this.displayContactDetail(updatedContact);
+                }
                 
             } else if (totalProcessed > 0 && errorCount > 0) {
                 // Partial success - enhance error messaging
                 const enhancedErrors = this.enhanceDistributionListErrors(result.results || []);
                 this.setShareModalState('warning', {
                     title: 'Partially Shared',
-                    message: `✅ Successfully shared with ${totalProcessed} users, but ${errorCount} failed.`,
+                    message: `✅ Individually shared with ${totalProcessed} users, but ${errorCount} failed. You can revoke each successful share separately if needed.`,
                     details: enhancedErrors
                 });
                 
@@ -3586,7 +3593,7 @@ export class ContactUIController {
                 const enhancedErrors = this.enhanceDistributionListErrors(result.results || []);
                 this.setShareModalState('error', {
                     title: 'Sharing Failed',
-                    message: `❌ Could not share with any users in "${listName}".`,
+                    message: `❌ Could not share with any users from group "${listName}".`,
                     details: enhancedErrors
                 });
             }
@@ -3856,6 +3863,18 @@ export class ContactUIController {
                 // Refresh contacts list
                 this.refreshContactsList();
                 
+                // 🔄 REFRESH UI: Wait for cache to propagate, then update contact detail view
+                await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+                
+                // Force fresh fetch from contact manager
+                const updatedContact = this.contactManager.contacts.get(this.currentShareContact.contactId);
+                if (updatedContact) {
+                    console.log('🔄 Refreshing contact detail after batch sharing - sharedWith:', updatedContact.metadata?.sharing?.sharedWithUsers);
+                    this.displayContactDetail(updatedContact);
+                } else {
+                    console.warn('⚠️ Could not fetch updated contact after sharing');
+                }
+                
                 // Auto-close after 3 seconds
                 setTimeout(() => {
                     this.hideModal({ modalId: 'share-modal' });
@@ -3872,6 +3891,15 @@ export class ContactUIController {
                 
                 // Refresh contacts list to show successful shares
                 this.refreshContactsList();
+                
+                // 🔄 REFRESH UI: Wait for cache to propagate, then update contact detail view
+                await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+                
+                // Force fresh fetch from contact manager
+                const updatedContact = this.contactManager.contacts.get(this.currentShareContact.contactId);
+                if (updatedContact) {
+                    this.displayContactDetail(updatedContact);
+                }
                 
             } else {
                 // Complete failure
@@ -7295,8 +7323,12 @@ export class ContactUIController {
                     type: 'success' 
                 });
                 
+                // 🔧 FIX UI FLICKER: Wait a moment for database update to propagate
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
                 // Refresh the contact detail view to update sharing info
                 const updatedContact = this.contactManager.getContact(contactId);
+                
                 if (updatedContact && this.selectedContactId === contactId) {
                     this.displayContactDetail(updatedContact);
                 }

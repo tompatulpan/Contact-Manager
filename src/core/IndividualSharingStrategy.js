@@ -64,11 +64,38 @@ export class IndividualSharingStrategy {
             
             databaseOpened = true; // 🔧 Mark database as successfully opened
 
-            // Insert contact into individual database with sharing metadata
-            let sharedContact = {
+            // 🔧 AGGRESSIVE OPTIMIZATION: Remove bloated metadata before creating shared contact
+            let optimizedBaseContact = {
                 ...contact,
                 metadata: {
                     ...contact.metadata,
+                    // Trim shareHistory to last 5 entries only
+                    sharing: contact.metadata?.sharing ? {
+                        ...contact.metadata.sharing,
+                        shareHistory: (contact.metadata.sharing.shareHistory || []).slice(-5),
+                        // Keep only essential permission data
+                        sharePermissions: Object.entries(contact.metadata.sharing.sharePermissions || {}).reduce((acc, [user, perm]) => {
+                            acc[user] = {
+                                level: perm.level,
+                                sharedAt: perm.sharedAt
+                            };
+                            return acc;
+                        }, {})
+                    } : undefined,
+                    // Trim usage history to last 3 entries
+                    usage: contact.metadata?.usage ? {
+                        accessCount: contact.metadata.usage.accessCount,
+                        lastAccessedAt: contact.metadata.usage.lastAccessedAt,
+                        interactionHistory: (contact.metadata.usage.interactionHistory || []).slice(-3)
+                    } : undefined
+                }
+            };
+
+            // Insert contact into individual database with sharing metadata
+            let sharedContact = {
+                ...optimizedBaseContact,
+                metadata: {
+                    ...optimizedBaseContact.metadata,
                     sharedAt: new Date().toISOString(),
                     sharedBy: this.database.currentUser?.username,
                     sharedWith: username.trim(),
@@ -551,10 +578,13 @@ export class IndividualSharingStrategy {
                             }
                         };
 
+                        // 🎯 OPTIMIZE: Trim metadata before updating shared database to avoid 10KB limit
+                        const optimizedContact = this.database.optimizeContactForStorage(updatedContact);
+
                         await this.database.safeUpdateItem({
                             databaseName: dbName,
                             itemId: contact.contactId,
-                            item: updatedContact
+                            item: optimizedContact
                         }, 'updateContactAcrossSharedDatabases');
                         
                         return { dbName, username, success: true };

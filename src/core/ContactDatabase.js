@@ -1175,22 +1175,23 @@ export class ContactDatabase {
             
             // Check current size
             let currentSize = this.calculateItemSize(optimizedContact);
-            const MAX_SIZE = 10 * 1024; // 10KB in bytes
+            const MAX_SIZE = 10 * 1024; // 10KB in bytes (Userbase limit)
+            const SAFE_SIZE = 4 * 1024; // 4KB safe threshold (Userbase wrapper adds ~5-6KB overhead!)
             
             
-            if (currentSize <= MAX_SIZE) {
-                return optimizedContact; // No optimization needed
+            if (currentSize <= SAFE_SIZE) {
+                return optimizedContact; // No optimization needed - well under limit
             }
             
-            // Step 1: Trim large metadata arrays (keep last 10 entries)
-            if (optimizedContact.metadata?.sharing?.shareHistory?.length > 10) {
+            // Step 1: Aggressively trim large metadata arrays (keep last 3 entries only)
+            if (optimizedContact.metadata?.sharing?.shareHistory?.length > 3) {
                 optimizedContact.metadata.sharing.shareHistory = 
-                    optimizedContact.metadata.sharing.shareHistory.slice(-10);
+                    optimizedContact.metadata.sharing.shareHistory.slice(-3);
             }
             
-            if (optimizedContact.metadata?.usage?.interactionHistory?.length > 10) {
+            if (optimizedContact.metadata?.usage?.interactionHistory?.length > 3) {
                 optimizedContact.metadata.usage.interactionHistory = 
-                    optimizedContact.metadata.usage.interactionHistory.slice(-10);
+                    optimizedContact.metadata.usage.interactionHistory.slice(-3);
             }
             
             // Step 2: Remove non-essential metadata
@@ -1217,7 +1218,7 @@ export class ContactDatabase {
             if (currentSize > MAX_SIZE) {
                 console.warn(`⚠️ Contact still exceeds 10KB limit after optimization: ${(currentSize / 1024).toFixed(2)}KB`);
                 
-                // Last resort: Keep only essential data
+                // Last resort: Keep only essential data (minimal metadata)
                 optimizedContact = {
                     contactId: contact.contactId,
                     itemId: contact.itemId,
@@ -1237,6 +1238,15 @@ export class ContactDatabase {
                 };
                 
                 const finalSize = this.calculateItemSize(optimizedContact);
+                console.log(`📏 After last-resort optimization: ${(finalSize / 1024).toFixed(2)}KB`);
+                
+                // If STILL too large, the vCard itself is the problem
+                if (finalSize > MAX_SIZE) {
+                    const vcardSize = new Blob([contact.vcard]).size;
+                    console.error(`❌ CRITICAL: vCard alone is ${(vcardSize / 1024).toFixed(2)}KB - exceeds 10KB limit!`);
+                    console.error(`Contact "${contact.cardName}" has too much data in vCard content itself.`);
+                    throw new Error(`Contact data exceeds 10KB limit even after aggressive optimization. vCard content is too large.`);
+                }
             }
             
             return optimizedContact;
@@ -1977,26 +1987,32 @@ export class ContactDatabase {
                 throw new Error('No itemId or contactId provided for update');
             }
 
-            // 🔧 CRITICAL FIX: Optimize contact to fit within 10KB Userbase limit
+            // � DEBUG: Log contact size BEFORE optimization
+            const sizeBeforeOptimization = this.calculateItemSize(contact);
+            console.log(`📏 Contact size BEFORE optimization: ${(sizeBeforeOptimization / 1024).toFixed(2)}KB`);
+
+            // �🔧 CRITICAL FIX: Optimize contact to fit within 10KB Userbase limit
             const optimizedContact = this.optimizeContactForStorage(contact);
             
-            // Update in main contacts database
+            // 🔍 DEBUG: Log contact size AFTER optimization
+            const sizeAfterOptimization = this.calculateItemSize(optimizedContact);
+            console.log(`📏 Contact size AFTER optimization: ${(sizeAfterOptimization / 1024).toFixed(2)}KB (limit: 10KB)`);
+            
+            // Update lastUpdated in the optimized contact
+            optimizedContact.metadata.lastUpdated = new Date().toISOString();
+            
+            // Update in main contacts database (use optimized contact directly)
             await this.safeUpdateItem({
                 databaseName: this.databases.contacts,
-                item: {
-                    ...optimizedContact,
-                    metadata: {
-                        ...optimizedContact.metadata,
-                        lastUpdated: new Date().toISOString()
-                    }
-                },
+                item: optimizedContact,
                 itemId
             }, 'updateContact');
 
             // If this contact has been shared individually, update all shared databases
-            if (contact.metadata?.isOwned !== false) { // Only for owned contacts
+            // 🎯 CRITICAL: Use optimized contact for shared database updates too
+            if (optimizedContact.metadata?.isOwned !== false) { // Only for owned contacts
                 try {
-                    const sharedUpdateResult = await this.updateSharedContactDatabases(contact);
+                    const sharedUpdateResult = await this.updateSharedContactDatabases(optimizedContact);
                     if (sharedUpdateResult.success) {
                     } else {
                     }
@@ -2006,7 +2022,8 @@ export class ContactDatabase {
                 }
             }
 
-            this.eventBus.emit('contact:updated', { contact });
+            // 🎯 Emit optimized contact (what was actually saved)
+            this.eventBus.emit('contact:updated', { contact: optimizedContact });
             return { success: true, itemId };
         } catch (error) {
             console.error('Update contact failed:', error);
@@ -3169,6 +3186,12 @@ export class ContactDatabase {
      */
     async logActivity(activity) {
         try {
+            // Activity log is optional - skip if database not open
+            if (!this.databases.activity) {
+                console.log('⏭️ Activity log skipped (database not configured)');
+                return { success: true, skipped: true };
+            }
+            
             const itemId = this.generateItemId();
             
             // ✅ SDK COMPLIANT: Use safe insertItem with validation
@@ -3184,8 +3207,9 @@ export class ContactDatabase {
 
             return { success: true, itemId };
         } catch (error) {
-            console.error('Log activity failed:', error);
-            return { success: false, error: error.message };
+            // Activity log is non-critical - don't fail the operation
+            console.log('⚠️ Activity log failed (non-critical):', error.message);
+            return { success: true, error: error.message, skipped: true };
         }
     }
 

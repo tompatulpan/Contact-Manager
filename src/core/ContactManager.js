@@ -1,6 +1,39 @@
 /**
  * ContactManager - Main contact business logic
  * Handles all contact operations with RFC 9553 compliance and comprehensive metadata
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * SHARING ARCHITECTURE: GROUPS AS COLLECTIONS (NOT DATA STRUCTURES)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * PRINCIPLE: Distribution lists/groups are UI CONVENIENCE ONLY
+ * - Groups expand to individual shares at the time of sharing
+ * - Contact metadata stores ONLY individual usernames in sharedWithUsers array
+ * - No group references stored in contact metadata
+ * - Each user appears as separate entry in contact detail sharing list
+ * - Revocation is always per-user (granular control)
+ * 
+ * BENEFITS:
+ * ✅ Simplified data model (only user arrays, no group structures)
+ * ✅ Consistent UI (all shares look the same, regardless of origin)
+ * ✅ Granular control (revoke individual users, not entire groups)
+ * ✅ No sync issues (no group membership changes to track)
+ * ✅ Clear audit trail (see exactly who has access)
+ * 
+ * IMPLEMENTATION:
+ * - shareContactWithDistributionList() → expands to individual shareContact() calls
+ * - Each shareContact() updates metadata.sharing.sharedWithUsers array
+ * - renderSharingInfo() displays all users individually (no group distinction)
+ * - Revocation removes single username from sharedWithUsers array
+ * 
+ * EXAMPLE:
+ * User shares contact with group "Work Colleagues" (alice, bob, charlie)
+ * Result in metadata:
+ *   sharedWithUsers: ["alice", "bob", "charlie"]  ✅ Individual users
+ *   NOT: sharedGroups: ["Work Colleagues"]        ❌ No group tracking
+ * 
+ * UI Display: Shows 3 separate entries with individual revoke buttons
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 export class ContactManager {
     constructor(eventBus, database, vCardStandard, validator, baikalConnector = null) {
@@ -2465,40 +2498,60 @@ export class ContactManager {
 
             console.log('🔄 Updating contact metadata for:', contactId, 'itemId:', contact.itemId);
 
-            // Update contact with new metadata
+            // 🔧 DEEP MERGE: Recursively merge nested metadata objects
+            // This fixes the bug where updating sharing.sharedWithUsers would replace entire metadata
+            const deepMergeMetadata = (target, source) => {
+                const result = { ...target };
+                
+                for (const key in source) {
+                    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                        // Recursively merge nested objects
+                        result[key] = deepMergeMetadata(target[key] || {}, source[key]);
+                    } else {
+                        // Direct assignment for primitives and arrays
+                        result[key] = source[key];
+                    }
+                }
+                
+                return result;
+            };
+
+            // Update contact with new metadata using deep merge
             const updatedContact = {
                 ...contact,
                 ...updates,
                 metadata: {
-                    ...contact.metadata,
-                    ...updates.metadata,
+                    ...deepMergeMetadata(contact.metadata, updates.metadata || {}),
                     lastUpdated: new Date().toISOString(),
                     lastUpdatedBy: this.database.currentUser?.username || 'unknown'
                 }
             };
 
-            // Save to database
-            const saveResult = await this.database.updateContact(updatedContact);
+            // 🎯 OPTIMIZE: Trim metadata before saving to avoid 10KB limit
+            const optimizedContact = await this.database.optimizeContactForStorage(updatedContact);
+
+            // Save to database (no retry - conflicts indicate real race conditions that should fail)
+            const saveResult = await this.database.updateContact(optimizedContact);
             if (!saveResult.success) {
                 throw new Error(saveResult.error);
             }
 
-            // Update local cache
-            this.contacts.set(contactId, updatedContact);
+            // Update local cache with optimized contact
+            this.contacts.set(contactId, optimizedContact);
 
-            // Add interaction history
-            this.addInteractionHistory(updatedContact, 'metadata_updated', {
+            // Add interaction history (using optimized contact)
+            this.addInteractionHistory(optimizedContact, 'metadata_updated', {
                 fields: Object.keys(updates.metadata || {}),
                 updatedBy: this.database.currentUser?.username
             });
 
             this.eventBus.emit('contact:updated', { 
-                contact: updatedContact,
+                contact: optimizedContact,
                 changes: Object.keys(updates.metadata || [])
             });
 
             console.log('✅ Contact metadata updated:', contact.cardName);
-            return { success: true, contact: updatedContact };
+            return { success: true, contact: optimizedContact };
 
         } catch (error) {
             console.error('❌ Update contact metadata failed:', error);
@@ -3312,32 +3365,9 @@ export class ContactManager {
                 }
             }
             
-            // 🔑 IMPORTANT: Update the persistent sharing records to remove the revoked username
-            console.log('🔄 Updating persistent sharing records to remove revoked user...');
-            for (const contact of sharedContacts) {
-                try {
-                    // Get current sharing relationship
-                    const sharingRecords = await this.database.getDistributionListSharingForContact(contact.contactId);
-                    const listSharing = sharingRecords.find(record => record.listName === listName);
-                    
-                    if (listSharing && listSharing.usernames.includes(username)) {
-                        // Remove the username from the sharing record
-                        const updatedUsernames = listSharing.usernames.filter(u => u !== username);
-                        
-                        if (updatedUsernames.length > 0) {
-                            // Update with remaining usernames
-                            await this.database.updateDistributionListSharing(contact.contactId, listName, updatedUsernames);
-                            console.log(`✅ Updated sharing record for "${contact.cardName}" - removed "${username}"`);
-                        } else {
-                            // No usernames left, delete the entire sharing record
-                            await this.database.deleteDistributionListSharing(contact.contactId, listName);
-                            console.log(`✅ Deleted sharing record for "${contact.cardName}" - no users remaining`);
-                        }
-                    }
-                } catch (error) {
-                    console.error(`❌ Error updating sharing record for "${contact.cardName}":`, error);
-                }
-            }
+            // �️ REMOVED: Distribution list sharing persistence updates
+            // Previously updated persistence database when revoking users from groups.
+            // No longer needed - see comment in shareContactWithDistributionList() for rationale.
             
             console.log(`🔒 Access revocation complete: ${revokedCount} revoked, ${errorCount} errors`);
             
@@ -3552,22 +3582,24 @@ export class ContactManager {
             const result = await this.database.shareContactIndividually(contact, username, readOnly, resharingAllowed);
             
             if (result.success) {
-                // Get current shared users and deduplicate
-                const currentSharedUsers = contact.metadata.sharing?.sharedWithUsers || [];
+                // 🔧 CRITICAL FIX: Get fresh contact from cache to avoid race conditions
+                // When sharing in a loop, we need the latest state with previous shares
+                const freshContact = this.contacts.get(contactId);
+                const currentSharedUsers = freshContact.metadata.sharing?.sharedWithUsers || [];
                 const uniqueSharedUsers = [...new Set([...currentSharedUsers, username])];
                 
-                // Update contact metadata to track sharing
+                // Update contact metadata to track sharing (use freshContact!)
                 const updatedContact = {
-                    ...contact,
+                    ...freshContact,  // ← Use FRESH contact, not stale one
                     metadata: {
-                        ...contact.metadata,
+                        ...freshContact.metadata,  // ← Use FRESH metadata
                         sharing: {
-                            ...contact.metadata.sharing,
+                            ...freshContact.metadata.sharing,  // ← Use FRESH sharing
                             isShared: true,
                             sharedWithUsers: uniqueSharedUsers,
                             shareCount: uniqueSharedUsers.length, // 🔧 ADD MISSING shareCount
                             sharePermissions: {
-                                ...contact.metadata.sharing?.sharePermissions,
+                                ...freshContact.metadata.sharing?.sharePermissions,  // ← Use FRESH permissions
                                 [username]: {
                                     level: readOnly ? 'readOnly' : 'write',
                                     sharedAt: new Date().toISOString(),
@@ -3576,7 +3608,7 @@ export class ContactManager {
                                 }
                             },
                             shareHistory: [
-                                ...(contact.metadata.sharing?.shareHistory || []),
+                                ...(freshContact.metadata.sharing?.shareHistory || []),  // ← Use FRESH history
                                 {
                                     action: 'shared',
                                     targetUser: username,
@@ -3590,18 +3622,21 @@ export class ContactManager {
                     }
                 };
                 
+                // 🎯 OPTIMIZE: Trim metadata before saving to avoid 10KB limit
+                const optimizedContact = await this.database.optimizeContactForStorage(updatedContact);
+                
                 // Update the contact in our local cache first
-                this.contacts.set(contactId, updatedContact);
+                this.contacts.set(contactId, optimizedContact);
                 
                 // CRITICAL: Ensure the contact has itemId for database update
-                console.log('🔍 Contact before database update - itemId:', updatedContact.itemId, 'contactId:', updatedContact.contactId);
-                if (!updatedContact.itemId) {
+                console.log('🔍 Contact before database update - itemId:', optimizedContact.itemId, 'contactId:', optimizedContact.contactId);
+                if (!optimizedContact.itemId) {
                     console.error('❌ Contact missing itemId, cannot update database:', contactId);
                     throw new Error('Contact missing itemId, cannot update database');
                 }
                 
                 // Save the updated metadata to the database
-                await this.database.updateContact(updatedContact);
+                await this.database.updateContact(optimizedContact);
                 
                 console.log('✅ Contact shared successfully:', contactId, 'with', username);
                 
@@ -3696,8 +3731,10 @@ export class ContactManager {
 
     /**
      * Share a specific contact with all users in a distribution list
+     * Groups are just UI convenience - they expand to individual shares
+     * No group metadata is stored, only individual usernames in contact.metadata.sharing.sharedWithUsers
      * @param {string} contactId - ID of the contact to share
-     * @param {string} listName - Name of the distribution list
+     * @param {string} listName - Name of the distribution list (UI only)
      * @param {boolean} readOnly - Whether sharing is read-only (default: true)
      * @returns {Promise<Object>} Share result with details
      */
@@ -3715,9 +3752,10 @@ export class ContactManager {
                 throw new Error('No usernames in distribution list');
             }
             
-            console.log(`🔄 Sharing contact "${contact.cardName}" with ${usernames.length} users from "${listName}":`, usernames);
+            console.log(`🔄 Sharing contact "${contact.cardName}" with ${usernames.length} users from group "${listName}":`, usernames);
+            console.log(`📝 Groups are UI convenience only - storing individual users in metadata`);
             
-            // Share the contact with each username
+            // Share the contact with each username individually
             let successCount = 0;
             let errorCount = 0;
             let alreadySharedCount = 0;
@@ -3732,6 +3770,7 @@ export class ContactManager {
                         continue;
                     }
                     
+                    // Use individual sharing - this automatically updates metadata.sharing.sharedWithUsers
                     const result = await this.shareContact(contactId, username, readOnly);
                     results.push({
                         username,
@@ -3746,7 +3785,7 @@ export class ContactManager {
                             console.log(`ℹ️ Contact was already shared with: ${username}`);
                         } else {
                             successCount++;
-                            console.log(`✅ Successfully shared with: ${username}`);
+                            console.log(`✅ Successfully shared with: ${username} (added to sharedWithUsers array)`);
                         }
                     } else {
                         errorCount++;
@@ -3765,29 +3804,24 @@ export class ContactManager {
                 }
             }
             
-            // 🔧 FIX: Only update contact metadata for successfully shared users, not all users
-            const successfulUsernames = results
-                .filter(result => result.success)
-                .map(result => result.username);
+            // � NOTE: No group metadata stored - only individual usernames
+            // Each shareContact() call above already updated metadata.sharing.sharedWithUsers
+            // The group name is just for UI display in the share modal
             
-            if (successfulUsernames.length > 0) {
-                // Update contact metadata to track distribution list sharing
-                await this.updateContactMetadata(contactId, {
-                    metadata: {
-                        sharedWithDistributionList: listName,
-                        lastSharedAt: new Date().toISOString()
-                    }
-                });
-
-                // 🔑 CRITICAL FIX: Save the distribution list sharing relationship to persistent storage
-                // This ensures the relationship persists across browser/PC switches
-                console.log('💾 Saving distribution list sharing relationship to persistent storage...');
-                await this.database.saveDistributionListSharing(contactId, listName, successfulUsernames);
-            } else {
-                console.log('⚠️ No successful shares - skipping metadata and persistence updates');
-            }
+            // 🗑️ REMOVED: Distribution list sharing persistence
+            // Previously tracked which contacts were shared via which groups to a separate database.
+            // This was unnecessary overhead because:
+            // - Groups are UI convenience only (expand to individual users at share-time)
+            // - Individual sharing already persists via Userbase's individual database strategy
+            // - No restoration logic was ever implemented
+            // - Doesn't align with "groups as collections" architecture
+            // The group name is only for UI display in the share modal.
             
-            console.log(`✅ Distribution list sharing complete: ${successCount} new shares, ${alreadySharedCount} already shared, ${errorCount} errors`);
+            console.log(`✅ Group sharing complete: ${successCount} new shares, ${alreadySharedCount} already shared, ${errorCount} errors`);
+            
+            // Get fresh contact to show accurate total count
+            const freshContact = this.contacts.get(contactId);
+            console.log(`📊 Contact now shared with ${freshContact?.metadata?.sharing?.sharedWithUsers?.length || 0} total users (individual basis)`);
             
             return {
                 success: true,
@@ -3796,7 +3830,8 @@ export class ContactManager {
                 errorCount,
                 total: usernames.length,
                 results,
-                errors
+                errors,
+                groupName: listName // For UI display only
             };
             
         } catch (error) {

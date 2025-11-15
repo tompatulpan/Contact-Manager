@@ -556,7 +556,7 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p>Enter a username to share this contact with one person.</p>
+                                    <p>Enter one or more usernames (comma-separated) to share this contact. Each user gets individual access that can be revoked separately.</p>
                                 </div>
                             </div>
                             
@@ -602,7 +602,7 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p>Share this contact with all users in a user group simultaneously.</p>
+                                    <p><strong>Groups are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
                                 </div>
                             </div>
                             
@@ -615,10 +615,13 @@
                             </div>
                             
                             <div id="share-list-preview" class="distribution-list-preview" style="display: none;">
-                                <h4><i class="fas fa-users"></i> Users who will receive your contact:</h4>
+                                <h4><i class="fas fa-users"></i> Each user will receive the contact individually:</h4>
                                 <div id="share-list-users" class="distribution-list-contacts">
                                     <!-- Users will be populated here -->
                                 </div>
+                                <p class="form-help-text" style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                                    💡 You can revoke access from each user separately after sharing.
+                                </p>
                             </div>
                         </div>
 
@@ -647,7 +650,7 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p id="share-info-text">Recipients will see this contact in their "Shared with Me" section. You can enter multiple usernames separated by commas (e.g., user1, user2, user3).</p>
+                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. All shares are individual - you can revoke access from specific users at any time. Use comma-separated usernames or groups for convenience.</p>
                                 </div>
                             </div>                        <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
