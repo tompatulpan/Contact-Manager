@@ -1105,43 +1105,59 @@ export class ContactManager {
     }
 
     /**
-     * Track contact access
+     * Track contact access with optimized memory usage
      * @param {string} contactId - Contact ID
-     * @param {number} viewDuration - View duration in seconds
+     * @param {number} viewDuration - View duration in seconds (optional)
+     * @returns {Promise<void>}
      */
     async trackContactAccess(contactId, viewDuration = null) {
         try {
+            // Validate input
+            if (!contactId || typeof contactId !== 'string') {
+                console.warn('⚠️ Invalid contactId for access tracking');
+                return;
+            }
+
             const contact = this.contacts.get(contactId);
-            if (!contact) return;
+            if (!contact) {
+                console.debug(`⏭️ Contact ${contactId} not found for access tracking`);
+                return;
+            }
 
             const now = new Date().toISOString();
             
-            // Ensure usage metadata exists with proper defaults
+            // MEMORY OPTIMIZATION: Reuse existing usage object instead of creating new one
             const currentUsage = contact.metadata?.usage || {};
             
-            // Keep interaction history very small to prevent 10KB limit issues
+            // Keep interaction history minimal (last 3 entries, down from 5)
+            // Rationale: 3 entries = ~150 bytes, sufficient for "recently viewed" features
             const currentHistory = currentUsage.interactionHistory || [];
-            const limitedHistory = currentHistory.slice(-4); // Keep only last 5 interactions
+            const limitedHistory = currentHistory.slice(-2); // Keep 2, add 1 = 3 total
             
-            // Create minimal interaction entry to save space
+            // Create minimal interaction entry (remove null values to save space)
             const newInteraction = {
                 action: 'viewed',
-                timestamp: now,
-                duration: viewDuration
+                timestamp: now
             };
             
+            // Only add duration if provided and meaningful
+            if (viewDuration !== null && viewDuration !== undefined && viewDuration > 0) {
+                newInteraction.duration = viewDuration;
+            }
+            
+            // PERFORMANCE: Build updated contact efficiently
             const updatedContact = {
                 ...contact,
                 metadata: {
                     ...contact.metadata,
-                    lastAccessedAt: now,  // Update top-level lastAccessedAt for recent-activity sorting
+                    lastAccessedAt: now,  // Top-level for sorting performance
                     usage: {
                         accessCount: (currentUsage.accessCount || 0) + 1,
                         lastAccessedAt: now,
-                        viewDuration,
+                        // Don't store viewDuration at usage level - it's in history
                         interactionHistory: [...limitedHistory, newInteraction]
                     }
-                    // Note: lastUpdated is NOT updated for access tracking - only for content changes
+                    // Note: lastUpdated NOT updated (only for content changes)
                 }
             };
 
@@ -2447,13 +2463,20 @@ export class ContactManager {
     }
 
     /**
-     * Add interaction to contact history
+     * Add interaction to contact history with memory-efficient management
      * @param {Object} contact - Contact object
-     * @param {string} action - Action type
+     * @param {string} action - Action type (viewed, edited, metadata_updated, etc.)
      * @param {Object} details - Action details
+     * @returns {void}
      */
     addInteractionHistory(contact, action, details = {}) {
-        // Ensure metadata and usage exist
+        // Validate input
+        if (!contact || typeof contact !== 'object') {
+            console.warn('⚠️ Invalid contact object for interaction history');
+            return;
+        }
+
+        // Ensure metadata structure exists (fail-safe initialization)
         if (!contact.metadata) {
             contact.metadata = {};
         }
@@ -2464,17 +2487,39 @@ export class ContactManager {
             contact.metadata.usage.interactionHistory = [];
         }
 
-        contact.metadata.usage.interactionHistory.push({
+        // Create minimal interaction entry (memory optimization)
+        const interaction = {
             action,
-            timestamp: new Date().toISOString(),
-            userId: this.database.currentUser?.userId,
-            ...details
-        });
+            timestamp: new Date().toISOString()
+        };
 
-        // Keep only the last 50 interactions
-        if (contact.metadata.usage.interactionHistory.length > 50) {
+        // Only include userId if available (save space)
+        if (this.database.currentUser?.userId) {
+            interaction.userId = this.database.currentUser.userId;
+        }
+
+        // Only include essential details (filter out undefined/null)
+        const essentialDetails = {};
+        if (details && typeof details === 'object') {
+            for (const [key, value] of Object.entries(details)) {
+                if (value !== undefined && value !== null) {
+                    essentialDetails[key] = value;
+                }
+            }
+            if (Object.keys(essentialDetails).length > 0) {
+                Object.assign(interaction, essentialDetails);
+            }
+        }
+
+        // Add to history
+        contact.metadata.usage.interactionHistory.push(interaction);
+
+        // MEMORY OPTIMIZATION: Keep only last 5 interactions (down from 50)
+        // Rationale: 5 entries = ~250 bytes vs 50 entries = ~2500 bytes
+        const MAX_HISTORY_ENTRIES = 5;
+        if (contact.metadata.usage.interactionHistory.length > MAX_HISTORY_ENTRIES) {
             contact.metadata.usage.interactionHistory = 
-                contact.metadata.usage.interactionHistory.slice(-50);
+                contact.metadata.usage.interactionHistory.slice(-MAX_HISTORY_ENTRIES);
         }
     }
 
@@ -3166,54 +3211,48 @@ export class ContactManager {
     }
 
     /**
-     * Find contacts that have been previously shared with a specific distribution list
-     * Uses persistent storage to ensure relationships survive browser/PC switches
+     * Find contacts that have been previously shared with ANY user in a distribution list
+     * Since groups are UI convenience only, we check if contacts are shared with any of the list's users
      * @param {string} listName - Name of the distribution list
-     * @returns {Array} Array of contacts that have been shared with this distribution list
+     * @returns {Array} Array of contacts that have been shared with users from this distribution list
      */
     async findContactsSharedWithDistributionList(listName) {
         try {
-            console.log('🔍 Finding contacts shared with distribution list using persistent storage:', listName);
+            console.log('🔍 Finding contacts shared with ANY user in distribution list:', listName);
             
-            // 🔑 CRITICAL FIX: Use persistent storage instead of contact metadata
-            const contactIds = await this.database.getContactsSharedWithDistributionList(listName);
-            console.log('📋 Found persisted contact IDs for list:', contactIds);
+            // Get the list's current usernames
+            const listUsernames = await this.getUsernamesInDistributionList(listName);
+            console.log(`📋 Distribution list "${listName}" has ${listUsernames.length} users:`, listUsernames);
+            
+            if (listUsernames.length === 0) {
+                console.log('ℹ️ Distribution list has no users');
+                return [];
+            }
             
             const contactsSharedWithList = [];
             
-            // Get the actual contact objects from our cache
-            for (const contactId of contactIds) {
-                const contact = this.contacts.get(contactId);
-                
-                if (!contact) {
-                    console.log(`⚠️ Contact ${contactId} found in sharing records but not in cache`);
+            // Check all contacts to see if they're shared with ANY user from this list
+            for (const contact of this.contacts.values()) {
+                // Skip deleted, archived, or non-owned contacts
+                if (contact.metadata?.isDeleted || 
+                    contact.metadata?.isArchived || 
+                    !contact.metadata?.isOwned) {
                     continue;
                 }
                 
-                console.log(`🔍 Checking contact ${contact.cardName}:`, {
-                    isDeleted: contact.metadata?.isDeleted,
-                    isArchived: contact.metadata?.isArchived,
-                    isOwned: contact.metadata?.isOwned,
-                    contactId: contact.contactId
-                });
+                // Check if contact is shared with any user from this list
+                const sharedWithUsers = contact.metadata?.sharing?.sharedWithUsers || [];
+                const hasAnyListUser = listUsernames.some(username => 
+                    sharedWithUsers.includes(username)
+                );
                 
-                // Skip deleted or archived contacts
-                if (contact.metadata?.isDeleted || contact.metadata?.isArchived) {
-                    console.log(`⏭️ Skipping ${contact.cardName} - deleted or archived`);
-                    continue;
+                if (hasAnyListUser) {
+                    console.log(`✅ Contact "${contact.cardName}" is shared with users from list "${listName}"`);
+                    contactsSharedWithList.push(contact);
                 }
-                
-                // Skip contacts that aren't owned by the current user (can't share others' contacts)
-                if (!contact.metadata?.isOwned) {
-                    console.log(`⏭️ Skipping ${contact.cardName} - not owned by current user`);
-                    continue;
-                }
-                
-                console.log(`✅ Found contact ${contact.cardName} shared with list ${listName} (from persistent storage)`);
-                contactsSharedWithList.push(contact);
             }
             
-            console.log(`📋 Found ${contactsSharedWithList.length} contacts previously shared with distribution list "${listName}" from persistent storage`);
+            console.log(`📋 Found ${contactsSharedWithList.length} contacts shared with users from distribution list "${listName}"`);
             return contactsSharedWithList;
             
         } catch (error) {
@@ -3349,11 +3388,20 @@ export class ContactManager {
                     console.log(`🔒 Revoking access to contact "${contact.cardName}" (${contact.contactId}) from user "${username}"`);
                     
                     // 🔧 ENHANCED: Pass full contact object for Baikal deletion
-                    const result = await this.individualSharingStrategy.revokeIndividualAccess(contact.contactId, username, contact);
+                    const result = await this.database.revokeIndividualContactAccess(contact.contactId, username, contact);
                     
                     if (result.success) {
                         revokedCount++;
                         console.log(`✅ Successfully revoked access to "${contact.cardName}" from "${username}"`);
+                        
+                        // Emit contact:updated so UI refreshes with updated sharing info
+                        const updatedContact = this.contacts.get(contact.contactId);
+                        if (updatedContact) {
+                            this.eventBus.emit('contact:updated', { 
+                                contact: updatedContact,
+                                reason: 'access-revoked'
+                            });
+                        }
                     } else {
                         errorCount++;
                         console.error(`❌ Failed to revoke access to "${contact.cardName}" from "${username}":`, result.error);
@@ -3563,6 +3611,8 @@ export class ContactManager {
                                 }
                             }
                         }
+                        // ⚠️ IMPORTANT: DO NOT update contact's lastUpdated when only changing sharing permissions
+                        // Only the permission's lastUpdated should be touched, not the contact's lastUpdated
                     }
                 };
                 
@@ -3587,6 +3637,8 @@ export class ContactManager {
                 const freshContact = this.contacts.get(contactId);
                 const currentSharedUsers = freshContact.metadata.sharing?.sharedWithUsers || [];
                 const uniqueSharedUsers = [...new Set([...currentSharedUsers, username])];
+                
+                console.log(`🔍 Sharing metadata update: current users: ${JSON.stringify(currentSharedUsers)}, adding: ${username}, result: ${JSON.stringify(uniqueSharedUsers)}`);
                 
                 // Update contact metadata to track sharing (use freshContact!)
                 const updatedContact = {
@@ -3617,8 +3669,10 @@ export class ContactManager {
                                     sharedBy: this.database.currentUser?.username
                                 }
                             ]
-                        },
-                        lastUpdated: new Date().toISOString()
+                        }
+                        // ⚠️ IMPORTANT: DO NOT update lastUpdated when sharing
+                        // Sharing is metadata-only and doesn't change the actual contact data (vCard)
+                        // lastUpdated should only be updated when the contact data (name, phone, email, etc.) changes
                     }
                 };
                 
@@ -3646,6 +3700,13 @@ export class ContactManager {
                     readOnly, 
                     resharingAllowed,
                     sharedDbName: result.sharedDbName
+                });
+                
+                // Also emit contact:updated so UI refreshes with new sharing info
+                console.log(`🔍 Emitting contact:updated with ${optimizedContact.metadata?.sharing?.sharedWithUsers?.length || 0} shared users: ${JSON.stringify(optimizedContact.metadata?.sharing?.sharedWithUsers || [])}`);
+                this.eventBus.emit('contact:updated', { 
+                    contact: optimizedContact,
+                    reason: 'contact-shared'
                 });
             }
             
@@ -3866,27 +3927,59 @@ export class ContactManager {
     }
 
     /**
-     * Clean up contact metadata to reduce size
+     * Clean up contact metadata with aggressive memory optimization
+     * Removes or trims non-essential data to prevent 10KB limit issues
      * @param {Object} contact - Contact to clean up
-     * @returns {Object} Cleaned contact
+     * @returns {Object} Cleaned contact (shallow copy with trimmed metadata)
      */
     cleanupContactMetadata(contact) {
+        // Input validation
+        if (!contact || typeof contact !== 'object') {
+            console.warn('⚠️ Invalid contact for metadata cleanup');
+            return contact;
+        }
+
         const cleaned = { ...contact };
         
-        // Limit interaction history to only essential data
+        // OPTIMIZATION 1: Trim interaction history to essential data only
         if (cleaned.metadata?.usage?.interactionHistory) {
             cleaned.metadata.usage.interactionHistory = cleaned.metadata.usage.interactionHistory
                 .slice(-3) // Keep only last 3 interactions
-                .map(interaction => ({
-                    action: interaction.action,
-                    timestamp: interaction.timestamp
-                    // Remove duration and userId to save space
-                }));
+                .map(interaction => {
+                    // Return only essential fields
+                    const minimal = {
+                        action: interaction.action,
+                        timestamp: interaction.timestamp
+                    };
+                    // Include duration only if meaningful
+                    if (interaction.duration && interaction.duration > 0) {
+                        minimal.duration = interaction.duration;
+                    }
+                    return minimal;
+                });
         }
         
-        // Remove unnecessary fields that might accumulate
+        // OPTIMIZATION 2: Trim share history (audit trail)
         if (cleaned.metadata?.sharing?.shareHistory) {
-            cleaned.metadata.sharing.shareHistory = cleaned.metadata.sharing.shareHistory.slice(-5);
+            cleaned.metadata.sharing.shareHistory = cleaned.metadata.sharing.shareHistory
+                .slice(-3) // Reduced from 5 to 3 for memory savings
+                .map(entry => ({
+                    // Keep only essential sharing audit data
+                    action: entry.action,
+                    targetUser: entry.targetUser,
+                    timestamp: entry.timestamp
+                    // Remove sharedBy, permission details (recoverable from sharePermissions)
+                }));
+        }
+
+        // OPTIMIZATION 3: Remove UI state (should not be persisted)
+        if (cleaned.metadata?.ui) {
+            delete cleaned.metadata.ui;
+        }
+
+        // OPTIMIZATION 4: Trim CardDAV push history
+        if (cleaned.metadata?.carddav?.pushHistory) {
+            cleaned.metadata.carddav.pushHistory = cleaned.metadata.carddav.pushHistory.slice(-5);
         }
         
         return cleaned;

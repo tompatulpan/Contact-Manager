@@ -1164,26 +1164,38 @@ export class ContactDatabase {
     }
     
     /**
-     * 🔧 NEW: Optimize contact data to fit within 10KB Userbase limit
+     * 🔧 OPTIMIZED: Optimize contact data to fit within 10KB Userbase limit
+     * Multi-stage optimization with progressive data reduction
      * @param {Object} contact - Contact object to optimize
      * @returns {Object} Optimized contact object
+     * @throws {Error} If contact cannot be optimized below limit
      */
     optimizeContactForStorage(contact) {
+        // Input validation
+        if (!contact || typeof contact !== 'object') {
+            throw new Error('Invalid contact object for optimization');
+        }
+
         try {
-            // Start with the full contact
+            // Start with shallow copy to avoid mutating original
             let optimizedContact = { ...contact };
             
-            // Check current size
+            // Size thresholds
+            const MAX_SIZE = 10 * 1024; // 10KB Userbase hard limit
+            const SAFE_SIZE = 4 * 1024; // 4KB safe threshold (Userbase overhead ~5-6KB)
+            const WARN_SIZE = 3 * 1024; // 3KB - start warning
+            
+            // Check initial size
             let currentSize = this.calculateItemSize(optimizedContact);
-            const MAX_SIZE = 10 * 1024; // 10KB in bytes (Userbase limit)
-            const SAFE_SIZE = 4 * 1024; // 4KB safe threshold (Userbase wrapper adds ~5-6KB overhead!)
             
-            
+            // Fast path: No optimization needed
             if (currentSize <= SAFE_SIZE) {
-                return optimizedContact; // No optimization needed - well under limit
+                return optimizedContact;
             }
+
+            console.log(`🔧 Optimizing contact (current: ${(currentSize / 1024).toFixed(2)}KB, target: <${(SAFE_SIZE / 1024).toFixed(2)}KB)`);
             
-            // Step 1: Aggressively trim large metadata arrays (keep last 3 entries only)
+            // STAGE 1: Trim history arrays (most common optimization)
             if (optimizedContact.metadata?.sharing?.shareHistory?.length > 3) {
                 optimizedContact.metadata.sharing.shareHistory = 
                     optimizedContact.metadata.sharing.shareHistory.slice(-3);
@@ -1191,44 +1203,75 @@ export class ContactDatabase {
             
             if (optimizedContact.metadata?.usage?.interactionHistory?.length > 3) {
                 optimizedContact.metadata.usage.interactionHistory = 
-                    optimizedContact.metadata.usage.interactionHistory.slice(-3);
+                    optimizedContact.metadata.usage.interactionHistory
+                        .slice(-3)
+                        .map(entry => ({
+                            action: entry.action,
+                            timestamp: entry.timestamp
+                            // Remove userId, duration for space
+                        }));
+            }
+
+            if (optimizedContact.metadata?.carddav?.pushHistory?.length > 5) {
+                optimizedContact.metadata.carddav.pushHistory = 
+                    optimizedContact.metadata.carddav.pushHistory.slice(-5);
             }
             
-            // Step 2: Remove non-essential metadata
+            // STAGE 2: Remove non-essential metadata
             if (optimizedContact.metadata?.ui) {
                 delete optimizedContact.metadata.ui;
             }
             
-            // Step 3: Compress sharing permissions (keep essential data only)
+            // STAGE 3: Compress sharing permissions
             if (optimizedContact.metadata?.sharing?.sharePermissions) {
                 const compressedPerms = {};
-                Object.entries(optimizedContact.metadata.sharing.sharePermissions).forEach(([user, perm]) => {
+                for (const [user, perm] of Object.entries(optimizedContact.metadata.sharing.sharePermissions)) {
                     compressedPerms[user] = {
                         level: perm.level,
                         sharedAt: perm.sharedAt
-                        // Remove canReshare, lastUpdated, etc.
+                        // Remove canReshare, hasViewed, lastAccessedAt
                     };
-                });
+                }
                 optimizedContact.metadata.sharing.sharePermissions = compressedPerms;
             }
             
-            // Check size after optimization
+            // Check size after basic optimization
             currentSize = this.calculateItemSize(optimizedContact);
-            
-            if (currentSize > MAX_SIZE) {
-                console.warn(`⚠️ Contact still exceeds 10KB limit after optimization: ${(currentSize / 1024).toFixed(2)}KB`);
+
+            // STAGE 4: Emergency optimization if still too large
+            if (currentSize > SAFE_SIZE) {
+                console.warn(`⚠️ Contact still large after Stage 3: ${(currentSize / 1024).toFixed(2)}KB - applying emergency optimization`);
                 
-                // Last resort: Keep only essential data (minimal metadata)
+                // Remove all history completely
+                if (optimizedContact.metadata?.usage?.interactionHistory) {
+                    delete optimizedContact.metadata.usage.interactionHistory;
+                }
+                if (optimizedContact.metadata?.sharing?.shareHistory) {
+                    delete optimizedContact.metadata.sharing.shareHistory;
+                }
+                if (optimizedContact.metadata?.carddav?.pushHistory) {
+                    delete optimizedContact.metadata.carddav.pushHistory;
+                }
+                
+                currentSize = this.calculateItemSize(optimizedContact);
+            }
+            
+            // STAGE 5: Last resort - minimal metadata only
+            if (currentSize > MAX_SIZE) {
+                console.error(`❌ Contact STILL exceeds limit: ${(currentSize / 1024).toFixed(2)}KB - using minimal structure`);
+                
                 optimizedContact = {
                     contactId: contact.contactId,
                     itemId: contact.itemId,
                     cardName: contact.cardName,
-                    vcard: contact.vcard,
+                    vcard: contact.vcard, // Keep vCard (essential data)
                     metadata: {
                         createdAt: contact.metadata?.createdAt,
                         lastUpdated: contact.metadata?.lastUpdated,
-                        isOwned: contact.metadata?.isOwned,
+                        isOwned: contact.metadata?.isOwned || false,
+                        isImported: contact.metadata?.isImported || false,
                         isArchived: contact.metadata?.isArchived || false,
+                        // Minimal sharing info (essential for functionality)
                         sharing: {
                             isShared: contact.metadata?.sharing?.isShared || false,
                             sharedWithUsers: contact.metadata?.sharing?.sharedWithUsers || [],
@@ -1732,28 +1775,47 @@ export class ContactDatabase {
     }
 
     /**
-     * ✅ SDK COMPLIANT: Safe deleteItem wrapper with full validation
+     * ✅ SDK COMPLIANT: Safe deleteItem wrapper with full validation and retry logic
      * @param {Object} params - deleteItem parameters
      * @param {string} context - Context for error reporting
+     * @param {number} maxRetries - Maximum retry attempts for conflicts (default: 3)
      * @returns {Promise<Object>} Delete result
      */
-    async safeDeleteItem(params, context) {
-        try {
-            // Pre-validate parameters
-            const validation = this.validateDeleteItemParams(params);
-            if (!validation.isValid) {
-                const error = new Error(validation.errors[0]);
-                error.name = validation.errors[0].split(':')[0];
+    async safeDeleteItem(params, context, maxRetries = 3) {
+        let lastError = null;
+        
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                // Pre-validate parameters
+                const validation = this.validateDeleteItemParams(params);
+                if (!validation.isValid) {
+                    const error = new Error(validation.errors[0]);
+                    error.name = validation.errors[0].split(':')[0];
+                    throw error;
+                }
+                
+                // Call SDK deleteItem
+                return await userbase.deleteItem(params);
+                
+            } catch (error) {
+                lastError = error;
+                
+                // Only retry on ItemUpdateConflict
+                if (error.name === 'ItemUpdateConflict' && attempt < maxRetries) {
+                    const delay = Math.pow(2, attempt) * 100; // Exponential backoff: 100ms, 200ms, 400ms
+                    console.warn(`⚠️ ItemUpdateConflict in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                
+                // For other errors or max retries reached, handle and throw
+                this.handleDeleteItemError(error, context);
                 throw error;
             }
-            
-            // Call SDK deleteItem
-            return await userbase.deleteItem(params);
-            
-        } catch (error) {
-            this.handleDeleteItemError(error, context);
-            throw error;
         }
+        
+        // Should never reach here, but just in case
+        throw lastError;
     }
 
     /**
@@ -3180,36 +3242,71 @@ export class ContactDatabase {
      * @returns {Promise<Object>} Update result
      */
     /**
-     * Log user activity
-     * @param {Object} activity - Activity object
-     * @returns {Promise<Object>} Log result
+     * Log user activity (non-critical operation)
+     * Gracefully handles failures without blocking main operations
+     * @param {Object} activity - Activity object with action, contactId, etc.
+     * @returns {Promise<Object>} Log result (always succeeds, may skip)
      */
     async logActivity(activity) {
+        // Input validation
+        if (!activity || typeof activity !== 'object') {
+            console.debug('⏭️ Activity log skipped (invalid activity object)');
+            return { success: true, skipped: true, reason: 'invalid_input' };
+        }
+
         try {
-            // Activity log is optional - skip if database not open
+            // Check if activity logging is enabled and database is configured
             if (!this.databases.activity) {
-                console.log('⏭️ Activity log skipped (database not configured)');
-                return { success: true, skipped: true };
+                console.debug('⏭️ Activity log skipped (database not configured)');
+                return { success: true, skipped: true, reason: 'not_configured' };
+            }
+
+            // Validate essential activity properties
+            if (!activity.action) {
+                console.debug('⏭️ Activity log skipped (missing action)');
+                return { success: true, skipped: true, reason: 'missing_action' };
             }
             
             const itemId = this.generateItemId();
             
+            // Create minimal activity entry (memory optimization)
+            const activityEntry = {
+                action: activity.action,
+                timestamp: new Date().toISOString()
+            };
+
+            // Add optional fields only if present
+            if (this.currentUser?.userId) {
+                activityEntry.userId = this.currentUser.userId;
+            }
+            if (activity.contactId) {
+                activityEntry.contactId = activity.contactId;
+            }
+            if (activity.targetUser) {
+                activityEntry.targetUser = activity.targetUser;
+            }
+            if (activity.details && Object.keys(activity.details).length > 0) {
+                activityEntry.details = activity.details;
+            }
+            
             // ✅ SDK COMPLIANT: Use safe insertItem with validation
             await this.safeInsertItem({
                 databaseName: this.databases.activity,
-                item: {
-                    ...activity,
-                    timestamp: new Date().toISOString(),
-                    userId: this.currentUser?.userId
-                },
+                item: activityEntry,
                 itemId
             }, 'logActivity');
 
             return { success: true, itemId };
+            
         } catch (error) {
-            // Activity log is non-critical - don't fail the operation
-            console.log('⚠️ Activity log failed (non-critical):', error.message);
-            return { success: true, error: error.message, skipped: true };
+            // Activity log is non-critical - never throw, just log
+            console.debug('⚠️ Activity log failed (non-critical):', error.message);
+            return { 
+                success: true, 
+                skipped: true, 
+                error: error.message,
+                reason: 'database_error'
+            };
         }
     }
 

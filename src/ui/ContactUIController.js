@@ -6,7 +6,7 @@ import { MobileNavigation } from './MobileNavigation.js';
 import { profileRouter } from '../utils/ProfileRouter.js';
 import { ContactUIHelpers } from './ContactUIHelpers.js';
 import { ContactRenderer } from './ContactRenderer.js';
-import { USERBASE_CONFIG, AUTH_CONFIG } from '../config/app.config.js';
+import { USERBASE_CONFIG, AUTH_CONFIG, PERFORMANCE_CONFIG } from '../config/app.config.js';
 import { authPerformanceTracker } from '../utils/AuthPerformanceTracker.js';
 
 export class ContactUIController {
@@ -39,6 +39,13 @@ export class ContactUIController {
         this.bulkSelectMode = false;
         this.selectedContacts = new Set();
         
+        // Periodic shared contacts refresh (fallback for missed updates)
+        this.sharedContactsRefreshInterval = null;
+        
+        // Contact update debouncing (prevents rapid-fire refreshes during bulk operations)
+        this.pendingContactUpdates = new Map(); // contactId -> timeout
+        this.pendingDetailRefresh = null; // Detail view refresh timeout
+        
         // DOM elements cache
         this.elements = {};
         
@@ -49,7 +56,8 @@ export class ContactUIController {
         this.config = {
             itemsPerPage: 50,
             debounceDelay: 300,
-            animationDuration: 300
+            animationDuration: 300,
+            sharedContactsRefreshInterval: PERFORMANCE_CONFIG.sharedContactsRefreshInterval // From app.config.js
         };
 
         // Bind methods
@@ -1218,6 +1226,9 @@ export class ContactUIController {
             this.updateUserInterface();
             this.hideAuthenticationModal();
             this.showMainApplication();
+            
+            // ⭐ Start periodic shared contacts refresh (fallback mechanism)
+            this.initializePeriodicSharedContactsRefresh();
         } else {
             console.error('Invalid user data in authentication event:', data);
             console.error('Expected user object with username or userId, got:', user);
@@ -1229,6 +1240,9 @@ export class ContactUIController {
                 this.updateUserInterface();
                 this.hideAuthenticationModal();
                 this.showMainApplication();
+                
+                // ⭐ Start periodic shared contacts refresh (fallback mechanism)
+                this.initializePeriodicSharedContactsRefresh();
             } else {
                 this.showAuthError('Authentication failed - invalid user data');
             }
@@ -1261,6 +1275,9 @@ export class ContactUIController {
             if (!this.currentUser) {
                 return;
             }
+
+            // ⭐ Stop periodic shared contacts refresh
+            this.stopPeriodicSharedContactsRefresh();
 
             // Show loading state
             this.showToast({ message: 'Signing out...', type: 'info' });
@@ -1332,6 +1349,9 @@ export class ContactUIController {
      * Handle signed out event
      */
     handleSignedOut(data) {
+        // ⭐ Stop periodic shared contacts refresh
+        this.stopPeriodicSharedContactsRefresh();
+        
         // Clear user state
         this.currentUser = null;
         
@@ -1741,20 +1761,46 @@ export class ContactUIController {
      * Handle contact updates
      */
     handleContactUpdated(data) {
-        // ✅ ALWAYS refresh the contact list to show updated info in "All Contacts" column
-        // Add a small delay to ensure the contact cache is fully updated
-        // This is especially important for shared contacts where metadata updates
-        // happen asynchronously
-        setTimeout(() => {
+        const contactId = data.contact.contactId;
+        
+        // Debounce contact list refresh to avoid rapid-fire updates during bulk sharing
+        // Clear any pending list refresh for this contact
+        if (this.pendingContactUpdates.has(contactId)) {
+            clearTimeout(this.pendingContactUpdates.get(contactId));
+        }
+        
+        // Schedule a new list refresh with debounce
+        const listRefreshTimeout = setTimeout(() => {
             this.performSearch();
-        }, 10);
+            this.pendingContactUpdates.delete(contactId);
+        }, 100); // 100ms debounce - allows multiple shares to complete
+        
+        this.pendingContactUpdates.set(contactId, listRefreshTimeout);
         
         this.hideContactModal();
         
-        if (this.selectedContactId === data.contact.contactId) {
-            // Use the updated contact from the event data directly
-            // The event is emitted AFTER the cache is updated, so this is the freshest data
-            this.displayContactDetail(data.contact);
+        // CRITICAL: Only update detail view if this is THE CURRENTLY SELECTED contact
+        // Use debouncing to prevent flickering during rapid updates (e.g., sharing with multiple users)
+        if (this.selectedContactId === contactId) {
+            // Debounce detail view refresh to avoid flickering
+            if (this.pendingDetailRefresh) {
+                clearTimeout(this.pendingDetailRefresh);
+            }
+            
+            this.pendingDetailRefresh = setTimeout(() => {
+                // CRITICAL FIX: Always fetch fresh contact data from cache to ensure latest sharing info
+                // This prevents stale data from being displayed after sharing operations
+                const freshContact = this.contactManager.getContact(contactId);
+                if (freshContact) {
+                    console.log(`🔄 Refreshing contact detail for "${freshContact.cardName}" with ${freshContact.metadata?.sharing?.sharedWithUsers?.length || 0} shared users`);
+                    this.displayContactDetail(freshContact);
+                } else {
+                    // Fallback to event data if contact not found in cache
+                    console.warn('⚠️ Contact not found in cache, using event data');
+                    this.displayContactDetail(data.contact);
+                }
+                this.pendingDetailRefresh = null;
+            }, 150); // 150ms debounce - wait for all shares to complete
         }
     }
 
@@ -3069,6 +3115,88 @@ export class ContactUIController {
         this.selectedContactId = null;
     }
 
+    // ========== PERIODIC SHARED CONTACTS REFRESH ==========
+
+    /**
+     * Initialize periodic refresh of shared contacts (fallback for missed updates)
+     * This is a safety net for network issues, missed real-time events, or UI state issues
+     */
+    initializePeriodicSharedContactsRefresh() {
+        // Clear any existing interval first
+        this.stopPeriodicSharedContactsRefresh();
+        
+        this.sharedContactsRefreshInterval = setInterval(() => {
+            this.refreshSharedContactsFromUserbase();
+        }, this.config.sharedContactsRefreshInterval);
+        
+        const intervalMinutes = this.config.sharedContactsRefreshInterval / 60000;
+        console.log(`🔄 Periodic shared contacts refresh initialized (every ${intervalMinutes} minutes)`);
+    }
+
+    /**
+     * Refresh shared contacts from Userbase (fallback mechanism)
+     * Only refreshes shared contacts (isOwned: false) to avoid conflicts
+     */
+    async refreshSharedContactsFromUserbase() {
+        // Only refresh if user is authenticated
+        if (!this.currentUser) {
+            return;
+        }
+        
+        try {
+            console.log('🔄 Periodic shared contacts refresh starting...');
+            
+            // Get all contacts and filter for shared ones
+            const allContacts = this.contactManager.getAllContacts();
+            const sharedContacts = allContacts.filter(contact => 
+                contact.metadata && !contact.metadata.isOwned && !contact.metadata.isDeleted
+            );
+            
+            if (sharedContacts.length === 0) {
+                console.log('ℹ️ No shared contacts to refresh');
+                return;
+            }
+            
+            console.log(`🔄 Checking ${sharedContacts.length} shared contacts for updates...`);
+            
+            // Trigger a full contacts reload from database
+            // This will pick up any updates from Userbase real-time sync
+            await this.contactManager.loadContacts();
+            
+            console.log(`✅ Shared contacts refresh complete (${sharedContacts.length} contacts checked)`);
+            
+            // If currently viewing a shared contact, refresh the detail view
+            if (this.selectedContactId) {
+                const currentContact = this.contactManager.getContact(this.selectedContactId);
+                if (currentContact && currentContact.metadata && !currentContact.metadata.isOwned) {
+                    console.log('🔄 Refreshing currently viewed shared contact detail');
+                    this.displayContactDetail(currentContact);
+                }
+            }
+            
+            // Refresh the contact list view if we're on the main contacts view
+            if (this.currentView === 'contacts') {
+                this.performSearch();
+            }
+            
+        } catch (error) {
+            // Log errors to console - this is a background operation but we want to see errors
+            console.error('⚠️ Periodic shared contacts refresh failed:', error);
+            // Don't show error toast - this is a silent background operation
+        }
+    }
+
+    /**
+     * Stop periodic refresh (called on sign out)
+     */
+    stopPeriodicSharedContactsRefresh() {
+        if (this.sharedContactsRefreshInterval) {
+            clearInterval(this.sharedContactsRefreshInterval);
+            this.sharedContactsRefreshInterval = null;
+            console.log('🛑 Periodic shared contacts refresh stopped');
+        }
+    }
+
     /**
      * Clear distribution lists UI - called during logout
      */
@@ -3395,6 +3523,18 @@ export class ContactUIController {
         switch (state) {
             case 'form':
                 if (formContainer) formContainer.style.display = 'block';
+                
+                // Clear any previous success/error details to prevent stale data
+                const successDetailsElement = document.getElementById('share-success-details');
+                const errorDetailsElement = document.getElementById('share-error-details');
+                if (successDetailsElement) {
+                    successDetailsElement.textContent = '';
+                    successDetailsElement.style.display = 'none';
+                }
+                if (errorDetailsElement) {
+                    errorDetailsElement.textContent = '';
+                    errorDetailsElement.style.display = 'none';
+                }
                 break;
             case 'loading':
                 if (loadingContainer) loadingContainer.style.display = 'block';
@@ -3410,9 +3550,13 @@ export class ContactUIController {
                     
                     if (titleElement) titleElement.textContent = messageData.title || 'Contact Shared Successfully!';
                     if (messageElement) messageElement.textContent = messageData.message || 'The contact has been shared.';
-                    if (detailsElement && messageData.details) {
-                        detailsElement.textContent = messageData.details;
-                        detailsElement.style.display = 'block';
+                    if (detailsElement) {
+                        if (messageData.details) {
+                            detailsElement.textContent = messageData.details;
+                            detailsElement.style.display = 'block';
+                        } else {
+                            detailsElement.style.display = 'none';
+                        }
                     }
                 }
                 break;
@@ -3826,11 +3970,14 @@ export class ContactUIController {
                     );
                     
                     if (result.success) {
-                        successCount++;
-                        results.push({ username, success: true });
-                    } else if (result.error && result.error.includes('already shared')) {
-                        alreadySharedCount++;
-                        results.push({ username, success: true, alreadyShared: true });
+                        // Check if this was an update to existing share (action='updated' or 'reshared')
+                        if (result.action === 'updated' || result.action === 'reshared') {
+                            alreadySharedCount++;
+                            results.push({ username, success: true, alreadyShared: true });
+                        } else {
+                            successCount++;
+                            results.push({ username, success: true });
+                        }
                     } else {
                         errorCount++;
                         results.push({ username, success: false, error: result.error });
@@ -3847,17 +3994,27 @@ export class ContactUIController {
             if (totalProcessed > 0 && errorCount === 0) {
                 // Complete success
                 let message = '';
+                let details = '';
+                
+                // Get successful and already shared usernames
+                const successfulUsers = results.filter(r => r.success && !r.alreadyShared).map(r => r.username);
+                const alreadySharedUsers = results.filter(r => r.alreadyShared).map(r => r.username);
+                
                 if (successCount > 0 && alreadySharedCount > 0) {
-                    message = `Successfully shared with ${successCount} new users. ${alreadySharedCount} users already had access.`;
+                    message = `Successfully shared with ${successCount} new user${successCount > 1 ? 's' : ''}. ${alreadySharedCount} user${alreadySharedCount > 1 ? 's' : ''} already had access.`;
+                    details = `✅ Shared with: ${successfulUsers.join(', ')}\nℹ️ Already had access: ${alreadySharedUsers.join(', ')}`;
                 } else if (successCount > 0) {
                     message = `Successfully shared with ${successCount} user${successCount > 1 ? 's' : ''}.`;
+                    details = `✅ Shared with: ${successfulUsers.join(', ')}`;
                 } else {
-                    message = `All ${alreadySharedCount} users already had access.`;
+                    message = `All ${alreadySharedCount} user${alreadySharedCount > 1 ? 's' : ''} already had access.`;
+                    details = `ℹ️ Already had access: ${alreadySharedUsers.join(', ')}`;
                 }
                 
                 this.setShareModalState('success', {
                     title: 'Sharing Complete',
-                    message: message
+                    message: message,
+                    details: details
                 });
                 
                 // Refresh contacts list
@@ -7378,6 +7535,10 @@ export class ContactUIController {
                 throw new Error(result.error || 'Failed to revoke database access');
             }
 
+            // 🔧 RACE CONDITION FIX: Wait for database deletion to fully complete before updating metadata
+            // This prevents ItemUpdateConflict errors when deletion and update happen simultaneously
+            await new Promise(resolve => setTimeout(resolve, 150));
+
             // 🔧 CRITICAL FIX: Get fresh contact data after database operation
             contact = this.contactManager.getContact(contactId);
             sharing = contact.metadata.sharing;
@@ -7405,17 +7566,39 @@ export class ContactUIController {
                 revokedBy: this.currentUser?.username || 'unknown'
             });
 
-            // Save updated contact metadata using ContactManager
-            const updateResult = await this.contactManager.updateContactMetadata(contactId, {
-                metadata: {
-                    sharing: updatedSharing,
-                    revokedFrom: revokedFrom,
-                    lastUpdated: new Date().toISOString()
+            // Save updated contact metadata using ContactManager (with retry on conflict)
+            let updateResult = null;
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (retryCount <= maxRetries) {
+                try {
+                    updateResult = await this.contactManager.updateContactMetadata(contactId, {
+                        metadata: {
+                            sharing: updatedSharing,
+                            revokedFrom: revokedFrom,
+                            lastUpdated: new Date().toISOString()
+                        }
+                    });
+                    
+                    if (updateResult.success) {
+                        break;
+                    }
+                    
+                    throw new Error(updateResult.error);
+                    
+                } catch (updateError) {
+                    if (updateError.message?.includes('conflict') && retryCount < maxRetries) {
+                        const delay = Math.pow(2, retryCount) * 100;
+                        console.warn(`⚠️ Metadata update conflict, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        retryCount++;
+                        continue;
+                    }
+                    
+                    console.warn('⚠️ Database access revoked but metadata update failed:', updateError.message);
+                    break;
                 }
-            });
-
-            if (!updateResult.success) {
-                console.warn('⚠️ Database access revoked but metadata update failed:', updateResult.error);
             }
 
             return {

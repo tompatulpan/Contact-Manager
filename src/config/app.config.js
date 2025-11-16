@@ -178,6 +178,7 @@ export const PERFORMANCE_CONFIG = {
     autoSaveInterval: 30000, // 30 seconds
     maintenanceInterval: 300000, // 5 minutes
     statisticsUpdateInterval: 60000, // 1 minute
+    sharedContactsRefreshInterval: 300000, // 5 minutes - fallback refresh for shared contacts
     
     // Memory management
     maxMemoryUsage: 100, // MB
