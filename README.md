@@ -92,6 +92,7 @@ npm run serve                               # Start contact manager (port 8080)
 - [ ] Set passwords rules
 - [x] Dark mode
 - [ ] Pictures as avatars
+- [x] Complete disaster recovery system via vCards
 
 ### Ideas
 - [ ] A Progressive Web App (PWA)

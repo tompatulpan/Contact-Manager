@@ -59,12 +59,30 @@ class ContactManagementApp {
 
             // Start the system
             await this.startBackgroundServices();
+            
+            // Expose modules for testing/debugging
+            this.exposeForTesting();
 
         } catch (error) {
             console.error('❌ Failed to initialize Contact Management System:', error);
             this.showErrorState(error);
             throw error;
         }
+    }
+    
+    /**
+     * Expose modules for testing and debugging in browser console
+     */
+    exposeForTesting() {
+        // Make ContactManager available globally for console testing
+        window.contactManager = this.modules.contactManager;
+        window.baikalConnector = this.modules.baikalConnector;
+        window.database = this.modules.database;
+        
+        console.log('🧪 Debug helpers available:');
+        console.log('  - window.contactManager.recoverFromDatabaseCorruption(profileName)');
+        console.log('  - window.baikalConnector.testSync(profileName)');
+        console.log('  - window.database.getAllSharedContactDatabases()');
     }
 
     /**

@@ -106,6 +106,16 @@ export class VCardStandard {
     }
 
     /**
+     * Extract sharing metadata from vCard CATEGORIES field
+     * Used for disaster recovery - restores sharing relationships from backup
+     * @param {string} vcard - vCard content
+     * @returns {Array} Array of usernames this contact is shared with
+     */
+    extractSharingFromVCard(vcard) {
+        return this.formatManager.vCard3Processor.extractSharingFromVCard(vcard);
+    }
+
+    /**
      * Filter out photos from vCard for privacy/performance
      * Useful when syncing to external services
      */

@@ -174,11 +174,13 @@ export const PERFORMANCE_CONFIG = {
     vCardParseCache: 500,
     imageCacheSize: 100,
     
-    // Background tasks
-    autoSaveInterval: 30000, // 30 seconds
-    maintenanceInterval: 300000, // 5 minutes
-    statisticsUpdateInterval: 60000, // 1 minute
-    sharedContactsRefreshInterval: 300000, // 5 minutes - fallback refresh for shared contacts
+    // Background tasks - automated maintenance and synchronization
+    autoSaveInterval: 30000, // 30 seconds - Auto-save pending changes to prevent data loss
+    maintenanceInterval: 300000, // 5 minutes - Database cleanup, cache optimization, expired data removal
+    statisticsUpdateInterval: 60000, // 1 minute - Update contact counts, activity stats, UI metrics
+    sharedContactsRefreshInterval: 300000, // 5 minutes - Force-refresh shared contacts from Userbase to maintain ecosystem integrity
+    sharingValidationInterval: 300000, // 5 minutes - Validate sharing relationships, repair broken shares, detect permission issues
+    sharingValidationOffset: 150000, // 2.5 minutes - Offset from shared contacts refresh to distribute load (runs at different times)
     
     // Memory management
     maxMemoryUsage: 100, // MB

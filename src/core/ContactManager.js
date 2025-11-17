@@ -1578,6 +1578,41 @@ export class ContactManager {
                 contact.contactId = this.vCardStandard.generateUID();
             }
             
+            // 🛡️ DISASTER RECOVERY: Extract sharing metadata from CATEGORIES field
+            // 🔒 SECURITY: Only restore sharing if user OWNS the contact (isOwned: true)
+            let sharedWithUsers = [];
+            try {
+                sharedWithUsers = this.vCardStandard.extractSharingFromVCard(vCardString);
+                if (sharedWithUsers.length > 0) {
+                    console.log(`🛡️ Found sharing metadata in vCard CATEGORIES: ${sharedWithUsers.join(', ')}`);
+                    
+                    // 🔒 SECURITY CHECK: Only allow sharing restoration for OWNED contacts
+                    // This includes both created contacts and imported files you own
+                    // Prevents recipients from re-sharing contacts they received from others
+                    const isOwned = contact.metadata?.isOwned !== false; // Default to true if not set
+                    
+                    if (isOwned) {
+                        // User OWNS this contact - allow sharing restoration
+                        console.log(`✅ Contact is OWNED by user - sharing restoration allowed`);
+                        contact.metadata = contact.metadata || {};
+                        contact.metadata.sharing = {
+                            isShared: true,
+                            sharedWithUsers: sharedWithUsers,
+                            shareCount: sharedWithUsers.length,
+                            restoredFromBackup: true,
+                            restoredAt: new Date().toISOString()
+                        };
+                    } else {
+                        // User received this contact from someone else - DO NOT restore sharing
+                        console.log(`🔒 Security: Contact is SHARED from others - ignoring CATEGORIES sharing metadata`);
+                        sharedWithUsers = []; // Clear to prevent restoration below
+                    }
+                }
+            } catch (sharingError) {
+                console.warn('⚠️ Failed to extract sharing metadata from vCard:', sharingError.message);
+                // Continue with import even if sharing extraction fails
+            }
+            
             // Check for duplicates before saving
             const similarContacts = this.findSimilarContacts(contact);
             
@@ -1608,9 +1643,52 @@ export class ContactManager {
                 // handle it to ensure itemId is properly set by Userbase
                 // The database change handler will receive the contact with proper itemId
                 
+                // 🛡️ DISASTER RECOVERY: Restore sharing relationships if found in CATEGORIES
+                if (sharedWithUsers.length > 0) {
+                    console.log(`🛡️ Restoring sharing relationships for ${sharedWithUsers.length} users...`);
+                    console.log(`🔍 Contact state before sharing - contactId: ${contact.contactId}, has itemId: ${!!contact.itemId}`);
+                    
+                    // Wait longer for the contact to be fully saved and get itemId from Userbase
+                    // Database change handlers can take time to propagate
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Verify contact is in cache with itemId
+                    const cachedContact = this.contacts.get(contact.contactId);
+                    console.log(`🔍 Contact in cache after delay - found: ${!!cachedContact}, has itemId: ${!!cachedContact?.itemId}`);
+                    
+                    for (const username of sharedWithUsers) {
+                        try {
+                            console.log(`🛡️ Restoring share with user: ${username}`);
+                            const shareResult = await this.shareContact(
+                                contact.contactId,
+                                username,
+                                true,  // readOnly
+                                false  // resharingAllowed
+                            );
+                            
+                            if (shareResult.success) {
+                                console.log(`✅ Successfully restored sharing with ${username}`);
+                            } else {
+                                console.warn(`⚠️ Failed to restore sharing with ${username}:`, shareResult.error);
+                            }
+                        } catch (shareError) {
+                            console.error(`❌ Error restoring sharing with ${username}:`, shareError.message);
+                        }
+                    }
+                }
+                
                 this.clearSearchCache();
-                this.eventBus.emit('contact:imported', { contact });
-                return { ...saveResult, contact }; // Include contact in success result
+                this.eventBus.emit('contact:imported', { 
+                    contact,
+                    sharingRestored: sharedWithUsers.length > 0,
+                    sharedWithUsers: sharedWithUsers
+                });
+                return { 
+                    ...saveResult, 
+                    contact,
+                    sharingRestored: sharedWithUsers.length > 0,
+                    sharedWithUsers: sharedWithUsers
+                };
             }
 
             return saveResult;
@@ -3394,9 +3472,40 @@ export class ContactManager {
                         revokedCount++;
                         console.log(`✅ Successfully revoked access to "${contact.cardName}" from "${username}"`);
                         
-                        // Emit contact:updated so UI refreshes with updated sharing info
+                        // Update contact metadata to remove user from sharedWithUsers
                         const updatedContact = this.contacts.get(contact.contactId);
                         if (updatedContact) {
+                            const currentSharedUsers = updatedContact.metadata?.sharing?.sharedWithUsers || [];
+                            const remainingUsers = currentSharedUsers.filter(u => u !== username);
+                            
+                            updatedContact.metadata = {
+                                ...updatedContact.metadata,
+                                sharing: {
+                                    ...updatedContact.metadata.sharing,
+                                    sharedWithUsers: remainingUsers,
+                                    shareCount: remainingUsers.length,
+                                    isShared: remainingUsers.length > 0
+                                }
+                            };
+                            
+                            // 🛡️ DISASTER RECOVERY: Regenerate vCard with updated sharing metadata
+                            try {
+                                // Extract display data from existing vCard to preserve all fields
+                                const displayData = this.vCardStandard.formatManager.vCard3Processor.extractDisplayData(updatedContact);
+                                // Add updated metadata for CATEGORIES generation
+                                displayData.metadata = updatedContact.metadata;
+                                // Regenerate vCard with sharing metadata
+                                const updatedVCard = this.vCardStandard.generateVCard(displayData);
+                                updatedContact.vcard = updatedVCard;
+                                console.log('🛡️ Regenerated vCard after revocation for disaster recovery');
+                            } catch (vCardError) {
+                                console.warn('⚠️ Failed to regenerate vCard after revocation:', vCardError.message);
+                            }
+                            
+                            // Save updated contact
+                            await this.database.updateContact(updatedContact);
+                            this.contacts.set(contact.contactId, updatedContact);
+                            
                             this.eventBus.emit('contact:updated', { 
                                 contact: updatedContact,
                                 reason: 'access-revoked'
@@ -3566,7 +3675,51 @@ export class ContactManager {
                         needsContactData = true;
                         console.log('⚠️ Shared database exists but is empty - will populate with contact data');
                     } else {
-                        console.log('✅ Shared database contains contact data - updating permissions only');
+                        console.log('✅ Shared database contains contact data - checking user access...');
+                        
+                        // Even if contact data exists, verify user has access
+                        try {
+                            await window.userbase.shareDatabase({
+                                databaseName: sharedDbName,
+                                username: username.trim(),
+                                readOnly: readOnly,
+                                resharingAllowed: resharingAllowed,
+                                requireVerified: false
+                            });
+                            console.log('✅ User access verified/granted');
+                        } catch (shareError) {
+                            // User doesn't have access - account was recreated
+                            console.error('⚠️ User cannot access database:', shareError.message);
+                            console.log('🔄 ACCOUNT RECREATION DETECTED - forcing fresh share...');
+                            
+                            // Remove from metadata and force fresh share
+                            const cleanedSharedUsers = currentSharedUsers.filter(u => u !== username);
+                            const cleanedContact = {
+                                ...contact,
+                                metadata: {
+                                    ...contact.metadata,
+                                    sharing: {
+                                        ...contact.metadata.sharing,
+                                        sharedWithUsers: cleanedSharedUsers,
+                                        shareCount: cleanedSharedUsers.length
+                                    }
+                                }
+                            };
+                            await this.updateContact(contactId, cleanedContact);
+                            this.contacts.set(contactId, cleanedContact);
+                            
+                            // Delete old database
+                            try {
+                                await window.userbase.deleteDatabase({ databaseName: sharedDbName });
+                                console.log('✅ Deleted old sharing database');
+                            } catch (deleteError) {
+                                console.warn('⚠️ Could not delete old database:', deleteError.message);
+                            }
+                            
+                            // Recursively call to create fresh share
+                            console.log('🔄 Creating fresh share...');
+                            return await this.shareContact(contactId, username, readOnly, resharingAllowed);
+                        }
                     }
                 } catch (error) {
                     needsContactData = true;
@@ -3584,14 +3737,94 @@ export class ContactManager {
                             item: contact
                         });
                         console.log('✅ Contact data inserted into previously empty shared database');
+                        
+                        // CRITICAL: Grant access to the user
+                        console.log('🔐 Granting database access to user:', username);
+                        try {
+                            await window.userbase.shareDatabase({
+                                databaseName: sharedDbName,
+                                username: username.trim(),
+                                readOnly: readOnly,
+                                resharingAllowed: resharingAllowed,
+                                requireVerified: false  // Allow sharing with unverified users
+                            });
+                            console.log('✅ Database access granted to user:', username);
+                        } catch (shareError) {
+                            // User account was recreated - old database is tied to old user ID
+                            // Need to delete old database and create fresh share
+                            console.error('⚠️ Cannot grant access to existing database:', shareError.message);
+                            console.log('🔄 ACCOUNT RECREATION DETECTED - Cleaning up and forcing fresh share...');
+                            
+                            // Step 1: Remove user from metadata to bypass "already shared" check
+                            const cleanedSharedUsers = currentSharedUsers.filter(u => u !== username);
+                            const cleanedContact = {
+                                ...contact,
+                                metadata: {
+                                    ...contact.metadata,
+                                    sharing: {
+                                        ...contact.metadata.sharing,
+                                        sharedWithUsers: cleanedSharedUsers,
+                                        shareCount: cleanedSharedUsers.length
+                                    }
+                                }
+                            };
+                            await this.updateContact(contactId, cleanedContact);
+                            this.contacts.set(contactId, cleanedContact);
+                            
+                            // Step 2: Delete the old database
+                            try {
+                                await window.userbase.deleteDatabase({
+                                    databaseName: sharedDbName
+                                });
+                                console.log('✅ Deleted old sharing database');
+                            } catch (deleteError) {
+                                console.warn('⚠️ Could not delete old database (may not exist):', deleteError.message);
+                            }
+                            
+                            // Step 3: Recursively call shareContact to create fresh share
+                            console.log('🔄 Creating fresh share with recreated user account...');
+                            return await this.shareContact(contactId, username, readOnly, resharingAllowed);
+                        }
+                        
                     } catch (insertError) {
                         if (insertError.message.includes('Item with the same id already exists')) {
                             console.log('ℹ️ Contact already exists in shared database - proceeding with permission update');
                         } else {
-                            console.error('❌ Failed to insert contact into empty shared database:', insertError.message);
+                            console.error('❌ Failed to populate shared database:', insertError.message);
                         }
                         // Continue with permission update even if insert fails
                     }
+                }
+                
+                // Update permissions and return (normal "already shared" path)
+                const contactWithUpdatedPermissions = {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        sharing: {
+                            ...contact.metadata.sharing,
+                            sharePermissions: {
+                                ...contact.metadata.sharing?.sharePermissions,
+                                [username]: {
+                                    ...contact.metadata.sharing?.sharePermissions?.[username],
+                                    level: readOnly ? 'readOnly' : 'write',
+                                    lastUpdated: new Date().toISOString(),
+                                    canReshare: resharingAllowed
+                                }
+                            }
+                        }
+                        // ⚠️ IMPORTANT: DO NOT update contact's lastUpdated when only changing sharing permissions
+                    }
+                };
+                
+                await this.updateContact(contactId, contactWithUpdatedPermissions);
+                
+                return {
+                    success: true,
+                    message: needsContactData ? 
+                        `Re-shared and updated permissions for ${username}` : 
+                        `Permissions updated for ${username}`,
+                    action: needsContactData ? 'reshared' : 'updated'
                 }
                 
                 // Update permissions
@@ -3675,6 +3908,22 @@ export class ContactManager {
                         // lastUpdated should only be updated when the contact data (name, phone, email, etc.) changes
                     }
                 };
+                
+                // 🛡️ DISASTER RECOVERY: Regenerate vCard with updated sharing metadata
+                // This ensures CATEGORIES field includes current shared users for CardDAV backup
+                try {
+                    // Extract display data from existing vCard to preserve all fields
+                    const displayData = this.vCardStandard.formatManager.vCard3Processor.extractDisplayData(updatedContact);
+                    // Add updated metadata for CATEGORIES generation
+                    displayData.metadata = updatedContact.metadata;
+                    // Regenerate vCard with sharing metadata
+                    const updatedVCard = this.vCardStandard.generateVCard(displayData);
+                    updatedContact.vcard = updatedVCard;
+                    console.log('🛡️ Regenerated vCard with sharing metadata for disaster recovery');
+                } catch (vCardError) {
+                    console.warn('⚠️ Failed to regenerate vCard with sharing metadata:', vCardError.message);
+                    // Continue anyway - metadata is still updated
+                }
                 
                 // 🎯 OPTIMIZE: Trim metadata before saving to avoid 10KB limit
                 const optimizedContact = await this.database.optimizeContactForStorage(updatedContact);
@@ -4043,5 +4292,165 @@ export class ContactManager {
     sanitizeContactId(contactId) {
         // Remove 'contact_' prefix to avoid double naming
         return contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+    }
+
+    /**
+     * Recover from database corruption using CardDAV backup
+     * Restores contacts AND sharing relationships from vCard metadata
+     * @param {string} profileName - CardDAV profile name (default: 'default')
+     * @returns {Promise<Object>} Recovery result with statistics
+     */
+    async recoverFromDatabaseCorruption(profileName = 'default') {
+        try {
+            console.log('🆘 Starting database corruption recovery...');
+            
+            // Step 1: Check if BaikalConnector is available
+            if (!this.baikalConnector || !this.baikalConnector.isConnected) {
+                return {
+                    success: false,
+                    error: 'CardDAV not connected - cannot recover contacts',
+                    recommendation: 'Connect to CardDAV server in settings to enable recovery'
+                };
+            }
+            
+            // Step 2: Pull all contacts from Baikal server
+            console.log('📥 Pulling contacts from CardDAV backup...');
+            const syncResult = await this.baikalConnector.testSync(profileName);
+            
+            if (!syncResult.success || !syncResult.contacts?.length) {
+                return {
+                    success: false,
+                    error: 'No contacts found on CardDAV server',
+                    recommendation: 'Database may be permanently lost if no backup exists'
+                };
+            }
+            
+            console.log(`📊 Found ${syncResult.contacts.length} contacts on CardDAV backup`);
+            
+            // Step 3: Recreate contacts in Userbase with sharing metadata
+            let recoveredCount = 0;
+            let sharingRestoredCount = 0;
+            const sharingRestoreLog = [];
+            
+            for (const serverContact of syncResult.contacts) {
+                try {
+                    // Extract sharing metadata from vCard CATEGORIES
+                    const sharedUsers = this.vCardStandard.extractSharingFromVCard(serverContact.vcard);
+                    
+                    // Generate new contactId (database corrupted, old IDs lost)
+                    const contactId = this.vCardStandard.generateUID();
+                    const cardName = this.extractNameFromVCard(serverContact.vcard) || 'Unnamed Contact';
+                    
+                    console.log(`🔄 Recovering: ${cardName}${sharedUsers.length > 0 ? ` (shared with ${sharedUsers.length} users)` : ''}`);
+                    
+                    // Recreate contact with sharing metadata
+                    const contact = {
+                        contactId: contactId,
+                        itemId: contactId, // Ensure itemId is set
+                        cardName: cardName,
+                        vcard: serverContact.vcard,
+                        metadata: {
+                            createdAt: new Date().toISOString(),
+                            lastUpdated: new Date().toISOString(),
+                            isOwned: true,
+                            isImported: true, // Mark as imported from backup
+                            sharing: {
+                                isShared: sharedUsers.length > 0,
+                                sharedWithUsers: sharedUsers,
+                                shareCount: sharedUsers.length,
+                                sharePermissions: {}
+                            },
+                            cardDAV: {
+                                etag: serverContact.etag,
+                                href: serverContact.href,
+                                lastSyncedAt: new Date().toISOString()
+                            }
+                        }
+                    };
+                    
+                    // Save to database
+                    const saveResult = await this.database.saveContact(contact);
+                    if (saveResult.success) {
+                        recoveredCount++;
+                        console.log(`✅ Recovered: ${cardName}`);
+                        
+                        // Update local cache
+                        this.contacts.set(contactId, contact);
+                        
+                        // Step 4: Recreate individual sharing databases
+                        if (sharedUsers.length > 0) {
+                            console.log(`🔄 Restoring ${sharedUsers.length} sharing relationships...`);
+                            
+                            for (const username of sharedUsers) {
+                                try {
+                                    // Use individual sharing strategy to recreate databases
+                                    const shareResult = await this.shareContact(
+                                        contactId, 
+                                        username, 
+                                        true, // readOnly
+                                        false // resharingAllowed
+                                    );
+                                    
+                                    if (shareResult.success) {
+                                        sharingRestoredCount++;
+                                        console.log(`   ✅ Restored sharing with: ${username}`);
+                                        sharingRestoreLog.push({
+                                            contact: cardName,
+                                            username: username,
+                                            status: 'success'
+                                        });
+                                    } else {
+                                        console.warn(`   ⚠️ Could not restore sharing with ${username}:`, shareResult.error);
+                                        sharingRestoreLog.push({
+                                            contact: cardName,
+                                            username: username,
+                                            status: 'failed',
+                                            error: shareResult.error
+                                        });
+                                    }
+                                } catch (shareError) {
+                                    console.error(`   ❌ Error restoring sharing with ${username}:`, shareError);
+                                    sharingRestoreLog.push({
+                                        contact: cardName,
+                                        username: username,
+                                        status: 'error',
+                                        error: shareError.message
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    
+                } catch (contactError) {
+                    console.error('❌ Failed to recover contact:', contactError);
+                }
+            }
+            
+            console.log('');
+            console.log('✅ RECOVERY COMPLETE:');
+            console.log(`   📊 Contacts recovered: ${recoveredCount}/${syncResult.contacts.length}`);
+            console.log(`   👥 Sharing relationships restored: ${sharingRestoredCount}`);
+            
+            // Emit event for UI notification
+            this.eventBus.emit('database:recovered', {
+                recoveredContacts: recoveredCount,
+                sharingRestored: sharingRestoredCount
+            });
+            
+            return {
+                success: true,
+                recoveredContacts: recoveredCount,
+                sharingRestored: sharingRestoredCount,
+                totalContacts: syncResult.contacts.length,
+                sharingRestoreLog: sharingRestoreLog
+            };
+            
+        } catch (error) {
+            console.error('❌ Database recovery failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 }

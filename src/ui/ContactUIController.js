@@ -3131,6 +3131,23 @@ export class ContactUIController {
         
         const intervalMinutes = this.config.sharedContactsRefreshInterval / 60000;
         console.log(`🔄 Periodic shared contacts refresh initialized (every ${intervalMinutes} minutes)`);
+        
+        // Also initialize periodic validation of outgoing shares (with offset from config)
+        const validationInterval = this.config.sharingValidationInterval || this.config.sharedContactsRefreshInterval;
+        const validationOffset = this.config.sharingValidationOffset || (this.config.sharedContactsRefreshInterval / 2);
+        
+        setTimeout(() => {
+            this.sharingValidationInterval = setInterval(() => {
+                this.validateOutgoingShares();
+            }, validationInterval);
+            
+            // Run first validation immediately after offset
+            this.validateOutgoingShares();
+        }, validationOffset);
+        
+        const validationMinutes = validationInterval / 60000;
+        const offsetMinutes = validationOffset / 60000;
+        console.log(`🔍 Periodic sharing validation initialized (every ${validationMinutes} minutes, ${offsetMinutes}min offset)`);
     }
 
     /**
@@ -3194,6 +3211,132 @@ export class ContactUIController {
             clearInterval(this.sharedContactsRefreshInterval);
             this.sharedContactsRefreshInterval = null;
             console.log('🛑 Periodic shared contacts refresh stopped');
+        }
+        if (this.sharingValidationInterval) {
+            clearInterval(this.sharingValidationInterval);
+            this.sharingValidationInterval = null;
+            console.log('🛑 Periodic sharing validation stopped');
+        }
+    }
+
+    /**
+     * Validate and repair outgoing shares (detects recreated user accounts)
+     * Runs every 5 minutes with 2.5 minute offset from shared contacts refresh
+     */
+    async validateOutgoingShares() {
+        // Only validate if user is authenticated
+        if (!this.currentUser) {
+            return;
+        }
+        
+        try {
+            console.log('🔍 Validating outgoing shares for broken relationships...');
+            
+            // Get all owned contacts with sharing
+            const allContacts = this.contactManager.getAllContacts();
+            const sharedContacts = allContacts.filter(contact => 
+                contact.metadata?.isOwned && 
+                contact.metadata?.sharing?.sharedWithUsers?.length > 0 &&
+                !contact.metadata?.isDeleted
+            );
+            
+            if (sharedContacts.length === 0) {
+                console.log('ℹ️ No outgoing shares to validate');
+                return;
+            }
+            
+            console.log(`🔍 Validating ${sharedContacts.length} contacts with outgoing shares...`);
+            
+            let repairedCount = 0;
+            let errorCount = 0;
+            
+            for (const contact of sharedContacts) {
+                const sharedWithUsers = contact.metadata.sharing.sharedWithUsers;
+                
+                for (const username of sharedWithUsers) {
+                    try {
+                        // Check if shared database is accessible
+                        const cleanContactId = this.contactManager.sanitizeContactId(contact.contactId);
+                        const sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
+                        
+                        console.log(`🔍 Checking share: "${contact.cardName}" → ${username} (${sharedDbName})`);
+                        
+                        // Check if user actually has access to the database
+                        const allDatabases = await window.userbase.getDatabases();
+                        const targetDb = allDatabases.databases.find(db => db.databaseName === sharedDbName);
+                        
+                        if (!targetDb) {
+                            console.log(`   ⚠️ Database not found - will create fresh share`);
+                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            repairedCount++;
+                            continue;
+                        }
+                        
+                        // Check if user has access (look for the username in database users)
+                        const hasUserAccess = targetDb.users?.some(u => u.username === username);
+                        
+                        if (!hasUserAccess) {
+                            console.log(`   ⚠️ User "${username}" has NO ACCESS to database - repairing...`);
+                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            repairedCount++;
+                            continue;
+                        }
+                        
+                        // Try to open and check database content
+                        const dbItems = await new Promise((resolve, reject) => {
+                            window.userbase.openDatabase({
+                                databaseName: sharedDbName,
+                                changeHandler: (items) => resolve(items)
+                            }).catch(reject);
+                        });
+                        
+                        console.log(`   Database opened, ${dbItems?.length || 0} items found, user has access: ${hasUserAccess}`);
+                        
+                        // Check if contact exists in shared database
+                        const hasContact = dbItems?.some(item => 
+                            item.itemId === contact.contactId || 
+                            item.item?.contactId === contact.contactId
+                        );
+                        
+                        if (!hasContact) {
+                            console.log(`   ⚠️ Contact missing in database - repairing...`);
+                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            repairedCount++;
+                        } else {
+                            console.log(`   ✅ Share healthy (user has access, contact present)`);
+                        }
+                        
+                    } catch (error) {
+                        // Database access failed - likely recreated account or permission issue
+                        console.log(`🔧 Broken share detected: "${contact.cardName}" with ${username} - attempting repair...`);
+                        try {
+                            // Force re-share to fix broken relationship
+                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            repairedCount++;
+                            console.log(`✅ Repaired share: "${contact.cardName}" with ${username}`);
+                        } catch (repairError) {
+                            errorCount++;
+                            console.error(`❌ Failed to repair share with ${username}:`, repairError.message);
+                        }
+                    }
+                }
+            }
+            
+            if (repairedCount > 0) {
+                console.log(`✅ Sharing validation complete: ${repairedCount} shares repaired, ${errorCount} errors`);
+                // Refresh UI to show updated sharing status
+                if (this.selectedContactId) {
+                    const contact = this.contactManager.getContact(this.selectedContactId);
+                    if (contact) {
+                        this.displayContactDetail(contact);
+                    }
+                }
+            } else {
+                console.log(`✅ Sharing validation complete: All shares healthy`);
+            }
+            
+        } catch (error) {
+            console.error('⚠️ Periodic sharing validation failed:', error);
         }
     }
 
@@ -7233,8 +7376,44 @@ export class ContactUIController {
     async exportContacts(contacts, filename) {
         try {
             // Export as vCard 3.0 format (universal compatibility)
+            // 🛡️ DISASTER RECOVERY: Ensure CATEGORIES field is present for sharing backup
+            // 🔒 SECURITY: Strip CATEGORIES from SHARED contacts (received from others)
             const vCardContent = contacts
-                .map(contact => contact.vcard)
+                .map(contact => {
+                    const isOwned = contact.metadata?.isOwned !== false;
+                    const hasSharing = contact.metadata?.sharing?.sharedWithUsers?.length > 0;
+                    const hasCategories = contact.vcard.includes('CATEGORIES:');
+                    
+                    // 🔒 SECURITY: If NOT owner (shared from others), strip CATEGORIES
+                    // Note: We keep CATEGORIES for imported files (isOwned=true, isImported=true)
+                    // because the user owns them and may want to restore sharing later
+                    if (!isOwned) {
+                        console.log(`🔒 Stripping CATEGORIES from shared contact: ${contact.cardName}`);
+                        // Remove CATEGORIES line from vCard
+                        return contact.vcard
+                            .split('\n')
+                            .filter(line => !line.startsWith('CATEGORIES:'))
+                            .join('\n');
+                    }
+                    
+                    // Owner contact: Add CATEGORIES if missing
+                    if (hasSharing && !hasCategories) {
+                        console.log(`🔄 Regenerating vCard with CATEGORIES for ${contact.cardName || 'contact'}`);
+                        try {
+                            // Extract display data from existing vCard
+                            const displayData = this.contactManager.vCardStandard.formatManager.vCard3Processor.extractDisplayData(contact);
+                            // Add metadata for CATEGORIES generation
+                            displayData.metadata = contact.metadata;
+                            // Regenerate vCard with sharing metadata
+                            return this.contactManager.vCardStandard.generateVCard(displayData);
+                        } catch (regenError) {
+                            console.warn('⚠️ Failed to regenerate vCard, using original:', regenError.message);
+                            return contact.vcard;
+                        }
+                    }
+                    
+                    return contact.vcard;
+                })
                 .join('\n\n');
             
             // Create and download file

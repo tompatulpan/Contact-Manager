@@ -235,6 +235,16 @@ body.dark-mode .contact-field-value a {
     color: var(--primary-color);
 }
 
+/* Field values - match the lighter-dark background */
+body.dark-mode .field-value {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+body.dark-mode .field-value a {
+    color: var(--primary-color);
+}
+
 /* Forms and Inputs */
 body.dark-mode .form-group label {
     color: var(--text-primary);
