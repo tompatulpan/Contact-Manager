@@ -174,13 +174,41 @@ export const PERFORMANCE_CONFIG = {
     vCardParseCache: 500,
     imageCacheSize: 100,
     
-    // Background tasks - automated maintenance and synchronization
-    autoSaveInterval: 30000, // 30 seconds - Auto-save pending changes to prevent data loss
-    maintenanceInterval: 300000, // 5 minutes - Database cleanup, cache optimization, expired data removal
-    statisticsUpdateInterval: 60000, // 1 minute - Update contact counts, activity stats, UI metrics
-    sharedContactsRefreshInterval: 300000, // 5 minutes - Force-refresh shared contacts from Userbase to maintain ecosystem integrity
-    sharingValidationInterval: 300000, // 5 minutes - Validate sharing relationships, repair broken shares, detect permission issues
-    sharingValidationOffset: 150000, // 2.5 minutes - Offset from shared contacts refresh to distribute load (runs at different times)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // INTERVAL TIMING STRATEGY
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Order matters: Fast → Medium → Slow to prevent resource conflicts
+    // Staggered start times prevent startup storms
+    // Related operations grouped together for logical flow
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // HIGH-FREQUENCY: Real-time operations (< 1 minute)
+    // ───────────────────────────────────────────────────────────────────────────
+    sharedDatabaseCheckInterval: 10000, // 10 sec - Check for new shared databases from other users
+    sharedDatabaseCheckDelay: 15000, // 15 sec - Initial delay before monitoring starts (allow app initialization)
+    autoSaveInterval: 30000, // 30 sec - Auto-save pending changes to prevent data loss
+    statisticsUpdateInterval: 60000, // 1 min - Update contact counts, activity stats, UI metrics
+    baikalHeartbeatInterval: 60000, // 1 min - Keep CardDAV connection alive with health check
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // MEDIUM-FREQUENCY: Synchronization operations (5 minutes)
+    // ───────────────────────────────────────────────────────────────────────────
+    // NOTE: sharedContactsRefreshInterval and sharingValidationInterval run at SAME frequency
+    //       but OFFSET by 2.5 minutes to distribute load and prevent simultaneous operations
+    sharedContactsRefreshInterval: 300000, // 5 min - Force-refresh shared contacts from Userbase (ecosystem integrity)
+    sharingValidationOffset: 150000, // 2.5 min - Offset for sharingValidationInterval (runs 2.5 min after refresh)
+    sharingValidationInterval: 300000, // 5 min - Validate sharing relationships, repair broken shares (runs offset from refresh)
+    maintenanceInterval: 300000, // 5 min - Database cleanup, cache optimization, expired data removal
+    sharedContactFallbackDelay: 300000, // 5 min - Delay before fallback sync starts (avoid startup conflicts)
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // LOW-FREQUENCY: External sync operations (30+ minutes)
+    // ───────────────────────────────────────────────────────────────────────────
+    // CardDAV bridge intervals - All synchronized to prevent conflict with Baikal server
+    baikalPullInterval: 1800000, // 30 min - Sync FROM Baikal (import external edits from iPhone/Thunderbird)
+    baikalPushInterval: 1800000, // 30 min - Push TO Baikal (export local changes to CardDAV server)
+    baikalProtectionInterval: 1800000, // 30 min - Detect/correct unauthorized edits + refresh shared contacts to CardDAV
+    sharedContactFallbackInterval: 3600000, // 60 min - Safety net: catch any dropped WebSocket updates for shared contacts
     
     // Memory management
     maxMemoryUsage: 100, // MB

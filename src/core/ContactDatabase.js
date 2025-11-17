@@ -1,4 +1,5 @@
 import { IndividualSharingStrategy } from './IndividualSharingStrategy.js';
+import { PERFORMANCE_CONFIG } from '../config/app.config.js';
 
 /**
  * ContactDatabase - Userbase integration for encrypted contact storage
@@ -1435,7 +1436,10 @@ export class ContactDatabase {
                 console.error(`❌ Item too large in ${context}: item exceeds 10KB limit`);
                 break;
             case 'ItemDoesNotExist':
-                console.error(`❌ Item does not exist in ${context}: Use insertItem to create new items`);
+                // Only log as error if NOT from updateSharedContactMetadata (which auto-creates)
+                if (!context.includes('updateSharedContactMetadata')) {
+                    console.error(`❌ Item does not exist in ${context}: Use insertItem to create new items`);
+                }
                 this.eventBus.emit('database:itemNotFound', { context });
                 break;
             case 'ItemUpdateConflict':
@@ -3438,15 +3442,15 @@ export class ContactDatabase {
     startSharedDatabaseMonitoring() {
         // 🚀 PERFORMANCE: Add initial delay to avoid immediate redundant call after setup
         setTimeout(() => {
-            // Check every 10 seconds for new shared databases
+            // Check periodically for new shared databases
             this.sharedDatabaseMonitor = setInterval(async () => {
                 try {
                     await this.checkForNewSharedDatabases();
                 } catch (error) {
                     console.error('🔄 Error checking for new shared databases:', error);
                 }
-            }, 10000); // 10 seconds
-        }, 15000); // Start monitoring after 15 seconds to allow initial setup to complete
+            }, PERFORMANCE_CONFIG.sharedDatabaseCheckInterval); // 10 seconds
+        }, PERFORMANCE_CONFIG.sharedDatabaseCheckDelay); // Start monitoring after 15 seconds to allow initial setup to complete
         
         // 🛡️ SAFETY NET: Hourly fallback sync for shared contacts
         // This catches any WebSocket updates that may have been dropped due to:
@@ -3461,8 +3465,8 @@ export class ContactDatabase {
                 } catch (error) {
                     console.error('🔄 Error in fallback shared contact sync:', error);
                 }
-            }, 3600000); // 1 hour (60 * 60 * 1000)
-        }, 300000); // Start after 5 minutes (don't run immediately on startup)
+            }, PERFORMANCE_CONFIG.sharedContactFallbackInterval); // 1 hour (60 * 60 * 1000)
+        }, PERFORMANCE_CONFIG.sharedContactFallbackDelay); // Start after 5 minutes (don't run immediately on startup)
     }
 
     /**

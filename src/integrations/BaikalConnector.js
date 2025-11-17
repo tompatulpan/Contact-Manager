@@ -12,6 +12,8 @@
  * 
  * NOTE: For iCloud, use ICloudConnector instead (one-way export only)
  */
+import { PERFORMANCE_CONFIG } from '../config/app.config.js';
+
 export class BaikalConnector {
     constructor(bridgeUrl = 'http://localhost:3001/api', eventBus = null) {
         this.version = '2025-11-05-baikal-only';
@@ -212,6 +214,118 @@ export class BaikalConnector {
     }
 
     /**
+     * ✅ CRITICAL FIX: Validate sync result to prevent data loss
+     * 
+     * SAFETY CHECKS:
+     * 1. Server returned 0 contacts but we have local contacts
+     * 2. Massive drop in contact count (>50% reduction)
+     * 3. All contacts missing ETags (indicates server error)
+     * 
+     * @param {Array} serverContacts - Contacts from server
+     * @param {string} profileName - Profile name for logging
+     * @throws {Error} If sync result appears invalid/dangerous
+     */
+    async validateSyncResult(serverContacts, profileName) {
+        if (!this.contactManager) {
+            console.warn('⚠️ ContactManager not set, skipping sync validation');
+            return;
+        }
+
+        const localContacts = Array.from(this.contactManager.contacts.values())
+            .filter(c => !c.metadata?.isDeleted && !c.metadata?.isArchived);
+
+        // Check 1: Zero contacts from server
+        if (serverContacts.length === 0 && localContacts.length > 0) {
+            throw new Error(
+                `SAFETY ABORT: Server returned 0 contacts but you have ${localContacts.length} local contacts. ` +
+                `This indicates a server error. Aborting sync to prevent data loss.`
+            );
+        }
+
+        // Check 2: Massive contact drop (>50% reduction)
+        const localSyncedCount = localContacts.filter(c => 
+            c.metadata?.cardDAV?.lastSyncedAt
+        ).length;
+
+        if (localSyncedCount > 10 && serverContacts.length < localSyncedCount * 0.5) {
+            const dropPercent = Math.round((1 - serverContacts.length / localSyncedCount) * 100);
+            throw new Error(
+                `SAFETY ABORT: Server contact count dropped ${dropPercent}% ` +
+                `(from ${localSyncedCount} to ${serverContacts.length}). ` +
+                `This may indicate a server error. Aborting sync to prevent mass deletion.`
+            );
+        }
+
+        // Check 3: Missing ETags (indicates incomplete server response)
+        if (serverContacts.length > 0) {
+            const contactsWithoutETag = serverContacts.filter(c => !c.etag).length;
+            if (contactsWithoutETag / serverContacts.length > 0.9) {
+                console.warn(
+                    `⚠️ WARNING: ${Math.round(contactsWithoutETag / serverContacts.length * 100)}% ` +
+                    `of contacts missing ETags. Server may be returning incomplete data.`
+                );
+            }
+        }
+
+        console.log(`✅ Sync validation passed: ${serverContacts.length} contacts from server`);
+    }
+
+    /**
+     * ✅ CRITICAL FIX: Check if CardDAV server is healthy before sync
+     * Prevents sync operations when server is down/unreachable
+     * 
+     * @param {string} profileName - Profile name
+     * @returns {Promise<Object>} Health check result
+     */
+    async performHealthCheck(profileName) {
+        try {
+            const connection = this.connections.get(profileName);
+            if (!connection) {
+                return { 
+                    healthy: false, 
+                    reason: 'No connection found for profile' 
+                };
+            }
+
+            // Quick HEAD request to server root with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+            try {
+                const response = await fetch(connection.serverUrl, {
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    headers: {
+                        'Authorization': `Basic ${Buffer.from(
+                            `${connection.username}:${connection.password}`
+                        ).toString('base64')}`
+                    }
+                });
+
+                clearTimeout(timeoutId);
+
+                if (response.ok || response.status === 401) {
+                    // 401 means server is up (just auth check)
+                    return { healthy: true };
+                } else {
+                    return { 
+                        healthy: false, 
+                        reason: `Server returned ${response.status}` 
+                    };
+                }
+            } finally {
+                clearTimeout(timeoutId);
+            }
+
+        } catch (error) {
+            return { 
+                healthy: false, 
+                reason: `Health check failed: ${error.message}` 
+            };
+        }
+    }
+
+    /**
      * Sync contacts from Baikal (PULL operation with ownership preservation)
      * 
      * NEW STRATEGY:
@@ -265,8 +379,16 @@ export class BaikalConnector {
 
             const response = await fetch(`${this.bridgeUrl}/sync/${profileName}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 30000 // 30 second timeout
             });
+
+            // ✅ CRITICAL FIX: Validate HTTP response
+            if (!response.ok) {
+                throw new Error(
+                    `Sync request failed: ${response.status} ${response.statusText}`
+                );
+            }
 
             const result = await response.json();
 
@@ -285,6 +407,9 @@ export class BaikalConnector {
             }
 
             const serverContacts = result.syncResult?.contacts || result.contacts || [];
+
+            // ✅ CRITICAL FIX: Validate sync result before proceeding
+            await this.validateSyncResult(serverContacts, profileName);
 
             // Import contacts with ownership preservation (includes vCard 3.0 conversion for Apple)
             const importResults = await this.importContactsWithOwnershipPreservation(serverContacts, profileName);
@@ -657,7 +782,7 @@ export class BaikalConnector {
     }
 
     /**
-     * Push contact to Baikal (with addressbook routing)
+     * Push contact to Baikal (with addressbook routing and retry logic)
      * 
      * ADDRESSBOOK ROUTING:
      * - OWNED contacts → /my-contacts/ (read-write)
@@ -666,9 +791,13 @@ export class BaikalConnector {
      * 
      * @param {Object} contact - Contact to push
      * @param {string} profileName - Profile name
+     * @param {number} retryCount - Current retry attempt (internal use)
      * @returns {Promise<Object>} Push result
      */
-    async pushContactToBaikal(contact, profileName) {
+    async pushContactToBaikal(contact, profileName, retryCount = 0) {
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY_MS = 1000; // Start with 1 second
+
         try {
             // Determine addressbook based on contact type
             const addressbook = this.getAddressbookForContact(contact, profileName);
@@ -678,16 +807,12 @@ export class BaikalConnector {
             const lastUpdated = contact.metadata?.lastUpdated;
             const hasETag = !!contact.metadata?.cardDAV?.etag;
             
-            // 🐛 DEBUG: Log timestamp comparison
-            
             if (lastSyncedAt && lastUpdated && hasETag) {
                 const syncTime = new Date(lastSyncedAt).getTime();
                 const updateTime = new Date(lastUpdated).getTime();
                 
-                
                 // Skip if last sync happened AFTER last update (contact unchanged)
                 if (syncTime >= updateTime) {
-                    // Reduced logging - only summary shown in batch results
                     return { 
                         success: true, 
                         skipped: true, 
@@ -696,7 +821,6 @@ export class BaikalConnector {
                     };
                 }
             }
-            
 
             // Extract or ensure UID exists in vCard
             let uid = this.contactManager?.extractUIDFromVCard(contact.vcard);
@@ -704,25 +828,18 @@ export class BaikalConnector {
             
             // If vCard is missing UID, add it before pushing
             if (!uid) {
-                // For SHARED contacts: Use stable contactId to prevent duplicates
-                // For OWNED contacts: Generate new UID
                 if (contact.metadata?.isOwned === false) {
-                    // Use contactId as stable UID for shared contacts
                     uid = contact.contactId;
                 } else {
-                    // Generate UID for owned contacts
                     uid = this.contactManager?.vCardStandard?.generateUID() || 
                           `contact_${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 }
                 
-                // Insert UID before END:VCARD
                 vCardToSend = contact.vcard.replace(
                     /END:VCARD/i,
                     `UID:${uid}\nEND:VCARD`
                 );
                 
-                // Update local contact with UID (ONLY for owned contacts)
-                // SHARED contacts are read-only and exist in other user's database
                 if (this.contactManager && contact.metadata?.isOwned !== false) {
                     const updatedContact = {
                         ...contact,
@@ -735,54 +852,105 @@ export class BaikalConnector {
                             }
                         }
                     };
-                    
-                    // Save updated contact with UID (skip for shared contacts)
                     await this.contactManager.database.updateContact(updatedContact);
-                } else if (contact.metadata?.isOwned === false) {
                 }
             }
 
-            // 🔍 DEBUG: Log ETag being used for push
-            
-            const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contact: {
-                        uid: uid,
-                        vcard: vCardToSend,
-                        // 🔧 FIX: Don't send ETag for manually edited contacts
-                        // The ETag we have is from BEFORE the edit, so it causes false matches
-                        // Let the bridge server fetch fresh ETag from server for comparison
-                        etag: null  // Force fresh comparison
-                    },
-                    addressbook: addressbook
-                })
-            });
+            // ✅ CRITICAL FIX: Add timeout and retry logic
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-            const result = await response.json();
+            try {
+                const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contact: {
+                            uid: uid,
+                            vcard: vCardToSend,
+                            etag: null  // Force fresh comparison
+                        },
+                        addressbook: addressbook
+                    }),
+                    signal: controller.signal
+                });
 
-            if (result.success) {
-                // Update contact with new ETag (ONLY for owned contacts)
-                // SHARED contacts are read-only and shouldn't be updated in local database
-                if (result.etag && this.contactManager && contact.metadata?.isOwned !== false) {
+                clearTimeout(timeoutId);
+
+                // ✅ CRITICAL FIX: Validate response status
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    
+                    // Determine if retryable
+                    const isRetryable = response.status >= 500 || 
+                                       response.status === 408 || 
+                                       response.status === 429;
+
+                    if (isRetryable && retryCount < MAX_RETRIES) {
+                        const delay = RETRY_DELAY_MS * Math.pow(2, retryCount);
+                        console.warn(
+                            `⚠️ Push failed (${response.status}), retrying in ${delay}ms ` +
+                            `(attempt ${retryCount + 1}/${MAX_RETRIES})`
+                        );
+                        
+                        await this.sleep(delay);
+                        return await this.pushContactToBaikal(contact, profileName, retryCount + 1);
+                    }
+
+                    throw new Error(
+                        `Push failed: ${response.status} ${response.statusText} - ${errorData.error || ''}`
+                    );
+                }
+
+                const result = await response.json();
+
+                if (result.success && result.etag && this.contactManager && contact.metadata?.isOwned !== false) {
                     await this.contactManager.updateContactCardDAVMetadata(contact.contactId, {
                         etag: result.etag,
                         href: result.href,
                         addressbook: addressbook,
                         lastSyncedAt: new Date().toISOString()
                     });
-                } else if (contact.metadata?.isOwned === false) {
                 }
 
+                return result;
+
+            } finally {
+                clearTimeout(timeoutId);
             }
 
-            return result;
-
         } catch (error) {
+            // Check if this is a network error (retryable)
+            const isNetworkError = error.name === 'AbortError' || 
+                                  error.name === 'TypeError' || 
+                                  error.message.includes('fetch');
+
+            if (isNetworkError && retryCount < MAX_RETRIES) {
+                const delay = RETRY_DELAY_MS * Math.pow(2, retryCount);
+                console.warn(
+                    `⚠️ Network error during push, retrying in ${delay}ms ` +
+                    `(attempt ${retryCount + 1}/${MAX_RETRIES}): ${error.message}`
+                );
+                
+                await this.sleep(delay);
+                return await this.pushContactToBaikal(contact, profileName, retryCount + 1);
+            }
+
             console.error('❌ Push to Baikal failed:', error);
-            return { success: false, error: error.message };
+            return { 
+                success: false, 
+                error: error.message,
+                retries: retryCount
+            };
         }
+    }
+
+    /**
+     * Sleep utility for retry delays
+     * @param {number} ms - Milliseconds to sleep
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
@@ -1193,10 +1361,10 @@ export class BaikalConnector {
      * - Servers WITHOUT ACL (iCloud, Google): Client-side protection (periodic re-push)
      * 
      * @param {string} profileName - Profile name
-     * @param {number} interval - Protection interval in ms (default: 30 min)
+     * @param {number} interval - Protection interval in ms (default from config)
      * @returns {Promise<Object>} Result
      */
-    async initializeSharedContactProtection(profileName, interval = 1800000) {
+    async initializeSharedContactProtection(profileName, interval = PERFORMANCE_CONFIG.baikalProtectionInterval) {
         const connection = this.connections.get(profileName);
         
         if (!connection) {
@@ -1605,10 +1773,10 @@ export class BaikalConnector {
      */
     async initializeAutoSync(profileName, intervals = {}) {
         try {
-            // Default: 30 minutes for both pull and push
+            // Default intervals from config
             const defaultIntervals = {
-                pull: 1800000,  // 30 minutes - sync FROM Baikal
-                push: 1800000   // 30 minutes - push TO Baikal
+                pull: PERFORMANCE_CONFIG.baikalPullInterval,  // 30 minutes - sync FROM Baikal
+                push: PERFORMANCE_CONFIG.baikalPushInterval   // 30 minutes - push TO Baikal
             };
 
             const syncConfig = { ...defaultIntervals, ...intervals };
@@ -1719,7 +1887,7 @@ export class BaikalConnector {
             let heartbeatCount = 0;
             profileIntervals.heartbeatInterval = setInterval(() => {
                 heartbeatCount++;
-            }, 60000); // Heartbeat every 1 minute
+            }, PERFORMANCE_CONFIG.baikalHeartbeatInterval); // Heartbeat every 1 minute
 
 
             // 🛡️ Initialize shared contact protection

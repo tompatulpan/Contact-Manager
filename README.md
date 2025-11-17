@@ -28,7 +28,7 @@ A secure, modular contact management system with:
 - Create, edit, and organize contacts
 - Share contacts with users or groups (distribution lists)
 - Archive, delete, and manage received/shared contacts
-- Import/export contacts (vCard 3.0 and 4.0)
+- Import/export contacts (vCard 3.0 ~~and 4.0~~)
 - QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
 - **🆕 Baical CardDAV Integration** - Sync with any CardDAV server
