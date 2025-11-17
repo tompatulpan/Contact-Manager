@@ -1553,6 +1553,28 @@ export class ContactManager {
     }
 
     /**
+     * Regenerate vCard with current sharing metadata for disaster recovery
+     * Extracts display data from contact, adds metadata, and regenerates vCard with CATEGORIES
+     * @param {Object} contact - Contact object with metadata
+     * @returns {string} Updated vCard string with CATEGORIES, or original on error
+     */
+    regenerateVCardWithSharing(contact) {
+        try {
+            // Extract display data from existing vCard to preserve all fields
+            const displayData = this.vCardStandard.extractDisplayData(contact);
+            // Add updated metadata for CATEGORIES generation
+            displayData.metadata = contact.metadata;
+            // Regenerate vCard with sharing metadata
+            const updatedVCard = this.vCardStandard.generateVCard(displayData);
+            console.log('🛡️ Regenerated vCard with sharing metadata for disaster recovery');
+            return updatedVCard;
+        } catch (vCardError) {
+            console.warn('⚠️ Failed to regenerate vCard with sharing metadata:', vCardError.message);
+            return contact.vcard; // Return original on error
+        }
+    }
+
+    /**
      * Import contact from vCard with duplicate detection
      * @param {string} vCardString - vCard string
      * @param {string} cardName - Optional card name
@@ -3489,18 +3511,7 @@ export class ContactManager {
                             };
                             
                             // 🛡️ DISASTER RECOVERY: Regenerate vCard with updated sharing metadata
-                            try {
-                                // Extract display data from existing vCard to preserve all fields
-                                const displayData = this.vCardStandard.formatManager.vCard3Processor.extractDisplayData(updatedContact);
-                                // Add updated metadata for CATEGORIES generation
-                                displayData.metadata = updatedContact.metadata;
-                                // Regenerate vCard with sharing metadata
-                                const updatedVCard = this.vCardStandard.generateVCard(displayData);
-                                updatedContact.vcard = updatedVCard;
-                                console.log('🛡️ Regenerated vCard after revocation for disaster recovery');
-                            } catch (vCardError) {
-                                console.warn('⚠️ Failed to regenerate vCard after revocation:', vCardError.message);
-                            }
+                            updatedContact.vcard = this.regenerateVCardWithSharing(updatedContact);
                             
                             // Save updated contact
                             await this.database.updateContact(updatedContact);
@@ -3911,19 +3922,7 @@ export class ContactManager {
                 
                 // 🛡️ DISASTER RECOVERY: Regenerate vCard with updated sharing metadata
                 // This ensures CATEGORIES field includes current shared users for CardDAV backup
-                try {
-                    // Extract display data from existing vCard to preserve all fields
-                    const displayData = this.vCardStandard.formatManager.vCard3Processor.extractDisplayData(updatedContact);
-                    // Add updated metadata for CATEGORIES generation
-                    displayData.metadata = updatedContact.metadata;
-                    // Regenerate vCard with sharing metadata
-                    const updatedVCard = this.vCardStandard.generateVCard(displayData);
-                    updatedContact.vcard = updatedVCard;
-                    console.log('🛡️ Regenerated vCard with sharing metadata for disaster recovery');
-                } catch (vCardError) {
-                    console.warn('⚠️ Failed to regenerate vCard with sharing metadata:', vCardError.message);
-                    // Continue anyway - metadata is still updated
-                }
+                updatedContact.vcard = this.regenerateVCardWithSharing(updatedContact);
                 
                 // 🎯 OPTIMIZE: Trim metadata before saving to avoid 10KB limit
                 const optimizedContact = await this.database.optimizeContactForStorage(updatedContact);

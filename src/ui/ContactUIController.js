@@ -7399,17 +7399,7 @@ export class ContactUIController {
                     // Owner contact: Add CATEGORIES if missing
                     if (hasSharing && !hasCategories) {
                         console.log(`🔄 Regenerating vCard with CATEGORIES for ${contact.cardName || 'contact'}`);
-                        try {
-                            // Extract display data from existing vCard
-                            const displayData = this.contactManager.vCardStandard.formatManager.vCard3Processor.extractDisplayData(contact);
-                            // Add metadata for CATEGORIES generation
-                            displayData.metadata = contact.metadata;
-                            // Regenerate vCard with sharing metadata
-                            return this.contactManager.vCardStandard.generateVCard(displayData);
-                        } catch (regenError) {
-                            console.warn('⚠️ Failed to regenerate vCard, using original:', regenError.message);
-                            return contact.vcard;
-                        }
+                        return this.contactManager.regenerateVCardWithSharing(contact);
                     }
                     
                     return contact.vcard;
