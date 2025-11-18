@@ -2003,31 +2003,27 @@ export class ContactManager {
                 console.log(`   ➜ isSharedContact result: ${isSharedContact}`);
                 
                 if (isSharedContact) {
-                    // 🟢 Shared contact detected - owner has authority, refresh from Userbase
+                    // 🟢 Shared contact detected - owner has authority, rely on periodic refresh
                     console.log(`🟢 SHARED contact detected from CardDAV: ${updatedContact.cardName}`);
-                    console.log(`   Strategy: Refresh from Userbase (owner authority), ignore CardDAV changes`);
+                    console.log(`   Strategy: Keep current Userbase version (owner authority)`);
+                    console.log(`   CardDAV changes ignored - periodic refresh ensures owner's updates propagate`);
                     
-                    try {
-                        // Reload this specific shared contact from Userbase to get owner's latest version
-                        const freshContact = await this.database.getContact(updatedContact.contactId);
+                    // Get current version from in-memory Map (already loaded from Userbase)
+                    const currentContact = this.contacts.get(updatedContact.contactId);
+                    
+                    if (currentContact) {
+                        // Keep existing Userbase version, ignore CardDAV changes
+                        console.log(`✅ Maintaining Userbase version (owner authority preserved)`);
                         
-                        if (freshContact) {
-                            // Update in-memory with Userbase version (owner authority)
-                            this.contacts.set(updatedContact.contactId, freshContact);
-                            console.log(`✅ Shared contact refreshed from Userbase (owner's version)`);
-                            
-                            // Push Userbase version back to CardDAV (override external edits)
-                            if (this.baikalConnector && this.baikalConnector.isConnected) {
-                                console.log(`📤 Pushing owner's version to CardDAV (override external changes)`);
-                                await this.baikalConnector.pushContactToBaikal(freshContact, syncContext.profileName);
-                            }
-                        } else {
-                            console.warn(`⚠️ Shared contact not found in Userbase - using CardDAV version`);
-                            this.contacts.set(updatedContact.contactId, updatedContact);
+                        // Push current Userbase version back to CardDAV (override external edits)
+                        if (this.baikalConnector && this.baikalConnector.isConnected) {
+                            console.log(`📤 Pushing owner's version to CardDAV (override external changes)`);
+                            await this.baikalConnector.pushContactToBaikal(currentContact, syncContext.profileName);
                         }
-                    } catch (error) {
-                        console.error(`❌ Failed to refresh shared contact from Userbase:`, error);
-                        // Fallback: use CardDAV version
+                    } else {
+                        // First time seeing this shared contact - accept CardDAV version temporarily
+                        console.warn(`⚠️ First sync of shared contact - accepting CardDAV version temporarily`);
+                        console.warn(`   Next periodic refresh will sync owner's version from Userbase`);
                         this.contacts.set(updatedContact.contactId, updatedContact);
                     }
                 } else {

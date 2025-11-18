@@ -200,7 +200,7 @@ export const PERFORMANCE_CONFIG = {
     // ───────────────────────────────────────────────────────────────────────────
     // NOTE: sharedContactsRefreshInterval and sharingValidationInterval run at SAME frequency
     //       but OFFSET by 2.5 minutes to distribute load and prevent simultaneous operations
-    sharedContactsRefreshInterval: 300000, // 5 min - Force-refresh shared contacts from Userbase (ecosystem integrity)
+    sharedContactsRefreshInterval: 60000, // 1 min - Force-refresh shared contacts from Userbase (ecosystem integrity) - TESTING
     sharingValidationOffset: 150000, // 2.5 min - Offset for sharingValidationInterval (runs 2.5 min after refresh)
     sharingValidationInterval: 300000, // 5 min - Validate sharing relationships, repair broken shares (runs offset from refresh)
     maintenanceInterval: 300000, // 5 min - Database cleanup, cache optimization, expired data removal
