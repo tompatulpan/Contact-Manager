@@ -164,7 +164,12 @@ export const FEATURE_FLAGS = {
     // Development features
     enableDebugMode: false,
     enableTestMode: false,
-    enablePerformanceMonitoring: false
+    enablePerformanceMonitoring: false,
+    
+    // 🆕 CardDAV Bridge Selection
+    // Set to 'lite' for new lightweight bridge (330 lines) - ✅ CORS enabled on local Radicale
+    // Set to 'legacy' for old bridge with HTTP server (5,931 lines) - Acts as CORS proxy
+    useLiteBridge: true  // ✅ Using lite bridge with local Radicale (http://127.0.0.1:5232)
 };
 
 // Performance Settings
@@ -205,7 +210,7 @@ export const PERFORMANCE_CONFIG = {
     // LOW-FREQUENCY: External sync operations (30+ minutes)
     // ───────────────────────────────────────────────────────────────────────────
     // CardDAV bridge intervals - All synchronized to prevent conflict with Baikal server
-    baikalPullInterval: 1800000, // 30 min - Sync FROM Baikal (import external edits from iPhone/Thunderbird)
+    baikalPullInterval: 30000, // 30 seconds - Sync FROM Baikal (import external edits from iPhone/Thunderbird) - TESTING
     baikalPushInterval: 1800000, // 30 min - Push TO Baikal (export local changes to CardDAV server)
     baikalProtectionInterval: 1800000, // 30 min - Detect/correct unauthorized edits + refresh shared contacts to CardDAV
     sharedContactFallbackInterval: 3600000, // 60 min - Safety net: catch any dropped WebSocket updates for shared contacts

@@ -9,20 +9,28 @@
  * ✅ Simple pull → import → preserve pattern
  * ✅ Bidirectional sync (pull and push)
  * ✅ Shared contact protection with read-only addressbooks
+ * ✅ SWITCHABLE: Can use lite bridge (200 lines) or legacy bridge (5,931 lines)
  * 
  * NOTE: For iCloud, use ICloudConnector instead (one-way export only)
  */
-import { PERFORMANCE_CONFIG } from '../config/app.config.js';
+import { PERFORMANCE_CONFIG, FEATURE_FLAGS } from '../config/app.config.js';
+import CardDAVBridgeAdapter from './CardDAVBridgeAdapter.js';
 
 export class BaikalConnector {
     constructor(bridgeUrl = 'http://localhost:3001/api', eventBus = null) {
-        this.version = '2025-11-05-baikal-only';
+        this.version = '2025-11-18-switchable-bridge';
         
         this.bridgeUrl = bridgeUrl;
         this.eventBus = eventBus;
         this.connections = new Map();
         this.isConnected = false;
         this.contactManager = null;
+        
+        // 🆕 CardDAV Bridge Adapter (switchable between lite and legacy)
+        this.bridgeAdapter = new CardDAVBridgeAdapter({
+            useLiteBridge: FEATURE_FLAGS.useLiteBridge,
+            legacyBridgeUrl: bridgeUrl
+        });
         
         // Event callbacks
         this.onStatusChange = null;
@@ -39,6 +47,10 @@ export class BaikalConnector {
         // 🔒 Sync lock to prevent concurrent operations
         this.syncInProgress = false;
         this.syncQueue = Promise.resolve(); // Chain sync operations
+        
+        // Log which bridge we're using
+        const bridgeInfo = this.bridgeAdapter.getBridgeInfo();
+        console.log(`🌉 BaikalConnector: Using ${bridgeInfo.type} bridge (${bridgeInfo.linesOfCode} lines)`);
     }
 
     /**
@@ -58,19 +70,8 @@ export class BaikalConnector {
      */
     async discoverAddressbooks(config) {
         try {
-            
-            const response = await fetch(`${this.bridgeUrl}/discover`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    serverUrl: config.serverUrl,
-                    username: config.username,
-                    password: config.password,
-                    profileName: config.profileName
-                })
-            });
-
-            const result = await response.json();
+            // ✅ Use CardDAV Bridge Adapter (switchable between lite and legacy)
+            const result = await this.bridgeAdapter.discoverAddressbooks(config);
 
             if (result.success) {
                 result.addressbooks.forEach(ab => {
@@ -81,6 +82,13 @@ export class BaikalConnector {
                     const connection = this.connections.get(config.profileName);
                     connection.addressbooks = result.addressbooks;
                     connection.serverType = result.serverType;
+                    
+                    // For lite bridge: Set the first addressbook URL as default
+                    if (result.addressbooks && result.addressbooks.length > 0) {
+                        const defaultAddressbook = result.addressbooks[0];
+                        this.bridgeAdapter.setAddressbookUrl(config.profileName, defaultAddressbook.url);
+                        console.log(`📚 Using addressbook: ${defaultAddressbook.displayName || defaultAddressbook.url}`);
+                    }
                 }
             } else {
                 console.error(`❌ Discovery failed: ${result.error}`);
@@ -101,14 +109,8 @@ export class BaikalConnector {
      */
     async connectToServer(config) {
         try {
-            
-            const response = await fetch(`${this.bridgeUrl}/connect`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-
-            const result = await response.json();
+            // Use CardDAV Bridge Adapter (switches between lite and legacy)
+            const result = await this.bridgeAdapter.connect(config);
 
             if (result.success) {
                 // Detect server capabilities
@@ -126,6 +128,35 @@ export class BaikalConnector {
                 });
                 
                 this.isConnected = true;
+                
+                // ✅ Automatically discover addressbooks after connection (for lite bridge)
+                console.log('🔍 Auto-discovering addressbooks...');
+                const discoveryResult = await this.discoverAddressbooks(config);
+                if (discoveryResult.success && discoveryResult.addressbooks?.length > 0) {
+                    console.log(`✅ Discovered ${discoveryResult.addressbooks.length} addressbooks`);
+                } else {
+                    console.warn('⚠️ Addressbook discovery failed:', discoveryResult.error);
+                    
+                    // For lite bridge: Try to construct a default addressbook URL from server URL
+                    if (this.bridgeAdapter.config?.useLiteBridge && config.serverUrl) {
+                        // Ensure serverUrl is absolute (has http/https protocol)
+                        let defaultAddressbookUrl = config.serverUrl;
+                        
+                        // If it's a relative path, we can't use it
+                        if (!defaultAddressbookUrl.startsWith('http://') && !defaultAddressbookUrl.startsWith('https://')) {
+                            console.error(`❌ Cannot use relative URL as addressbook: ${defaultAddressbookUrl}`);
+                            console.log('💡 Please connect using full URL like: http://127.0.0.1:5232/test/contacts/');
+                        } else {
+                            // Ensure URL ends with /
+                            if (!defaultAddressbookUrl.endsWith('/')) {
+                                defaultAddressbookUrl += '/';
+                            }
+                            
+                            console.log(`📚 Using server URL as addressbook: ${defaultAddressbookUrl}`);
+                            this.bridgeAdapter.setAddressbookUrl(config.profileName, defaultAddressbookUrl);
+                        }
+                    }
+                }
                 
                 if (this.onStatusChange) {
                     this.onStatusChange({ connected: true, profile: config.profileName, capabilities });
@@ -365,11 +396,13 @@ export class BaikalConnector {
      * Internal sync implementation with lock protection
      */
     async _syncFromBaikalInternal(profileName) {
+        console.log('🔒 Sync lock acquired - syncInProgress = true');
         this.syncInProgress = true;
         
         // 🔒 Notify ContactManager to suppress database change handlers during sync
         if (this.contactManager) {
             this.contactManager.syncInProgress = true;
+            console.log('🔒 ContactManager sync lock acquired');
         }
         
         try {
@@ -377,20 +410,13 @@ export class BaikalConnector {
             // Track last used profile for orphan cleanup
             this.lastUsedProfile = profileName;
 
-            const response = await fetch(`${this.bridgeUrl}/sync/${profileName}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 30000 // 30 second timeout
-            });
+            // ✅ Use CardDAV Bridge Adapter (switchable between lite and legacy)
+            const result = await this.bridgeAdapter.sync(profileName);
 
-            // ✅ CRITICAL FIX: Validate HTTP response
-            if (!response.ok) {
-                throw new Error(
-                    `Sync request failed: ${response.status} ${response.statusText}`
-                );
+            // ✅ Validate result
+            if (!result.success) {
+                throw new Error(`Sync failed: ${result.error || 'Unknown error'}`);
             }
-
-            const result = await response.json();
 
             // 🛡️ CRITICAL SAFETY CHECK: Detect server error state
             const serverError = result.isServerDown || 
@@ -449,11 +475,13 @@ export class BaikalConnector {
             return { success: false, error: error.message };
         } finally {
             // 🔒 Release sync lock
+            console.log('🔓 Sync lock released - syncInProgress = false');
             this.syncInProgress = false;
             
             // 🔒 Re-enable ContactManager database change handlers
             if (this.contactManager) {
                 this.contactManager.syncInProgress = false;
+                console.log('🔓 ContactManager sync lock released');
             }
             
         }
@@ -498,6 +526,11 @@ export class BaikalConnector {
                     // Contact exists locally and ETag matches - skip entirely (no parsing, no logging, no work)
                     skipped++;
                     continue;
+                } else if (existingContact && serverContact.etag) {
+                    // 🐛 DEBUG: ETag changed - will update
+                    console.log(`🔄 ETag changed for ${existingContact.cardName || serverContact.uid}:`);
+                    console.log(`   OLD: ${existingContact.metadata?.cardDAV?.etag || 'none'}`);
+                    console.log(`   NEW: ${serverContact.etag}`);
                 }
                 
                 // Use server contact as-is (Baikal uses vCard 4.0)
@@ -856,68 +889,42 @@ export class BaikalConnector {
                 }
             }
 
-            // ✅ CRITICAL FIX: Add timeout and retry logic
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+            // ✅ Use CardDAV Bridge Adapter (switchable between lite and legacy)
+            const result = await this.bridgeAdapter.pushContact(
+                profileName,
+                addressbook,
+                vCardToSend,
+                uid,
+                null  // etag - null forces fresh comparison
+            );
 
-            try {
-                const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contact: {
-                            uid: uid,
-                            vcard: vCardToSend,
-                            etag: null  // Force fresh comparison
-                        },
-                        addressbook: addressbook
-                    }),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-
-                // ✅ CRITICAL FIX: Validate response status
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    
-                    // Determine if retryable
-                    const isRetryable = response.status >= 500 || 
-                                       response.status === 408 || 
-                                       response.status === 429;
-
-                    if (isRetryable && retryCount < MAX_RETRIES) {
-                        const delay = RETRY_DELAY_MS * Math.pow(2, retryCount);
-                        console.warn(
-                            `⚠️ Push failed (${response.status}), retrying in ${delay}ms ` +
-                            `(attempt ${retryCount + 1}/${MAX_RETRIES})`
-                        );
-                        
-                        await this.sleep(delay);
-                        return await this.pushContactToBaikal(contact, profileName, retryCount + 1);
-                    }
-
-                    throw new Error(
-                        `Push failed: ${response.status} ${response.statusText} - ${errorData.error || ''}`
-                    );
-                }
-
-                const result = await response.json();
-
-                if (result.success && result.etag && this.contactManager && contact.metadata?.isOwned !== false) {
-                    await this.contactManager.updateContactCardDAVMetadata(contact.contactId, {
-                        etag: result.etag,
-                        href: result.href,
-                        addressbook: addressbook,
-                        lastSyncedAt: new Date().toISOString()
-                    });
-                }
-
-                return result;
-
-            } finally {
-                clearTimeout(timeoutId);
+            // Handle errors with retry logic
+            if (!result.success && retryCount < MAX_RETRIES) {
+                const delay = RETRY_DELAY_MS * Math.pow(2, retryCount);
+                console.warn(
+                    `⚠️ Push failed, retrying in ${delay}ms ` +
+                    `(attempt ${retryCount + 1}/${MAX_RETRIES}): ${result.error || 'Unknown error'}`
+                );
+                
+                await this.sleep(delay);
+                return await this.pushContactToBaikal(contact, profileName, retryCount + 1);
             }
+
+            if (!result.success) {
+                throw new Error(`Push failed: ${result.error || 'Unknown error'}`);
+            }
+
+            // Update CardDAV metadata if successful
+            if (result.success && result.etag && this.contactManager && contact.metadata?.isOwned !== false) {
+                await this.contactManager.updateContactCardDAVMetadata(contact.contactId, {
+                    etag: result.etag,
+                    href: result.href,
+                    addressbook: addressbook,
+                    lastSyncedAt: new Date().toISOString()
+                });
+            }
+
+            return result;
 
         } catch (error) {
             // Check if this is a network error (retryable)
@@ -969,18 +976,13 @@ export class BaikalConnector {
             const addressbook = this.getAddressbookForContact(contact, profileName);
             
 
-            // Send delete request to bridge server
-            const response = await fetch(`${this.bridgeUrl}/delete/${profileName}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    uid: uid,  // ✅ Use 'uid' as primary identifier (RFC 9553 compliant)
-                    contactUrl: contact.metadata?.cardDAV?.href || null,
-                    addressbook: addressbook
-                })
-            });
-
-            const result = await response.json();
+            // ✅ Use CardDAV Bridge Adapter (switchable between lite and legacy)
+            const result = await this.bridgeAdapter.deleteContact(
+                profileName,
+                addressbook,
+                uid,
+                contact.metadata?.cardDAV?.href || null
+            );
 
             if (result.success) {
             }
@@ -1040,22 +1042,37 @@ export class BaikalConnector {
      */
     async testConnection() {
         try {
-            const response = await fetch(`${this.bridgeUrl}/health`);
-            const result = await response.json();
-
-
-            return {
-                success: true,
-                bridgeVersion: result.version,
-                status: result.status
-            };
+            // ✅ Get bridge info from adapter
+            const bridgeInfo = this.bridgeAdapter.getBridgeInfo();
+            
+            if (bridgeInfo.type === 'lite') {
+                // Lite bridge: No HTTP server, always available
+                return {
+                    success: true,
+                    bridgeType: 'lite',
+                    bridgeVersion: '1.0.0',
+                    status: 'ready',
+                    note: 'Lite bridge - no HTTP server required'
+                };
+            } else {
+                // Legacy bridge: Check HTTP server health
+                const response = await fetch(`${this.bridgeUrl}/health`);
+                const result = await response.json();
+                
+                return {
+                    success: true,
+                    bridgeType: 'legacy',
+                    bridgeVersion: result.version,
+                    status: result.status
+                };
+            }
 
         } catch (error) {
-            console.error('❌ Bridge server unreachable:', error);
+            console.error('❌ Bridge connection test failed:', error);
             return {
                 success: false,
                 error: error.message,
-                note: 'Bridge server may not be running'
+                note: 'Legacy bridge server may not be running'
             };
         }
     }
@@ -1387,51 +1404,54 @@ export class BaikalConnector {
                 notes: 'Server enforces read-only via ACL - 100% protection'
             };
         } else {
+            // ⚠️ DISABLED: Client-side validation (was causing bulk pushes after every sync)
+            console.log(`⚠️ Shared contact protection DISABLED for profile "${profileName}"`);
+            console.log(`   Reason: Periodic pushes were overwriting server changes`);
+            console.log(`   For Radicale/Baikal: Server-side ACL provides protection`);
+            console.log(`   For iCloud/Google: Re-enable when bidirectional sync is stable`);
+            
             // Strategy 2: Client-side validation (iCloud, Google)
             
-            // Setup periodic protection for shared contacts
-            const protectionKey = `${profileName}_shared_protection`;
-            
-            // Clear existing protection interval
-            if (this.protectionIntervals.has(protectionKey)) {
-                clearInterval(this.protectionIntervals.get(protectionKey));
-            }
-            
-            // Setup new protection interval (runs TWO operations)
-            const protectionInterval = setInterval(async () => {
-                const now = new Date();
-                
-                // Operation 1: Detect and correct unauthorized edits
-                try {
-                    await this.detectAndCorrectUnauthorizedEdits(profileName);
-                } catch (error) {
-                    console.error('❌ Unauthorized edit detection failed:', error.message);
-                }
-                
-                // Operation 2: Refresh shared contacts (maintain ecosystem)
-                try {
-                    await this.refreshSharedContactsToCardDAV(profileName);
-                } catch (error) {
-                    console.error('❌ Shared contact refresh failed:', error.message);
-                }
-                
-            }, interval);
-            
-            this.protectionIntervals.set(protectionKey, protectionInterval);
+            // // Setup periodic protection for shared contacts
+            // const protectionKey = `${profileName}_shared_protection`;
+            // 
+            // // Clear existing protection interval
+            // if (this.protectionIntervals.has(protectionKey)) {
+            //     clearInterval(this.protectionIntervals.get(protectionKey));
+            // }
+            // 
+            // // Setup new protection interval (runs TWO operations)
+            // const protectionInterval = setInterval(async () => {
+            //     const now = new Date();
+            //     
+            //     // Operation 1: Detect and correct unauthorized edits
+            //     try {
+            //         await this.detectAndCorrectUnauthorizedEdits(profileName);
+            //     } catch (error) {
+            //         console.error('❌ Unauthorized edit detection failed:', error.message);
+            //     }
+            //     
+            //     // Operation 2: Refresh shared contacts (maintain ecosystem)
+            //     try {
+            //         await this.refreshSharedContactsToCardDAV(profileName);
+            //     } catch (error) {
+            //         console.error('❌ Shared contact refresh failed:', error.message);
+            //     }
+            //     
+            // }, interval);
+            // 
+            // this.protectionIntervals.set(protectionKey, protectionInterval);
             
             
             return {
                 success: true,
                 profileName,
-                strategy: 'client_side_validation',
-                protectionMethod: 'dual_protection',
-                operations: [
-                    'detect_unauthorized_edits',
-                    'refresh_shared_contacts'
-                ],
-                requiresPeriodicPush: true,
-                interval,
-                notes: 'Dual protection: (1) Detect/correct unauthorized edits, (2) Refresh shared contacts every 5 minutes to maintain Userbase ecosystem'
+                strategy: 'disabled',  // ← Changed from 'client_side_validation'
+                protectionMethod: 'none',  // ← Changed from 'dual_protection'
+                operations: [],  // ← Empty - no operations
+                requiresPeriodicPush: false,  // ← Changed from true
+                interval: 0,  // ← No interval
+                notes: 'Shared contact protection DISABLED to prevent bulk pushes that overwrite server changes. For Radicale/Baikal, server-side ACL provides protection.'
             };
         }
     }
@@ -1609,22 +1629,14 @@ export class BaikalConnector {
             // Note: For iCloud, use ICloudConnector instead
             // BaikalConnector is for Baikal/Nextcloud which support vCard 4.0 natively
             
-            // Force-push with NULL ETag (overrides server version)
-            const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contact: {
-                        uid: uid,
-                        vcard: vCardToSend,
-                        etag: null  // ❌ NULL ETag = force override
-                    },
-                    addressbook: addressbook,
-                    forceOverride: true  // Explicit flag
-                })
-            });
-            
-            const result = await response.json();
+            // ✅ Force-push using CardDAV Bridge Adapter (NULL ETag overrides server version)
+            const result = await this.bridgeAdapter.pushContact(
+                profileName,
+                addressbook,
+                vCardToSend,
+                uid,
+                null  // ❌ NULL ETag = force override
+            );
             
             if (result.success) {
                 
@@ -1813,70 +1825,78 @@ export class BaikalConnector {
             }
 
             // 2. Push interval - Push TO Baikal (sends local changes)
-            // ⏰ IMPORTANT: Push runs 30 seconds AFTER pull to allow deletions to complete
+            // ⚠️ DISABLED: Initial bulk push after 30 seconds (was overwriting Thunderbird edits)
+            // Individual contacts are already pushed via updateContact() auto-push mechanism
             if (syncConfig.push > 0) {
+                console.log(`⚠️ Initial bulk push DISABLED (30s delay)`);
+                console.log(`   Reason: Was overwriting server changes after sync`);
+                console.log(`   Solution: Use updateContact() for individual contact pushes`);
+                
                 // Delay first push by 30 seconds to stagger with pull
                 setTimeout(() => {
-                    // Run first push after delay
-                    (async () => {
-                        
-                        if (!this.contactManager) {
-                            console.warn('⚠️ Auto-sync (push): ContactManager not available, skipping this cycle');
-                            return;
-                        }
-                        
-                        try {
-                            // 1. Push all contacts
-                            const result = await this.testPushOwnedContacts(profileName);
-                            if (result.success) {
-                            } else {
-                                console.error(`❌ Auto-sync (push) failed:`, result.error);
-                            }
-                            
-                            // 2. 🔄 Force-refresh shared contacts
-                            try {
-                                const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
-                                if (refreshResult.success) {
-                                }
-                            } catch (refreshError) {
-                                console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
-                            }
-                        } catch (error) {
-                            console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
-                        }
-                    })();
+                    // ⚠️ COMMENTED OUT: This was pushing ALL contacts after connection
+                    // (async () => {
+                    //     
+                    //     if (!this.contactManager) {
+                    //         console.warn('⚠️ Auto-sync (push): ContactManager not available, skipping this cycle');
+                    //         return;
+                    //     }
+                    //     
+                    //     try {
+                    //         // 1. Push all contacts
+                    //         const result = await this.testPushOwnedContacts(profileName);
+                    //         if (result.success) {
+                    //         } else {
+                    //             console.error(`❌ Auto-sync (push) failed:`, result.error);
+                    //         }
+                    //         
+                    //         // 2. 🔄 Force-refresh shared contacts
+                    //         try {
+                    //             const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
+                    //             if (refreshResult.success) {
+                    //             }
+                    //         } catch (refreshError) {
+                    //             console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
+                    //         }
+                    //     } catch (error) {
+                    //         console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
+                    //     }
+                    // })();
                     
-                    // Then set up recurring interval
-                    profileIntervals.pushInterval = setInterval(async () => {
-                        
-                        // Safety check: ensure ContactManager is available
-                        if (!this.contactManager) {
-                            console.warn('⚠️ Auto-sync (push): ContactManager not available, skipping this cycle');
-                            return;
-                        }
-                        
-                        try {
-                            // 1. Push all contacts (owned, imported, shared)
-                            const result = await this.testPushOwnedContacts(profileName);
-                            if (result.success) {
-                            } else {
-                                console.error(`❌ Auto-sync (push) failed:`, result.error);
-                            }
-                            
-                            // 2. 🔄 ADDITIONAL: Force-refresh shared contacts (maintains ecosystem)
-                            // This ensures shared contacts are always pushed even if iCloud overwrites them
-                            try {
-                                const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
-                                if (refreshResult.success) {
-                                }
-                            } catch (refreshError) {
-                                console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
-                            }
-                        } catch (error) {
-                            console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
-                            // Don't throw - let the interval continue
-                        }
-                    }, syncConfig.push);
+                    // ⚠️ DISABLED: Periodic bulk push (was causing Thunderbird edits to be overwritten)
+                    // Individual contacts are already pushed via updateContact() auto-push mechanism
+                    console.log(`⚠️ Periodic push interval DISABLED - using individual auto-push instead`);
+                    console.log(`   Auto-push triggers when contacts are edited via updateContact()`);
+                    
+                    // profileIntervals.pushInterval = setInterval(async () => {
+                    //     // Safety check: ensure ContactManager is available
+                    //     if (!this.contactManager) {
+                    //         console.warn('⚠️ Auto-sync (push): ContactManager not available, skipping this cycle');
+                    //         return;
+                    //     }
+                    //     
+                    //     try {
+                    //         // 1. Push all contacts (owned, imported, shared)
+                    //         const result = await this.testPushOwnedContacts(profileName);
+                    //         if (result.success) {
+                    //         } else {
+                    //             console.error(`❌ Auto-sync (push) failed:`, result.error);
+                    //         }
+                    //         
+                    //         // 2. 🔄 ADDITIONAL: Force-refresh shared contacts (maintains ecosystem)
+                    //         // This ensures shared contacts are always pushed even if iCloud overwrites them
+                    //         try {
+                    //             const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
+                    //             if (refreshResult.success) {
+                    //             }
+                    //         } catch (refreshError) {
+                    //             console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
+                    //         }
+                    //     } catch (error) {
+                    //         console.error(`❌ Auto-sync (push) error (continuing...):`, error.message);
+                    //         // Don't throw - let the interval continue
+                    //     }
+                    // }, syncConfig.push);
                 }, 30000); // 30-second delay before first push
 
             }
@@ -1928,27 +1948,25 @@ export class BaikalConnector {
     }
 
     /**
-     * 🆕 Perform initial sync (pull + push on startup)
+     * 🆕 Perform initial sync (pull only on startup)
+     * ⚠️ REMOVED automatic push to prevent overwriting server changes
+     * Individual contact changes are auto-pushed via updateContact() instead
      * @param {string} profileName - Profile name
      * @returns {Promise<Object>} Result
      */
     async performInitialSync(profileName) {
         try {
+            console.log(`🔄 Initial sync: Pull-only (auto-push disabled to prevent overwrites)`);
             const pullResult = await this.syncFromBaikal(profileName);
 
-            // ⏰ Wait 2 seconds for deletions to commit to database
-            // This prevents deleted contacts from being immediately re-pushed
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            const pushResult = await this.testPushOwnedContacts(profileName);
-
             if (pullResult.deletions?.deleted > 0) {
+                console.log(`🗑️ Initial sync: Deleted ${pullResult.deletions.deleted} contacts from local database`);
             }
 
             return {
                 success: true,
                 pull: pullResult,
-                push: pushResult
+                push: { skipped: true, reason: 'Auto-push disabled - use updateContact() for individual pushes' }
             };
 
         } catch (error) {

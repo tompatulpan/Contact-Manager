@@ -2064,8 +2064,12 @@ export class ContactDatabase {
             const sizeAfterOptimization = this.calculateItemSize(optimizedContact);
             console.log(`📏 Contact size AFTER optimization: ${(sizeAfterOptimization / 1024).toFixed(2)}KB (limit: 10KB)`);
             
-            // Update lastUpdated in the optimized contact
-            optimizedContact.metadata.lastUpdated = new Date().toISOString();
+            // ⚠️ CRITICAL: Only update lastUpdated if not already set (or if it's a genuine user edit)
+            // Sync operations should preserve the existing lastUpdated timestamp to avoid triggering false auto-pushes
+            if (!optimizedContact.metadata.lastUpdated) {
+                optimizedContact.metadata.lastUpdated = new Date().toISOString();
+            }
+            // else: Preserve existing lastUpdated from sync or user edit
             
             // Update in main contacts database (use optimized contact directly)
             await this.safeUpdateItem({

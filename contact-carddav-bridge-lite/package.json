@@ -1,0 +1,23 @@
+{
+  "name": "contact-carddav-bridge-lite",
+  "version": "1.0.0",
+  "description": "Lightweight CardDAV bridge for Contact Manager - simple and effective",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js",
+    "quick": "node quick-test.js"
+  },
+  "keywords": [
+    "carddav",
+    "contacts",
+    "sync",
+    "tsdav"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

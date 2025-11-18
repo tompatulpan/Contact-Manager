@@ -39,6 +39,8 @@ npm-debug.log*
 .npm/
 *.tgz
 .yarn-integrity
+/_temp
+# Block temp files and documentation
 .pnp.*
 .pnp/
 

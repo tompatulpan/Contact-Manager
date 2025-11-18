@@ -29,7 +29,8 @@ export class VCard3Processor {
         };
         
         // Multi-value properties (consistent with VCard4Processor architecture)
-        this.multiValueProperties = new Set(['TEL', 'EMAIL', 'URL', 'ADR', 'NOTE', 'CATEGORIES']);
+        // LABEL is a valid vCard 3.0 property for formatted address labels
+        this.multiValueProperties = new Set(['TEL', 'EMAIL', 'URL', 'ADR', 'LABEL', 'NOTE', 'CATEGORIES']);
         
         // Required properties for vCard 3.0 validation
         this.requiredProperties = new Set(['FN', 'VERSION']);

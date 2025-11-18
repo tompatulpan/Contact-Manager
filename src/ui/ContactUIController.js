@@ -2351,7 +2351,16 @@ export class ContactUIController {
             return;
         }
         
-        const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+        // � DEBUG: Log contact ID to verify we're using fresh data
+        console.log(`🔍 displayContactDetail called for: ${contact.cardName} (ID: ${contact.contactId})`);
+        console.log(`   vCard preview: ${contact.vcard ? contact.vcard.substring(0, 100) : 'NO VCARD'}`);
+        
+        // �🔄 FORCE NO CACHE - Always re-parse vCard to show latest data from sync
+        const displayData = this.contactManager.vCardStandard.extractDisplayData(contact, false);
+        
+        // 🐛 DEBUG: Log extracted phone numbers
+        console.log(`   Extracted phones:`, displayData.phones.map(p => p.value));
+        
         const contactType = ContactRenderer.getContactType(contact);
         
         container.innerHTML = `
