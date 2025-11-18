@@ -538,7 +538,8 @@ export class BaikalConnector {
                 
                 // Determine addressbook context from contact data
                 const syncContext = {
-                    addressbook: processedContact.addressbook || 'my-contacts'
+                    addressbook: processedContact.addressbook || 'my-contacts',
+                    profileName: profileName  // ✅ Pass profile name for shared contact push-back
                 };
 
                 // Use ContactManager's importOrUpdateContact which preserves ownership
