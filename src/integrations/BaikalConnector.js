@@ -263,9 +263,30 @@ export class BaikalConnector {
 
         // Check 1: Zero contacts from server
         if (serverContacts.length === 0 && localContacts.length > 0) {
+            const profile = this.connections.get(profileName);
+            console.error('❌ SYNC VALIDATION FAILED:');
+            console.error(`   📊 Server contacts: ${serverContacts.length}`);
+            console.error(`   📊 Local contacts: ${localContacts.length}`);
+            console.error(`   🔗 Server URL: ${profile?.serverUrl || 'unknown'}`);
+            console.error(`   📁 Addressbook: ${profile?.addressbookUrl || 'unknown'}`);
+            console.error('');
+            console.error('⚠️ POSSIBLE CAUSES:');
+            console.error('   1. Radicale server was restarted and lost data (in-memory storage?)');
+            console.error('   2. Wrong addressbook path in connection settings');
+            console.error('   3. Server configuration changed');
+            console.error('   4. Network/CORS issue preventing data retrieval');
+            console.error('');
+            console.error('💡 TO FIX:');
+            console.error('   1. Check if Radicale server is running: http://127.0.0.1:5232');
+            console.error('   2. Verify addressbook exists: /test/contacts/');
+            console.error('   3. Re-push contacts: Click "Manual Push" in CardDAV settings');
+            
+            // 🚨 Show user-friendly UI warning popup
+            this.showServerEmptyWarning(profileName, serverContacts.length, localContacts.length, profile);
+            
             throw new Error(
                 `SAFETY ABORT: Server returned 0 contacts but you have ${localContacts.length} local contacts. ` +
-                `This indicates a server error. Aborting sync to prevent data loss.`
+                `This indicates a server error. Aborting sync to prevent data loss. See console for details.`
             );
         }
 
@@ -295,6 +316,90 @@ export class BaikalConnector {
         }
 
         console.log(`✅ Sync validation passed: ${serverContacts.length} contacts from server`);
+    }
+
+    /**
+     * Show user-friendly warning popup when server returns 0 contacts
+     */
+    showServerEmptyWarning(profileName, serverCount, localCount, profile) {
+        const warningHTML = `
+            <div class="server-empty-warning" style="
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border: 3px solid #dc3545;
+                border-radius: 12px;
+                padding: 30px;
+                max-width: 600px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                z-index: 10000;
+                font-family: system-ui, -apple-system, sans-serif;
+            ">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 64px; margin-bottom: 10px;">⚠️</div>
+                    <h2 style="color: #dc3545; margin: 0; font-size: 24px;">CardDAV Server Empty!</h2>
+                </div>
+                
+                <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                    <p style="margin: 0; font-size: 16px; line-height: 1.6;">
+                        <strong>Server returned 0 contacts</strong> but you have <strong>${localCount} local contacts</strong>.<br>
+                        Sync has been <strong>aborted to prevent data loss</strong>.
+                    </p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 10px; color: #333;">🔍 Possible Causes:</h3>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+                        <li>CardDAV server was restarted (in-memory storage)</li>
+                        <li>Wrong addressbook path in settings</li>
+                        <li>Server configuration changed</li>
+                        <li>Network connectivity issue</li>
+                    </ul>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 10px; color: #333;">💡 Recommended Actions:</h3>
+                    <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+                        <li>Check if CardDAV server is running</li>
+                        <li>Verify addressbook path: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">${profile?.addressbookUrl || 'N/A'}</code></li>
+                        <li>Click <strong>"Manual Push"</strong> to restore ${localCount} contacts to server</li>
+                    </ol>
+                </div>
+                
+                <div style="text-align: center;">
+                    <button onclick="this.closest('.server-empty-warning').remove(); document.querySelector('.modal-overlay-server-warning')?.remove();" style="
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        padding: 12px 30px;
+                        border-radius: 6px;
+                        font-size: 16px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">I Understand</button>
+                </div>
+            </div>
+            
+            <div class="modal-overlay-server-warning" onclick="this.remove(); document.querySelector('.server-empty-warning')?.remove();" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 9999;
+            "></div>
+        `;
+        
+        // Remove any existing warnings
+        document.querySelectorAll('.server-empty-warning, .modal-overlay-server-warning').forEach(el => el.remove());
+        
+        // Add warning to page
+        document.body.insertAdjacentHTML('beforeend', warningHTML);
+        
+        console.log('🚨 Server empty warning displayed to user');
     }
 
     /**
@@ -2295,5 +2400,136 @@ export class BaikalConnector {
                 ? `Auto-sync active for ${this.syncIntervals.size} profile(s)` 
                 : 'Auto-sync not enabled'
         };
+    }
+
+    /**
+     * Stop periodic refresh (wrapper for stopAutoSync)
+     * Used during bulk operations like import to prevent race conditions
+     */
+    stopPeriodicRefresh() {
+        console.log('🛑 Stopping all periodic sync intervals');
+        const profiles = Array.from(this.syncIntervals.keys());
+        
+        for (const profileName of profiles) {
+            this.stopAutoSync(profileName);
+        }
+        
+        console.log(`✅ Stopped periodic sync for ${profiles.length} profile(s)`);
+    }
+
+    /**
+     * Start periodic refresh (wrapper for initializeAutoSync)
+     * Restarts periodic sync after bulk operations complete
+     */
+    startPeriodicRefresh() {
+        console.log('▶️ Starting periodic sync intervals');
+        const profiles = Array.from(this.connections.keys());
+        
+        for (const profileName of profiles) {
+            const connection = this.connections.get(profileName);
+            if (connection && connection.connected) {
+                // Use default intervals
+                this.initializeAutoSync(profileName).catch(err => {
+                    console.error(`❌ Failed to restart auto-sync for ${profileName}:`, err);
+                });
+            }
+        }
+        
+        console.log(`✅ Started periodic sync for ${profiles.length} connected profile(s)`);
+    }
+
+    /**
+     * Diagnose CardDAV connection and server status
+     * @param {string} profileName - Connection profile name
+     * @returns {Promise<Object>} Diagnostic results
+     */
+    async diagnoseConnection(profileName) {
+        console.log(`🔍 Running diagnostics for profile: ${profileName}`);
+        
+        const diagnostics = {
+            profileName,
+            connected: false,
+            serverReachable: false,
+            addressbookExists: false,
+            contactCount: 0,
+            localContactCount: 0,
+            issues: [],
+            recommendations: []
+        };
+
+        try {
+            // Check if profile exists
+            const profile = this.connections.get(profileName);
+            if (!profile) {
+                diagnostics.issues.push('Profile not found in connections');
+                diagnostics.recommendations.push('Reconnect to CardDAV server');
+                return diagnostics;
+            }
+
+            diagnostics.connected = true;
+            diagnostics.serverUrl = profile.serverUrl;
+            diagnostics.addressbookUrl = profile.addressbookUrl;
+
+            // Count local contacts
+            if (this.contactManager) {
+                const localContacts = Array.from(this.contactManager.contacts.values())
+                    .filter(c => !c.metadata?.isDeleted && !c.metadata?.isArchived);
+                diagnostics.localContactCount = localContacts.length;
+            }
+
+            // Try to fetch from server
+            try {
+                const result = await this.bridgeAdapter.testConnection(profileName);
+                diagnostics.serverReachable = result.success;
+                
+                if (result.success && result.contactCount !== undefined) {
+                    diagnostics.addressbookExists = true;
+                    diagnostics.contactCount = result.contactCount;
+
+                    // Analysis
+                    if (diagnostics.contactCount === 0 && diagnostics.localContactCount > 0) {
+                        diagnostics.issues.push(`Server has 0 contacts but you have ${diagnostics.localContactCount} locally`);
+                        diagnostics.recommendations.push('Re-push contacts using "Manual Push" button');
+                        diagnostics.recommendations.push('Check if Radicale is using persistent storage (not in-memory)');
+                    } else if (diagnostics.contactCount > 0) {
+                        diagnostics.status = 'healthy';
+                        diagnostics.recommendations.push(`Server has ${diagnostics.contactCount} contacts - sync should work normally`);
+                    }
+                } else {
+                    diagnostics.issues.push('Failed to fetch contacts from server');
+                    diagnostics.recommendations.push('Check server URL and credentials');
+                }
+            } catch (fetchError) {
+                diagnostics.serverReachable = false;
+                diagnostics.issues.push(`Cannot reach server: ${fetchError.message}`);
+                diagnostics.recommendations.push('Verify Radicale is running: http://127.0.0.1:5232');
+                diagnostics.recommendations.push('Check network connectivity and CORS settings');
+            }
+
+        } catch (error) {
+            diagnostics.issues.push(`Diagnostic error: ${error.message}`);
+        }
+
+        // Print diagnostic report
+        console.log('\n📋 DIAGNOSTIC REPORT:');
+        console.log(`   Profile: ${profileName}`);
+        console.log(`   Connected: ${diagnostics.connected ? '✅' : '❌'}`);
+        console.log(`   Server reachable: ${diagnostics.serverReachable ? '✅' : '❌'}`);
+        console.log(`   Addressbook exists: ${diagnostics.addressbookExists ? '✅' : '❌'}`);
+        console.log(`   Server contacts: ${diagnostics.contactCount}`);
+        console.log(`   Local contacts: ${diagnostics.localContactCount}`);
+        
+        if (diagnostics.issues.length > 0) {
+            console.log('\n⚠️ ISSUES FOUND:');
+            diagnostics.issues.forEach(issue => console.log(`   - ${issue}`));
+        }
+        
+        if (diagnostics.recommendations.length > 0) {
+            console.log('\n💡 RECOMMENDATIONS:');
+            diagnostics.recommendations.forEach(rec => console.log(`   - ${rec}`));
+        }
+        
+        console.log('');
+        return diagnostics;
     }
 }

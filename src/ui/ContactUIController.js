@@ -7110,6 +7110,30 @@ export class ContactUIController {
                 photosFiltered: 0 // Track how many contacts had photos filtered
             };
             
+            // Check CardDAV server availability before import
+            const hasCardDAVConnection = this.contactManager.baikalConnector && 
+                                        this.contactManager.baikalConnector.connections && 
+                                        this.contactManager.baikalConnector.connections.size > 0;
+            
+            if (hasCardDAVConnection) {
+                console.log(`🟢 CardDAV server connected - contacts will be synced automatically`);
+                
+                // 🔒 CRITICAL: Disable periodic sync during import to prevent race condition
+                // The periodic sync (every 5 min) can delete freshly imported contacts that haven't been pushed yet
+                console.log('🔒 Disabling periodic sync during import to prevent race condition');
+                if (this.contactManager?.baikalConnector) {
+                    this.contactManager.baikalConnector.stopPeriodicRefresh();
+                }
+            } else {
+                console.log(`🟡 CardDAV server not connected - contacts will be imported to local database only`);
+            }
+            
+            // Batch processing configuration
+            const BATCH_SIZE = 5; // Process 5 contacts at a time (reduced to avoid rate limits)
+            const BATCH_DELAY_MS = 2000; // 2 second delay between batches (Userbase rate limit protection)
+            
+            console.log(`📦 Importing ${vCardBlocks.length} contacts in batches of ${BATCH_SIZE} with ${BATCH_DELAY_MS}ms delays`);
+            
             for (let i = 0; i < vCardBlocks.length; i++) {
                 try {
                     const vCardString = vCardBlocks[i];
@@ -7117,8 +7141,26 @@ export class ContactUIController {
                     // Use the provided card name only for single contact imports
                     const contactCardName = vCardBlocks.length === 1 ? cardName : null;
                     
-                    // Import via ContactManager with duplicate detection
-                    const saveResult = await this.contactManager.importContactFromVCard(vCardString, contactCardName, markAsImported);
+                    // Import with retry logic for rate limiting
+                    let saveResult;
+                    let retryCount = 0;
+                    const MAX_RETRIES = 3;
+                    
+                    while (retryCount <= MAX_RETRIES) {
+                        try {
+                            saveResult = await this.contactManager.importContactFromVCard(vCardString, contactCardName, markAsImported);
+                            break; // Success, exit retry loop
+                        } catch (error) {
+                            if (error.message && error.message.includes('TooManyRequests') && retryCount < MAX_RETRIES) {
+                                retryCount++;
+                                const backoffDelay = 2000 * Math.pow(2, retryCount - 1); // 2s, 4s, 8s
+                                console.warn(`⚠️ Rate limited on contact ${i + 1}, retrying in ${backoffDelay}ms (attempt ${retryCount}/${MAX_RETRIES})`);
+                                await new Promise(resolve => setTimeout(resolve, backoffDelay));
+                            } else {
+                                throw error; // Give up after max retries or different error
+                            }
+                        }
+                    }
                     
                     // Track if photos were filtered for this contact
                     if (saveResult.contact && saveResult.contact.metadata.photosFiltered) {
@@ -7153,11 +7195,25 @@ export class ContactUIController {
                         results.errors.push(`Contact ${i + 1}: ${saveResult.error}`);
                     }
                     
+                    // Add delay after every batch to prevent overwhelming Userbase
+                    if ((i + 1) % BATCH_SIZE === 0 && i < vCardBlocks.length - 1) {
+                        console.log(`⏸️ Batch ${Math.floor(i / BATCH_SIZE) + 1} complete (${i + 1}/${vCardBlocks.length}), pausing ${BATCH_DELAY_MS}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+                    }
+                    
                 } catch (error) {
                     results.failed++;
                     results.errors.push(`Contact ${i + 1}: ${error.message}`);
                     console.error(`❌ Failed to import contact ${i + 1}:`, error);
                 }
+            }
+            
+            console.log(`✅ Import complete: ${results.imported} imported, ${results.duplicates} duplicates, ${results.failed} failed`);
+            
+            // 🔓 Re-enable periodic sync after successful import
+            console.log('🔓 Re-enabling periodic sync after import completion');
+            if (this.contactManager?.baikalConnector) {
+                this.contactManager.baikalConnector.startPeriodicRefresh();
             }
             
             // Trigger contacts update
@@ -7176,6 +7232,13 @@ export class ContactUIController {
             
         } catch (error) {
             console.error('Error in importContactsFromVCard:', error);
+            
+            // 🔓 Re-enable periodic sync even after error
+            console.log('🔓 Re-enabling periodic sync after import error');
+            if (this.contactManager?.baikalConnector) {
+                this.contactManager.baikalConnector.startPeriodicRefresh();
+            }
+            
             return {
                 success: false,
                 error: error.message || 'Failed to import contacts'

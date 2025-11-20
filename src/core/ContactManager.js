@@ -1829,9 +1829,25 @@ export class ContactManager {
                                 }
                             } else {
                                 console.warn(`⚠️ Failed to auto-push imported contact to profile "${profileName}": ${pushResult.error}`);
+                                
+                                // If server connection refused, disable further auto-push attempts
+                                if (pushResult.error && (pushResult.error.includes('ERR_CONNECTION_REFUSED') || 
+                                                         pushResult.error.includes('Failed to fetch'))) {
+                                    console.warn(`🔴 CardDAV server appears to be offline, skipping further auto-push attempts`);
+                                    shouldAutoPush = false; // Disable auto-push for remaining contacts
+                                    break; // Exit profile loop
+                                }
                             }
                         } catch (pushError) {
                             console.warn(`⚠️ Error auto-pushing imported contact to profile "${profileName}":`, pushError.message);
+                            
+                            // If server connection error, disable further auto-push attempts
+                            if (pushError.message && (pushError.message.includes('ERR_CONNECTION_REFUSED') || 
+                                                      pushError.message.includes('Failed to fetch'))) {
+                                console.warn(`🔴 CardDAV server appears to be offline, skipping further auto-push attempts`);
+                                shouldAutoPush = false; // Disable auto-push for remaining contacts
+                                break; // Exit profile loop
+                            }
                         }
                     }
                     
