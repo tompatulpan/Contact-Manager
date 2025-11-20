@@ -57,6 +57,22 @@ export class ContactManager {
         this.contactsLoaded = false;
         this.distributionSharingLoaded = false;
         
+        // ⚙️ CONFIGURABLE TIMING CONSTANTS (milliseconds)
+        // These can be adjusted based on server response times and user behavior
+        this.SYNC_TIMING = {
+            // Protection window for local edits (default: 2 minutes)
+            // Prevents server updates from overwriting recent local changes
+            PROTECTION_WINDOW_MS: 120000,
+            
+            // Skip protection for imported contacts (server is source of truth)
+            // When true, imported contacts can be updated by server immediately
+            SKIP_PROTECTION_FOR_IMPORTS: true,
+            
+            // Batch delay for bulk import operations (default: 500ms)
+            // Delay before pushing imported contacts to prevent race conditions
+            BULK_IMPORT_BATCH_DELAY_MS: 500
+        };
+        
         // Setup event listeners
         this.setupEventListeners();
     }
@@ -2024,21 +2040,31 @@ export class ContactManager {
                 console.log(`🔍 OLD ETag: ${existingContact.metadata?.cardDAV?.etag || 'none'}`);
                 console.log(`🔍 NEW ETag: ${serverContact.etag || 'none'}`);
                 
-                // 🔒 CONFLICT DETECTION: Skip update if local contact was recently edited (within last 2 minutes)
+                // 🔒 CONFLICT DETECTION: Skip update if local contact was recently edited (within protection window)
+                // ⚠️ EXCEPTION: Skip protection for IMPORTED contacts (server is source of truth)
                 const localLastUpdated = new Date(existingContact.metadata?.lastUpdated || 0);
                 const localLastSynced = new Date(existingContact.metadata?.cardDAV?.lastSyncedAt || 0);
                 const now = new Date();
                 const timeSinceUpdate = now - localLastUpdated;
                 const timeSinceSync = now - localLastSynced;
                 
-                // If contact was updated locally AFTER the last sync, and within last 2 minutes, skip server update
-                if (localLastUpdated > localLastSynced && timeSinceUpdate < 120000) {
+                // Check if this is an imported contact (server authority)
+                const isImported = existingContact.metadata?.isImported === true;
+                const skipProtectionForImports = this.SYNC_TIMING.SKIP_PROTECTION_FOR_IMPORTS;
+                
+                // Apply protection window ONLY for owned contacts (not imported)
+                // Imported contacts should always accept server updates (server is authority)
+                const shouldApplyProtection = localLastUpdated > localLastSynced && 
+                    timeSinceUpdate < this.SYNC_TIMING.PROTECTION_WINDOW_MS &&
+                    !(isImported && skipProtectionForImports);
+                
+                if (shouldApplyProtection) {
                     console.warn(`
 ⚠️ ═══════════════════════════════════════════════════════════════
 ⚠️ CONFLICT DETECTED - Local Edits Protected
 ⚠️ ═══════════════════════════════════════════════════════════════
 📝 Contact: ${existingContact.cardName}
-⏱️  Local edit was ${Math.round(timeSinceUpdate / 1000)}s ago (within 2-minute protection window)
+⏱️  Local edit was ${Math.round(timeSinceUpdate / 1000)}s ago (within ${this.SYNC_TIMING.PROTECTION_WINDOW_MS / 1000}s protection window)
 📅 Local lastUpdated: ${localLastUpdated.toISOString()}
 🔄 Last synced:        ${localLastSynced.toISOString()}
 🏷️  Server ETag:       ${serverContact.etag}
@@ -2054,6 +2080,23 @@ export class ContactManager {
                         reason: 'local_changes_pending',
                         timeSinceUpdate 
                     };
+                } else if (isImported && skipProtectionForImports && localLastUpdated > localLastSynced) {
+                    // Log when protection is skipped for imported contacts
+                    console.log(`
+✅ ═══════════════════════════════════════════════════════════════
+✅ IMPORTED CONTACT - Protection Skipped (Server Authority)
+✅ ═══════════════════════════════════════════════════════════════
+📝 Contact: ${existingContact.cardName}
+🔍 isImported: ${isImported}
+⏱️  Local edit was ${Math.round(timeSinceUpdate / 1000)}s ago (would trigger protection for owned contacts)
+📅 Local lastUpdated: ${localLastUpdated.toISOString()}
+🔄 Last synced:        ${localLastSynced.toISOString()}
+🏷️  Server ETag:       ${serverContact.etag}
+
+✅ ACTION: ACCEPTING server update (imported contact = server authority)
+💡 REASON: Imported contacts always sync from server to preserve external edits
+✅ ═══════════════════════════════════════════════════════════════
+`);
                 }
                 
                 // 🐛 DEBUG: Log vCard content being received from server

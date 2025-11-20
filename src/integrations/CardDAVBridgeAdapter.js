@@ -121,8 +121,31 @@ export class CardDAVBridgeAdapter {
             };
         }
         
-        // Construct contact URL: addressbookUrl + uid.vcf
-        const fullContactUrl = contactUrl || `${profile.addressbookUrl}${uid}.vcf`;
+        // Construct absolute URL - FIX for relative paths
+        let fullContactUrl;
+        if (contactUrl) {
+            // If href is relative, make it absolute using the addressbook URL
+            if (contactUrl.startsWith('/') || !contactUrl.startsWith('http')) {
+                // Get base URL without the path
+                const url = new URL(profile.addressbookUrl);
+                fullContactUrl = `${url.protocol}//${url.host}${contactUrl}`;
+            } else {
+                // Already absolute
+                fullContactUrl = contactUrl;
+            }
+        } else {
+            // Construct from addressbook URL + UID
+            fullContactUrl = `${profile.addressbookUrl}${uid}.vcf`;
+        }
+        
+        // 🐛 DEBUG: Log URL construction
+        console.log(`🗑️ CardDAVBridgeAdapter.deleteContact:`);
+        console.log(`   Profile: ${profileName}`);
+        console.log(`   UID: ${uid}`);
+        console.log(`   Addressbook URL: ${profile.addressbookUrl}`);
+        console.log(`   Original href: ${contactUrl || 'none'}`);
+        console.log(`   Final absolute URL: ${fullContactUrl}`);
+        
         return await this.bridge.deleteContact(fullContactUrl);
     }
 
