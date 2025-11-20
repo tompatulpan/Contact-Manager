@@ -166,10 +166,6 @@ export const FEATURE_FLAGS = {
     enableTestMode: false,
     enablePerformanceMonitoring: false,
     
-    // 🆕 CardDAV Bridge Selection
-    // Set to 'lite' for new lightweight bridge (330 lines) - ✅ CORS enabled on local Radicale
-    // Set to 'legacy' for old bridge with HTTP server (5,931 lines) - Acts as CORS proxy
-    useLiteBridge: true  // ✅ Using lite bridge with local Radicale (http://127.0.0.1:5232)
 };
 
 // Performance Settings

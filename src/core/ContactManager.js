@@ -300,6 +300,7 @@ export class ContactManager {
                 console.log(`📤 AUTO-PUSH: Syncing new contact to Baikal server: ${contact.cardName}`);
                 
                 const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                let pushSucceeded = false;
                 
                 for (const profileName of connectedProfiles) {
                     try {
@@ -310,12 +311,34 @@ export class ContactManager {
                         
                         if (pushResult.success) {
                             console.log(`✅ Auto-pushed new contact to Baikal profile "${profileName}"`);
+                            pushSucceeded = true;
+                            
+                            // 🆕 INSTANT VISIBILITY: Update contact with CardDAV metadata from push
+                            if (pushResult.etag || pushResult.href) {
+                                contact.metadata.cardDAV = {
+                                    ...contact.metadata.cardDAV,
+                                    etag: pushResult.etag || null,
+                                    href: pushResult.href || null,
+                                    lastSyncedAt: new Date().toISOString(),
+                                    profileName: profileName
+                                };
+                            }
                         } else {
                             console.warn(`⚠️ Failed to auto-push to profile "${profileName}": ${pushResult.error}`);
                         }
                     } catch (pushError) {
                         console.warn(`⚠️ Error auto-pushing to profile "${profileName}":`, pushError.message);
                     }
+                }
+                
+                // 🆕 INSTANT VISIBILITY: Emit event to trigger UI refresh after successful push
+                if (pushSucceeded) {
+                    console.log(`🔄 Triggering UI refresh for instant visibility`);
+                    this.eventBus.emit('contact:pushedToCardDAV', { 
+                        contact,
+                        action: 'created',
+                        immediate: true 
+                    });
                 }
             }
 
@@ -452,7 +475,7 @@ export class ContactManager {
                 !this.syncInProgress) {  // ✅ Skip auto-push during sync
                 
                 // 🔥 CRITICAL FIX: Clear CardDAV hash cache before push
-                // This forces the bridge server to bypass hash comparison and actually push the update
+                // This forces the lite bridge to bypass hash comparison and actually push the update
                 // Without this, the hash optimization prevents local edits from syncing to Thunderbird
                 if (updatedContact.metadata?.cardDAV) {
                     const oldHash = updatedContact.metadata.cardDAV.contentHash;
@@ -461,7 +484,7 @@ export class ContactManager {
                     
                     console.log(`🔄 HASH CACHE CLEARED for ${updatedContact.cardName}`);
                     console.log(`   Old hash: ${oldHash ? oldHash.substring(0, 16) + '...' : 'none'}`);
-                    console.log(`   This will force bridge server to push update to CardDAV`);
+                    console.log(`   This will force lite bridge to push update to CardDAV`);
                     
                     // Update in database with cleared cache
                     await this.database.updateContact(updatedContact);
@@ -1732,6 +1755,81 @@ export class ContactManager {
                     }
                 }
                 
+                // 🆕 AUTO-PUSH TO BAIKAL: Push imported contact to all connected Baikal profiles
+                // 
+                // ⚠️ SMART AUTO-PUSH: Only push if this is a FRESH import (just created)
+                // Skip if:
+                // 1. Contact already has CardDAV metadata (was synced before)
+                // 2. Contact is older than 5 seconds (not fresh import)
+                // 
+                // This prevents sync loops while allowing fresh imports to be pushed
+                const hasCardDAVMetadata = contact.metadata?.cardDAV?.etag || 
+                                          contact.metadata?.cardDAV?.href || 
+                                          contact.metadata?.cardDAV?.lastSyncedAt;
+                
+                const isFreshImport = !hasCardDAVMetadata && contact.metadata?.createdAt &&
+                    (Date.now() - new Date(contact.metadata.createdAt).getTime()) < 5000; // 5 seconds
+                
+                const shouldAutoPush = isFreshImport;
+                
+                if (this.baikalConnector && this.baikalConnector.connections && 
+                    this.baikalConnector.connections.size > 0 && shouldAutoPush) {
+                    
+                    console.log(`📤 AUTO-PUSH: Syncing freshly imported contact to Baikal server: ${contact.cardName}`);
+                    
+                    const connectedProfiles = Array.from(this.baikalConnector.connections.keys());
+                    let pushSucceeded = false;
+                    
+                    for (const profileName of connectedProfiles) {
+                        try {
+                            const pushResult = await this.baikalConnector.pushContactToBaikal(
+                                contact,         // Contact first
+                                profileName      // Profile name second
+                            );
+                            
+                            if (pushResult.success) {
+                                console.log(`✅ Auto-pushed imported contact to Baikal profile "${profileName}"`);
+                                pushSucceeded = true;
+                                
+                                // Update contact with CardDAV metadata from push
+                                if (pushResult.etag || pushResult.href) {
+                                    contact.metadata.cardDAV = {
+                                        ...contact.metadata.cardDAV,
+                                        etag: pushResult.etag || null,
+                                        href: pushResult.href || null,
+                                        lastSyncedAt: new Date().toISOString(),
+                                        profileName: profileName
+                                    };
+                                    
+                                    // ✅ CRITICAL: Persist metadata to database (prevents deletion during sync)
+                                    try {
+                                        await this.database.updateContact(contact);
+                                        console.log(`✅ CardDAV metadata persisted for imported contact: ${contact.cardName}`);
+                                        console.log(`   📝 etag: ${pushResult.etag || 'none'}`);
+                                        console.log(`   📝 href: ${pushResult.href || 'none'}`);
+                                    } catch (dbError) {
+                                        console.error(`❌ Failed to persist CardDAV metadata:`, dbError);
+                                    }
+                                }
+                            } else {
+                                console.warn(`⚠️ Failed to auto-push imported contact to profile "${profileName}": ${pushResult.error}`);
+                            }
+                        } catch (pushError) {
+                            console.warn(`⚠️ Error auto-pushing imported contact to profile "${profileName}":`, pushError.message);
+                        }
+                    }
+                    
+                    // Emit event to trigger UI refresh after successful push
+                    if (pushSucceeded) {
+                        console.log(`🔄 Triggering UI refresh for imported contact visibility`);
+                        this.eventBus.emit('contact:pushedToCardDAV', { 
+                            contact,
+                            action: 'imported',
+                            immediate: true 
+                        });
+                    }
+                }
+                
                 this.clearSearchCache();
                 this.eventBus.emit('contact:imported', { 
                     contact,
@@ -2018,7 +2116,19 @@ export class ContactManager {
                         // Push current Userbase version back to CardDAV (override external edits)
                         if (this.baikalConnector && this.baikalConnector.isConnected) {
                             console.log(`📤 Pushing owner's version to CardDAV (override external changes)`);
-                            await this.baikalConnector.pushContactToBaikal(currentContact, syncContext.profileName);
+                            const pushResult = await this.baikalConnector.pushContactToBaikal(currentContact, syncContext.profileName);
+                            
+                            // ✅ UPDATE ETAG: Store the server's ETag to prevent re-detection every sync
+                            if (pushResult.success && serverContact.etag) {
+                                currentContact.metadata.cardDAV = {
+                                    ...currentContact.metadata.cardDAV,
+                                    etag: serverContact.etag,
+                                    lastSyncedAt: new Date().toISOString()
+                                };
+                                // Update in-memory version (no need to save to Userbase for shared contacts)
+                                this.contacts.set(updatedContact.contactId, currentContact);
+                                console.log(`✅ ETag updated in memory: ${serverContact.etag}`);
+                            }
                         }
                     } else {
                         // First time seeing this shared contact - accept CardDAV version temporarily
@@ -2812,7 +2922,7 @@ export class ContactManager {
      * @param {Object} cardDAVMetadata - CardDAV metadata {etag, href, lastSyncedAt, serverUID}
      * @returns {Promise<Object>} Update result
      */
-    async updateContactCardDAVMetadata(contactId, cardDAVMetadata) {
+    async updateContactCardDAVMetadata(contactId, cardDAVMetadata, syncTimestamps = false) {
         try {
             const contact = this.contacts.get(contactId);
             if (!contact) {
@@ -2840,6 +2950,8 @@ export class ContactManager {
             });
             const trimmedHistory = pushHistory.slice(-10);
 
+            const syncTime = cardDAVMetadata.lastSyncedAt || new Date().toISOString();
+
             // Build updated contact
             const updatedContact = {
                 ...contact,
@@ -2849,13 +2961,13 @@ export class ContactManager {
                         ...currentCardDAV,
                         etag: cardDAVMetadata.etag,
                         href: cardDAVMetadata.href,
-                        lastSyncedAt: cardDAVMetadata.lastSyncedAt || new Date().toISOString(),
+                        lastSyncedAt: syncTime,
                         serverUID: cardDAVMetadata.serverUID,
                         pushHistory: trimmedHistory
-                    }
-                    // ⚠️ CRITICAL: Don't update lastUpdated here!
-                    // This is just a CardDAV metadata sync, not a content change
-                    // Updating lastUpdated would cause false conflicts with server sync
+                    },
+                    // 🔄 SYNC TIMESTAMPS: After successful PUSH, sync lastUpdated to match lastSyncedAt
+                    // This prevents false conflict detection (contact is now in sync with server)
+                    ...(syncTimestamps && { lastUpdated: syncTime })
                 }
             };
 

@@ -107,8 +107,8 @@ class ContactManagementApp {
             this.modules.validator
         );
         
-        // 🆕 Initialize Baikal CardDAV integration modules
-        this.modules.baikalConnector = new BaikalConnector('http://localhost:3001/api', this.eventBus);
+        // CardDAV integration modules (lite bridge - no HTTP server)
+        this.modules.baikalConnector = new BaikalConnector(this.eventBus);
         this.modules.baikalConfigManager = new BaikalConfigManager(
             this.eventBus,
             this.modules.database

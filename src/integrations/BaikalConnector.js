@@ -1,5 +1,5 @@
 /**
- * BaikalConnector - CardDAV Sync for Baikal/Nextcloud
+ * BaikalConnector - CardDAV Sync for Baikal/Radicale/Nextcloud
  * Bidirectional sync with ownership preservation
  * 
  * KEY FEATURES:
@@ -9,28 +9,24 @@
  * ✅ Simple pull → import → preserve pattern
  * ✅ Bidirectional sync (pull and push)
  * ✅ Shared contact protection with read-only addressbooks
- * ✅ SWITCHABLE: Can use lite bridge (200 lines) or legacy bridge (5,931 lines)
+ * ✅ Lightweight bridge (200 lines, direct tsdav) - no HTTP server required
  * 
  * NOTE: For iCloud, use ICloudConnector instead (one-way export only)
  */
-import { PERFORMANCE_CONFIG, FEATURE_FLAGS } from '../config/app.config.js';
+import { PERFORMANCE_CONFIG } from '../config/app.config.js';
 import CardDAVBridgeAdapter from './CardDAVBridgeAdapter.js';
 
 export class BaikalConnector {
-    constructor(bridgeUrl = 'http://localhost:3001/api', eventBus = null) {
-        this.version = '2025-11-18-switchable-bridge';
+    constructor(eventBus = null) {
+        this.version = '2025-11-18-lite-bridge-only';
         
-        this.bridgeUrl = bridgeUrl;
         this.eventBus = eventBus;
         this.connections = new Map();
         this.isConnected = false;
         this.contactManager = null;
         
-        // 🆕 CardDAV Bridge Adapter (switchable between lite and legacy)
-        this.bridgeAdapter = new CardDAVBridgeAdapter({
-            useLiteBridge: FEATURE_FLAGS.useLiteBridge,
-            legacyBridgeUrl: bridgeUrl
-        });
+        // CardDAV Bridge Adapter (lite bridge only)
+        this.bridgeAdapter = new CardDAVBridgeAdapter();
         
         // Event callbacks
         this.onStatusChange = null;
@@ -454,11 +450,15 @@ export class BaikalConnector {
             // 🛡️ SAFETY: Only detect deletions if server sync was fully successful
             const deletionResults = await this.detectAndHandleServerDeletions(serverContacts, profileName);
 
+            // 🗑️ CLEANUP: Remove orphaned contacts from server (exist on server but deleted locally)
+            const cleanupResults = await this.cleanupOrphanedServerContacts(serverContacts, profileName);
+
             this.onContactsReceived?.({
                 contacts: serverContacts,
                 profileName,
                 imported: importResults,
-                deletions: deletionResults
+                deletions: deletionResults,
+                cleanup: cleanupResults
             });
 
             return {
@@ -690,21 +690,80 @@ export class BaikalConnector {
         }
 
         // Get all local contacts that are synced with this profile
-        const localContacts = Array.from(this.contactManager.contacts.values())
-            .filter(contact => {
-                // Only check contacts that are synced with CardDAV
-                const hasCardDAVMetadata = contact.metadata?.cardDAV?.lastSyncedAt;
+        const allLocalContacts = Array.from(this.contactManager.contacts.values());
+        
+        // 🐛 Check contacts WITHOUT CardDAV metadata but marked as imported
+        // These may have been imported from vCard files, then deleted on server
+        const contactsWithoutMetadata = allLocalContacts.filter(c => {
+            const hasMetadata = c.metadata?.cardDAV?.lastSyncedAt || 
+                               c.metadata?.cardDAV?.etag || 
+                               c.metadata?.cardDAV?.href;
+            return !hasMetadata && !c.metadata?.isDeleted && !c.metadata?.isArchived;
+        });
+        
+        if (contactsWithoutMetadata.length > 0) {
+            console.log(`⚠️ Found ${contactsWithoutMetadata.length} contacts WITHOUT CardDAV metadata:`);
+            contactsWithoutMetadata.forEach(c => {
+                const uid = this.contactManager.extractUIDFromVCard(c.vcard);
+                console.log(`   - ${c.cardName} (UID: ${uid})`);
+                console.log(`     isOwned: ${c.metadata?.isOwned}, isImported: ${c.metadata?.isImported}`);
+                console.log(`     cardDAV: etag=${!!c.metadata?.cardDAV?.etag}, href=${!!c.metadata?.cardDAV?.href}, lastSyncedAt=${!!c.metadata?.cardDAV?.lastSyncedAt}`);
+            });
+            
+            // ✅ Check if imported contacts without metadata exist on server
+            // If not, they were deleted on server and should be removed locally
+            const importedWithoutMetadata = contactsWithoutMetadata.filter(c => c.metadata?.isImported === true);
+            
+            if (importedWithoutMetadata.length > 0) {
+                console.log(`🔍 Checking ${importedWithoutMetadata.length} imported contacts without metadata against server...`);
+                
+                for (const contact of importedWithoutMetadata) {
+                    const uid = this.contactManager.extractUIDFromVCard(contact.vcard);
+                    
+                    if (uid && !serverUIDs.has(uid)) {
+                        console.log(`🗑️ Imported contact "${contact.cardName}" (UID: ${uid}) missing from server - deleting locally`);
+                        
+                        try {
+                            const deleteResult = await this.contactManager.deleteContact(contact.contactId);
+                            
+                            if (deleteResult.success) {
+                                console.log(`   ✅ Deleted imported contact from Contact Manager`);
+                            } else {
+                                console.error(`   ❌ Failed to delete: ${deleteResult.error}`);
+                            }
+                        } catch (error) {
+                            console.error(`   ❌ Error deleting contact:`, error);
+                        }
+                    } else if (uid) {
+                        console.log(`   ℹ️ Imported contact "${contact.cardName}" exists on server - keeping locally`);
+                    }
+                }
+            }
+        }
+        
+        const localContacts = allLocalContacts.filter(contact => {
+                // Check if contact has ANY CardDAV metadata (was synced to server)
+                // - lastSyncedAt: Contact was pulled from server
+                // - etag: Contact was pushed to server (has version tracking)
+                // - href: Contact was pushed to server (has server URL)
+                const hasCardDAVMetadata = 
+                    contact.metadata?.cardDAV?.lastSyncedAt ||
+                    contact.metadata?.cardDAV?.etag ||
+                    contact.metadata?.cardDAV?.href;
+                
                 const notDeleted = !contact.metadata?.isDeleted;
                 const notArchived = !contact.metadata?.isArchived;
                 
                 return hasCardDAVMetadata && notDeleted && notArchived;
             });
 
+        console.log(`🔍 Deletion detection: ${localContacts.length} contacts with CardDAV metadata`);
         
         // 🐛 DEBUG: Log contact ownership breakdown
         const ownedCount = localContacts.filter(c => c.metadata?.isOwned === true).length;
         const importedCount = localContacts.filter(c => c.metadata?.isImported === true).length;
         const sharedCount = localContacts.filter(c => c.contactId?.startsWith('shared_')).length;
+        console.log(`   📊 Owned: ${ownedCount}, Imported: ${importedCount}, Shared: ${sharedCount}`);
         
         // 🐛 DEBUG: Log first few local UIDs for comparison
         const localUIDs = localContacts
@@ -732,39 +791,51 @@ export class BaikalConnector {
                 // Check if contact still exists on server
                 if (!serverUIDs.has(localUID)) {
                     // Contact was deleted on server
+                    console.log(`🗑️ Contact missing from server: ${localContact.cardName} (UID: ${localUID})`);
                     
                     // ✅ SAFETY CHECK: Determine if contact should be deleted
                     const isOwned = localContact.metadata?.isOwned === true;
                     const isShared = localContact.contactId?.startsWith('shared_');
                     const isImported = localContact.metadata?.isImported === true;
                     
-                    // 🐛 DEBUG: Log deletion candidate details
+                    console.log(`   📊 isOwned: ${isOwned}, isShared: ${isShared}, isImported: ${isImported}`);
 
                     // 🔒 NEVER delete shared contacts (managed separately)
                     if (isShared) {
+                        console.log(`   ⏭️  Skipping: Shared contact (managed separately)`);
                         skipped++;
                         continue;
                     }
 
-                    // 🔧 UPDATED DELETION LOGIC (matches new ownership model):
+                    // 🔧 UPDATED DELETION LOGIC (bidirectional sync):
                     // 
-                    // NEW OWNERSHIP MODEL:
-                    // - OWNED: isOwned=true, isImported=false (BLUE) - NEVER delete
-                    // - IMPORTED: isOwned=true, isImported=true (ORANGE) - DELETE if missing from server
-                    // - SHARED: isOwned=false (GREEN) - Handled separately above
+                    // If contact was synced to CardDAV and is now missing from server,
+                    // it was deleted on server (e.g., in Thunderbird) → DELETE locally
                     // 
                     // DELETE RULES:
-                    // 1. If isImported=true → DELETE (server has authority)
-                    // 2. If isOwned=false → DELETE (not our contact)
-                    // 3. If isOwned=true AND isImported=false → KEEP (user created, user has authority)
+                    // 1. Contact has CardDAV metadata (was synced) → DELETE (server deletion detected)
+                    // 2. Contact is IMPORTED (isImported=true) → DELETE (server authority)
+                    // 3. Contact is SHARED (isOwned=false) → DELETE (not our contact)
+                    // 4. Contact has NO CardDAV metadata → KEEP (never synced, local-only)
                     
-                    const shouldDelete = isImported || !isOwned;
+                    const hasCardDAVMetadata = !!localContact.metadata?.cardDAV?.etag || 
+                                              !!localContact.metadata?.cardDAV?.href ||
+                                              !!localContact.metadata?.cardDAV?.lastSyncedAt;
                     
+                    console.log(`   🔍 hasCardDAVMetadata: ${hasCardDAVMetadata}`);
+                    console.log(`   🔍 CardDAV data: etag=${!!localContact.metadata?.cardDAV?.etag}, href=${!!localContact.metadata?.cardDAV?.href}, lastSyncedAt=${!!localContact.metadata?.cardDAV?.lastSyncedAt}`);
+                    
+                    const shouldDelete = hasCardDAVMetadata || isImported || !isOwned;
+                    
+                    console.log(`   ➜ shouldDelete: ${shouldDelete} (hasMetadata=${hasCardDAVMetadata} OR isImported=${isImported} OR !isOwned=${!isOwned})`);
                     
                     if (!shouldDelete) {
+                        console.log(`   ⏭️  Skipping deletion of local-only contact: ${localContact.cardName}`);
                         skipped++;
                         continue;
                     }
+                    
+                    console.log(`   ✅ DELETING contact from Contact Manager: ${localContact.cardName}`);
 
                     // ✅ Safe to delete - this is an imported contact deleted on server
                     
@@ -803,6 +874,166 @@ export class BaikalConnector {
             checked: localContacts.length,
             deletedContacts
         };
+    }
+
+    /**
+     * Cleanup orphaned contacts on server (exist on server but deleted locally)
+     * 
+     * This handles the bidirectional deletion sync issue where:
+     * 1. Contact is deleted in Contact Manager
+     * 2. DELETE request to Radicale fails with 501 (not supported)
+     * 3. Contact remains on server but is gone locally
+     * 4. Next sync would re-import the "deleted" contact (zombie resurrection)
+     * 
+     * Solution: During sync, detect contacts on server but not in local cache
+     * and attempt to clean them up.
+     * 
+     * @param {Array} serverContacts - Contacts from CardDAV server
+     * @param {string} profileName - Profile name
+     * @returns {Promise<Object>} Cleanup results
+     */
+    async cleanupOrphanedServerContacts(serverContacts, profileName) {
+        if (!this.contactManager) {
+            console.warn('⚠️ Cannot cleanup server - contactManager not set');
+            return { cleaned: 0, checked: 0, orphaned: 0, errors: [] };
+        }
+
+        console.log(`🗑️ Checking for orphaned contacts on server (${profileName})...`);
+
+        // Get ALL local contacts (not just those with CardDAV metadata)
+        // This is important because newly created contacts might not have CardDAV metadata yet
+        const localContacts = Array.from(this.contactManager.contacts.values())
+            .filter(c => {
+                // Exclude contacts marked as deleted
+                if (c.metadata?.isDeleted) return false;
+                
+                // Include all non-deleted contacts (they might be pending sync)
+                return true;
+            });
+
+        // Build set of local UIDs
+        const localUIDs = new Set(
+            localContacts
+                .map(c => this.contactManager.extractUIDFromVCard(c.vcard))
+                .filter(uid => uid) // Filter out null/undefined
+        );
+
+        console.log(`📊 Local contacts (all): ${localContacts.length}`);
+        console.log(`📊 Server contacts: ${serverContacts.length}`);
+        console.log(`🔍 Local UIDs:`, Array.from(localUIDs));
+        console.log(`🔍 Server UIDs:`, serverContacts.map(sc => sc.uid));
+
+        // Find contacts on server but NOT in local cache
+        const orphanedContacts = serverContacts.filter(sc => {
+            // Contact exists on server but not locally
+            const isOrphaned = !localUIDs.has(sc.uid);
+            
+            // Additional safety check: Don't cleanup contacts that were JUST synced
+            // Check if this contact was imported in the last 60 seconds
+            if (isOrphaned) {
+                // Check if we have any local contact with similar timestamp
+                // (could be same contact but UID mismatch)
+                const recentLocal = localContacts.find(lc => {
+                    const createdRecently = lc.metadata?.createdAt && 
+                        (Date.now() - new Date(lc.metadata.createdAt).getTime()) < 60000;
+                    return createdRecently;
+                });
+                
+                // If we have recent local contacts, be more cautious
+                if (recentLocal) {
+                    console.log(`⚠️ Found recent local contact, skipping cleanup for: ${sc.uid}`);
+                    return false;
+                }
+            }
+            
+            return isOrphaned;
+        });
+
+        console.log(`🗑️ Orphaned contacts detected: ${orphanedContacts.length}`);
+
+        if (orphanedContacts.length === 0) {
+            console.log('✅ No orphaned contacts to cleanup');
+            return {
+                cleaned: 0,
+                checked: serverContacts.length,
+                orphaned: 0,
+                errors: []
+            };
+        }
+
+        // Attempt to clean up orphaned contacts
+        let cleaned = 0;
+        const errors = [];
+
+        for (const orphan of orphanedContacts) {
+            try {
+                console.log(`🗑️ Attempting cleanup of orphaned contact: ${orphan.uid}`);
+                
+                // Try to delete from server
+                const profile = this.connections.get(profileName);
+                if (!profile) {
+                    throw new Error(`Profile ${profileName} not connected`);
+                }
+
+                // Create minimal contact object for deletion
+                // deleteContactFromBaikal expects a contact object with vcard property
+                const orphanContact = {
+                    vcard: orphan.vcard || `BEGIN:VCARD\nVERSION:3.0\nUID:${orphan.uid}\nEND:VCARD`,
+                    contactId: orphan.uid,
+                    metadata: {
+                        cardDAV: {
+                            href: orphan.href,
+                            profileName: profileName
+                        }
+                    }
+                };
+
+                const deleteResult = await this.deleteContactFromBaikal(
+                    orphanContact,
+                    profileName
+                );
+
+                if (deleteResult.success) {
+                    cleaned++;
+                    console.log(`✅ Cleaned orphaned contact from server: ${orphan.uid}`);
+                } else if (deleteResult.fallback) {
+                    // Server returned 501 (DELETE not supported)
+                    console.warn(`⚠️ Cannot delete orphaned contact ${orphan.uid} - server doesn't support DELETE (501)`);
+                    console.warn(`   This contact will continue to exist on server until manually removed`);
+                    errors.push({
+                        uid: orphan.uid,
+                        error: 'Server does not support DELETE (501)',
+                        recommendation: 'Manual cleanup required'
+                    });
+                } else {
+                    throw new Error(deleteResult.error || 'Unknown deletion error');
+                }
+
+            } catch (error) {
+                console.error(`❌ Failed to cleanup orphaned contact ${orphan.uid}:`, error.message);
+                errors.push({
+                    uid: orphan.uid,
+                    error: error.message
+                });
+            }
+        }
+
+        const result = {
+            cleaned,
+            checked: serverContacts.length,
+            orphaned: orphanedContacts.length,
+            errors
+        };
+
+        // Log summary
+        if (cleaned > 0) {
+            console.log(`✅ Server cleanup complete: ${cleaned} orphaned contacts removed`);
+        }
+        if (errors.length > 0) {
+            console.warn(`⚠️ ${errors.length} orphaned contacts could not be cleaned - manual cleanup may be required`);
+        }
+
+        return result;
     }
     
     /**
@@ -922,7 +1153,7 @@ export class BaikalConnector {
                     href: result.href,
                     addressbook: addressbook,
                     lastSyncedAt: new Date().toISOString()
-                });
+                }, true); // ✅ syncTimestamps = true to prevent false conflicts
             }
 
             return result;
@@ -1043,37 +1274,23 @@ export class BaikalConnector {
      */
     async testConnection() {
         try {
-            // ✅ Get bridge info from adapter
+            // Lite bridge: No HTTP server, always available
             const bridgeInfo = this.bridgeAdapter.getBridgeInfo();
             
-            if (bridgeInfo.type === 'lite') {
-                // Lite bridge: No HTTP server, always available
-                return {
-                    success: true,
-                    bridgeType: 'lite',
-                    bridgeVersion: '1.0.0',
-                    status: 'ready',
-                    note: 'Lite bridge - no HTTP server required'
-                };
-            } else {
-                // Legacy bridge: Check HTTP server health
-                const response = await fetch(`${this.bridgeUrl}/health`);
-                const result = await response.json();
-                
-                return {
-                    success: true,
-                    bridgeType: 'legacy',
-                    bridgeVersion: result.version,
-                    status: result.status
-                };
-            }
+            return {
+                success: true,
+                bridgeType: 'lite',
+                bridgeVersion: '1.0.0',
+                status: 'ready',
+                linesOfCode: bridgeInfo.linesOfCode,
+                note: 'Lite bridge - no HTTP server required'
+            };
 
         } catch (error) {
-            console.error('❌ Bridge connection test failed:', error);
+            console.error('❌ Bridge initialization failed:', error);
             return {
                 success: false,
-                error: error.message,
-                note: 'Legacy bridge server may not be running'
+                error: error.message
             };
         }
     }
@@ -1630,7 +1847,7 @@ export class BaikalConnector {
             // Note: For iCloud, use ICloudConnector instead
             // BaikalConnector is for Baikal/Nextcloud which support vCard 4.0 natively
             
-            // ✅ Force-push using CardDAV Bridge Adapter (NULL ETag overrides server version)
+            // ✅ Force-push using lite bridge (NULL ETag overrides server version)
             const result = await this.bridgeAdapter.pushContact(
                 profileName,
                 addressbook,

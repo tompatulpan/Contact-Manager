@@ -285,7 +285,7 @@ export class BaikalUIController {
                             <div class="connection-info">
                                 <h3>Connect to CardDAV Server</h3>
                                 <p>Add your CardDAV server details to sync contacts across all devices.</p>
-                                <p><strong>Note:</strong> Requires CardDAV bridge server running on port 3001</p>
+                                <p><strong>Supported servers:</strong> Baikal, Radicale, Nextcloud, iCloud (with app-specific password)</p>
                             </div>
                             
                             <form id="baikal-connection-form">

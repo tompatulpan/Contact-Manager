@@ -160,6 +160,7 @@ class SimpleCardDAVBridge {
         }
 
         try {
+            // Try DELETE method first (standard CardDAV)
             const response = await fetch(vcardUrl, {
                 method: 'DELETE',
                 headers: {
@@ -167,12 +168,21 @@ class SimpleCardDAVBridge {
                 }
             });
 
-            if (!response.ok && response.status !== 404) {
-                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+            // Success or already deleted (404)
+            if (response.ok || response.status === 404) {
+                console.log(`✅ Deleted contact: ${vcardUrl}`);
+                return { success: true };
             }
             
-            console.log(`✅ Deleted contact: ${vcardUrl}`);
-            return { success: true };
+            // If DELETE not supported (501), treat as success
+            // The contact is deleted locally and will not be synced back
+            if (response.status === 501) {
+                console.warn(`⚠️ Server doesn't support DELETE (501) - treating as success`);
+                console.warn(`   Contact deleted locally, will not be re-synced`);
+                return { success: true, fallback: true };
+            }
+            
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
             
         } catch (error) {
             console.error(`❌ Delete failed:`, error.message);

@@ -625,6 +625,9 @@ export class ContactUIController {
         this.eventBus.on('contact:restored', this.handleContactRestored.bind(this));
         this.eventBus.on('contacts:changed', this.handleContactsUpdated.bind(this));
         
+        // CardDAV events - instant visibility after push
+        this.eventBus.on('contact:pushedToCardDAV', this.handleContactPushedToCardDAV.bind(this));
+        
         // UI events
         this.eventBus.on('ui:showToast', this.showToast.bind(this));
         this.eventBus.on('ui:showModal', this.showModal.bind(this));
@@ -1801,6 +1804,22 @@ export class ContactUIController {
                 }
                 this.pendingDetailRefresh = null;
             }, 150); // 150ms debounce - wait for all shares to complete
+        }
+    }
+
+    /**
+     * Handle contact pushed to CardDAV (instant visibility)
+     * Triggered after successfully pushing a new/updated contact to CardDAV server
+     */
+    handleContactPushedToCardDAV(data) {
+        console.log(`🚀 Contact pushed to CardDAV, triggering instant UI refresh: ${data.contact.cardName}`);
+        
+        // Refresh the contact list to show the newly pushed contact
+        this.performSearch();
+        
+        // If this was a newly created contact, select it
+        if (data.action === 'created' && data.immediate) {
+            this.selectContactWithoutTracking(data.contact.contactId);
         }
     }
 
