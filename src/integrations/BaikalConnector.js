@@ -2138,6 +2138,19 @@ export class BaikalConnector {
                         } else {
                             console.error(`❌ Auto-sync (pull) failed:`, result.error);
                         }
+                        
+                        // 🔄 AFTER pull sync: Force-refresh shared contacts to maintain Userbase ecosystem
+                        // This ensures owner updates propagate to recipients' CardDAV servers
+                        if (this.contactManager) {
+                            try {
+                                const refreshResult = await this.refreshSharedContactsToCardDAV(profileName);
+                                if (refreshResult.success && refreshResult.refreshed > 0) {
+                                    console.log(`🔄 Refreshed ${refreshResult.refreshed} shared contacts to maintain ecosystem`);
+                                }
+                            } catch (refreshError) {
+                                console.warn(`⚠️ Shared contact refresh failed (continuing):`, refreshError.message);
+                            }
+                        }
                     } catch (error) {
                         console.error(`❌ Auto-sync (pull) error (continuing...):`, error.message);
                         // Don't throw - let the interval continue
