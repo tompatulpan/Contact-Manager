@@ -579,7 +579,10 @@ export class BaikalConnector {
             this.onError?.({ type: 'sync_failed', error: error.message });
             return { success: false, error: error.message };
         } finally {
-            // 🔒 Release sync lock
+            // 🔒 Debounced lock release to prevent race conditions
+            // Delay prevents immediate re-entry from periodic sync during import operations
+            await this.sleep(100);
+            
             console.log('🔓 Sync lock released - syncInProgress = false');
             this.syncInProgress = false;
             
@@ -723,6 +726,12 @@ export class BaikalConnector {
         }
         if (orphanedDeleted > 0) {
         }
+
+        // 🔒 Post-import grace period to prevent race conditions
+        // Allows database writes to complete before next sync operation
+        console.log('⏳ Post-import grace period (500ms) to prevent race conditions...');
+        await this.sleep(500);
+        console.log('✅ Import complete, database writes settled');
 
         // ✅ FIX: Emit event to trigger UI refresh after batch import
         if ((imported > 0 || updated > 0) && this.eventBus) {
