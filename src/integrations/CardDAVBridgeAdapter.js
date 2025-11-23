@@ -99,7 +99,8 @@ export class CardDAVBridgeAdapter {
         }
         
         // Lite bridge uses full addressbook URL
-        return await this.bridge.pushContact(profile.addressbookUrl, vcard, uid);
+        // Pass etag for RFC 7232 compliant If-Match header
+        return await this.bridge.pushContact(profile.addressbookUrl, vcard, uid, etag);
     }
 
     /**

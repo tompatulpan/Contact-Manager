@@ -117,8 +117,9 @@ class SimpleCardDAVBridge {
      * @param {string} addressbookUrl - Addressbook URL
      * @param {string} vcard - vCard content
      * @param {string} uid - Contact UID
+     * @param {string|null} etag - Optional ETag for conflict detection (RFC 7232)
      */
-    async pushContact(addressbookUrl, vcard, uid) {
+    async pushContact(addressbookUrl, vcard, uid, etag = null) {
         if (!this.connected) {
             throw new Error('Not connected to CardDAV server');
         }
@@ -126,13 +127,22 @@ class SimpleCardDAVBridge {
         const vcardUrl = `${addressbookUrl}${uid}.vcf`;
         
         try {
+            // Build headers with RFC 7232 compliant If-Match (quoted ETag)
+            const headers = {
+                'Authorization': this.auth,
+                'Content-Type': 'text/vcard; charset=utf-8'
+            };
+            
+            // Add If-Match header with quoted ETag (RFC 7232 requirement)
+            if (etag) {
+                headers['If-Match'] = `"${etag}"`;
+                console.log(`📋 Using ETag for conflict detection: ${etag}`);
+            }
+            
             // Use PUT to create or update contact
             const response = await fetch(vcardUrl, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': this.auth,
-                    'Content-Type': 'text/vcard; charset=utf-8'
-                },
+                headers,
                 body: vcard
             });
 
@@ -141,8 +151,44 @@ class SimpleCardDAVBridge {
             }
 
             const action = response.status === 201 ? 'created' : 'updated';
+            
+            // Try to get ETag from PUT response headers
+            let newETag = response.headers.get('ETag');
+            
+            // If no ETag in PUT response (Radicale), fetch it with HEAD
+            if (!newETag) {
+                console.log(`⚠️ No ETag in PUT response, fetching with HEAD request...`);
+                
+                try {
+                    const headResponse = await fetch(vcardUrl, {
+                        method: 'HEAD',
+                        headers: { 'Authorization': this.auth }
+                    });
+                    
+                    if (headResponse.ok) {
+                        newETag = headResponse.headers.get('ETag');
+                        if (newETag) {
+                            // Remove quotes if present
+                            newETag = newETag.replace(/^"(.*)"$/, '$1');
+                            console.log(`✅ Fetched ETag via HEAD: ${newETag}`);
+                        }
+                    }
+                } catch (headError) {
+                    console.warn(`⚠️ HEAD request failed, ETag unavailable:`, headError.message);
+                }
+            } else {
+                // Remove quotes from ETag
+                newETag = newETag.replace(/^"(.*)"$/, '$1');
+            }
+            
             console.log(`✅ ${action} contact: ${uid}`);
-            return { success: true, action, uid };
+            
+            return { 
+                success: true, 
+                action, 
+                uid,
+                etag: newETag || null  // Return ETag for storage
+            };
             
         } catch (error) {
             console.error(`❌ Push failed for ${uid}:`, error.message);
