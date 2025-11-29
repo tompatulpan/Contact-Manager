@@ -12,6 +12,59 @@ class SimpleCardDAVBridge {
         this.config = config;
         this.auth = null; // Base64 encoded auth header
         this.connected = false;
+        
+        // 🆕 CORS proxy configuration
+        this.proxyUrl = config.proxyUrl || null;
+        this.useProxy = config.useProxy !== false && this.proxyUrl !== null;
+        this.fallbackToLocal = config.fallbackToLocal !== false;
+        this.localServerPatterns = config.localServerPatterns || [
+            'localhost', '127.0.0.1', '192.168.', '10.0.', '172.16.'
+        ];
+        
+        if (this.useProxy) {
+            console.log(`🔄 CORS proxy enabled: ${this.proxyUrl}`);
+        }
+    }
+
+    /**
+     * Check if URL is a local server
+     * @param {string} url - URL to check
+     * @returns {boolean} True if local server
+     */
+    isLocalServer(url) {
+        if (!this.fallbackToLocal) return false;
+        
+        try {
+            const urlObj = new URL(url);
+            const hostname = urlObj.hostname.toLowerCase();
+            
+            return this.localServerPatterns.some(pattern => 
+                hostname.includes(pattern.toLowerCase())
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Build URL with proxy support and local server detection
+     * @param {string} targetUrl - Target CardDAV URL
+     * @returns {string} Proxied or direct URL
+     */
+    buildUrl(targetUrl) {
+        // Check if this is a local server
+        if (this.isLocalServer(targetUrl)) {
+            console.log(`🏠 Local server detected: ${targetUrl} (bypassing proxy)`);
+            return targetUrl;
+        }
+        
+        if (!this.useProxy) {
+            return targetUrl;
+        }
+        
+        // Encode target URL as query parameter for proxy
+        const encodedTarget = encodeURIComponent(targetUrl);
+        return `${this.proxyUrl}?target=${encodedTarget}`;
     }
 
     /**
@@ -25,6 +78,9 @@ class SimpleCardDAVBridge {
         this.config = config;
         
         console.log(`🔌 Connecting to: ${config.serverUrl}`);
+        if (this.useProxy) {
+            console.log(`   Via proxy: ${this.proxyUrl}`);
+        }
         
         try {
             // Create Basic Auth header
@@ -32,7 +88,8 @@ class SimpleCardDAVBridge {
             this.auth = `Basic ${authString}`;
             
             // Test connection with OPTIONS request
-            const response = await fetch(config.serverUrl, {
+            const testUrl = this.buildUrl(config.serverUrl);
+            const response = await fetch(testUrl, {
                 method: 'OPTIONS',
                 headers: {
                     'Authorization': this.auth
@@ -74,7 +131,7 @@ class SimpleCardDAVBridge {
         console.log(`📥 Fetching contacts from: ${addressbookUrl}`);
         
         try {
-            // CardDAV addressbook-multiget request
+            // CardDAV REPORT query
             const reportXML = `<?xml version="1.0" encoding="utf-8" ?>
 <C:addressbook-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav">
     <D:prop>
@@ -83,7 +140,8 @@ class SimpleCardDAVBridge {
     </D:prop>
 </C:addressbook-query>`;
 
-            const response = await fetch(addressbookUrl, {
+            const fetchUrl = this.buildUrl(addressbookUrl);
+            const response = await fetch(fetchUrl, {
                 method: 'REPORT',
                 headers: {
                     'Authorization': this.auth,
@@ -140,7 +198,8 @@ class SimpleCardDAVBridge {
             }
             
             // Use PUT to create or update contact
-            const response = await fetch(vcardUrl, {
+            const pushUrl = this.buildUrl(vcardUrl);
+            const response = await fetch(pushUrl, {
                 method: 'PUT',
                 headers,
                 body: vcard
@@ -160,7 +219,8 @@ class SimpleCardDAVBridge {
                 console.log(`⚠️ No ETag in PUT response, fetching with HEAD request...`);
                 
                 try {
-                    const headResponse = await fetch(vcardUrl, {
+                    const headUrl = this.buildUrl(vcardUrl);
+                    const headResponse = await fetch(headUrl, {
                         method: 'HEAD',
                         headers: { 'Authorization': this.auth }
                     });
@@ -213,7 +273,8 @@ class SimpleCardDAVBridge {
             console.log(`   Connected: ${this.connected}`);
             
             // Try DELETE method first (standard CardDAV)
-            const response = await fetch(vcardUrl, {
+            const deleteUrl = this.buildUrl(vcardUrl);
+            const response = await fetch(deleteUrl, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': this.auth
@@ -310,7 +371,8 @@ class SimpleCardDAVBridge {
     </D:prop>
 </D:propfind>`;
 
-            const response = await fetch(this.config.serverUrl, {
+            const discoveryUrl = this.buildUrl(this.config.serverUrl);
+            const response = await fetch(discoveryUrl, {
                 method: 'PROPFIND',
                 headers: {
                     'Authorization': this.auth,

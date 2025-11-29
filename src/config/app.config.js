@@ -14,6 +14,15 @@ export const APP_CONFIG = {
     build: {
         timestamp: new Date().toISOString(),
         environment: 'development'
+    },
+    
+    // CardDAV CORS Proxy Configuration (deployed November 23, 2025)
+    cardDAV: {
+        proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
+        useProxy: true,
+        fallbackToLocal: true, // Bypass proxy for localhost/127.0.0.1 servers
+        // Automatically detect local servers and connect directly
+        localServerPatterns: ['localhost', '127.0.0.1', '192.168.', '10.0.', '172.16.']
     }
 };
 

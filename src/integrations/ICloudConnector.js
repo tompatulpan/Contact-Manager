@@ -1,286 +1,461 @@
 /**
- * ICloudConnector - Dedicated iCloud CardDAV sync
+ * ICloudConnector - iCloud CardDAV Integration
  * 
- * DESIGN: One-way export only (push, no pull)
- * - Simplified for iCloud's single addressbook architecture
- * - No ETag tracking (always overwrite)
- * - No conflict resolution (Contact Manager is authority)
- * - Automatic vCard 3.0 conversion
- * 
- * This class separates iCloud logic from general CardDAV (BaikalConnector)
+ * Handles iCloud-specific CardDAV operations with app-specific password authentication
+ * Built on SimpleCardDAVBridge for standard CardDAV operations
  */
 
-class ICloudConnector {
-    constructor(eventBus, contactManager, vCard3Processor) {
+// Lazy-load bridge
+let SimpleCardDAVBridge = null;
+
+async function getBridgeClass() {
+    if (!SimpleCardDAVBridge) {
+        const { default: LiteBridge } = await import('../../contact-carddav-bridge-lite/index.js');
+        SimpleCardDAVBridge = LiteBridge;
+    }
+    return SimpleCardDAVBridge;
+}
+
+export class ICloudConnector {
+    constructor(eventBus = null, proxyConfig = {}) {
         this.eventBus = eventBus;
-        this.contactManager = contactManager;
-        this.vCard3Processor = vCard3Processor;
-        this.bridgeUrl = 'http://localhost:3001/api';
-        this.connections = new Map(); // profileName → connection config
+        this.bridge = null;
         this.isConnected = false;
+        this.currentProfile = null;
+        
+        // Store proxy configuration for bridge initialization
+        this.proxyConfig = proxyConfig;
+        
+        // iCloud-specific configuration
+        this.iCloudConfig = {
+            serverUrl: 'https://contacts.icloud.com/',
+            discoveryPath: '/',
+            addressbookBasePath: '/carddavhome/card/'
+        };
     }
 
     /**
-     * Connect to iCloud CardDAV server
-     * Simplified: No discovery needed for one-way export
-     * Just stores credentials for push operations
-     * 
-     * @param {Object} config - iCloud connection config
-     * @returns {Promise<Object>} Connection result
+     * Connect to iCloud CardDAV with app-specific password
+     * @param {Object} credentials - { appleId, appSpecificPassword }
+     * @returns {Promise<Object>} Connection result with addressbooks
      */
-    async connect(config) {
+    async connect(credentials) {
         try {
+            console.log('🍎 Connecting to iCloud CardDAV...');
+            console.log(`   Apple ID: ${credentials.appleId}`);
             
-            // For one-way export, we don't need to discover addressbooks
-            // Just store the connection config for push operations
-            this.connections.set(config.profileName, {
-                ...config,
-                serverUrl: config.serverUrl,
-                username: config.username,
-                password: config.password,
-                addressbooks: [{ 
-                    displayName: 'iCloud Contacts',
-                    href: '/carddavhome/card/'  // iCloud's standard addressbook path
-                }],
-                connectedAt: new Date().toISOString(),
-                mode: 'one-way-export'
+            // Validate credentials format
+            const validation = this.validateCredentials(credentials);
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+
+            // Initialize bridge with iCloud server and proxy config
+            const BridgeClass = await getBridgeClass();
+            this.bridge = new BridgeClass({
+                serverUrl: this.iCloudConfig.serverUrl,
+                username: credentials.appleId,
+                password: credentials.appSpecificPassword,
+                ...this.proxyConfig  // Add proxy configuration
             });
+
+            // Connect to server
+            const connectResult = await this.bridge.connect();
+            if (!connectResult.success) {
+                throw new Error(`Connection failed: ${connectResult.error}`);
+            }
+
+            // Discover addressbooks (finds numeric user ID)
+            const discoveryResult = await this.bridge.discoverAddressbooks();
+            if (!discoveryResult.success || discoveryResult.addressbooks.length === 0) {
+                throw new Error('No addressbooks found. Please check your Apple ID and app-specific password.');
+            }
+
+            // Use first addressbook (iCloud typically has one main addressbook)
+            const primaryAddressbook = discoveryResult.addressbooks[0];
+            
             this.isConnected = true;
-            
-            
-            return { 
-                success: true, 
-                addressbooks: [{ displayName: 'iCloud Contacts', href: '/carddavhome/card/' }],
-                mode: 'one-way-export'
+            this.currentProfile = {
+                name: 'iCloud',
+                serverType: 'iCloud',
+                appleId: credentials.appleId,
+                addressbookUrl: primaryAddressbook.url,
+                displayName: primaryAddressbook.displayName,
+                connectedAt: new Date().toISOString()
+            };
+
+            console.log(`✅ Connected to iCloud addressbook: ${primaryAddressbook.displayName}`);
+            console.log(`📍 URL: ${primaryAddressbook.url}`);
+
+            if (this.eventBus) {
+                this.eventBus.emit('icloud:connected', {
+                    profile: this.currentProfile,
+                    addressbooks: discoveryResult.addressbooks
+                });
+            }
+
+            return {
+                success: true,
+                profile: this.currentProfile,
+                addressbooks: discoveryResult.addressbooks,
+                primaryAddressbook
             };
 
         } catch (error) {
             console.error('❌ iCloud connection failed:', error);
-            return { success: false, error: error.message };
+            
+            if (this.eventBus) {
+                this.eventBus.emit('icloud:connectionError', {
+                    error: error.message,
+                    appleId: credentials.appleId
+                });
+            }
+
+            return {
+                success: false,
+                error: error.message,
+                errorType: this.categorizeError(error)
+            };
         }
     }
 
     /**
-     * Push single contact to iCloud (one-way export)
-     * ALWAYS regenerates vCard from contact data to ensure freshness
-     * 
-     * @param {Object} contact - Contact object with vcard field
-     * @param {string} profileName - iCloud profile name
-     * @returns {Promise<Object>} Push result
+     * Disconnect from iCloud CardDAV
      */
-    async pushContact(contact, profileName) {
-        if (!contact) {
-            throw new Error(`Contact object is null`);
+    disconnect() {
+        if (this.bridge) {
+            this.bridge.disconnect();
+        }
+        
+        this.isConnected = false;
+        const previousProfile = this.currentProfile;
+        this.currentProfile = null;
+
+        console.log('🔌 Disconnected from iCloud CardDAV');
+
+        if (this.eventBus) {
+            this.eventBus.emit('icloud:disconnected', {
+                profile: previousProfile
+            });
         }
 
+        return { success: true };
+    }
 
-        const connectionInfo = this.connections.get(profileName);
-        if (!connectionInfo) {
-            throw new Error(`iCloud profile "${profileName}" not connected`);
+    /**
+     * Fetch all contacts from iCloud
+     * @returns {Promise<Object>} Fetch result with contacts
+     */
+    async fetchContacts() {
+        if (!this.isConnected || !this.currentProfile) {
+            throw new Error('Not connected to iCloud CardDAV');
         }
 
         try {
-            // 🔄 CRITICAL FIX: Always regenerate vCard from contact data
-            // This ensures we send FRESH data, not stale cached vCard
-            let vCardToSend;
-            let uid = this.contactManager.extractUIDFromVCard(contact.vcard);
+            console.log('📥 Fetching contacts from iCloud...');
             
-            if (!uid) {
-                uid = contact.contactId;
-            }
-
-            // Parse existing vCard to get contact data
-            const vCardData = this.contactManager.vCardStandard.parseVCard(contact.vcard);
-            
-            // Extract all properties into flat structure
-            const contactData = {
-                fn: vCardData.properties.get('FN') || contact.cardName || 'Unknown',
-                org: vCardData.properties.get('ORG'),
-                title: vCardData.properties.get('TITLE'),
-                note: vCardData.properties.get('NOTE'),
-                bday: vCardData.properties.get('BDAY'),
-                uid: uid // Ensure UID is preserved
-            };
-
-            // Extract multi-value properties
-            const telArray = vCardData.properties.get('TEL');
-            if (telArray && Array.isArray(telArray)) {
-                contactData.phones = telArray.map(tel => ({
-                    value: tel.value,
-                    type: tel.parameters?.TYPE || 'voice',
-                    primary: tel.parameters?.PREF === '1'
-                }));
-            }
-
-            const emailArray = vCardData.properties.get('EMAIL');
-            if (emailArray && Array.isArray(emailArray)) {
-                contactData.emails = emailArray.map(email => ({
-                    value: email.value,
-                    type: email.parameters?.TYPE || 'internet',
-                    primary: email.parameters?.PREF === '1'
-                }));
-            }
-
-            const urlArray = vCardData.properties.get('URL');
-            if (urlArray && Array.isArray(urlArray)) {
-                contactData.urls = urlArray.map(url => ({
-                    value: url.value,
-                    type: url.parameters?.TYPE || 'work',
-                    primary: url.parameters?.PREF === '1'
-                }));
-            }
-
-            const adrArray = vCardData.properties.get('ADR');
-            if (adrArray && Array.isArray(adrArray)) {
-                contactData.addresses = adrArray.map(adr => ({
-                    value: adr.value,
-                    type: adr.parameters?.TYPE || 'home',
-                    primary: adr.parameters?.PREF === '1'
-                }));
-            }
-
-            // Regenerate fresh vCard 4.0
-            vCardToSend = this.contactManager.vCardStandard.generateVCard(contactData);
-
-
-            // Convert to vCard 3.0 for iCloud compatibility
-            // CRITICAL: Pass UID to ensure it's preserved during conversion
-            const vCard3Result = this.vCard3Processor.export({
-                contactId: contact.contactId,
-                cardName: contact.cardName,
-                vcard: vCardToSend,
-                metadata: contact.metadata,
-                uid: uid  // 🔑 CRITICAL: Preserve original UID to prevent duplicates
-            });
-
-            if (vCard3Result && vCard3Result.content) {
-                vCardToSend = vCard3Result.content;
-            }
-
-            // Push to bridge server
-            const response = await fetch(`${this.bridgeUrl}/push/${profileName}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contact: {
-                        uid: uid,
-                        vcard: vCardToSend,
-                        etag: null  // iCloud: always overwrite
-                    },
-                    addressbook: 'default',
-                    forceOverwrite: true
-                })
-            });
-
-            const result = await response.json();
+            const result = await this.bridge.fetchContacts(
+                this.currentProfile.addressbookUrl
+            );
 
             if (result.success) {
-            } else {
-                console.error(`❌ iCloud push failed: ${result.error}`);
+                console.log(`✅ Fetched ${result.contacts.length} contacts from iCloud`);
+                
+                if (this.eventBus) {
+                    this.eventBus.emit('icloud:contactsFetched', {
+                        profile: this.currentProfile,
+                        contactCount: result.contacts.length
+                    });
+                }
             }
 
             return result;
 
         } catch (error) {
-            console.error(`❌ iCloud push error for ${contact.cardName}:`, error);
-            return { success: false, error: error.message };
+            console.error('❌ iCloud fetch failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
         }
     }
+
     /**
-     * Push all contacts to iCloud
-     * Gets contacts from ContactManager cache
-     * 
-     * @param {string} profileName - iCloud profile name
+     * Push contact to iCloud
+     * @param {Object} contact - Contact with vcard and contactId
+     * @param {string|null} etag - Optional ETag for conflict detection
      * @returns {Promise<Object>} Push result
      */
-    async pushAllContacts(profileName) {
+    async pushContact(contact, etag = null) {
+        if (!this.isConnected || !this.currentProfile) {
+            throw new Error('Not connected to iCloud CardDAV');
+        }
+
         try {
-
-            // 🔒 CRITICAL: Set syncInProgress flag to prevent cache corruption during push
-            // This prevents handleContactsChanged from clearing the contacts Map
-            this.contactManager.syncInProgress = true;
-
-            // Get all contacts from ContactManager
-            const allContacts = this.contactManager.getAllOwnedContacts();
+            const uid = this.extractUIDFromVCard(contact.vcard);
             
-            
-            // Log first contact to verify data freshness
-            if (allContacts.length > 0) {
-                const firstContact = allContacts[0];
-            }
+            const result = await this.bridge.pushContact(
+                this.currentProfile.addressbookUrl,
+                contact.vcard,
+                uid,
+                etag
+            );
 
-            let successCount = 0;
-            let errorCount = 0;
-            const errors = [];
-
-            // Push in batches
-            const BATCH_SIZE = 10;
-            for (let i = 0; i < allContacts.length; i += BATCH_SIZE) {
-                const batch = allContacts.slice(i, i + BATCH_SIZE);
-                const batchPromises = batch.map(contact => 
-                    this.pushContact(contact, profileName)
-                );
-
-                const results = await Promise.all(batchPromises);
-                
-                results.forEach((result, idx) => {
-                    if (result.success) {
-                        successCount++;
-                    } else {
-                        errorCount++;
-                        errors.push({
-                            contact: batch[idx].cardName,
-                            error: result.error
-                        });
-                    }
+            if (result.success && this.eventBus) {
+                this.eventBus.emit('icloud:contactPushed', {
+                    profile: this.currentProfile,
+                    contactId: contact.contactId,
+                    action: result.action,
+                    etag: result.etag
                 });
-
             }
 
+            return result;
 
-            // 🔓 CRITICAL: Release sync lock
-            this.contactManager.syncInProgress = false;
-
+        } catch (error) {
+            console.error('❌ iCloud push failed:', error);
             return {
-                success: successCount > 0,
-                successCount,
-                errorCount,
-                total: allContacts.length,
-                errors: errors.length > 0 ? errors : undefined
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Delete contact from iCloud
+     * @param {Object} contact - Contact with href or contactId
+     * @returns {Promise<Object>} Delete result
+     */
+    async deleteContact(contact) {
+        if (!this.isConnected || !this.currentProfile) {
+            throw new Error('Not connected to iCloud CardDAV');
+        }
+
+        try {
+            const vcardUrl = contact.metadata?.cardDAV?.href || 
+                           `${this.currentProfile.addressbookUrl}${contact.contactId}.vcf`;
+
+            const result = await this.bridge.deleteContact(vcardUrl);
+
+            if (result.success && this.eventBus) {
+                this.eventBus.emit('icloud:contactDeleted', {
+                    profile: this.currentProfile,
+                    contactId: contact.contactId
+                });
+            }
+
+            return result;
+
+        } catch (error) {
+            console.error('❌ iCloud delete failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Sync contacts with iCloud (two-way)
+     * @param {Array} localContacts - Local contacts to push
+     * @returns {Promise<Object>} Sync result
+     */
+    async sync(localContacts = []) {
+        if (!this.isConnected || !this.currentProfile) {
+            throw new Error('Not connected to iCloud CardDAV');
+        }
+
+        try {
+            console.log('🔄 Starting iCloud sync...');
+            
+            const result = await this.bridge.sync(
+                this.currentProfile.addressbookUrl,
+                localContacts
+            );
+
+            if (result.success && this.eventBus) {
+                this.eventBus.emit('icloud:syncCompleted', {
+                    profile: this.currentProfile,
+                    contactCount: result.contacts?.length || 0,
+                    pushedCount: result.pushedCount,
+                    failedCount: result.failedCount
+                });
+            }
+
+            return result;
+
+        } catch (error) {
+            console.error('❌ iCloud sync failed:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Validate iCloud credentials
+     * @param {Object} credentials - { appleId, appSpecificPassword }
+     * @returns {Object} Validation result
+     */
+    validateCredentials(credentials) {
+        // Check Apple ID format
+        if (!credentials.appleId || !credentials.appleId.includes('@')) {
+            return {
+                isValid: false,
+                error: 'Invalid Apple ID format. Must be a valid email address.'
+            };
+        }
+
+        // Check app-specific password format (xxxx-xxxx-xxxx-xxxx)
+        if (!credentials.appSpecificPassword) {
+            return {
+                isValid: false,
+                error: 'App-specific password is required.'
+            };
+        }
+
+        const passwordPattern = /^[a-zA-Z0-9\-]{19}$/;
+        if (!passwordPattern.test(credentials.appSpecificPassword)) {
+            return {
+                isValid: false,
+                error: 'Invalid app-specific password format. Should be 16 characters with dashes (xxxx-xxxx-xxxx-xxxx).'
+            };
+        }
+
+        return { isValid: true };
+    }
+
+    /**
+     * Categorize connection errors for better user feedback
+     * @param {Error} error - Connection error
+     * @returns {string} Error category
+     */
+    categorizeError(error) {
+        const message = error.message.toLowerCase();
+        
+        if (message.includes('401') || message.includes('unauthorized')) {
+            return 'invalid_credentials';
+        } else if (message.includes('no addressbooks')) {
+            return 'no_addressbooks';
+        } else if (message.includes('network') || message.includes('fetch')) {
+            return 'network_error';
+        } else if (message.includes('timeout')) {
+            return 'timeout';
+        }
+        
+        return 'unknown_error';
+    }
+
+    /**
+     * Extract UID from vCard content
+     * @param {string} vcard - vCard content
+     * @returns {string} UID value
+     */
+    extractUIDFromVCard(vcard) {
+        const match = vcard.match(/^UID:(.+)$/m);
+        if (!match) {
+            throw new Error('vCard missing UID property');
+        }
+        return match[1].trim();
+    }
+
+    /**
+     * Get current connection status
+     * @returns {Object} Connection status
+     */
+    getStatus() {
+        return {
+            isConnected: this.isConnected,
+            profile: this.currentProfile,
+            serverType: 'iCloud',
+            serverUrl: this.iCloudConfig.serverUrl
+        };
+    }
+
+    /**
+     * Test connection to iCloud CardDAV
+     * @returns {Promise<Object>} Test result
+     */
+    async testConnection() {
+        if (!this.isConnected || !this.bridge) {
+            return {
+                success: false,
+                error: 'Not connected to iCloud CardDAV'
+            };
+        }
+
+        try {
+            // Try to fetch addressbooks as connection test
+            const result = await this.bridge.discoverAddressbooks();
+            
+            return {
+                success: result.success,
+                addressbookCount: result.addressbooks?.length || 0,
+                profile: this.currentProfile
             };
 
         } catch (error) {
-            console.error('❌ iCloud push all failed:', error);
-            
-            // 🔓 CRITICAL: Always release sync lock, even on error
-            this.contactManager.syncInProgress = false;
-            
-            return { success: false, error: error.message };
+            return {
+                success: false,
+                error: error.message
+            };
         }
     }
 
     /**
-     * Disconnect from iCloud
+     * Get iCloud setup instructions
+     * @returns {Object} Setup instructions
      */
-    disconnect(profileName) {
-        this.connections.delete(profileName);
-        if (this.connections.size === 0) {
-            this.isConnected = false;
-        }
-    }
-
-    /**
-     * Get connection status
-     */
-    getConnectionStatus(profileName) {
-        const connection = this.connections.get(profileName);
+    static getSetupInstructions() {
         return {
-            isConnected: !!connection,
-            connectedAt: connection?.connectedAt,
-            addressbooksCount: connection?.addressbooks?.length || 0
+            title: '🍎 iCloud CardDAV Setup',
+            steps: [
+                {
+                    step: 1,
+                    title: 'Generate App-Specific Password',
+                    instructions: [
+                        'Go to https://appleid.apple.com',
+                        'Sign in with your Apple ID',
+                        'Navigate to: Security → App-Specific Passwords',
+                        'Click "Generate Password"',
+                        'Enter label: "Contact Manager CardDAV"',
+                        'Copy the generated password (xxxx-xxxx-xxxx-xxxx)'
+                    ]
+                },
+                {
+                    step: 2,
+                    title: 'Connect to Contact Manager',
+                    instructions: [
+                        'Return to Contact Manager',
+                        'Enter your full Apple ID email',
+                        'Paste the app-specific password',
+                        'Click "Connect to iCloud"'
+                    ]
+                },
+                {
+                    step: 3,
+                    title: 'Verify Connection',
+                    instructions: [
+                        'Wait for connection confirmation',
+                        'Check that addressbook is discovered',
+                        'Contacts will sync automatically'
+                    ]
+                }
+            ],
+            notes: [
+                '⚠️ Do NOT use your regular Apple ID password',
+                '✅ App-specific password is required for CardDAV access',
+                '🔒 Password is only stored locally and encrypted',
+                '📱 Works with all iCloud-synced devices (iPhone, iPad, Mac)'
+            ],
+            troubleshooting: {
+                'Connection Failed': 'Verify Apple ID and app-specific password are correct',
+                'No Addressbooks Found': 'Ensure iCloud Contacts is enabled in Apple ID settings',
+                'Invalid Password Format': 'Password should be 16 characters with dashes (xxxx-xxxx-xxxx-xxxx)'
+            }
         };
     }
 }
 
-// Export for ES6 modules
-export { ICloudConnector };
+export default ICloudConnector;

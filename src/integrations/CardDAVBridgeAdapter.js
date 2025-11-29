@@ -38,15 +38,29 @@ export class CardDAVBridgeAdapter {
     async initialize() {
         const BridgeClass = await getBridgeClass();
         this.bridge = new BridgeClass(this.config);
-        console.log('✅ Lite bridge initialized (200 lines)');
+        if (this.config.useProxy && this.config.proxyUrl) {
+            console.log(`✅ Lite bridge initialized with proxy: ${this.config.proxyUrl}`);
+        } else {
+            console.log('✅ Lite bridge initialized (direct connection)');
+        }
     }
 
     /**
      * Connect to CardDAV server
      */
     async connect(credentials) {
-        if (!this.bridge) await this.initialize();
-        const result = await this.bridge.connect(credentials);
+        // Merge proxy config with credentials for bridge initialization
+        const bridgeConfig = {
+            ...this.config,  // Includes proxy settings
+            ...credentials   // Includes serverUrl, username, password, profileName
+        };
+        
+        if (!this.bridge) {
+            await this.initialize();
+        }
+        
+        // Reconnect with full config including credentials
+        const result = await this.bridge.connect(bridgeConfig);
         
         // Store profile info for later use
         if (result.success && credentials.profileName) {
@@ -54,8 +68,11 @@ export class CardDAVBridgeAdapter {
                 serverUrl: credentials.serverUrl,
                 username: credentials.username,
                 // Will be set after addressbook discovery
-                addressbookUrl: null
+                addressbookUrl: credentials.serverUrl // Default to serverUrl for Radicale
             });
+            console.log(`✅ Profile "${credentials.profileName}" connected and stored`);
+            console.log(`   Server URL: ${credentials.serverUrl}`);
+            console.log(`   Default addressbook: ${credentials.serverUrl}`);
         }
         
         return result;

@@ -17,7 +17,7 @@ import { PERFORMANCE_CONFIG } from '../config/app.config.js';
 import CardDAVBridgeAdapter from './CardDAVBridgeAdapter.js';
 
 export class BaikalConnector {
-    constructor(eventBus = null) {
+    constructor(eventBus = null, proxyConfig = {}) {
         this.version = '2025-11-18-lite-bridge-only';
         
         this.eventBus = eventBus;
@@ -25,8 +25,8 @@ export class BaikalConnector {
         this.isConnected = false;
         this.contactManager = null;
         
-        // CardDAV Bridge Adapter (lite bridge only)
-        this.bridgeAdapter = new CardDAVBridgeAdapter();
+        // CardDAV Bridge Adapter (lite bridge only) with proxy config
+        this.bridgeAdapter = new CardDAVBridgeAdapter(proxyConfig);
         
         // Event callbacks
         this.onStatusChange = null;
@@ -291,17 +291,31 @@ export class BaikalConnector {
         }
 
         // Check 2: Massive contact drop (>50% reduction)
+        // Only check for contacts that were previously synced with THIS profile
         const localSyncedCount = localContacts.filter(c => 
-            c.metadata?.cardDAV?.lastSyncedAt
+            c.metadata?.cardDAV?.lastSyncedAt &&
+            c.metadata?.cardDAV?.profileName === profileName
         ).length;
 
         if (localSyncedCount > 10 && serverContacts.length < localSyncedCount * 0.5) {
             const dropPercent = Math.round((1 - serverContacts.length / localSyncedCount) * 100);
+            console.error(`❌ SAFETY CHECK: Server contact count dropped ${dropPercent}%`);
+            console.error(`   Previous synced: ${localSyncedCount}`);
+            console.error(`   Current server: ${serverContacts.length}`);
+            console.error(`   Profile: ${profileName}`);
+            
             throw new Error(
                 `SAFETY ABORT: Server contact count dropped ${dropPercent}% ` +
                 `(from ${localSyncedCount} to ${serverContacts.length}). ` +
                 `This may indicate a server error. Aborting sync to prevent mass deletion.`
             );
+        }
+        
+        // Log sync validation details
+        if (localSyncedCount > 0) {
+            console.log(`📊 Sync validation: ${serverContacts.length} server contacts vs ${localSyncedCount} previously synced with ${profileName}`);
+        } else {
+            console.log(`📊 Initial sync for profile "${profileName}": ${serverContacts.length} server contacts`);
         }
 
         // Check 3: Missing ETags (indicates incomplete server response)

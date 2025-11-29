@@ -10,12 +10,13 @@ import { ContactValidator } from './core/ContactValidator.js';
 import { ContactManager } from './core/ContactManager.js';
 import { ContactUIController } from './ui/ContactUIController.js';
 import { profileRouter } from './utils/ProfileRouter.js';
-// 🆕 Baikal CardDAV Integration
+import { APP_CONFIG } from './config/app.config.js';
+// 🆕 CardDAV Integration
 import { BaikalConnector } from './integrations/BaikalConnector.js';
 import { BaikalConfigManager } from './integrations/BaikalConfigManager.js';
 import { BaikalUIController } from './ui/BaikalUIController.js';
-// 🍎 iCloud Dedicated Integration
 import { ICloudConnector } from './integrations/ICloudConnector.js';
+import { CardDAVConnectorFactory } from './integrations/CardDAVConnectorFactory.js';
 import { VCard3Processor } from './core/VCard3Processor.js';
 
 /**
@@ -108,19 +109,27 @@ class ContactManagementApp {
         );
         
         // CardDAV integration modules (lite bridge - no HTTP server)
-        this.modules.baikalConnector = new BaikalConnector(this.eventBus);
+        // Pass proxy configuration from APP_CONFIG
+        const cardDAVProxyConfig = {
+            proxyUrl: APP_CONFIG.cardDAV.proxyUrl,
+            useProxy: APP_CONFIG.cardDAV.useProxy,
+            fallbackToLocal: APP_CONFIG.cardDAV.fallbackToLocal
+        };
+        
+        this.modules.baikalConnector = new BaikalConnector(this.eventBus, cardDAVProxyConfig);
         this.modules.baikalConfigManager = new BaikalConfigManager(
             this.eventBus,
             this.modules.database
         );
         
-        // 🍎 Initialize iCloud-specific connector with VCard3Processor
+        // 🍎 iCloud connector (uses SimpleCardDAVBridge with proxy)
+        this.modules.iCloudConnector = new ICloudConnector(this.eventBus, cardDAVProxyConfig);
+        
+        // 🏭 CardDAV connector factory (creates connectors based on server type)
+        this.modules.cardDAVFactory = new CardDAVConnectorFactory(this.eventBus, cardDAVProxyConfig);
+        
+        // VCard3 processor for format conversion
         this.modules.vCard3Processor = new VCard3Processor({});
-        this.modules.iCloudConnector = new ICloudConnector(
-            this.eventBus,
-            this.modules.contactManager,
-            this.modules.vCard3Processor
-        );
         
         // IMPORTANT: Do NOT initialize database here - let UI Controller handle it optimally
         // The optimizedAuthenticationCheck() will decide when/how to initialize database
