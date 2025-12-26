@@ -184,6 +184,9 @@ class ContactManagementApp {
         // ⭐ Set BaikalConnector reference in ContactManager
         this.modules.contactManager.setBaikalConnector(this.modules.baikalConnector);
 
+        // 🍎 Set iCloudSyncService reference in ContactManager
+        this.modules.contactManager.setiCloudSyncService(this.modules.iCloudSyncService);
+
         // Initialize UI controllers
         await this.modules.uiController.initialize();
         this.modules.baikalUIController.initialize();

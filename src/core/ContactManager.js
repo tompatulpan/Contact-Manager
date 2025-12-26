@@ -87,6 +87,24 @@ export class ContactManager {
     }
 
     /**
+     * Set iCloudSyncService reference (called after construction)
+     * @param {ICloudSyncService} iCloudSyncService - iCloudSyncService instance
+     */
+    setiCloudSyncService(iCloudSyncService) {
+        this.iCloudSyncService = iCloudSyncService;
+        console.log('🍎 iCloudSyncService reference set in ContactManager');
+    }
+
+    /**
+     * Set iCloudSyncService reference (called after construction)
+     * @param {ICloudSyncService} iCloudSyncService - iCloudSyncService instance
+     */
+    setiCloudSyncService(iCloudSyncService) {
+        this.iCloudSyncService = iCloudSyncService;
+        console.log('🍎 iCloudSyncService reference set in ContactManager');
+    }
+
+    /**
      * Initialize the contact manager
      * @returns {Promise<Object>} Initialization result
      */
@@ -625,8 +643,18 @@ export class ContactManager {
                         // Continue with local deletion even if Baikal delete fails
                         console.log(`⚠️ Contact marked as deleted locally despite Baikal deletion failure`);
                     }
+                } else if (this.iCloudSyncService && this.iCloudSyncService.isConnected) {
+                    // 🍎 If iCloud sync is active, trigger sync to push deletion
+                    console.log(`🍎 iCloud sync active - triggering sync to push deletion`);
+                    try {
+                        await this.iCloudSyncService.performSync();
+                        console.log(`✅ Contact deletion synced to iCloud`);
+                    } catch (iCloudError) {
+                        console.error(`❌ Failed to sync deletion to iCloud:`, iCloudError);
+                        console.log(`⚠️ Contact marked as deleted locally despite iCloud sync failure`);
+                    }
                 } else {
-                    console.log(`ℹ️ BaikalConnector not available - contact deleted locally only`);
+                    console.log(`ℹ️ No CardDAV sync active - contact deleted locally only`);
                 }
             } else {
                 // Hard delete for shared contacts (removes from local view)
