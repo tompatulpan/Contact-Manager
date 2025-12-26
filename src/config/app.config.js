@@ -23,6 +23,19 @@ export const APP_CONFIG = {
         fallbackToLocal: true, // Bypass proxy for localhost/127.0.0.1 servers
         // Automatically detect local servers and connect directly
         localServerPatterns: ['localhost', '127.0.0.1', '192.168.', '10.0.', '172.16.']
+    },
+    
+    // iCloud CardDAV Configuration
+    iCloud: {
+        baseUrl: 'https://contacts.icloud.com',
+        proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
+        // Test credentials (user should override in UI)
+        defaultUsername: '',  // Leave empty - user must provide
+        defaultPassword: '',  // Leave empty - user must provide
+        // Connection settings
+        timeout: 30000,  // 30 seconds
+        retryAttempts: 3,
+        retryDelay: 1000
     }
 };
 

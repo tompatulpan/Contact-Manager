@@ -237,6 +237,21 @@ export class VCard3Processor {
                 continue;
             }
             
+            // Skip empty or whitespace-only lines
+            if (!line || line.trim().length === 0) {
+                continue;
+            }
+            
+            // Skip lines that don't have a colon and don't look like vCard properties
+            // Allow lines that are very short (likely fragments that will be handled by parser)
+            if (!line.includes(':') && !line.includes(';')) {
+                // Only warn for lines that look substantial but invalid
+                if (line.trim().length > 2 && !/^[A-Z][A-Z0-9-]*$/i.test(line.trim())) {
+                    console.warn(`⏭️ Skipping invalid vCard 3.0 line: "${line.substring(0, 50)}"`);
+                }
+                continue;
+            }
+            
             try {
                 const parsed = this.parseLine3(line);
                 this.addPropertyToContact(contact, parsed);
@@ -319,12 +334,41 @@ export class VCard3Processor {
         const parameters = {};
         if (!parametersString) return parameters;
 
-        const params = parametersString.split(';');
+        // Smart split: Don't split on semicolons inside quoted values
+        const params = [];
+        let currentParam = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < parametersString.length; i++) {
+            const char = parametersString[i];
+            
+            if (char === '"') {
+                inQuotes = !inQuotes;
+                currentParam += char;
+            } else if (char === ';' && !inQuotes) {
+                if (currentParam.trim()) {
+                    params.push(currentParam.trim());
+                }
+                currentParam = '';
+            } else {
+                currentParam += char;
+            }
+        }
+        
+        if (currentParam.trim()) {
+            params.push(currentParam.trim());
+        }
+
         for (const param of params) {
             const equalIndex = param.indexOf('=');
             if (equalIndex !== -1) {
                 const key = param.substring(0, equalIndex);
-                const value = param.substring(equalIndex + 1);
+                let value = param.substring(equalIndex + 1);
+                
+                // Remove surrounding quotes from value if present
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.substring(1, value.length - 1);
+                }
                 
                 // Handle vCard 3.0 specific parameter formats
                 if (key.toLowerCase() === 'type') {
@@ -381,7 +425,10 @@ export class VCard3Processor {
             contact.properties.get(property).push(propertyValue);
         } else {
             // Unknown property - default to multi-value for safety
-            console.warn(`⚠️ Unknown vCard 3.0 property "${property}" - treating as multi-value`);
+            // Suppress warnings for vendor extensions (X- prefix per RFC 2426)
+            if (!property.startsWith('X-')) {
+                console.warn(`⚠️ Unknown vCard 3.0 property "${property}" - treating as multi-value`);
+            }
             contact.properties.get(property).push(propertyValue);
         }
 
@@ -400,7 +447,15 @@ export class VCard3Processor {
     convertToDisplayData(parsedContact) {
         const phones = this.convertMultiValueProperty(parsedContact, 'TEL', 'phone');
         
+        // 🔧 Clean up vCard 4.0 tel: prefixes from phone values (RFC 6350 → RFC 2426)
+        phones.forEach(phone => {
+            if (phone.value && phone.value.startsWith('tel:')) {
+                phone.value = phone.value.substring(4);  // Remove 'tel:' prefix
+            }
+        });
+        
         const addresses = this.convertMultiValueProperty(parsedContact, 'ADR', 'address');
+        const emails = this.convertMultiValueProperty(parsedContact, 'EMAIL', 'email');
         
         const birthday = parsedContact.properties.get('BDAY') || '';
         
@@ -417,7 +472,7 @@ export class VCard3Processor {
             organization: this.normalizeOrganizationValue(parsedContact.properties.get('ORG')),
             title: parsedContact.properties.get('TITLE') || '',
             phones,
-            emails: this.convertMultiValueProperty(parsedContact, 'EMAIL', 'email'),
+            emails,
             urls: this.convertMultiValueProperty(parsedContact, 'URL', 'url'),
             addresses,
             notes: this.convertNotesProperty(parsedContact),
@@ -522,25 +577,38 @@ export class VCard3Processor {
      * @param {Object} displayData - Display data format
      * @returns {string} vCard 3.0 content
      */
-    generateVCard3(displayData) {
+    generateVCard3(displayData, options = {}) {
         let vcard = 'BEGIN:VCARD\n';
         vcard += 'VERSION:3.0\n';
 
         // Full Name (required)
         if (displayData.fullName) {
-            vcard += `FN:${this.escapeValue(displayData.fullName)}\n`;
+            const cleanFullName = displayData.fullName.trim();
+            vcard += `FN:${this.escapeValue(cleanFullName)}\n`;
             
-            // Generate structured name
-            const nameParts = displayData.fullName.split(' ');
-            const lastName = nameParts.pop() || '';
-            const firstName = nameParts.join(' ') || '';
-            vcard += `N:${this.escapeValue(lastName)};${this.escapeValue(firstName)};;;\n`;
+            // ✅ Generate structured name (N property) with improved parsing
+            // vCard N format: N:LastName;FirstName;MiddleName;Prefix;Suffix
+            const nameParts = cleanFullName.split(/\s+/);
+            
+            if (nameParts.length === 1) {
+                // Single name (e.g., "Nemo", "Alice") - use as firstName, no lastName
+                vcard += `N:;${this.escapeValue(nameParts[0])};;;\n`;
+            } else if (nameParts.length === 2) {
+                // Two parts (e.g., "John Doe") - standard FirstName LastName
+                const [firstName, lastName] = nameParts;
+                vcard += `N:${this.escapeValue(lastName)};${this.escapeValue(firstName)};;;\n`;
+            } else {
+                // Three or more parts - take last as lastName, rest as firstName
+                const lastName = nameParts[nameParts.length - 1];
+                const firstName = nameParts.slice(0, nameParts.length - 1).join(' ');
+                vcard += `N:${this.escapeValue(lastName)};${this.escapeValue(firstName)};;;\n`;
+            }
         } else {
             console.warn('⚠️ VCard3Processor.generateVCard3: Missing fullName, using fallback');
             // Use cardName as fallback if fullName is missing
             const fallbackName = displayData.cardName || 'Unnamed Contact';
             vcard += `FN:${this.escapeValue(fallbackName)}\n`;
-            vcard += `N:${this.escapeValue(fallbackName)};;;;\n`;
+            vcard += `N:;${this.escapeValue(fallbackName)};;;\n`;
         }
 
         // Multi-value properties with vCard 3.0 formatting
@@ -566,13 +634,20 @@ export class VCard3Processor {
 
         // Add UID if available, otherwise generate one
         // UID is REQUIRED by CardDAV servers (even for vCard 3.0)
+        // NOTE: iCloud strips this from the body but other servers need it
         const uid = this.generateOrRetrieveUID(displayData);
         vcard += `UID:${this.escapeValue(uid)}\n`;
 
-        // ⭐ NEW: Embed sharing metadata in CATEGORIES for disaster recovery
-        // This allows sharing relationships to survive database corruption
-        // Optimized format: SHARED:user1,user2,user3 (57% space savings vs shared-with-user1,...)
-        if (displayData.metadata?.sharing?.sharedWithUsers?.length > 0) {
+        // Add REV (revision timestamp) - REQUIRED by iCloud for content validation
+        // Format: 2025-11-30T12:34:56Z (ISO 8601 timestamp)
+        const timestamp = displayData.metadata?.lastUpdated || 
+                         displayData.metadata?.createdAt || 
+                         new Date().toISOString();
+        vcard += `REV:${timestamp}\n`;
+
+        // ⭐ Embed sharing metadata in CATEGORIES for disaster recovery (internal use only)
+        // Skip this for external CardDAV sync (iCloud, Baikal, etc.) as some servers reject it
+        if (!options.skipInternalMetadata && displayData.metadata?.sharing?.sharedWithUsers?.length > 0) {
             const sharedUsers = displayData.metadata.sharing.sharedWithUsers;
             // Format: SHARED:alice,bob,charlie (compact format supports 1000+ users under 10KB limit)
             // Note: Don't escape the entire string - only escape individual usernames, then join with unescaped commas
@@ -597,42 +672,74 @@ export class VCard3Processor {
         // Phone numbers (with VOICE type as iCloud expects)
         if (displayData.phones && displayData.phones.length > 0) {
             displayData.phones.forEach(phone => {
-                const type = this.convertToVCard3Type(phone.type, 'phone');
-                const prefType = phone.primary ? ';TYPE=pref' : '';
+                // Skip phones without values
+                if (!phone.value || phone.value.trim() === '') {
+                    console.warn('⚠️ Skipping phone without value:', phone);
+                    return;
+                }
                 
-                // 🐛 FIX: Only add VOICE for generic "voice" type or "other"
-                // Do NOT add VOICE for specific types (WORK, HOME, CELL, etc.)
-                // This prevents type corruption when re-importing from iCloud
-                const needsVoice = (type === 'VOICE' || type === 'OTHER');
-                const voiceType = needsVoice ? ';TYPE=VOICE' : '';
+                const type = this.convertToVCard3Type(phone.type, 'phone').toUpperCase();
                 
-                output += `TEL;TYPE=${type}${prefType}${voiceType}:${this.escapeValue(phone.value)}\n`;
+                // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+                const typeValues = [type];
+                if (phone.primary) typeValues.push('PREF');
+                
+                // RFC 2426: TEL should always have a capability type (VOICE, FAX, etc.)
+                // For CELL/MOBILE, the location type IS the capability
+                // For WORK/HOME/OTHER, add VOICE as capability
+                const needsVoiceCapability = !['CELL', 'FAX', 'PAGER', 'MSG', 'VIDEO'].includes(type);
+                if (needsVoiceCapability) {
+                    typeValues.push('VOICE');
+                }
+                
+                // Use single TYPE parameter with comma-separated values (UPPERCASE)
+                output += `TEL;TYPE=${typeValues.join(',')}:${this.escapeValue(phone.value)}\n`;
             });
         }
 
         // Email addresses (with INTERNET type as iCloud expects)
         if (displayData.emails && displayData.emails.length > 0) {
             displayData.emails.forEach(email => {
-                const type = this.convertToVCard3Type(email.type, 'email');
-                const prefType = email.primary ? ';TYPE=pref' : '';
-                // iCloud always adds INTERNET to email addresses
-                output += `EMAIL;TYPE=${type}${prefType};TYPE=INTERNET:${this.escapeValue(email.value)}\n`;
+                // Skip emails without values
+                if (!email.value || email.value.trim() === '') {
+                    console.warn('⚠️ Skipping email without value:', email);
+                    return;
+                }
+                
+                const type = this.convertToVCard3Type(email.type, 'email').toUpperCase();
+                
+                // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+                const typeValues = [type];
+                if (email.primary) typeValues.push('PREF');
+                typeValues.push('INTERNET'); // iCloud always adds INTERNET
+                
+                // Use single TYPE parameter with comma-separated values (UPPERCASE)
+                output += `EMAIL;TYPE=${typeValues.join(',')}:${this.escapeValue(email.value)}\n`;
             });
         }
 
         // URLs (using ITEM format for non-standard types like iCloud)
         if (displayData.urls && displayData.urls.length > 0) {
             displayData.urls.forEach(url => {
-                const type = this.convertToVCard3Type(url.type, 'url');
-                const prefType = url.primary ? ';TYPE=pref' : '';
+                // Skip URLs without values
+                if (!url.value || url.value.trim() === '') {
+                    console.warn('⚠️ Skipping URL without value:', url);
+                    return;
+                }
+                
+                const type = this.convertToVCard3Type(url.type, 'url').toUpperCase();
                 
                 // Use standard format for WORK, HOME, OTHER
                 if (['WORK', 'HOME', 'OTHER'].includes(type)) {
-                    output += `URL;TYPE=${type}${prefType}:${this.escapeValue(url.value)}\n`;
+                    // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+                    const typeValues = [type];
+                    if (url.primary) typeValues.push('PREF');
+                    
+                    output += `URL;TYPE=${typeValues.join(',')}:${this.escapeValue(url.value)}\n`;
                 } else {
                     // Use ITEM format for PERSONAL, BLOG, etc. (like iCloud does)
                     output += `item${itemCounter}.URL:${this.escapeValue(url.value)}\n`;
-                    output += `item${itemCounter}.X-ABLABEL:${type}\n`;
+                    output += `item${itemCounter}.X-ABLABEL:${type.toUpperCase()}\n`;
                     itemCounter++;
                 }
             });
@@ -641,10 +748,20 @@ export class VCard3Processor {
         // Addresses
         if (displayData.addresses && displayData.addresses.length > 0) {
             displayData.addresses.forEach(address => {
-                const type = this.convertToVCard3Type(address.type, 'address');
-                const prefType = address.primary ? ';TYPE=pref' : '';
+                // Skip addresses without meaningful values
                 const adrValue = this.formatAddressValue(address);
-                output += `ADR;TYPE=${type}${prefType}:${adrValue}\n`;
+                if (!adrValue || adrValue === ';;;;;;') {
+                    console.warn('⚠️ Skipping empty address:', address);
+                    return;
+                }
+                
+                const type = this.convertToVCard3Type(address.type, 'address').toUpperCase();
+                
+                // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+                const typeValues = [type];
+                if (address.primary) typeValues.push('PREF');
+                
+                output += `ADR;TYPE=${typeValues.join(',')}:${adrValue}\n`;
             });
         }
 
@@ -722,18 +839,25 @@ export class VCard3Processor {
 
     /**
      * Unfold vCard lines (handle line continuation)
+     * CRITICAL: Must preserve literal \n sequences inside quoted LABEL parameters
      * @param {string} vCardString - vCard content
      * @returns {Array} Unfolded lines
      */
     unfoldLines(vCardString) {
-        const lines = vCardString.split(/\r?\n/);
+        // First, protect literal \n inside quotes by temporarily replacing them
+        const protectedString = this.protectQuotedNewlines(vCardString);
+        
+        const lines = protectedString.split(/\r?\n/);
         const unfolded = [];
         let currentLine = '';
 
         for (const line of lines) {
+            // RFC 2426: Lines starting with space/tab are continuations
             if (this.patterns.unfoldContinuation.test(line)) {
+                // Continuation line - append without the leading space/tab
                 currentLine += line.substring(1);
             } else {
+                // New property line
                 if (currentLine) {
                     unfolded.push(currentLine);
                 }
@@ -745,7 +869,47 @@ export class VCard3Processor {
             unfolded.push(currentLine);
         }
 
-        return unfolded.filter(line => line.trim().length > 0);
+        // Restore protected newlines
+        return unfolded
+            .filter(line => line.trim().length > 0)
+            .map(line => this.restoreQuotedNewlines(line));
+    }
+    
+    /**
+     * Temporarily replace literal \n inside quoted strings to prevent line splitting
+     * @param {string} vCardString - vCard content
+     * @returns {string} - Protected vCard content
+     */
+    protectQuotedNewlines(vCardString) {
+        let result = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < vCardString.length; i++) {
+            const char = vCardString[i];
+            const nextChar = vCardString[i + 1];
+            
+            if (char === '"') {
+                inQuotes = !inQuotes;
+                result += char;
+            } else if (inQuotes && char === '\\' && nextChar === 'n') {
+                // Replace \n with placeholder inside quotes
+                result += '\x00NEWLINE\x00';
+                i++; // Skip the 'n'
+            } else {
+                result += char;
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Restore literal \n in quoted strings after unfolding
+     * @param {string} line - Unfolded line
+     * @returns {string} - Line with restored newlines
+     */
+    restoreQuotedNewlines(line) {
+        return line.replace(/\x00NEWLINE\x00/g, '\\n');
     }
 
     /**
@@ -1003,38 +1167,66 @@ export class VCard3Processor {
         // Phone numbers
         if (displayData.phones && displayData.phones.length > 0) {
             displayData.phones.forEach((phone, index) => {
+                // Skip phones without values
+                if (!phone.value || phone.value.trim() === '') {
+                    console.warn('⚠️ Skipping phone without value:', phone);
+                    return;
+                }
+                
                 const type = phone.type || 'voice';
-                const pref = (index === 0 || phone.primary) ? ';PREF=1' : '';
-                vcard += `TEL;TYPE=${type}${pref}:${this.escapeValue(phone.value)}\n`;
+                const typeValues = [type];
+                if (index === 0 || phone.primary) typeValues.push('pref');
+                vcard += `TEL;TYPE=${typeValues.join(',')}:${this.escapeValue(phone.value)}\n`;
             });
         }
         
         // Email addresses
         if (displayData.emails && displayData.emails.length > 0) {
             displayData.emails.forEach((email, index) => {
+                // Skip emails without values
+                if (!email.value || email.value.trim() === '') {
+                    console.warn('⚠️ Skipping email without value:', email);
+                    return;
+                }
+                
                 const type = email.type || 'internet';
-                const pref = (index === 0 || email.primary) ? ';PREF=1' : '';
-                vcard += `EMAIL;TYPE=${type}${pref}:${this.escapeValue(email.value)}\n`;
+                const typeValues = [type];
+                if (index === 0 || email.primary) typeValues.push('pref');
+                vcard += `EMAIL;TYPE=${typeValues.join(',')}:${this.escapeValue(email.value)}\n`;
             });
         }
         
         // URLs
         if (displayData.urls && displayData.urls.length > 0) {
             displayData.urls.forEach((url, index) => {
+                // Skip URLs without values
+                if (!url.value || url.value.trim() === '') {
+                    console.warn('⚠️ Skipping URL without value:', url);
+                    return;
+                }
+                
                 const type = url.type || 'work';
-                const pref = (index === 0 || url.primary) ? ';PREF=1' : '';
-                vcard += `URL;TYPE=${type}${pref}:${this.escapeValue(url.value)}\n`;
+                const typeValues = [type];
+                if (index === 0 || url.primary) typeValues.push('pref');
+                vcard += `URL;TYPE=${typeValues.join(',')}:${this.escapeValue(url.value)}\n`;
             });
         }
         
         // Addresses
         if (displayData.addresses && displayData.addresses.length > 0) {
             displayData.addresses.forEach((addr, index) => {
-                const type = addr.type || 'home';
-                const pref = (index === 0 || addr.primary) ? ';PREF=1' : '';
-                // Use correct field names from parseAddressValue
+                // Skip addresses without meaningful values
                 const addrValue = `${addr.poBox || ''};${addr.extended || ''};${addr.street || ''};${addr.city || ''};${addr.state || ''};${addr.postalCode || ''};${addr.country || ''}`;
-                vcard += `ADR;TYPE=${type}${pref}:${addrValue}\n`;
+                if (!addrValue || addrValue === ';;;;;;') {
+                    console.warn('⚠️ Skipping empty address:', addr);
+                    return;
+                }
+                
+                const type = addr.type || 'home';
+                const typeValues = [type];
+                if (index === 0 || addr.primary) typeValues.push('pref');
+                // Use correct field names from parseAddressValue
+                vcard += `ADR;TYPE=${typeValues.join(',')}:${addrValue}\n`;
             });
         }
         

@@ -2380,6 +2380,13 @@ export class ContactUIController {
         // 🐛 DEBUG: Log extracted phone numbers
         console.log(`   Extracted phones:`, displayData.phones.map(p => p.value));
         
+        // 📧 DEBUG: Log extracted emails to diagnose email display issue
+        console.log(`   Extracted emails:`, displayData.emails);
+        console.log(`   Emails length:`, displayData.emails ? displayData.emails.length : 'undefined');
+        if (displayData.emails && displayData.emails.length > 0) {
+            console.log(`   Email values:`, displayData.emails.map(e => e.value || e));
+        }
+        
         const contactType = ContactRenderer.getContactType(contact);
         
         container.innerHTML = `

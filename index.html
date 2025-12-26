@@ -40,6 +40,10 @@
                     <i class="fas fa-user-plus"></i>
                     Share Profile
                 </button>
+                <button id="icloud-test-btn" class="btn btn-secondary" title="Test iCloud sync">
+                    <i class="fab fa-apple"></i>
+                    iCloud Test
+                </button>
                 <!-- Theme Toggle -->
                 <div class="theme-toggle" id="theme-toggle" 
                      role="button" 
@@ -993,6 +997,79 @@
                 
                 <div class="form-actions">
                     <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- iCloud Test Modal -->
+    <div id="icloud-test-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fab fa-apple"></i> iCloud CardDAV Test</h2>
+                <button id="close-icloud-test-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    <strong>🧪 Test iCloud sync via Cloudflare CORS proxy</strong><br>
+                    Uses your existing worker: <code>https://carddav-proxy.data4-9de.workers.dev</code>
+                </div>
+
+                <div class="form-section">
+                    <h3>🔐 Credentials</h3>
+                    <div class="form-group">
+                        <label>iCloud Email:</label>
+                        <input type="email" id="icloud-email" placeholder="your@icloud.com" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>App-Specific Password:</label>
+                        <input type="password" id="icloud-password" placeholder="xxxx-xxxx-xxxx-xxxx" class="form-control">
+                        <small>Generate at: <a href="https://appleid.apple.com/account/manage" target="_blank">appleid.apple.com</a></small>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>🧪 Tests</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                        <button id="icloud-connect-btn" class="btn btn-primary">
+                            <i class="fas fa-plug"></i> 1. Connect
+                        </button>
+                        <button id="icloud-fetch-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-download"></i> 2. Fetch Contacts
+                        </button>
+                        <button id="icloud-push-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-upload"></i> 3. Push Test Contact
+                        </button>
+                        <button id="icloud-import-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-file-import"></i> 4. Import to CM
+                        </button>
+                    </div>
+                    
+                    <div id="icloud-status" class="status-display"></div>
+                    
+                    <div id="icloud-log" class="log-display" style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; display: none;"></div>
+                </div>
+
+                <div class="form-section">
+                    <h3>🔄 Auto-Sync</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
+                        <button id="icloud-start-autosync-btn" class="btn btn-success" disabled>
+                            <i class="fas fa-play"></i> Start Auto-Sync
+                        </button>
+                        <button id="icloud-stop-autosync-btn" class="btn btn-danger" disabled style="display: none;">
+                            <i class="fas fa-stop"></i> Stop Auto-Sync
+                        </button>
+                        <button id="icloud-sync-now-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-sync"></i> Sync Now
+                        </button>
+                        <div class="form-group" style="margin: 0; flex-grow: 1; max-width: 200px;">
+                            <label style="font-size: 12px; margin-bottom: 5px;">Interval (minutes):</label>
+                            <input type="number" id="icloud-sync-interval" value="10" min="1" max="60" class="form-control" style="width: 100%;">
+                        </div>
+                    </div>
+                    <div id="icloud-sync-status" class="status-display" style="font-size: 13px; padding: 10px; background: #f8f9fa; border-radius: 4px; display: none;"></div>
                 </div>
             </div>
         </div>

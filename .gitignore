@@ -115,6 +115,11 @@ index.html.backup
 *sample*.html
 *troubleshoot*.html
 *quick*.html
+*diagnose*.html
+*verify*.html
+
+# Cache bust temporary files
+.cache-bust-*
 
 # Data files that shouldn't be in git
 *.vcf
@@ -127,6 +132,11 @@ index.html.backup
 /tools
 /tests
 frontend/test-app/
+
+# Bridge diagnostic scripts (temporary development files)
+contact-carddav-bridge-lite/diagnostic-*.js
+contact-carddav-bridge-lite/discover-*.js
+contact-carddav-bridge-lite/setup-*.js
 
 # Documentation files (except essential ones)
 *.md

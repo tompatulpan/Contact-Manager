@@ -106,6 +106,29 @@ export class CardDAVBridgeAdapter {
     async pushContact(profileName, addressbook, vcard, uid, etag = null) {
         if (!this.bridge) await this.initialize();
         
+        // Validate inputs before sending to bridge
+        if (!vcard || typeof vcard !== 'string' || vcard.length === 0) {
+            console.error(`❌ CardDAVBridgeAdapter: Invalid vCard for UID ${uid}:`, { 
+                vcard: vcard ? `${vcard.length} bytes` : 'null/undefined',
+                uid,
+                profileName
+            });
+            return {
+                success: false,
+                error: 'Invalid vCard: null or empty'
+            };
+        }
+        
+        // Validate vCard structure
+        if (!vcard.includes('BEGIN:VCARD') || !vcard.includes('END:VCARD')) {
+            console.error(`❌ CardDAVBridgeAdapter: vCard missing BEGIN/END markers for UID ${uid}`);
+            console.error(`   vCard preview:`, vcard.substring(0, 200));
+            return {
+                success: false,
+                error: 'Invalid vCard: missing BEGIN:VCARD or END:VCARD'
+            };
+        }
+        
         // Get addressbook URL from stored profile
         const profile = this.connectedProfiles.get(profileName);
         if (!profile || !profile.addressbookUrl) {

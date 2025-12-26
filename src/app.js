@@ -9,6 +9,8 @@ import { VCardStandard } from './core/VCardStandard.js';
 import { ContactValidator } from './core/ContactValidator.js';
 import { ContactManager } from './core/ContactManager.js';
 import { ContactUIController } from './ui/ContactUIController.js';
+import { ICloudTestController } from './ui/ICloudTestController.js';
+import { ICloudSyncService } from './integrations/ICloudSyncService.js';
 import { profileRouter } from './utils/ProfileRouter.js';
 import { APP_CONFIG } from './config/app.config.js';
 // 🆕 CardDAV Integration
@@ -79,11 +81,15 @@ class ContactManagementApp {
         window.contactManager = this.modules.contactManager;
         window.baikalConnector = this.modules.baikalConnector;
         window.database = this.modules.database;
+        window.ICloudCardDAVClient = this.modules.ICloudCardDAVClient;
+        window.iCloudSyncService = this.modules.iCloudSyncService;
         
         console.log('🧪 Debug helpers available:');
         console.log('  - window.contactManager.recoverFromDatabaseCorruption(profileName)');
         console.log('  - window.baikalConnector.testSync(profileName)');
         console.log('  - window.database.getAllSharedContactDatabases()');
+        console.log('  - window.ICloudCardDAVClient (for iCloud testing)');
+        console.log('  - window.iCloudSyncService (for iCloud sync control)');
     }
 
     /**
@@ -128,6 +134,10 @@ class ContactManagementApp {
         // 🏭 CardDAV connector factory (creates connectors based on server type)
         this.modules.cardDAVFactory = new CardDAVConnectorFactory(this.eventBus, cardDAVProxyConfig);
         
+        // 🍎 iCloud CardDAV Client (direct CORS proxy integration)
+        const { ICloudCardDAVClient } = await import('./integrations/ICloudCardDAVClient.js');
+        this.modules.ICloudCardDAVClient = ICloudCardDAVClient;
+        
         // VCard3 processor for format conversion
         this.modules.vCard3Processor = new VCard3Processor({});
         
@@ -153,6 +163,19 @@ class ContactManagementApp {
             this.modules.baikalConfigManager,
             this.modules.contactManager,  // ⭐ Add ContactManager reference
             this.modules.iCloudConnector  // 🍎 Add ICloudConnector reference
+        );
+
+        // 🍎 Initialize iCloud sync service
+        this.modules.iCloudSyncService = new ICloudSyncService(
+            this.eventBus,
+            this.modules.contactManager
+        );
+
+        // 🍎 Initialize iCloud test controller (with sync service)
+        this.modules.iCloudTestController = new ICloudTestController(
+            this.eventBus,
+            this.modules.contactManager,
+            this.modules.iCloudSyncService
         );
 
         // ⭐ Set ContactManager reference in BaikalConnector

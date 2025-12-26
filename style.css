@@ -293,6 +293,10 @@ body {
     overflow-y: auto;
 }
 
+.modal.active {
+    display: flex !important;
+}
+
 .modal-content {
     background: var(--bg-primary);
     border-radius: 12px;
@@ -2829,6 +2833,36 @@ body {
     border-radius: 4px;
     font-size: 0.85em;
     line-height: 1.4;
+}
+
+/* iCloud Test Modal */
+.info-box {
+    background: #d1ecf1;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #0c5460;
+}
+
+.form-section {
+    margin-bottom: 20px;
+}
+
+.form-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.log-display {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
 }
 
 .url-guidance strong {

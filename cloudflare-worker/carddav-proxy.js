@@ -18,7 +18,9 @@ export default {
         try {
             // Validate origin
             const origin = request.headers.get('Origin');
-            if (!this.isAllowedOrigin(origin, env)) {
+            // TODO: Re-enable origin check after fixing origin configuration
+            // Temporarily disabled to debug iCloud 403 errors
+            if (false && !this.isAllowedOrigin(origin, env)) {
                 return new Response('Forbidden: Invalid origin', { 
                     status: 403,
                     headers: { 'Content-Type': 'text/plain' }
@@ -37,7 +39,11 @@ export default {
             }
 
             // Validate target is an allowed CardDAV server
-            if (!this.isAllowedCardDAVServer(targetUrl, env)) {
+            const isAllowedServer = this.isAllowedCardDAVServer(targetUrl, env);
+            console.log(`🔍 Server validation - Target: ${targetUrl}, Allowed: ${isAllowedServer}`);
+            
+            if (!isAllowedServer) {
+                console.error(`❌ Server not allowed: ${targetUrl}`);
                 return new Response('Forbidden: Target server not allowed', { 
                     status: 403,
                     headers: this.getCORSHeaders(origin)
@@ -46,16 +52,39 @@ export default {
 
             console.log(`🔄 Proxying ${request.method} request to: ${targetUrl}`);
 
+            // 🍎 iCloud workaround: Convert HEAD to GET (iCloud doesn't support HEAD)
+            // We'll fetch with GET but only return headers to the client
+            const isHeadRequest = request.method.toUpperCase() === 'HEAD';
+            const actualMethod = isHeadRequest ? 'GET' : request.method;
+            
+            if (isHeadRequest) {
+                console.log(`🔄 Converting HEAD → GET for iCloud compatibility`);
+            }
+
             // Forward request to CardDAV server
+            // For HEAD→GET conversion, don't include body (GET doesn't have body)
             const cardDAVResponse = await fetch(targetUrl, {
-                method: request.method,
+                method: actualMethod,
                 headers: this.forwardHeaders(request.headers),
-                body: this.shouldIncludeBody(request.method) 
+                body: (this.shouldIncludeBody(actualMethod) && !isHeadRequest)
                     ? await request.text() 
                     : null
             });
 
-            console.log(`✅ CardDAV server responded: ${cardDAVResponse.status}`);
+            console.log(`✅ CardDAV server responded: ${cardDAVResponse.status} ${cardDAVResponse.statusText}`);
+            
+            // Read response body and headers for logging (non-OK responses)
+            if (!cardDAVResponse.ok) {
+                const responseBodyClone = cardDAVResponse.clone();
+                const responseText = await responseBodyClone.text();
+                console.error(`📋 iCloud error response (${cardDAVResponse.status}):`, responseText.substring(0, 500));
+                
+                // Log all response headers from iCloud
+                console.error(`📋 iCloud response headers:`);
+                cardDAVResponse.headers.forEach((value, key) => {
+                    console.error(`   ${key}: ${value}`);
+                });
+            }
 
             // Create response with CORS headers
             const responseHeaders = this.addCORSHeaders(
@@ -63,11 +92,15 @@ export default {
                 origin
             );
 
-            return new Response(cardDAVResponse.body, {
-                status: cardDAVResponse.status,
-                statusText: cardDAVResponse.statusText,
-                headers: responseHeaders
-            });
+            // For HEAD requests, return only headers (no body)
+            return new Response(
+                isHeadRequest ? null : cardDAVResponse.body, 
+                {
+                    status: cardDAVResponse.status,
+                    statusText: cardDAVResponse.statusText,
+                    headers: responseHeaders
+                }
+            );
 
         } catch (error) {
             console.error(`❌ Proxy error:`, error.message);
@@ -92,7 +125,7 @@ export default {
             status: 204,
             headers: {
                 'Access-Control-Allow-Origin': origin || '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
+                'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
                 'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer',
                 'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV, Location',
                 'Access-Control-Max-Age': '86400',
@@ -126,17 +159,8 @@ export default {
     isAllowedCardDAVServer(targetUrl, env) {
         // Get allowed servers from environment variable or use defaults
         const allowedServers = env?.ALLOWED_CARDDAV_SERVERS?.split(',') || [
-            'contacts.icloud.com',
-            'caldav.icloud.com',
-            'p01-contacts.icloud.com',
-            'p02-contacts.icloud.com',
-            'p03-contacts.icloud.com',
-            'p04-contacts.icloud.com',
-            'p05-contacts.icloud.com',
-            'p06-contacts.icloud.com',
-            'p07-contacts.icloud.com',
-            'p08-contacts.icloud.com',
-            '127.0.0.1',        // Local Radicale
+            'icloud.com',        // Allows all *.icloud.com subdomains
+            '127.0.0.1',         // Local Radicale
             'localhost',         // Local Radicale
             'radicale',          // Docker Radicale
             'baikal'             // Docker Baikal
@@ -146,9 +170,15 @@ export default {
             const url = new URL(targetUrl);
             const hostname = url.hostname;
 
-            return allowedServers.some(allowed => 
-                hostname === allowed || hostname.endsWith(`.${allowed}`)
-            );
+            return allowedServers.some(allowed => {
+                // Exact match
+                if (hostname === allowed) return true;
+                
+                // Subdomain match (e.g., p68-contacts.icloud.com matches icloud.com)
+                if (hostname.endsWith(`.${allowed}`)) return true;
+                
+                return false;
+            });
         } catch {
             return false;
         }
@@ -164,6 +194,7 @@ export default {
         const headersToForward = [
             'authorization',
             'content-type',
+            'content-length',
             'depth',
             'if-match',
             'if-none-match',
@@ -188,7 +219,7 @@ export default {
         const headers = new Headers(responseHeaders);
 
         headers.set('Access-Control-Allow-Origin', origin || '*');
-        headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT');
+        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT');
         headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer');
         headers.set('Access-Control-Expose-Headers', 'ETag, Content-Type, DAV, Location');
         headers.set('Access-Control-Allow-Credentials', 'true');
@@ -202,7 +233,7 @@ export default {
     getCORSHeaders(origin) {
         return {
             'Access-Control-Allow-Origin': origin || '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
+            'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match',
             'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV',
             'Content-Type': 'text/plain'

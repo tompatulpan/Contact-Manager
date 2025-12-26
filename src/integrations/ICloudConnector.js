@@ -5,6 +5,8 @@
  * Built on SimpleCardDAVBridge for standard CardDAV operations
  */
 
+import { APP_CONFIG } from '../config/app.config.js';
+
 // Lazy-load bridge
 let SimpleCardDAVBridge = null;
 
@@ -26,9 +28,9 @@ export class ICloudConnector {
         // Store proxy configuration for bridge initialization
         this.proxyConfig = proxyConfig;
         
-        // iCloud-specific configuration
+        // iCloud-specific configuration (use values from APP_CONFIG)
         this.iCloudConfig = {
-            serverUrl: 'https://contacts.icloud.com/',
+            serverUrl: APP_CONFIG.iCloud.baseUrl + '/',
             discoveryPath: '/',
             addressbookBasePath: '/carddavhome/card/'
         };

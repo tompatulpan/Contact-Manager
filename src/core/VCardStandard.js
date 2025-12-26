@@ -33,10 +33,11 @@ export class VCardStandard {
     /**
      * Generate vCard 3.0 string from contact data
      * Delegates to VCard3Processor for correct formatting
+     * @param {Object} options - Generation options (e.g., skipInternalMetadata for CardDAV sync)
      */
-    generateVCard(contactData) {
+    generateVCard(contactData, options = {}) {
         try {
-            return this.formatManager.vCard3Processor.generateVCard3(contactData);
+            return this.formatManager.vCard3Processor.generateVCard3(contactData, options);
         } catch (error) {
             console.error('🚨 VCardStandard.generateVCard failed:', error);
             console.error('   Contact data was:', contactData);
