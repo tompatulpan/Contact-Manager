@@ -251,6 +251,16 @@ export class ICloudSyncService {
         console.log('📥 Phase 1: Pulling changes from iCloud...');
         
         try {
+            // Get pending deletions BEFORE fetching from iCloud
+            // This prevents re-importing contacts that were deleted locally
+            const pendingDeletions = Array.from(this.contactManager.contacts.values())
+                .filter(c => c.metadata.isDeleted && c.metadata?.carddav?.etag)
+                .map(c => this.extractUIDFromVCard(c.vcard));
+            
+            if (pendingDeletions.length > 0) {
+                console.log(`🗑️ Found ${pendingDeletions.length} pending deletion(s) - will skip re-import`);
+            }
+            
             // Fetch all contacts from iCloud
             const iCloudContacts = await this.iCloudClient.fetchContacts();
             
@@ -268,6 +278,13 @@ export class ICloudSyncService {
             
             for (const iCloudContact of iCloudContacts) {
                 try {
+                    // Skip if this contact is pending deletion locally
+                    if (pendingDeletions.includes(iCloudContact.uid)) {
+                        console.log(`⏭️ Skipping re-import (pending deletion): ${iCloudContact.fullName || iCloudContact.uid}`);
+                        skipped++;
+                        continue;
+                    }
+                    
                     // Find local contact by UID
                     const localContact = this.findLocalContactByUID(iCloudContact.uid);
                     
@@ -419,10 +436,20 @@ export class ICloudSyncService {
             }
             
             // Check for contacts deleted locally (exist on iCloud but deleted in CM)
-            // This is handled in push phase when contact has isDeleted flag
-            // We'll push the deletion to iCloud
+            const localContactsWithDeletions = Array.from(this.contactManager.contacts.values())
+                .filter(c => c.metadata.isDeleted && c.metadata?.carddav?.etag);
             
-            console.log(`✅ Deletion check complete: ${localDeleted} deleted locally, ${remoteDeleted} deleted remotely`);
+            remoteDeleted = localContactsWithDeletions.length;
+            
+            if (remoteDeleted > 0) {
+                console.log(`🗑️ Found ${remoteDeleted} contact(s) deleted locally, will push deletions to iCloud`);
+                for (const contact of localContactsWithDeletions) {
+                    const uid = this.extractUIDFromVCard(contact.vcard);
+                    console.log(`   - ${contact.cardName} (UID: ${uid})`);
+                }
+            }
+            
+            console.log(`✅ Deletion check complete: ${localDeleted} deleted remotely (removed from CM), ${remoteDeleted} deleted locally (will push to iCloud)`);
             
             return { localDeleted, remoteDeleted };
             
