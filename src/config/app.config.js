@@ -233,6 +233,16 @@ export const PERFORMANCE_CONFIG = {
     baikalProtectionInterval: 1800000, // 30 min - Detect/correct unauthorized edits + refresh shared contacts to CardDAV
     sharedContactFallbackInterval: 3600000, // 60 min - Safety net: catch any dropped WebSocket updates for shared contacts
     
+    // ───────────────────────────────────────────────────────────────────────────
+    // iCloud CardDAV SYNC: Dual-timer system for contact type separation
+    // ───────────────────────────────────────────────────────────────────────────
+    // Main timer: OWNED + IMPORTED (2-way sync: pull + push)
+    // Shared timer: SHARED contacts (force-push only, owner authority)
+    // Offset: Stagger shared refresh to prevent resource conflicts
+    icloudAutoSyncInterval: 120000, // 2 min - Bidirectional sync (OWNED/IMPORTED: pull + push) - TESTING
+    icloudSharedRefreshInterval: 300000, // 5 min - Force-push SHARED contacts (owner authority) - TESTING
+    icloudSharedRefreshOffset: 150000, // 2.5 min - Offset from auto-sync to distribute load
+    
     // Memory management
     maxMemoryUsage: 100, // MB
     garbageCollectionThreshold: 1000 // number of operations

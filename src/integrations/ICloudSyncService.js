@@ -25,6 +25,7 @@ export class ICloudSyncService {
         this.isSyncing = false;
         this.lastSyncTime = null;
         this.syncInterval = null;
+        this.sharedRefreshInterval = null;
         this.syncErrors = [];
         
         // Credentials
@@ -98,25 +99,48 @@ export class ICloudSyncService {
     /**
      * Start automatic sync with configurable interval
      */
-    startAutoSync(intervalMinutes = 10) {
+    startAutoSync(intervalMinutes = null) {
         if (this.syncInterval) {
             console.warn('⚠️ Auto-sync already running');
             return;
         }
         
-        const intervalMs = intervalMinutes * 60 * 1000;
+        // Use config interval or provided override (with fallback for cache issues)
+        const intervalMs = intervalMinutes 
+            ? intervalMinutes * 60 * 1000 
+            : (APP_CONFIG.PERFORMANCE_CONFIG?.icloudAutoSyncInterval || 120000); // 2 min default
         
-        console.log(`🔄 Starting auto-sync (every ${intervalMinutes} minutes)...`);
+        const intervalDisplay = Math.round(intervalMs / 1000);
+        console.log(`🔄 Starting iCloud auto-sync (every ${intervalDisplay}s / ${Math.round(intervalMs/60000)}min)...`);
         
         // Initial sync
         this.performSync();
         
-        // Schedule periodic sync
+        // Schedule periodic sync (bidirectional for OWNED/IMPORTED)
         this.syncInterval = setInterval(() => {
             this.performSync();
         }, intervalMs);
         
-        this.eventBus.emit('icloud:autoSyncStarted', { intervalMinutes });
+        // Schedule periodic shared contact refresh (force-push for SHARED)
+        const sharedRefreshMs = APP_CONFIG.PERFORMANCE_CONFIG?.icloudSharedRefreshInterval || 300000; // 5 min default
+        const sharedOffsetMs = APP_CONFIG.PERFORMANCE_CONFIG?.icloudSharedRefreshOffset || 150000; // 2.5 min default
+        
+        console.log(`🔄 Starting shared contact refresh (every ${Math.round(sharedRefreshMs/1000)}s, offset ${Math.round(sharedOffsetMs/1000)}s)...`);
+        
+        // Start shared refresh after offset delay
+        setTimeout(() => {
+            this.refreshSharedContactsToICloud();
+            
+            this.sharedRefreshInterval = setInterval(() => {
+                this.refreshSharedContactsToICloud();
+            }, sharedRefreshMs);
+        }, sharedOffsetMs);
+        
+        this.eventBus.emit('icloud:autoSyncStarted', { 
+            intervalMs,
+            sharedRefreshMs,
+            sharedOffsetMs
+        });
     }
 
     /**
@@ -127,7 +151,15 @@ export class ICloudSyncService {
             clearInterval(this.syncInterval);
             this.syncInterval = null;
             console.log('⏹️ Auto-sync stopped');
-            
+        }
+        
+        if (this.sharedRefreshInterval) {
+            clearInterval(this.sharedRefreshInterval);
+            this.sharedRefreshInterval = null;
+            console.log('⏹️ Shared contact refresh stopped');
+        }
+        
+        if (this.syncInterval === null && this.sharedRefreshInterval === null) {
             this.eventBus.emit('icloud:autoSyncStopped');
         }
     }
@@ -480,8 +512,14 @@ export class ICloudSyncService {
                 }
             }
             
-            // Then, handle active contacts
-            for (const contact of contactsToSync) {
+            // Separate contacts by type for different handling
+            const sharedContacts = contactsToSync.filter(c => !c.metadata.isOwned);
+            const ownedImportedContacts = contactsToSync.filter(c => c.metadata.isOwned);
+            
+            console.log(`📊 Contact types: ${ownedImportedContacts.length} owned/imported (2-way), ${sharedContacts.length} shared (force-push)`);
+            
+            // Handle OWNED/IMPORTED contacts (bidirectional sync)
+            for (const contact of ownedImportedContacts) {
                 try {
                     const shouldPush = this.shouldPushContact(contact);
                     
@@ -590,6 +628,95 @@ export class ICloudSyncService {
                             }
                         }
                         
+                        // Handle 403: Forbidden (UID conflict with existing contact)
+                        // This happens when CM tries to push with a UID that iCloud doesn't allow
+                        const is403Error = !result.success && result.status === 403;
+                        
+                        if (is403Error) {
+                            console.warn(`⚠️ 403 Forbidden - UID conflict: ${contact.cardName}`);
+                            console.log(`🔍 Searching for matching contact on iCloud...`);
+                            
+                            const currentUID = this.extractUIDFromVCard(contact.vcard);
+                            const contactName = displayData.fullName;
+                            
+                            // Search for matching contact by name/phone
+                            const iCloudContacts = await this.iCloudClient.fetchContacts();
+                            const normalizeName = (name) => name?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+                            const normalizedContactName = normalizeName(contactName);
+                            
+                            const getContactPhones = (c) => {
+                                if (!c.vcard) return [];
+                                const phoneMatches = c.vcard.match(/TEL[^:]*:([^\r\n]+)/gi) || [];
+                                return phoneMatches.map(m => m.replace(/TEL[^:]*:/i, '').trim().replace(/\D/g, ''));
+                            };
+                            
+                            const localPhones = getContactPhones(contact);
+                            let matchingContact = null;
+                            
+                            console.log(`   Searching for: "${contactName}" with phones: ${localPhones.join(', ') || 'none'}`);
+                            
+                            for (const iCloudContact of iCloudContacts) {
+                                if (iCloudContact.uid === currentUID) continue;
+                                
+                                const nameMatches = normalizeName(iCloudContact.fullName) === normalizedContactName;
+                                const iCloudPhones = (iCloudContact.phones || []).map(p => {
+                                    const phoneValue = typeof p === 'string' ? p : (p.value || p.toString());
+                                    return phoneValue.replace(/\D/g, '');
+                                });
+                                const phoneMatches = localPhones.length > 0 && iCloudPhones.some(ip => 
+                                    localPhones.some(lp => ip === lp || ip.endsWith(lp.slice(-8)) || lp.endsWith(ip.slice(-8)))
+                                );
+                                
+                                if (nameMatches || phoneMatches) {
+                                    // Prefer iCloud's native UUID format
+                                    const isUUID = iCloudContact.uid?.includes('-') && iCloudContact.uid.length >= 36;
+                                    if (!matchingContact || isUUID) {
+                                        matchingContact = iCloudContact;
+                                        console.log(`   ✅ Found: "${iCloudContact.fullName}" (UID: ${iCloudContact.uid}, UUID: ${isUUID})`);
+                                    }
+                                }
+                            }
+                            
+                            if (matchingContact) {
+                                console.log(`🔄 Syncing to correct UID: ${currentUID} → ${matchingContact.uid}`);
+                                
+                                // Update local contact with correct UID
+                                contact.vcard = contact.vcard.replace(/UID:[^\r\n]+/g, `UID:${matchingContact.uid}`);
+                                cleanVCard = cleanVCard.replace(/UID:[^\r\n]+/g, `UID:${matchingContact.uid}`);
+                                
+                                // Retry UPDATE with correct UID
+                                const retryResult = await this.iCloudClient.updateContact(
+                                    matchingContact.uid,
+                                    cleanVCard,
+                                    matchingContact.etag
+                                );
+                                
+                                if (retryResult.success) {
+                                    contact.metadata.carddav = {
+                                        source: 'iCloud',
+                                        etag: retryResult.etag,
+                                        href: retryResult.href,
+                                        uid: matchingContact.uid,
+                                        lastSyncedAt: new Date().toISOString(),
+                                        syncStatus: 'synced'
+                                    };
+                                    
+                                    if (contact.metadata.isOwned) {
+                                        await this.contactManager.database.updateContact(contact);
+                                    }
+                                    
+                                    console.log(`✅ Updated after UID sync: ${contact.cardName}`);
+                                    pushed++;
+                                    this.stats.contactsPushed++;
+                                    continue;
+                                }
+                            }
+                            
+                            console.error(`❌ Cannot resolve 403 conflict for: ${contact.cardName}`);
+                            errors++;
+                            continue;
+                        }
+                        
                         // Handle 404: Contact doesn't exist on iCloud (stale href)
                         // Check for both "404" status and iCloud's "doesn't exist" error message
                         const is404Error = !result.success && (result.status === 404 || (result.error && (
@@ -614,12 +741,51 @@ export class ICloudSyncService {
                             let matchingContact = null;
                             const matchingCandidates = [];
                             
+                            // Helper: Normalize name for comparison (remove extra spaces, lowercase)
+                            const normalizeName = (name) => {
+                                if (!name) return '';
+                                return name.trim().toLowerCase().replace(/\s+/g, ' ');
+                            };
+                            
+                            const normalizedContactName = normalizeName(contactName);
+                            
+                            // Helper: Extract phones from contact for comparison
+                            const getContactPhones = (contact) => {
+                                if (!contact.vcard) return [];
+                                const phoneMatches = contact.vcard.match(/TEL[^:]*:([^\r\n]+)/gi) || [];
+                                return phoneMatches.map(m => m.replace(/TEL[^:]*:/i, '').trim().replace(/\D/g, ''));
+                            };
+                            
+                            const localPhones = getContactPhones(contact);
+                            
+                            console.log(`🔍 Searching for existing contact: "${contactName}"`);
+                            console.log(`   Local phones: ${localPhones.join(', ') || 'none'}`);
+                            
                             for (const iCloudContact of iCloudContacts) {
                                 // Skip if UID matches (shouldn't happen in 404 case)
                                 if (iCloudContact.uid === currentUID) continue;
                                 
-                                // Check if name matches
-                                if (iCloudContact.fullName === contactName) {
+                                const normalizedICloudName = normalizeName(iCloudContact.fullName);
+                                
+                                // Match by normalized name (fuzzy match)
+                                const nameMatches = normalizedICloudName === normalizedContactName;
+                                
+                                // Match by phone number
+                                const iCloudPhones = (iCloudContact.phones || []).map(p => {
+                                    const phoneValue = typeof p === 'string' ? p : (p.value || p.toString());
+                                    return phoneValue.replace(/\D/g, '');
+                                });
+                                const phoneMatches = localPhones.length > 0 && iCloudPhones.some(iCloudPhone => 
+                                    localPhones.some(localPhone => 
+                                        iCloudPhone === localPhone || 
+                                        iCloudPhone.endsWith(localPhone.slice(-8)) || 
+                                        localPhone.endsWith(iCloudPhone.slice(-8))
+                                    )
+                                );
+                                
+                                if (nameMatches || phoneMatches) {
+                                    console.log(`   ✅ Match found: "${iCloudContact.fullName}" (UID: ${iCloudContact.uid})`);
+                                    console.log(`      Name match: ${nameMatches}, Phone match: ${phoneMatches}`);
                                     matchingCandidates.push(iCloudContact);
                                 }
                             }
@@ -884,6 +1050,330 @@ export class ICloudSyncService {
     }
 
     /**
+     * Force-push shared contact to iCloud (owner authority)
+     * Used to override any external edits and maintain Userbase ecosystem integrity
+     * 
+     * @param {Object} contact - Shared contact to force-push
+     * @returns {Promise<Object>} Push result
+     */
+    async forcePushSharedContact(contact) {
+        try {
+            const uid = this.extractUIDFromVCard(contact.vcard);
+            
+            // Prepare vCard for push (ensure EMAIL property for iCloud)
+            let cleanVCard = contact.vcard;
+            
+            // Check for EMAIL property (iCloud requirement)
+            const hasEmail = /^EMAIL[;:]/m.test(cleanVCard);
+            if (!hasEmail) {
+                console.warn(`⚠️ Shared contact "${contact.cardName}" has no EMAIL, adding placeholder`);
+                // Add placeholder email before END:VCARD
+                cleanVCard = cleanVCard.replace(/END:VCARD/, 'EMAIL:shared-contact@userbase.app\nEND:VCARD');
+            }
+            
+            // Force-push with etag: null to override any external changes
+            const existingEtag = contact.metadata?.carddav?.etag;
+            
+            if (existingEtag) {
+                // Contact exists on iCloud - update with force (null ETag bypasses conflict check)
+                console.log(`🔄 Force-updating shared contact (ignoring ETag): ${contact.cardName}`);
+                
+                const result = await this.iCloudClient.updateContact(uid, cleanVCard, null);
+                
+                if (result.success) {
+                    // Store new ETag in memory cache (shared contacts can't update Userbase metadata)
+                    if (!this.sharedContactSyncCache) {
+                        this.sharedContactSyncCache = new Map();
+                    }
+                    
+                    this.sharedContactSyncCache.set(contact.contactId, {
+                        etag: result.etag,
+                        href: result.href,
+                        uid: uid,
+                        lastSyncedAt: new Date().toISOString(),
+                        lastForcePush: new Date().toISOString(),
+                        syncStatus: 'force-pushed'
+                    });
+                    
+                    return { success: true, etag: result.etag, action: 'force-updated' };
+                } else {
+                    return { success: false, error: result.error };
+                }
+            } else {
+                // Contact doesn't exist on iCloud yet - create
+                console.log(`📤 Creating shared contact on iCloud: ${contact.cardName}`);
+                
+                const result = await this.iCloudClient.createContact(cleanVCard);
+                
+                if (result.success) {
+                    // Store ETag in memory cache
+                    if (!this.sharedContactSyncCache) {
+                        this.sharedContactSyncCache = new Map();
+                    }
+                    
+                    this.sharedContactSyncCache.set(contact.contactId, {
+                        etag: result.etag,
+                        href: result.href,
+                        uid: result.uid || uid,
+                        lastSyncedAt: new Date().toISOString(),
+                        lastForcePush: new Date().toISOString(),
+                        syncStatus: 'force-pushed'
+                    });
+                    
+                    return { success: true, etag: result.etag, action: 'created' };
+                } else {
+                    return { success: false, error: result.error };
+                }
+            }
+        } catch (error) {
+            console.error('❌ Force-push shared contact failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Refresh all shared contacts to iCloud (periodic maintenance)
+     * Ensures Userbase ecosystem integrity by overriding any external edits
+     * 
+     * @returns {Promise<Object>} Refresh result
+     */
+    async refreshSharedContactsToICloud() {
+        if (!this.isConnected) {
+            console.warn('⚠️ Cannot refresh: Not connected to iCloud');
+            return { success: false, refreshed: 0, error: 'Not connected' };
+        }
+        
+        console.log('🔄 Refreshing shared contacts to iCloud (owner authority maintenance)...');
+        
+        const startTime = Date.now();
+        
+        // Get all shared contacts (green 🟢)
+        const allContacts = Array.from(this.contactManager.contacts.values());
+        const sharedContacts = allContacts.filter(c => 
+            !c.metadata.isOwned && 
+            c.contactId?.startsWith('shared_') &&
+            !c.metadata.isDeleted &&
+            !c.metadata.isArchived
+        );
+        
+        if (sharedContacts.length === 0) {
+            console.log('✅ No shared contacts to refresh');
+            return { success: true, refreshed: 0 };
+        }
+        
+        console.log(`🟢 Found ${sharedContacts.length} shared contacts to refresh`);
+        
+        let refreshedCount = 0;
+        let errorCount = 0;
+        const errors = [];
+        
+        // Force-push each shared contact
+        for (const contact of sharedContacts) {
+            try {
+                const sharedBy = contact.metadata?.sharedBy || 'unknown';
+                console.log(`📤 Refreshing: ${contact.cardName} (shared by: ${sharedBy})`);
+                
+                const result = await this.forcePushSharedContact(contact);
+                
+                if (result.success) {
+                    refreshedCount++;
+                } else {
+                    errorCount++;
+                    errors.push({
+                        contact: contact.cardName,
+                        error: result.error
+                    });
+                }
+            } catch (error) {
+                errorCount++;
+                errors.push({
+                    contact: contact.cardName,
+                    error: error.message
+                });
+            }
+        }
+        
+        const duration = Date.now() - startTime;
+        
+        console.log(`✅ Shared contact refresh complete: ${refreshedCount}/${sharedContacts.length} in ${duration}ms`);
+        
+        if (errors.length > 0) {
+            console.error(`❌ ${errorCount} errors during refresh:`, errors);
+        }
+        
+        return {
+            success: refreshedCount > 0,
+            refreshed: refreshedCount,
+            total: sharedContacts.length,
+            errorCount,
+            errors: errors.length > 0 ? errors : undefined,
+            duration
+        };
+    }
+
+    /**
+     * Force-push shared contact to iCloud (owner authority)
+     * Used to override any external edits and maintain Userbase ecosystem integrity
+     * 
+     * @param {Object} contact - Shared contact to force-push
+     * @returns {Promise<Object>} Push result
+     */
+    async forcePushSharedContact(contact) {
+        try {
+            const uid = this.extractUIDFromVCard(contact.vcard);
+            
+            // Prepare vCard for push (ensure EMAIL property for iCloud)
+            let cleanVCard = contact.vcard;
+            
+            // Check for EMAIL property (iCloud requirement)
+            const hasEmail = /^EMAIL[;:]/m.test(cleanVCard);
+            if (!hasEmail) {
+                console.warn(`⚠️ Shared contact "${contact.cardName}" has no EMAIL, adding placeholder`);
+                // Add placeholder email before END:VCARD
+                cleanVCard = cleanVCard.replace(/END:VCARD/, 'EMAIL:shared-contact@userbase.app\nEND:VCARD');
+            }
+            
+            // Force-push with etag: null to override any external changes
+            const existingEtag = contact.metadata?.carddav?.etag;
+            
+            if (existingEtag) {
+                // Contact exists on iCloud - update with force (null ETag bypasses conflict check)
+                console.log(`🔄 Force-updating shared contact (ignoring ETag): ${contact.cardName}`);
+                
+                const result = await this.iCloudClient.updateContact(uid, cleanVCard, null);
+                
+                if (result.success) {
+                    // Store new ETag in memory cache (shared contacts can't update Userbase metadata)
+                    if (!this.sharedContactSyncCache) {
+                        this.sharedContactSyncCache = new Map();
+                    }
+                    
+                    this.sharedContactSyncCache.set(contact.contactId, {
+                        etag: result.etag,
+                        href: result.href,
+                        uid: uid,
+                        lastSyncedAt: new Date().toISOString(),
+                        lastForcePush: new Date().toISOString(),
+                        syncStatus: 'force-pushed'
+                    });
+                    
+                    return { success: true, etag: result.etag, action: 'force-updated' };
+                } else {
+                    return { success: false, error: result.error };
+                }
+            } else {
+                // Contact doesn't exist on iCloud yet - create
+                console.log(`📤 Creating shared contact on iCloud: ${contact.cardName}`);
+                
+                const result = await this.iCloudClient.createContact(cleanVCard);
+                
+                if (result.success) {
+                    // Store ETag in memory cache
+                    if (!this.sharedContactSyncCache) {
+                        this.sharedContactSyncCache = new Map();
+                    }
+                    
+                    this.sharedContactSyncCache.set(contact.contactId, {
+                        etag: result.etag,
+                        href: result.href,
+                        uid: result.uid || uid,
+                        lastSyncedAt: new Date().toISOString(),
+                        lastForcePush: new Date().toISOString(),
+                        syncStatus: 'force-pushed'
+                    });
+                    
+                    return { success: true, etag: result.etag, action: 'created' };
+                } else {
+                    return { success: false, error: result.error };
+                }
+            }
+        } catch (error) {
+            console.error('❌ Force-push shared contact failed:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Refresh all shared contacts to iCloud (periodic maintenance)
+     * Ensures Userbase ecosystem integrity by overriding any external edits
+     * 
+     * @returns {Promise<Object>} Refresh result
+     */
+    async refreshSharedContactsToICloud() {
+        if (!this.isConnected) {
+            console.warn('⚠️ Cannot refresh: Not connected to iCloud');
+            return { success: false, refreshed: 0, error: 'Not connected' };
+        }
+        
+        console.log('🔄 Refreshing shared contacts to iCloud (owner authority maintenance)...');
+        
+        const startTime = Date.now();
+        
+        // Get all shared contacts (green 🟢)
+        const allContacts = Array.from(this.contactManager.contacts.values());
+        const sharedContacts = allContacts.filter(c => 
+            !c.metadata.isOwned && 
+            c.contactId?.startsWith('shared_') &&
+            !c.metadata.isDeleted &&
+            !c.metadata.isArchived
+        );
+        
+        if (sharedContacts.length === 0) {
+            console.log('✅ No shared contacts to refresh');
+            return { success: true, refreshed: 0 };
+        }
+        
+        console.log(`🟢 Found ${sharedContacts.length} shared contacts to refresh`);
+        
+        let refreshedCount = 0;
+        let errorCount = 0;
+        const errors = [];
+        
+        // Force-push each shared contact
+        for (const contact of sharedContacts) {
+            try {
+                const sharedBy = contact.metadata?.sharedBy || 'unknown';
+                console.log(`📤 Refreshing: ${contact.cardName} (shared by: ${sharedBy})`);
+                
+                const result = await this.forcePushSharedContact(contact);
+                
+                if (result.success) {
+                    refreshedCount++;
+                } else {
+                    errorCount++;
+                    errors.push({
+                        contact: contact.cardName,
+                        error: result.error
+                    });
+                }
+            } catch (error) {
+                errorCount++;
+                errors.push({
+                    contact: contact.cardName,
+                    error: error.message
+                });
+            }
+        }
+        
+        const duration = Date.now() - startTime;
+        
+        console.log(`✅ Shared contact refresh complete: ${refreshedCount}/${sharedContacts.length} in ${duration}ms`);
+        
+        if (errors.length > 0) {
+            console.error(`❌ ${errorCount} errors during refresh:`, errors);
+        }
+        
+        return {
+            success: refreshedCount > 0,
+            refreshed: refreshedCount,
+            total: sharedContacts.length,
+            errorCount,
+            errors: errors.length > 0 ? errors : undefined,
+            duration
+        };
+    }
+
+    /**
      * Determine if a contact should be pushed to iCloud
      */
     shouldPushContact(contact) {
@@ -892,11 +1382,12 @@ export class ICloudSyncService {
             return { push: false, reason: 'deleted or archived' };
         }
         
-        // SHARED contact (green) → Always push and overwrite
+        // SHARED contact (green) → FORCE PUSH (owner authority)
         // These are contacts shared with us by other users via Userbase
-        // We PUSH shared contacts to iCloud and overwrite any existing version
+        // We force-push to maintain Userbase ecosystem integrity
+        // External edits on iCloud will be overwritten with owner's version
         if (!contact.metadata.isOwned) {
-            return { push: true, reason: 'shared contact (overwrite mode)' };
+            return { push: true, reason: 'shared contact (force-push)', forcePush: true };
         }
         
         // OWNED or IMPORTED contact
