@@ -14,6 +14,7 @@
 import { APP_CONFIG } from '../config/app.config.js';
 import { ICloudCardDAVClient } from './ICloudCardDAVClient.js';
 import { ContactIdentifier } from '../utils/ContactIdentifier.js';
+import { SyncStatistics } from '../utils/SyncStatistics.js';
 
 export class ICloudSyncService {
     constructor(eventBus, contactManager) {
@@ -42,6 +43,9 @@ export class ICloudSyncService {
             conflictsResolved: 0,
             lastSyncDuration: 0
         };
+        
+        // Current sync statistics tracker
+        this.syncStats = null;
     }
 
     /**
@@ -180,7 +184,11 @@ export class ICloudSyncService {
         }
         
         this.isSyncing = true;
-        const syncStartTime = Date.now();
+        
+        // Initialize sync statistics tracker
+        this.syncStats = new SyncStatistics('iCloud Sync');
+        this.syncStats.startSync();
+        this.stats.totalSyncs++;
         
         console.log('🔄 Starting iCloud sync...');
         
@@ -200,7 +208,17 @@ export class ICloudSyncService {
             // Phase 2: Push changes to iCloud (export local edits)
             const pushResult = await this.pushToICloud();
             
-            const syncDuration = Date.now() - syncStartTime;
+            // Track statistics
+            this.syncStats.endSync();
+            this.syncStats.set('imported', pullResult.imported);
+            this.syncStats.set('updated', pullResult.updated || 0);
+            this.syncStats.set('pushed', pushResult.pushed);
+            this.syncStats.set('deleted', pushResult.deleted);
+            this.syncStats.set('skipped', pushResult.skipped);
+            this.syncStats.set('errors', pushResult.errors);
+            
+            // Update legacy stats
+            const syncDuration = this.syncStats.getDuration();
             this.stats.lastSyncDuration = syncDuration;
             this.stats.successfulSyncs++;
             this.lastSyncTime = new Date().toISOString();
@@ -212,20 +230,12 @@ export class ICloudSyncService {
             const deletedRecords = Array.from(this.contactManager.contacts.values())
                 .filter(c => c.metadata.isDeleted).length;
             
-            console.log(`✅ Sync complete in ${syncDuration}ms`);
-            console.log(`   📥 Pulled: ${pullResult.imported} contacts`);
-            console.log(`   📤 Pushed: ${pushResult.pushed} contacts`);
-            console.log(`   🗑️ Deleted: ${pushResult.deleted} from iCloud`);
-            console.log(`   ⏭️ Skipped: ${pushResult.skipped} (already synced)`);
-            console.log(`   📊 Database state:`);
-            console.log(`      - Active contacts: ${activeContacts}`);
-            console.log(`      - Deleted records (orphans): ${deletedRecords}`);
-            console.log(`      - Total in database: ${totalContacts}`);
-            
-            if (deletedRecords > 0) {
-                console.warn(`⚠️ WARNING: ${deletedRecords} orphaned deletion records in database!`);
-                console.warn(`   Run: await window.app.modules.iCloudSyncService.cleanupOrphanedDeletions()`);
-            }
+            // Use SyncStatistics for consistent logging
+            this.syncStats.logResults({
+                activeContacts,
+                deletedRecords,
+                totalContacts
+            });
             
             this.eventBus.emit('icloud:syncCompleted', {
                 duration: syncDuration,
@@ -245,7 +255,7 @@ export class ICloudSyncService {
             };
             
         } catch (error) {
-            console.error('❌ Sync failed:', error);
+            this.syncStats?.logError(error);
             this.stats.failedSyncs++;
             this.syncErrors.push({
                 timestamp: new Date().toISOString(),
