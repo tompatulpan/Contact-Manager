@@ -13,6 +13,7 @@
 
 import { APP_CONFIG } from '../config/app.config.js';
 import { ICloudCardDAVClient } from './ICloudCardDAVClient.js';
+import { ContactIdentifier } from '../utils/ContactIdentifier.js';
 
 export class ICloudSyncService {
     constructor(eventBus, contactManager) {
@@ -1518,13 +1519,7 @@ export class ICloudSyncService {
      * Find local contact by vCard UID
      */
     findLocalContactByUID(uid) {
-        for (const contact of this.contactManager.contacts.values()) {
-            const contactUID = this.extractUIDFromVCard(contact.vcard);
-            if (contactUID === uid) {
-                return contact;
-            }
-        }
-        return null;
+        return ContactIdentifier.findContactByUID(this.contactManager.contacts.values(), uid);
     }
 
     /**
@@ -1701,8 +1696,7 @@ export class ICloudSyncService {
      * Extract UID from vCard string
      */
     extractUIDFromVCard(vcard) {
-        const match = vcard.match(/^UID:(.+)$/m);
-        return match ? match[1].trim() : null;
+        return ContactIdentifier.extractUIDFromVCard(vcard);
     }
 
     /**

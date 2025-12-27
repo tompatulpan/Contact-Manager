@@ -36,6 +36,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 import { APP_CONFIG } from '../config/app.config.js';
+import { ContactIdentifier } from '../utils/ContactIdentifier.js';
 
 export class ContactManager {
     constructor(eventBus, database, vCardStandard, validator, baikalConnector = null) {
@@ -2043,15 +2044,7 @@ export class ContactManager {
      * Extract UID from vCard content
      */
     extractUIDFromVCard(vcard) {
-        if (!vcard) return null;
-        
-        const lines = vcard.split('\n');
-        for (const line of lines) {
-            if (line.startsWith('UID:')) {
-                return line.substring(4).trim();
-            }
-        }
-        return null;
+        return ContactIdentifier.extractUIDFromVCard(vcard);
     }
 
     /**
@@ -2062,15 +2055,7 @@ export class ContactManager {
      * @returns {Object|null} - Contact object or null
      */
     findContactByUID(uid) {
-        if (!uid) return null;
-        
-        for (const contact of this.contacts.values()) {
-            const contactUID = this.extractUIDFromVCard(contact.vcard);
-            if (contactUID === uid) {
-                return contact;
-            }
-        }
-        return null;
+        return ContactIdentifier.findContactByUID(this.contacts.values(), uid);
     }
 
     /**

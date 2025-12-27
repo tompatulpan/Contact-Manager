@@ -2151,6 +2151,11 @@ export class ContactUIController {
             
             if (contactElement) {
                 container.appendChild(contactElement);
+                
+                // 🐛 FIX: Restore checkbox if in bulk select mode
+                if (this.bulkSelectMode) {
+                    this.addCheckboxToCard(contactElement);
+                }
             }
         });
         
