@@ -2,6 +2,7 @@
  * Baikal UI Controller
  * Manages UI interactions for Baikal CardDAV integration
  */
+import { APP_CONFIG } from '../config/app.config.js';
 import { BaikalURLHelper } from '../integrations/BaikalURLHelper.js';
 import { CredentialStorageUI } from './CredentialStorageUI.js';
 
@@ -568,8 +569,9 @@ export class BaikalUIController {
             if (urlWarnings.length > 0) {
                 this.showConnectionStatus(`URL Auto-Fix: ${urlWarnings.join(' | ')}`, 'warning');
                 
-                // Brief delay to show the warning
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // Brief delay to show the warning (from config)
+                const delay = APP_CONFIG.PERFORMANCE_CONFIG?.uiNotificationDelay || 2000;
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
 
             this.showConnectionStatus('Connecting to Baikal server...', 'info');

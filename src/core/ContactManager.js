@@ -35,6 +35,8 @@
  * UI Display: Shows 3 separate entries with individual revoke buttons
  * ═══════════════════════════════════════════════════════════════════════════
  */
+import { APP_CONFIG } from '../config/app.config.js';
+
 export class ContactManager {
     constructor(eventBus, database, vCardStandard, validator, baikalConnector = null) {
         this.eventBus = eventBus;
@@ -60,9 +62,9 @@ export class ContactManager {
         // ⚙️ CONFIGURABLE TIMING CONSTANTS (milliseconds)
         // These can be adjusted based on server response times and user behavior
         this.SYNC_TIMING = {
-            // Protection window for local edits (default: 2 minutes)
+            // Protection window for local edits (from config)
             // Prevents server updates from overwriting recent local changes
-            PROTECTION_WINDOW_MS: 120000,
+            PROTECTION_WINDOW_MS: APP_CONFIG.PERFORMANCE_CONFIG?.protectionWindowMs || 120000,
             
             // Skip protection for imported contacts (server is source of truth)
             // When true, imported contacts can be updated by server immediately
@@ -1171,13 +1173,17 @@ export class ContactManager {
         const allContacts = Array.from(this.contacts.values());
         const activeContacts = allContacts.filter(c => !c.metadata.isDeleted && !c.metadata.isArchived);
         
+        // Separate owned and shared for clarity
+        const ownedContacts = activeContacts.filter(c => c.metadata.isOwned);
+        const sharedContacts = activeContacts.filter(c => !c.metadata.isOwned);
+        
         return {
-            total: activeContacts.length,
+            total: activeContacts.length, // Total includes both owned AND shared
             active: activeContacts.length,
             archived: allContacts.filter(c => c.metadata.isArchived && !c.metadata.isDeleted).length,
             deleted: allContacts.filter(c => c.metadata.isDeleted).length,
-            owned: activeContacts.filter(c => c.metadata.isOwned).length,
-            shared: activeContacts.filter(c => !c.metadata.isOwned).length,
+            owned: ownedContacts.length,
+            shared: sharedContacts.length,
             imported: activeContacts.filter(c => c.metadata.isImported === true).length,
             recent: activeContacts.length, // All contacts (sorted by recent activity when filtered)
             favorites: allContacts.filter(c => c.metadata.isFavorite).length,
@@ -1679,9 +1685,10 @@ export class ContactManager {
      * @param {string} vCardString - vCard string
      * @param {string} cardName - Optional card name
      * @param {boolean} markAsImported - Whether to mark contact as imported (default: true)
+     * @param {boolean} skipDuplicateCheck - Skip duplicate detection (for CardDAV sync)
      * @returns {Promise<Object>} Import result with duplicate information
      */
-    async importContactFromVCard(vCardString, cardName = null, markAsImported = true) {
+    async importContactFromVCard(vCardString, cardName = null, markAsImported = true, skipDuplicateCheck = false) {
         try {
             const result = this.vCardStandard.importFromVCard(vCardString, cardName, markAsImported);
             
@@ -1735,10 +1742,11 @@ export class ContactManager {
                 // Continue with import even if sharing extraction fails
             }
             
-            // Check for duplicates before saving
-            const similarContacts = this.findSimilarContacts(contact);
-            
-            if (similarContacts.length > 0) {
+            // Check for duplicates before saving (skip for CardDAV sync)
+            if (!skipDuplicateCheck) {
+                const similarContacts = this.findSimilarContacts(contact);
+                
+                if (similarContacts.length > 0) {
                 const bestMatch = similarContacts[0];
                 // Extract display data to get the contact name
                 const displayData = this.vCardStandard.extractDisplayData(contact, true, true);
@@ -1747,15 +1755,16 @@ export class ContactManager {
                 console.log(`   Existing: ${bestMatch.contact.cardName} (${Math.round(bestMatch.matchPercentage * 100)}% match)`);
                 console.log(`   Matched fields:`, bestMatch.matchedFields);
                 
-                return {
-                    success: false,
-                    isDuplicate: true,
-                    duplicateOf: bestMatch.contact,
-                    matchScore: bestMatch.matchScore,
-                    matchPercentage: bestMatch.matchPercentage,
-                    matchedFields: bestMatch.matchedFields,
-                    error: `Potential duplicate of existing contact: ${bestMatch.contact.cardName}`
-                };
+                    return {
+                        success: false,
+                        isDuplicate: true,
+                        duplicateOf: bestMatch.contact,
+                        matchScore: bestMatch.matchScore,
+                        matchPercentage: bestMatch.matchPercentage,
+                        matchedFields: bestMatch.matchedFields,
+                        error: `Potential duplicate of existing contact: ${bestMatch.contact.cardName}`
+                    };
+                }
             }
             
             const saveResult = await this.database.saveContact(contact);

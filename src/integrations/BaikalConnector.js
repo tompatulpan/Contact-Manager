@@ -433,9 +433,10 @@ export class BaikalConnector {
                 };
             }
 
-            // Quick HEAD request to server root with timeout
+            // Quick HEAD request to server root with timeout (from config)
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 
+                APP_CONFIG.PERFORMANCE_CONFIG?.networkTimeout || 5000);
 
             try {
                 const response = await fetch(connection.serverUrl, {
@@ -1057,13 +1058,14 @@ export class BaikalConnector {
             const isOrphaned = !localUIDs.has(sc.uid);
             
             // Additional safety check: Don't cleanup contacts that were JUST synced
-            // Check if this contact was imported in the last 60 seconds
+            // Check if this contact was imported in the last minute (from config)
             if (isOrphaned) {
                 // Check if we have any local contact with similar timestamp
                 // (could be same contact but UID mismatch)
+                const recentlyCreatedWindow = APP_CONFIG.PERFORMANCE_CONFIG?.recentlyCreatedWindowMs || 60000;
                 const recentLocal = localContacts.find(lc => {
                     const createdRecently = lc.metadata?.createdAt && 
-                        (Date.now() - new Date(lc.metadata.createdAt).getTime()) < 60000;
+                        (Date.now() - new Date(lc.metadata.createdAt).getTime()) < recentlyCreatedWindow;
                     return createdRecently;
                 });
                 

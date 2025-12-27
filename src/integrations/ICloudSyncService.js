@@ -204,14 +204,35 @@ export class ICloudSyncService {
             this.stats.successfulSyncs++;
             this.lastSyncTime = new Date().toISOString();
             
+            // Get current state for summary
+            const totalContacts = this.contactManager.contacts.size;
+            const activeContacts = Array.from(this.contactManager.contacts.values())
+                .filter(c => !c.metadata.isDeleted && !c.metadata.isArchived).length;
+            const deletedRecords = Array.from(this.contactManager.contacts.values())
+                .filter(c => c.metadata.isDeleted).length;
+            
             console.log(`✅ Sync complete in ${syncDuration}ms`);
-            console.log(`   Pulled: ${pullResult.imported} contacts`);
-            console.log(`   Pushed: ${pushResult.pushed} contacts`);
+            console.log(`   📥 Pulled: ${pullResult.imported} contacts`);
+            console.log(`   📤 Pushed: ${pushResult.pushed} contacts`);
+            console.log(`   🗑️ Deleted: ${pushResult.deleted} from iCloud`);
+            console.log(`   ⏭️ Skipped: ${pushResult.skipped} (already synced)`);
+            console.log(`   📊 Database state:`);
+            console.log(`      - Active contacts: ${activeContacts}`);
+            console.log(`      - Deleted records (orphans): ${deletedRecords}`);
+            console.log(`      - Total in database: ${totalContacts}`);
+            
+            if (deletedRecords > 0) {
+                console.warn(`⚠️ WARNING: ${deletedRecords} orphaned deletion records in database!`);
+                console.warn(`   Run: await window.app.modules.iCloudSyncService.cleanupOrphanedDeletions()`);
+            }
             
             this.eventBus.emit('icloud:syncCompleted', {
                 duration: syncDuration,
                 pulled: pullResult.imported,
                 pushed: pushResult.pushed,
+                deleted: pushResult.deleted,
+                activeContacts,
+                deletedRecords,
                 timestamp: this.lastSyncTime
             });
             
@@ -289,11 +310,12 @@ export class ICloudSyncService {
                     const localContact = this.findLocalContactByUID(iCloudContact.uid);
                     
                     if (!localContact) {
-                        // New contact from iCloud → Import
+                        // New contact from iCloud → Import (skip duplicate detection for sync)
                         const result = await this.contactManager.importContactFromVCard(
                             iCloudContact.vcard,
                             iCloudContact.fullName || 'Imported Contact',
-                            true // markAsImported
+                            true, // markAsImported
+                            true  // skipDuplicateCheck (no name-based filtering during sync)
                         );
                         
                         if (result.success) {
@@ -320,14 +342,10 @@ export class ICloudSyncService {
                     } else {
                         // Contact exists locally
                         
-                        // Skip SHARED contacts (push-only, never pull from iCloud)
-                        if (!localContact.metadata.isOwned) {
-                            console.log(`⏭️ Skipping shared contact (push-only): ${localContact.cardName}`);
-                            skipped++;
-                            continue;
-                        }
+                        // ✅ NO DUPLICATION FILTERING during sync - pull ALL contacts
+                        // Duplication detection only during manual import, not CardDAV sync
                         
-                        // For OWNED/IMPORTED contacts: Check if iCloud version is newer
+                        // Check if iCloud version is newer
                         const localETag = localContact.metadata?.carddav?.etag;
                         const iCloudETag = iCloudContact.etag;
                         
@@ -361,15 +379,25 @@ export class ICloudSyncService {
                                     syncStatus: 'synced'
                                 };
                                 
-                                // Update in database
-                                const updateResult = await this.contactManager.database.updateContact(localContact);
+                                // Check if contact is stored in database (owned/imported) or memory-only (shared)
+                                const isSharedContact = !localContact.metadata.isOwned;
                                 
-                                if (updateResult.success) {
-                                    console.log(`✅ Updated local contact from iCloud: ${localContact.cardName}`);
+                                if (isSharedContact) {
+                                    // Shared contacts are memory-only - just update local cache
+                                    console.log(`✅ Updated shared contact in memory: ${localContact.cardName}`);
                                     updated++;
                                     this.stats.contactsPulled++;
                                 } else {
-                                    console.error(`❌ Failed to save updated contact: ${updateResult.error}`);
+                                    // Owned/imported contacts - update in database
+                                    const updateResult = await this.contactManager.database.updateContact(localContact);
+                                    
+                                    if (updateResult.success) {
+                                        console.log(`✅ Updated local contact from iCloud: ${localContact.cardName}`);
+                                        updated++;
+                                        this.stats.contactsPulled++;
+                                    } else {
+                                        console.error(`❌ Failed to save updated contact: ${updateResult.error}`);
+                                    }
                                 }
                             } catch (error) {
                                 console.error(`❌ Failed to update contact from iCloud:`, error);
@@ -474,7 +502,8 @@ export class ICloudSyncService {
             // Separate deleted contacts from active contacts
             const deletedContacts = allContacts.filter(contact => 
                 contact.metadata.isDeleted && 
-                contact.metadata?.carddav?.etag // Only if previously synced to iCloud
+                contact.metadata?.carddav?.etag && // Only if previously synced to iCloud
+                contact.metadata?.carddav?.syncStatus !== 'deleted' // Skip already processed deletions
             );
             
             // Filter contacts that should be synced to iCloud (exclude deleted and archived)
@@ -483,7 +512,12 @@ export class ICloudSyncService {
                 !contact.metadata.isArchived
             );
             
-            console.log(`📤 Processing ${contactsToSync.length} contacts (${deletedContacts.length} deletions)...`);
+            console.log(`📤 Processing ${contactsToSync.length} contacts (${deletedContacts.length} pending deletions)...`);
+            
+            if (deletedContacts.length > 0) {
+                console.log(`⚠️ Found ${deletedContacts.length} contacts marked for deletion:`);
+                deletedContacts.forEach(c => console.log(`   - ${c.cardName} (UID: ${this.extractUIDFromVCard(c.vcard)})`));
+            }
             
             // Diagnostic: Show sync state of each contact
             console.log('📊 Contact sync states:');
@@ -503,8 +537,9 @@ export class ICloudSyncService {
             let errors = 0;
             let deleted = 0;
             
-            // First, handle deletions
-            for (const contact of deletedContacts) {
+            // First, handle deletions (with rate limiting for Userbase)
+            for (let i = 0; i < deletedContacts.length; i++) {
+                const contact = deletedContacts[i];
                 try {
                     const uid = this.extractUIDFromVCard(contact.vcard);
                     const etag = contact.metadata.carddav.etag;
@@ -517,6 +552,13 @@ export class ICloudSyncService {
                         console.log(`✅ Deleted from iCloud: ${contact.cardName}`);
                         deleted++;
                         
+                        // Mark as processed before attempting database deletion
+                        // This prevents re-processing if database delete fails
+                        if (contact.metadata.carddav) {
+                            contact.metadata.carddav.syncStatus = 'deleted';
+                            contact.metadata.carddav.deletedAt = new Date().toISOString();
+                        }
+                        
                         // Remove from local database completely (hard delete from Userbase)
                         try {
                             await userbase.deleteItem({
@@ -526,8 +568,37 @@ export class ICloudSyncService {
                             // Also remove from memory
                             this.contactManager.contacts.delete(contact.contactId);
                             console.log(`✅ Removed from local database: ${contact.cardName}`);
+                            
+                            // Rate limiting: Add delay between Userbase operations (avoid "Too many requests")
+                            if (i < deletedContacts.length - 1) {
+                                await new Promise(resolve => setTimeout(resolve, 1100)); // 1.1 second delay
+                            }
                         } catch (dbError) {
                             console.error(`⚠️ Failed to remove from local database:`, dbError);
+                            
+                            // Even if hard delete fails, update metadata to prevent reprocessing
+                            try {
+                                await this.contactManager.database.updateContact(contact);
+                                console.log(`✅ Marked as deleted (cleanup will retry later)`);
+                            } catch (metaError) {
+                                console.error(`❌ Failed to update metadata:`, metaError);
+                            }
+                            
+                            // If rate limited, wait and retry once
+                            if (dbError.name === 'TooManyRequests') {
+                                console.log(`⏳ Rate limited, waiting 2 seconds before retry...`);
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                                try {
+                                    await userbase.deleteItem({
+                                        databaseName: 'contacts',
+                                        itemId: contact.contactId
+                                    });
+                                    this.contactManager.contacts.delete(contact.contactId);
+                                    console.log(`✅ Removed from local database (retry): ${contact.cardName}`);
+                                } catch (retryError) {
+                                    console.error(`❌ Failed to remove after retry:`, retryError);
+                                }
+                            }
                         }
                     } else {
                         console.error(`❌ Failed to delete from iCloud: ${contact.cardName}`, result.error);
@@ -1454,6 +1525,176 @@ export class ICloudSyncService {
             }
         }
         return null;
+    }
+
+    /**
+     * Diagnostic: Check sync state and compare with iCloud
+     */
+    async checkSyncState() {
+        console.log('🔍 Checking sync state...');
+        
+        try {
+            // Local state
+            const allLocalContacts = Array.from(this.contactManager.contacts.values());
+            const activeContacts = allLocalContacts.filter(c => !c.metadata.isDeleted && !c.metadata.isArchived);
+            const deletedRecords = allLocalContacts.filter(c => c.metadata.isDeleted);
+            const orphanedDeletions = deletedRecords.filter(c => !c.metadata?.carddav?.syncStatus || c.metadata?.carddav?.syncStatus !== 'deleted');
+            
+            // iCloud state
+            const iCloudContacts = await this.iCloudClient.fetchContacts();
+            
+            // Analysis
+            const localUIDs = new Set(activeContacts.map(c => this.extractUIDFromVCard(c.vcard)));
+            const iCloudUIDs = new Set(iCloudContacts.map(c => c.uid));
+            
+            const onlyInCM = activeContacts.filter(c => {
+                const uid = this.extractUIDFromVCard(c.vcard);
+                return !iCloudUIDs.has(uid);
+            });
+            
+            const onlyInICloud = iCloudContacts.filter(c => !localUIDs.has(c.uid));
+            
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('📊 SYNC STATE DIAGNOSTIC');
+            console.log('═══════════════════════════════════════════════════════════════');
+            console.log('');
+            console.log('📱 Contact Manager:');
+            console.log(`   ✅ Active contacts: ${activeContacts.length}`);
+            console.log(`   🗑️ Deleted records: ${deletedRecords.length}`);
+            console.log(`   ⚠️ Orphaned deletions: ${orphanedDeletions.length}`);
+            console.log(`   📊 Total in database: ${allLocalContacts.length}`);
+            console.log('');
+            console.log('☁️ iCloud:');
+            console.log(`   📇 Total contacts: ${iCloudContacts.length}`);
+            console.log('');
+            console.log('🔄 Sync Status:');
+            console.log(`   ✅ In sync: ${activeContacts.length - onlyInCM.length} contacts`);
+            console.log(`   📤 Only in CM (will push): ${onlyInCM.length} contacts`);
+            console.log(`   📥 Only in iCloud (will pull): ${onlyInICloud.length} contacts`);
+            console.log('');
+            
+            if (onlyInCM.length > 0) {
+                console.log('📤 Contacts only in Contact Manager:');
+                onlyInCM.slice(0, 10).forEach(c => {
+                    console.log(`   - ${c.cardName} (UID: ${this.extractUIDFromVCard(c.vcard)})`);
+                });
+                if (onlyInCM.length > 10) {
+                    console.log(`   ... and ${onlyInCM.length - 10} more`);
+                }
+                console.log('');
+            }
+            
+            if (onlyInICloud.length > 0) {
+                console.log('📥 Contacts only in iCloud:');
+                onlyInICloud.slice(0, 10).forEach(c => {
+                    console.log(`   - ${c.fullName} (UID: ${c.uid})`);
+                });
+                if (onlyInICloud.length > 10) {
+                    console.log(`   ... and ${onlyInICloud.length - 10} more`);
+                }
+                console.log('');
+            }
+            
+            if (orphanedDeletions.length > 0) {
+                console.warn('⚠️ ORPHANED DELETIONS FOUND!');
+                console.warn(`   ${orphanedDeletions.length} contacts marked deleted but not cleaned up`);
+                console.warn('');
+                console.warn('   🧹 To clean up, run:');
+                console.warn('   await window.app.modules.iCloudSyncService.cleanupOrphanedDeletions()');
+                console.warn('');
+            }
+            
+            console.log('═══════════════════════════════════════════════════════════════');
+            
+            return {
+                contactManager: {
+                    active: activeContacts.length,
+                    deleted: deletedRecords.length,
+                    orphaned: orphanedDeletions.length,
+                    total: allLocalContacts.length
+                },
+                iCloud: {
+                    total: iCloudContacts.length
+                },
+                sync: {
+                    inSync: activeContacts.length - onlyInCM.length,
+                    onlyInCM: onlyInCM.length,
+                    onlyInICloud: onlyInICloud.length
+                }
+            };
+            
+        } catch (error) {
+            console.error('❌ Failed to check sync state:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Clean up orphaned deletion records (contacts marked deleted but not removed from database)
+     * This maintenance function removes stale deletion records that failed to hard-delete
+     */
+    async cleanupOrphanedDeletions() {
+        console.log('🧹 Starting cleanup of orphaned deletion records...');
+        
+        try {
+            const allContacts = Array.from(this.contactManager.contacts.values());
+            
+            // Find contacts marked as deleted
+            const orphanedDeletions = allContacts.filter(contact => 
+                contact.metadata.isDeleted
+            );
+            
+            console.log(`🔍 Found ${orphanedDeletions.length} orphaned deletion record(s)`);
+            
+            if (orphanedDeletions.length === 0) {
+                console.log('✅ No orphaned deletions to clean up');
+                return { cleaned: 0, failed: 0 };
+            }
+            
+            let cleaned = 0;
+            let failed = 0;
+            
+            // Clean up with rate limiting
+            for (let i = 0; i < orphanedDeletions.length; i++) {
+                const contact = orphanedDeletions[i];
+                
+                try {
+                    console.log(`🗑️ Cleaning up: ${contact.cardName}`);
+                    
+                    await userbase.deleteItem({
+                        databaseName: 'contacts',
+                        itemId: contact.contactId
+                    });
+                    
+                    this.contactManager.contacts.delete(contact.contactId);
+                    cleaned++;
+                    console.log(`✅ Cleaned: ${contact.cardName}`);
+                    
+                    // Rate limiting: 1.1 second delay between operations
+                    if (i < orphanedDeletions.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1100));
+                    }
+                    
+                } catch (error) {
+                    failed++;
+                    console.error(`❌ Failed to clean ${contact.cardName}:`, error);
+                    
+                    // If rate limited, wait longer before continuing
+                    if (error.name === 'TooManyRequests') {
+                        console.log('⏳ Rate limited, waiting 2 seconds...');
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
+            }
+            
+            console.log(`✅ Cleanup complete: ${cleaned} cleaned, ${failed} failed`);
+            
+            return { cleaned, failed };
+            
+        } catch (error) {
+            console.error('❌ Cleanup failed:', error);
+            return { cleaned: 0, failed: 0 };
+        }
     }
 
     /**

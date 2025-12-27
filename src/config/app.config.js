@@ -218,17 +218,17 @@ export const PERFORMANCE_CONFIG = {
     // ───────────────────────────────────────────────────────────────────────────
     // NOTE: sharedContactsRefreshInterval and sharingValidationInterval run at SAME frequency
     //       but OFFSET by 2.5 minutes to distribute load and prevent simultaneous operations
-    sharedContactsRefreshInterval: 60000, // 1 min - Force-refresh shared contacts from Userbase (ecosystem integrity) - TESTING
+    sharedContactsRefreshInterval: 300000, // 5 min - Force-refresh shared contacts from Userbase (ecosystem integrity)
     sharingValidationOffset: 150000, // 2.5 min - Offset for sharingValidationInterval (runs 2.5 min after refresh)
     sharingValidationInterval: 300000, // 5 min - Validate sharing relationships, repair broken shares (runs offset from refresh)
     maintenanceInterval: 300000, // 5 min - Database cleanup, cache optimization, expired data removal
     sharedContactFallbackDelay: 300000, // 5 min - Delay before fallback sync starts (avoid startup conflicts)
     
     // ───────────────────────────────────────────────────────────────────────────
-    // LOW-FREQUENCY: External sync operations (30+ minutes)
+    // LOW-FREQUENCY: External sync operations (5+ minutes)
     // ───────────────────────────────────────────────────────────────────────────
     // CardDAV bridge intervals - All synchronized to prevent conflict with Baikal server
-    baikalPullInterval: 30000, // 30 seconds - Sync FROM Baikal (import external edits from iPhone/Thunderbird) - TESTING
+    baikalPullInterval: 300000, // 5 min - Sync FROM Baikal (import external edits from iPhone/Thunderbird)
     baikalPushInterval: 1800000, // 30 min - Push TO Baikal (export local changes to CardDAV server)
     baikalProtectionInterval: 1800000, // 30 min - Detect/correct unauthorized edits + refresh shared contacts to CardDAV
     sharedContactFallbackInterval: 3600000, // 60 min - Safety net: catch any dropped WebSocket updates for shared contacts
@@ -239,9 +239,17 @@ export const PERFORMANCE_CONFIG = {
     // Main timer: OWNED + IMPORTED (2-way sync: pull + push)
     // Shared timer: SHARED contacts (force-push only, owner authority)
     // Offset: Stagger shared refresh to prevent resource conflicts
-    icloudAutoSyncInterval: 120000, // 2 min - Bidirectional sync (OWNED/IMPORTED: pull + push) - TESTING
-    icloudSharedRefreshInterval: 300000, // 5 min - Force-push SHARED contacts (owner authority) - TESTING
-    icloudSharedRefreshOffset: 150000, // 2.5 min - Offset from auto-sync to distribute load
+    icloudAutoSyncInterval: 600000, // 10 min - Bidirectional sync (OWNED/IMPORTED: pull + push)
+    icloudSharedRefreshInterval: 900000, // 15 min - Force-push SHARED contacts (owner authority)
+    icloudSharedRefreshOffset: 300000, // 5 min - Offset from auto-sync to distribute load
+    
+    // ───────────────────────────────────────────────────────────────────────────
+    // Network timeouts and protection windows
+    // ───────────────────────────────────────────────────────────────────────────
+    networkTimeout: 5000, // 5 sec - HTTP request timeout (HEAD, GET, PUT, DELETE)
+    uiNotificationDelay: 2000, // 2 sec - Brief delay for showing UI warnings/messages
+    protectionWindowMs: 120000, // 2 min - Local edit protection window (prevents server override)
+    recentlyCreatedWindowMs: 60000, // 1 min - Window for detecting recently created contacts
     
     // Memory management
     maxMemoryUsage: 100, // MB
