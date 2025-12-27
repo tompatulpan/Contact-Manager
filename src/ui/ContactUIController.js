@@ -5863,6 +5863,16 @@ export class ContactUIController {
             
             console.log(`🗑️ Bulk delete: ${deletableContacts.length} contacts to delete (skipping ${skippedCount} shared)`);
             
+            // 🛑 PAUSE ALL SYNC SERVICES during bulk delete to prevent race conditions
+            console.log('⏸️ Pausing all sync services during bulk delete...');
+            const pauseResult = this.contactManager.pauseAllSync();
+            
+            if (pauseResult.success) {
+                console.log('✅ Sync services paused:', pauseResult.pausedServices);
+            } else {
+                console.warn('⚠️ Failed to pause some sync services:', pauseResult.error);
+            }
+            
             // Delete each contact with rate limiting (~1.67 req/sec = 100 req/min Userbase limit)
             for (let i = 0; i < deletableContacts.length; i++) {
                 const contactId = deletableContacts[i];
@@ -5900,6 +5910,16 @@ export class ContactUIController {
                 }
             }
             
+            // ▶️ RESUME ALL SYNC SERVICES after bulk delete completes
+            console.log('▶️ Resuming sync services after bulk delete...');
+            const resumeResult = await this.contactManager.resumeAllSync(pauseResult.pausedServices);
+            
+            if (resumeResult.success) {
+                console.log('✅ Sync services resumed:', resumeResult.resumedServices);
+            } else {
+                console.warn('⚠️ Failed to resume some sync services:', resumeResult.error);
+            }
+            
             // Exit bulk select mode
             this.exitBulkSelectMode();
             
@@ -5923,6 +5943,13 @@ export class ContactUIController {
             
         } catch (error) {
             console.error('❌ Bulk delete error:', error);
+            
+            // ▶️ ENSURE SYNC SERVICES ARE RESUMED even if error occurs
+            if (typeof pauseResult !== 'undefined' && pauseResult.pausedServices) {
+                console.log('▶️ Resuming sync services after error...');
+                await this.contactManager.resumeAllSync(pauseResult.pausedServices);
+            }
+            
             this.showToast({
                 message: 'Failed to delete contacts. Please try again.',
                 type: 'error'

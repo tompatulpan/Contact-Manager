@@ -40,9 +40,9 @@
                     <i class="fas fa-user-plus"></i>
                     Share Profile
                 </button>
-                <button id="icloud-test-btn" class="btn btn-secondary" title="Test iCloud sync">
+                <button id="icloud-test-btn" class="btn btn-secondary" title="iCloud CardDAV Sync">
                     <i class="fab fa-apple"></i>
-                    iCloud Test
+                    iCloud Sync
                 </button>
                 <!-- Theme Toggle -->
                 <div class="theme-toggle" id="theme-toggle" 
@@ -1002,19 +1002,20 @@
         </div>
     </div>
 
-    <!-- iCloud Test Modal -->
+    <!-- iCloud Sync Modal -->
     <div id="icloud-test-modal" class="modal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2><i class="fab fa-apple"></i> iCloud CardDAV Test</h2>
+                <h2><i class="fab fa-apple"></i> iCloud CardDAV Sync</h2>
                 <button id="close-icloud-test-modal" class="modal-close" data-dismiss="modal">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="modal-body">
                 <div class="info-box">
-                    <strong>🧪 Test iCloud sync via Cloudflare CORS proxy</strong><br>
-                    Uses your existing worker: <code>https://carddav-proxy.data4-9de.workers.dev</code>
+                    <strong>🍎 iCloud requires a separate implementation due to CORS restrictions</strong><br>
+                    Uses Cloudflare CORS proxy: <code>https://carddav-proxy.data4-9de.workers.dev</code><br>
+                    <small>⚠️ For standard CardDAV servers (Baikal, Radicale, Nextcloud), use the generic CardDAV connector instead</small>
                 </div>
 
                 <div class="form-section">

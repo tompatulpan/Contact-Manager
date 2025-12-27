@@ -98,12 +98,85 @@ export class ContactManager {
     }
 
     /**
-     * Set iCloudSyncService reference (called after construction)
-     * @param {ICloudSyncService} iCloudSyncService - iCloudSyncService instance
+     * Pause all active sync services (iCloud, Baikal)
+     * Used during bulk operations to prevent race conditions
+     * @returns {Object} Pause result with paused services info
      */
-    setiCloudSyncService(iCloudSyncService) {
-        this.iCloudSyncService = iCloudSyncService;
-        console.log('🍎 iCloudSyncService reference set in ContactManager');
+    pauseAllSync() {
+        const pausedServices = {
+            iCloud: false,
+            baikal: [],
+            timestamp: new Date().toISOString()
+        };
+
+        try {
+            // Pause iCloud auto-sync
+            if (this.iCloudSyncService && this.iCloudSyncService.syncInterval) {
+                this.iCloudSyncService.stopAutoSync();
+                pausedServices.iCloud = true;
+                console.log('⏸️ Paused iCloud auto-sync');
+            }
+
+            // Pause Baikal auto-sync for all profiles
+            if (this.baikalConnector && this.baikalConnector.syncIntervals) {
+                const profiles = Array.from(this.baikalConnector.syncIntervals.keys());
+                for (const profileName of profiles) {
+                    this.baikalConnector.stopAutoSync(profileName);
+                    pausedServices.baikal.push(profileName);
+                    console.log(`⏸️ Paused Baikal auto-sync for profile: ${profileName}`);
+                }
+            }
+
+            console.log('🛑 All sync services paused:', pausedServices);
+            return { success: true, pausedServices };
+
+        } catch (error) {
+            console.error('❌ Error pausing sync services:', error);
+            return { success: false, error: error.message, pausedServices };
+        }
+    }
+
+    /**
+     * Resume all previously active sync services
+     * @param {Object} pausedServices - Services that were paused (from pauseAllSync)
+     * @returns {Promise<Object>} Resume result
+     */
+    async resumeAllSync(pausedServices) {
+        const resumedServices = {
+            iCloud: false,
+            baikal: [],
+            timestamp: new Date().toISOString()
+        };
+
+        try {
+            // Resume iCloud auto-sync if it was paused
+            if (pausedServices.iCloud && this.iCloudSyncService) {
+                this.iCloudSyncService.startAutoSync();
+                resumedServices.iCloud = true;
+                console.log('▶️ Resumed iCloud auto-sync');
+            }
+
+            // Resume Baikal auto-sync for previously active profiles
+            if (pausedServices.baikal && pausedServices.baikal.length > 0 && this.baikalConnector) {
+                for (const profileName of pausedServices.baikal) {
+                    try {
+                        // Use default intervals from config
+                        await this.baikalConnector.initializeAutoSync(profileName);
+                        resumedServices.baikal.push(profileName);
+                        console.log(`▶️ Resumed Baikal auto-sync for profile: ${profileName}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to resume Baikal sync for ${profileName}:`, error);
+                    }
+                }
+            }
+
+            console.log('✅ All sync services resumed:', resumedServices);
+            return { success: true, resumedServices };
+
+        } catch (error) {
+            console.error('❌ Error resuming sync services:', error);
+            return { success: false, error: error.message, resumedServices };
+        }
     }
 
     /**
