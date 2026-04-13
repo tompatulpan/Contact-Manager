@@ -298,12 +298,6 @@ export class ICloudSyncService {
             
             console.log(`📥 Fetched ${iCloudContacts.length} contacts from iCloud`);
             
-            // Diagnostic: Show what we fetched
-            console.log('📊 iCloud contacts:');
-            for (const ic of iCloudContacts) {
-                console.log(`   ${ic.fullName || ic.uid}: ETag=${ic.etag?.substring(0, 10)}...`);
-            }
-            
             let imported = 0;
             let updated = 0;
             let skipped = 0;
@@ -499,6 +493,73 @@ export class ICloudSyncService {
     }
 
     /**
+     * Push a single edited contact to iCloud immediately.
+     * Called by ContactManager.updateContact() so edits sync right away
+     * without waiting for the next scheduled sync cycle.
+     *
+     * Returns { success, error? }
+     */
+    async pushSingleContact(contact) {
+        if (!this.isConnected || !this.iCloudClient) {
+            return { success: false, error: 'Not connected to iCloud' };
+        }
+
+        try {
+            const uid = this.extractUIDFromVCard(contact.vcard);
+            if (!uid) {
+                return { success: false, error: 'Contact has no UID — cannot push to iCloud' };
+            }
+
+            const existsOnICloud = contact.metadata?.carddav?.etag;
+
+            // Generate a clean vCard (no internal sharing CATEGORIES)
+            const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
+            const cleanVCard = this.contactManager.vCardStandard.generateVCard(displayData, {
+                skipInternalMetadata: true
+            });
+
+            let result;
+            if (existsOnICloud) {
+                result = await this.iCloudClient.updateContact(uid, cleanVCard, contact.metadata.carddav.etag);
+
+                // ETag mismatch — fetch fresh ETag and retry once
+                if (!result.success && (result.status === 412 || result.error?.includes('412'))) {
+                    const fetchResult = await this.iCloudClient.getContactByUID(uid);
+                    if (fetchResult.success && fetchResult.etag) {
+                        result = await this.iCloudClient.updateContact(uid, cleanVCard, fetchResult.etag);
+                    }
+                }
+
+                // Contact not on iCloud yet despite having an ETag — create it
+                if (!result.success && (result.status === 404 || result.error?.includes('404'))) {
+                    result = await this.iCloudClient.createContact(uid, cleanVCard);
+                }
+            } else {
+                result = await this.iCloudClient.createContact(uid, cleanVCard);
+            }
+
+            if (result.success) {
+                // Persist updated carddav metadata
+                contact.metadata.carddav = {
+                    ...(contact.metadata.carddav || {}),
+                    source: 'iCloud',
+                    etag: result.etag,
+                    href: result.href || contact.metadata.carddav?.href,
+                    lastSyncedAt: new Date().toISOString(),
+                    syncStatus: 'synced'
+                };
+                await this.contactManager.database.updateContact(contact);
+                this.stats.contactsPushed++;
+            }
+
+            return result;
+        } catch (err) {
+            console.error(`❌ pushSingleContact failed for ${contact.cardName}:`, err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    /**
      * Push contacts to iCloud (export local changes)
      * - OWNED/IMPORTED contacts: Push if modified locally
      * - SHARED contacts: Force push (maintain ecosystem integrity)
@@ -530,19 +591,10 @@ export class ICloudSyncService {
                 deletedContacts.forEach(c => console.log(`   - ${c.cardName} (UID: ${this.extractUIDFromVCard(c.vcard)})`));
             }
             
-            // Diagnostic: Show sync state of each contact
-            console.log('📊 Contact sync states:');
-            for (const contact of contactsToSync) {
-                const lastSynced = contact.metadata?.carddav?.lastSyncedAt;
-                const lastModified = contact.metadata?.lastUpdated;
-                const hasETag = !!contact.metadata?.carddav?.etag;
-                console.log(`   ${contact.cardName}:`)
-                console.log(`      - Has ETag: ${hasETag}`)
-                console.log(`      - Last synced: ${lastSynced || 'never'}`)
-                console.log(`      - Last modified: ${lastModified || 'unknown'}`)
-                console.log(`      - Will push: ${!lastSynced || (lastModified && new Date(lastModified) > new Date(lastSynced))}`)
-            }
-            
+            // Quick summary: how many need a push
+            const needsPush = contactsToSync.filter(c => this.shouldPushContact(c).push);
+            console.log(`📊 ${needsPush.length}/${contactsToSync.length} contacts need push to iCloud`);
+
             let pushed = 0;
             let skipped = 0;
             let errors = 0;
@@ -649,25 +701,9 @@ export class ICloudSyncService {
                         // iCloud rejects vCards with custom CATEGORIES format
                         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
                         
-                        // 🐛 DEBUG: Log displayData to diagnose email sync issue
-                        console.log(`📊 DisplayData for ${contact.cardName}:`, {
-                            fullName: displayData.fullName,
-                            emailCount: displayData.emails?.length || 0,
-                            emails: displayData.emails,
-                            phoneCount: displayData.phones?.length || 0,
-                            hasVCard: !!contact.vcard
-                        });
-                        
                         let cleanVCard = this.contactManager.vCardStandard.generateVCard(displayData, {
                             skipInternalMetadata: true  // Skip CATEGORIES with sharing info
                         });
-                        
-                        // 🐛 DEBUG: Log generated vCard to see if emails are included
-                        const hasEmailInVCard = cleanVCard.includes('EMAIL');
-                        console.log(`📄 Generated vCard has EMAIL properties: ${hasEmailInVCard}`);
-                        if (!hasEmailInVCard && displayData.emails?.length > 0) {
-                            console.error(`❌ CRITICAL: displayData has ${displayData.emails.length} emails but vCard has none!`);
-                        }
                         
                         const result = await this.iCloudClient.updateContact(
                             this.extractUIDFromVCard(contact.vcard),

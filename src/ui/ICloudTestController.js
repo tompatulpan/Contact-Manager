@@ -382,8 +382,9 @@ END:VCARD\r
         });
 
         this.eventBus.on('icloud:autoSyncStarted', (data) => {
-            this.updateSyncStatus(`🔄 Auto-sync started (every ${data.intervalMinutes} minutes)`, 'active');
-            this.log(`Auto-sync started with ${data.intervalMinutes} minute interval`, 'success');
+            const minutes = Math.round((data.intervalMs || 0) / 60000);
+            this.updateSyncStatus(`🔄 Auto-sync started (every ${minutes} minutes)`, 'active');
+            this.log(`Auto-sync started with ${minutes} minute interval`, 'success');
         });
 
         this.eventBus.on('icloud:autoSyncStopped', () => {
@@ -469,13 +470,34 @@ END:VCARD\r
         }
 
         try {
+            // Auto-initialize if not yet connected (user clicked Sync Now without Start Auto-Sync)
+            if (!this.iCloudSyncService.isConnected) {
+                const credentials = this.getCredentials();
+                if (!credentials) {
+                    this.log('❌ Please enter iCloud credentials first', 'error');
+                    return;
+                }
+                this.log('🔌 Connecting sync service...', 'info');
+                const initResult = await this.iCloudSyncService.initialize(credentials);
+                if (!initResult.success) {
+                    this.log(`❌ Connection failed: ${initResult.error}`, 'error');
+                    return;
+                }
+                this.log('✅ Connected', 'success');
+            }
+
             this.log('🔄 Manual sync triggered...', 'info');
             const syncResult = await this.iCloudSyncService.performSync();
-            
+
+            if (!syncResult.success) {
+                this.log(`❌ Sync failed: ${syncResult.error}`, 'error');
+                return;
+            }
+
             // Display per-sync counts (not cumulative totals)
             const pushed = syncResult.pushed?.pushed || 0;
-            const pulled = syncResult.pulled?.imported || 0;
-            this.log(`✅ Manual sync complete: ${pushed} pushed, ${pulled} pulled`, 'success');
+            const pulled = (syncResult.pulled?.imported || 0) + (syncResult.pulled?.updated || 0);
+            this.log(`✅ Manual sync complete: ${pushed} pushed, ${pulled} pulled/updated`, 'success');
             
         } catch (error) {
             this.log(`❌ Manual sync failed: ${error.message}`, 'error');

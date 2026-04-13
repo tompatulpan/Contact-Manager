@@ -625,6 +625,29 @@ export class ContactManager {
                 }
             }
 
+            // 🆕 AUTO-PUSH TO iCLOUD: immediately sync edit to iCloud without waiting
+            // for the next scheduled sync cycle (same pattern as Baikal auto-push above).
+            // Guards: iCloud connected, not currently mid-sync (prevent loops), owned contact.
+            if (this.iCloudSyncService &&
+                this.iCloudSyncService.isConnected &&
+                !this.iCloudSyncService.isSyncing &&
+                (updatedContact.metadata.isOwned !== false) &&
+                !updatedContact.metadata.isArchived &&
+                !updatedContact.metadata.isDeleted) {
+
+                console.log(`📤 iCloud AUTO-PUSH: syncing edit for "${updatedContact.cardName}"...`);
+                // Run async, don't block the UI update
+                this.iCloudSyncService.pushSingleContact(updatedContact).then(result => {
+                    if (result?.success) {
+                        console.log(`✅ iCloud auto-push succeeded for "${updatedContact.cardName}"`);
+                    } else {
+                        console.warn(`⚠️ iCloud auto-push failed for "${updatedContact.cardName}":`, result?.error);
+                    }
+                }).catch(err => {
+                    console.warn(`⚠️ iCloud auto-push error for "${updatedContact.cardName}":`, err.message);
+                });
+            }
+
             return {
                 success: true,
                 contact: updatedContact,
@@ -1618,6 +1641,16 @@ export class ContactManager {
      * @returns {boolean} True if likely duplicate
      */
     isDuplicateContact(matches, newName, existingName) {
+        // Guard: contacts with context qualifiers like (work)/(home)/(privat) are intentionally
+        // separate cards even when they share a phone number — never auto-merge them.
+        const contextQualifiers = ['(work)', '(home)', '(mobile)', '(personal)', '(business)', '(privat)', '(cell)', '(jobb)', '(privé)'];
+        const newHasQualifier = contextQualifiers.some(q => newName.toLowerCase().includes(q));
+        const existingHasQualifier = contextQualifiers.some(q => existingName.toLowerCase().includes(q));
+        if (newHasQualifier !== existingHasQualifier) {
+            // One has a qualifier and the other doesn't — intentionally separate cards
+            return false;
+        }
+
         // Special rule: Phone match + name similarity = very likely duplicate
         if (matches.phoneMatch && matches.nameMatch) {
             return true; // Phone + name is strong evidence regardless of other fields
@@ -1679,6 +1712,33 @@ export class ContactManager {
      * @param {string} name2 - Second name
      * @returns {boolean} True if names are similar
      */
+
+    /**
+     * Score how "rich" a contact is based on how many distinct data fields it has.
+     * Used to decide which version to keep when a duplicate is detected.
+     * @param {Object} contact - Contact object
+     * @returns {number} Richness score (higher = more data)
+     */
+    contactRichnessScore(contact) {
+        try {
+            const data = this.vCardStandard.extractDisplayData(contact, true, true);
+            if (!data) return 0;
+            let score = 0;
+            score += (data.phones?.length  || 0) * 2;
+            score += (data.emails?.length  || 0) * 2;
+            score += (data.addresses?.length || 0) * 1.5;
+            score += (data.urls?.length    || 0) * 1;
+            score += data.organization ? 1 : 0;
+            score += data.title        ? 1 : 0;
+            score += data.note         ? 1 : 0;
+            score += data.birthday     ? 1 : 0;
+            score += data.photo        ? 2 : 0;
+            return score;
+        } catch {
+            return 0;
+        }
+    }
+
     namesAreSimilar(name1, name2) {
         // Simple similarity checks
         const words1 = name1.split(/\s+/).filter(w => w.length > 1);
@@ -1828,7 +1888,37 @@ export class ContactManager {
                 console.log(`⚠️ Potential duplicate detected for ${contactName}:`);
                 console.log(`   Existing: ${bestMatch.contact.cardName} (${Math.round(bestMatch.matchPercentage * 100)}% match)`);
                 console.log(`   Matched fields:`, bestMatch.matchedFields);
-                
+
+                // Richness comparison: if the incoming contact has significantly more data
+                // than the existing one, update the existing instead of blocking the import.
+                const incomingRichness = this.contactRichnessScore(contact);
+                const existingRichness = this.contactRichnessScore(bestMatch.contact);
+                console.log(`   Richness — incoming: ${incomingRichness}, existing: ${existingRichness}`);
+
+                if (incomingRichness > existingRichness * 1.3) {
+                    // Incoming is at least 30% richer: update existing contact's vCard data
+                    // while preserving its contactId, itemId and metadata.
+                    console.log(`📈 Incoming is richer — updating existing contact instead of blocking`);
+                    const mergedContact = { ...bestMatch.contact };
+                    mergedContact.vCard = contact.vCard; // replace vCard payload with richer one
+                    // Preserve original metadata flags
+                    mergedContact.metadata = {
+                        ...contact.metadata,
+                        ...bestMatch.contact.metadata,
+                        lastUpdated: new Date().toISOString()
+                    };
+                    try {
+                        await this.database.updateContact(mergedContact);
+                        this.contacts.set(mergedContact.contactId, mergedContact);
+                        this.eventBus.emit('contact:updated', { contact: mergedContact });
+                        console.log(`✅ Existing contact enriched with richer incoming data`);
+                        return { success: true, contact: mergedContact, enriched: true };
+                    } catch (updateErr) {
+                        console.warn(`⚠️ Could not enrich existing contact:`, updateErr.message);
+                        // Fall through to normal duplicate-block behaviour
+                    }
+                }
+
                     return {
                         success: false,
                         isDuplicate: true,

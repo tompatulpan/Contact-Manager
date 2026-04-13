@@ -62,7 +62,9 @@ echo "📦 Packaging files..."
 set critical_files \
     "index.html" \
     "style.css" \
+    "style-dark.css" \
     "mobile.css" \
+    "mobile-dark.css" \
     "favicon.ico" \
     "lib/userbase.js" \
     "src/app.js" \
@@ -142,7 +144,9 @@ find . -name "*.tmp" -delete 2>/dev/null || true
 zip -r $zipname \
     index.html \
     style.css \
+    style-dark.css \
     mobile.css \
+    mobile-dark.css \
     favicon.ico \
     package.json \
     src/ \
@@ -152,6 +156,7 @@ zip -r $zipname \
     --exclude="*.tmp" \
     --exclude="src/**/*_backup.js" \
     --exclude="src/**/*_new.js" \
+    --exclude="src/**/*.backup" \
     --exclude="test-*.html" \
     --exclude="debug-*.html" \
     --exclude="tests/" \

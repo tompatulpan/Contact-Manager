@@ -10,7 +10,9 @@
     "serve:alt": "npx serve . -p 8080",
     "production": "./production_zip.sh",
     "cache-bust": "./cache-bust.sh",
-    "setup-baical": "./setup-baical-dev.sh"
+    "setup-baical": "./setup-baical-dev.sh",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch"
   },
   "keywords": [
     "contact-management",
@@ -23,11 +25,11 @@
   ],
   "author": "tompatulpan",
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "jest": "^29.7.0",
     "serve": "^14.2.0"
   },
-
   "engines": {
     "node": ">=18.0.0"
   },
