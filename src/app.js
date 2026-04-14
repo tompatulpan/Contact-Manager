@@ -74,9 +74,13 @@ class ContactManagementApp {
     }
     
     /**
-     * Expose modules for testing and debugging in browser console
+     * Expose modules for testing and debugging in browser console.
+     * Only active on localhost to avoid leaking internals in production.
      */
     exposeForTesting() {
+        const isLocalDev = ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+        if (!isLocalDev) return;
+
         // Make ContactManager available globally for console testing
         window.contactManager = this.modules.contactManager;
         window.baikalConnector = this.modules.baikalConnector;
@@ -118,6 +122,7 @@ class ContactManagementApp {
         // Pass proxy configuration from APP_CONFIG
         const cardDAVProxyConfig = {
             proxyUrl: APP_CONFIG.cardDAV.proxyUrl,
+            proxyToken: APP_CONFIG.cardDAV.proxyToken,
             useProxy: APP_CONFIG.cardDAV.useProxy,
             fallbackToLocal: APP_CONFIG.cardDAV.fallbackToLocal
         };
@@ -380,12 +385,14 @@ class ContactManagementApp {
             loadingStatus.innerHTML = `
                 <div class="error-state">
                     <h3>❌ Application failed to start</h3>
-                    <p>${error.message}</p>
+                    <p id="app-error-msg"></p>
                     <button onclick="location.reload()" class="btn btn-primary">
                         Reload Application
                     </button>
                 </div>
             `;
+            const msgEl = loadingStatus.querySelector('#app-error-msg');
+            if (msgEl) msgEl.textContent = error.message;
         }
     }
 
@@ -612,12 +619,14 @@ async function initializeApp() {
             loadingStatus.innerHTML = `
                 <div class="error-state">
                     <h3>❌ Failed to load application</h3>
-                    <p>${error.message}</p>
+                    <p id="app-init-error-msg"></p>
                     <button onclick="location.reload()" class="btn btn-primary">
                         Reload Page
                     </button>
                 </div>
             `;
+            const msgEl = loadingStatus.querySelector('#app-init-error-msg');
+            if (msgEl) msgEl.textContent = error.message;
         }
     }
 }

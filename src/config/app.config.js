@@ -19,6 +19,10 @@ export const APP_CONFIG = {
     // CardDAV CORS Proxy Configuration (deployed November 23, 2025)
     cardDAV: {
         proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
+        // Shared secret sent as X-Worker-Token to authenticate with the Cloudflare Worker.
+        // Set WORKER_TOKEN in Cloudflare Worker env vars to the same value.
+        // Keep this value out of version control in production — use a build-time env injection.
+        proxyToken: '87a16924ba2d9d82e0137268f7b8ddcd546362887cb3273a41e1c2e8a3bdb6cd',   // X-Worker-Token shared secret
         useProxy: true,
         fallbackToLocal: true, // Bypass proxy for localhost/127.0.0.1 servers
         // Automatically detect local servers and connect directly
@@ -29,6 +33,7 @@ export const APP_CONFIG = {
     iCloud: {
         baseUrl: 'https://contacts.icloud.com',
         proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
+        proxyToken: '87a16924ba2d9d82e0137268f7b8ddcd546362887cb3273a41e1c2e8a3bdb6cd',   // X-Worker-Token shared secret
         // Test credentials (user should override in UI)
         defaultUsername: '',  // Leave empty - user must provide
         defaultPassword: '',  // Leave empty - user must provide

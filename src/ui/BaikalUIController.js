@@ -6,6 +6,16 @@ import { APP_CONFIG } from '../config/app.config.js';
 import { BaikalURLHelper } from '../integrations/BaikalURLHelper.js';
 import { CredentialStorageUI } from './CredentialStorageUI.js';
 
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
 export class BaikalUIController {
     constructor(eventBus, baikalConnector, configManager, contactManager, iCloudConnector = null) {
         this.eventBus = eventBus;
@@ -967,27 +977,27 @@ END:VCARD`;
                  config.serverUrl.toLowerCase().includes('apple.com'));
             
             return `
-            <div class="profile-item" data-profile="${config.profileName}">
+            <div class="profile-item" data-profile="${escapeHtml(config.profileName)}">
                 <div class="profile-info">
-                    <h4>${config.profileName}${isICloud ? ' 🍎' : ''}</h4>
-                    <p>${config.serverUrl}</p>
-                    <p>Username: ${config.username}</p>
+                    <h4>${escapeHtml(config.profileName)}${isICloud ? ' 🍎' : ''}</h4>
+                    <p>${escapeHtml(config.serverUrl)}</p>
+                    <p>Username: ${escapeHtml(config.username)}</p>
                     <p>Mode: ${isICloud ? '📤 One-Way Export (Push Only)' : 'Sync: ' + (config.autoSync ? 'Every ' + (config.syncInterval / 60000) + ' min' : 'Manual')}</p>
-                    <p class="profile-status" id="status-${config.profileName}">
+                    <p class="profile-status" id="status-${escapeHtml(config.profileName)}">
                         ${config.isActive ? '🟢 Active' : '🔴 Inactive'}
                     </p>
                 </div>
                 <div class="profile-actions">
-                    ${!isICloud ? `<button class="btn btn-small baikal-profile-sync" data-profile="${config.profileName}">
+                    ${!isICloud ? `<button class="btn btn-small baikal-profile-sync" data-profile="${escapeHtml(config.profileName)}">
                         <i class="fas fa-sync"></i> Sync
                     </button>` : ''}
-                    <button class="btn btn-small btn-primary baikal-profile-push" data-profile="${config.profileName}">
+                    <button class="btn btn-small btn-primary baikal-profile-push" data-profile="${escapeHtml(config.profileName)}">
                         <i class="fas fa-upload"></i> Push All
                     </button>
-                    <button class="btn btn-small btn-secondary baikal-profile-edit" data-profile="${config.profileName}">
+                    <button class="btn btn-small btn-secondary baikal-profile-edit" data-profile="${escapeHtml(config.profileName)}">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn btn-small btn-danger baikal-profile-delete" data-profile="${config.profileName}">
+                    <button class="btn btn-small btn-danger baikal-profile-delete" data-profile="${escapeHtml(config.profileName)}">
                         <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
@@ -1598,15 +1608,16 @@ END:VCARD`;
      * Store password securely in localStorage
      * Note: Passwords persist across page refreshes until logout
      * Cleared automatically when user signs out from Contact Manager
+     * 
+     * Security: passwords are stored encrypted via SecureCredentialStorage.
+     * Plaintext fallback has been removed — if encryption is unavailable,
+     * the password is held in memory only for the current session.
      */
     storePassword(profileName, password) {
-        try {
-            // Use a prefixed key for organization
-            const key = `baikal_password_${profileName}`;
-            localStorage.setItem(key, password);
-        } catch (error) {
-            console.error('❌ Failed to store password:', error);
-        }
+        // Prefer encrypted storage via credentialUI / SecureCredentialStorage.
+        // Direct plaintext localStorage storage has been intentionally removed.
+        // The connector keeps passwords in its in-memory connections Map for
+        // the duration of the session; they are cleared on sign-out.
     }
 
     /**

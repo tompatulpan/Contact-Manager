@@ -17,6 +17,7 @@ export class ICloudCardDAVClient {
         this.username = username;
         this.password = password;
         this.proxyUrl = proxyUrl || APP_CONFIG.iCloud.proxyUrl;
+        this.proxyToken = APP_CONFIG.iCloud.proxyToken || APP_CONFIG.cardDAV?.proxyToken || null;
         this.iCloudBase = APP_CONFIG.iCloud.baseUrl;
         
         this.principalUrl = null;
@@ -36,6 +37,17 @@ export class ICloudCardDAVClient {
             encoded: encodeURIComponent(targetUrl)
         });
         return proxyUrl;
+    }
+
+    /**
+     * Fetch wrapper that injects X-Worker-Token for all proxied requests.
+     */
+    async proxyFetch(url, options = {}) {
+        const headers = { ...(options.headers || {}) };
+        if (this.proxyToken) {
+            headers['X-Worker-Token'] = this.proxyToken;
+        }
+        return fetch(url, { ...options, headers });
     }
 
     /**
@@ -87,7 +99,7 @@ export class ICloudCardDAVClient {
         console.log('   Proxy URL:', proxyUrl);
         console.log('   Auth Header:', this.makeAuthHeader().substring(0, 20) + '...');
 
-        const response = await fetch(proxyUrl, {
+        const response = await this.proxyFetch(proxyUrl, {
             method: 'PROPFIND',
             headers: {
                 'Authorization': this.makeAuthHeader(),
@@ -124,7 +136,7 @@ export class ICloudCardDAVClient {
         const targetUrl = this.iCloudBase + this.principalUrl;
         const proxyUrl = this.buildProxyUrl(targetUrl);
 
-        const response = await fetch(proxyUrl, {
+        const response = await this.proxyFetch(proxyUrl, {
             method: 'PROPFIND',
             headers: {
                 'Authorization': this.makeAuthHeader(),
@@ -247,7 +259,7 @@ export class ICloudCardDAVClient {
         const targetUrl = this.iCloudBase + this.addressBookUrl;
         const proxyUrl = this.buildProxyUrl(targetUrl);
 
-        const response = await fetch(proxyUrl, {
+        const response = await this.proxyFetch(proxyUrl, {
             method: 'REPORT',
             headers: {
                 'Authorization': this.makeAuthHeader(),
@@ -500,7 +512,7 @@ export class ICloudCardDAVClient {
         const proxyUrl = this.buildProxyUrl(targetUrl);
 
         try {
-            const response = await fetch(proxyUrl, {
+            const response = await this.proxyFetch(proxyUrl, {
                 method: 'REPORT',
                 headers: {
                     'Authorization': this.makeAuthHeader(),
@@ -583,7 +595,7 @@ export class ICloudCardDAVClient {
         const targetUrl = this.iCloudBase + this.addressBookUrl + uid + '.vcf';
         const proxyUrl = this.buildProxyUrl(targetUrl);
 
-        const response = await fetch(proxyUrl, {
+        const response = await this.proxyFetch(proxyUrl, {
             method: 'PUT',
             headers: {
                 'Authorization': this.makeAuthHeader(),
@@ -629,7 +641,7 @@ export class ICloudCardDAVClient {
             headers['If-Match'] = etag;
         }
 
-        const response = await fetch(proxyUrl, {
+        const response = await this.proxyFetch(proxyUrl, {
             method: 'PUT',
             headers,
             body: vcard
@@ -666,7 +678,7 @@ export class ICloudCardDAVClient {
             headers['If-Match'] = etag;
         }
 
-        const response = await fetch(proxyUrl, {
+        const response = await this.proxyFetch(proxyUrl, {
             method: 'DELETE',
             headers
         });

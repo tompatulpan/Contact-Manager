@@ -20,6 +20,7 @@ class SimpleCardDAVBridge {
         
         // 🆕 CORS proxy configuration
         this.proxyUrl = config.proxyUrl || null;
+        this.proxyToken = config.proxyToken || null; // X-Worker-Token for Cloudflare Worker auth
         this.useProxy = config.useProxy !== false && this.proxyUrl !== null;
         this.fallbackToLocal = config.fallbackToLocal !== false;
         this.localServerPatterns = config.localServerPatterns || [
@@ -98,6 +99,31 @@ class SimpleCardDAVBridge {
     }
 
     /**
+     * Fetch wrapper that injects X-Worker-Token when the request is going
+     * through the Cloudflare Worker proxy, and strips newlines from the
+     * Authorization header to prevent header injection.
+     * @param {string} url - URL (may already be proxied via buildUrl)
+     * @param {Object} options - Standard fetch options
+     * @returns {Promise<Response>}
+     */
+    async proxyFetch(url, options = {}) {
+        const headers = { ...(options.headers || {}) };
+
+        // Strip CR/LF from Authorization to prevent header injection
+        if (headers['Authorization']) {
+            headers['Authorization'] = headers['Authorization'].replace(/[\r\n]/g, '');
+        }
+
+        // Inject worker auth token when routing through the proxy
+        const isProxied = this.useProxy && this.proxyUrl && url.startsWith(this.proxyUrl);
+        if (isProxied && this.proxyToken) {
+            headers['X-Worker-Token'] = this.proxyToken;
+        }
+
+        return fetch(url, { ...options, headers });
+    }
+
+    /**
      * Connect to CardDAV server
      * @param {Object} credentials - { serverUrl, username, password }
      */
@@ -125,7 +151,7 @@ class SimpleCardDAVBridge {
             
             // Test connection with OPTIONS request
             const testUrl = this.buildUrl(config.serverUrl);
-            const response = await fetch(testUrl, {
+            const response = await this.proxyFetch(testUrl, {
                 method: 'OPTIONS',
                 headers: {
                     'Authorization': this.auth
@@ -221,7 +247,7 @@ class SimpleCardDAVBridge {
 </C:addressbook-query>`;
 
             const reportUrl = this.buildUrl(fetchUrl);
-            const response = await fetch(reportUrl, {
+            const response = await this.proxyFetch(reportUrl, {
                 method: 'REPORT',
                 headers: {
                     'Authorization': this.auth,
@@ -502,7 +528,7 @@ class SimpleCardDAVBridge {
                 console.log(`🍎 iCloud: Creating new contact with POST to collection`);
                 console.log(`   Collection URL: ${collectionUrl}`);
                 
-                response = await fetch(postUrl, {
+                response = await this.proxyFetch(postUrl, {
                     method: 'POST',
                     headers: postHeaders,
                     body: vcardBody
@@ -520,7 +546,7 @@ class SimpleCardDAVBridge {
             } else {
                 // EXISTING CONTACT or NON-iCloud: Use PUT to specific contact URL
                 const pushUrl = this.buildUrl(vcardUrl);
-                response = await fetch(pushUrl, {
+                response = await this.proxyFetch(pushUrl, {
                     method: 'PUT',
                     headers,
                     body: vcardBody
@@ -560,7 +586,7 @@ class SimpleCardDAVBridge {
                 
                 try {
                     const headUrl = this.buildUrl(vcardUrl);
-                    const headResponse = await fetch(headUrl, {
+                    const headResponse = await this.proxyFetch(headUrl, {
                         method: 'HEAD',
                         headers: { 'Authorization': this.auth }
                     });
@@ -667,7 +693,7 @@ class SimpleCardDAVBridge {
             
             // Try DELETE method first (standard CardDAV)
             const deleteUrl = this.buildUrl(vcardUrl);
-            const response = await fetch(deleteUrl, {
+            const response = await this.proxyFetch(deleteUrl, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': this.auth
@@ -795,7 +821,7 @@ class SimpleCardDAVBridge {
 </D:propfind>`;
 
             const discoveryUrl = this.buildUrl(this.config.serverUrl);
-            const response = await fetch(discoveryUrl, {
+            const response = await this.proxyFetch(discoveryUrl, {
                 method: 'PROPFIND',
                 headers: {
                     'Authorization': this.auth,

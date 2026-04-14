@@ -12,18 +12,25 @@ export default {
     async fetch(request, env, ctx) {
         // Handle CORS preflight requests
         if (request.method === 'OPTIONS') {
-            return this.handleCORS(request);
+            return this.handleCORS(request, env);
         }
 
         try {
             // Validate origin
             const origin = request.headers.get('Origin');
-            // TODO: Re-enable origin check after fixing origin configuration
-            // Temporarily disabled to debug iCloud 403 errors
-            if (false && !this.isAllowedOrigin(origin, env)) {
-                return new Response('Forbidden: Invalid origin', { 
+            if (!this.isAllowedOrigin(origin, env)) {
+                return new Response('Forbidden', { 
                     status: 403,
                     headers: { 'Content-Type': 'text/plain' }
+                });
+            }
+
+            // Validate worker auth token
+            const workerToken = request.headers.get('X-Worker-Token');
+            if (env.WORKER_TOKEN && workerToken !== env.WORKER_TOKEN) {
+                return new Response('Forbidden', {
+                    status: 403,
+                    headers: this.getCORSHeaders(origin)
                 });
             }
 
@@ -105,11 +112,11 @@ export default {
         } catch (error) {
             console.error(`❌ Proxy error:`, error.message);
             
-            return new Response(`Proxy error: ${error.message}`, { 
+            return new Response('Proxy error', { 
                 status: 500,
                 headers: {
                     'Content-Type': 'text/plain',
-                    'Access-Control-Allow-Origin': request.headers.get('Origin') || '*'
+                    'Access-Control-Allow-Origin': request.headers.get('Origin') || ''
                 }
             });
         }
@@ -118,15 +125,17 @@ export default {
     /**
      * Handle CORS preflight (OPTIONS) requests
      */
-    handleCORS(request) {
+    handleCORS(request, env) {
         const origin = request.headers.get('Origin');
-        
+        if (!this.isAllowedOrigin(origin, env)) {
+            return new Response('Forbidden', { status: 403 });
+        }
         return new Response(null, {
             status: 204,
             headers: {
-                'Access-Control-Allow-Origin': origin || '*',
+                'Access-Control-Allow-Origin': origin,
                 'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer, X-Worker-Token',
                 'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV, Location',
                 'Access-Control-Max-Age': '86400',
                 'Access-Control-Allow-Credentials': 'true'
@@ -135,22 +144,25 @@ export default {
     },
 
     /**
-     * Check if origin is allowed
+     * Check if origin is allowed (exact match only)
      */
     isAllowedOrigin(origin, env) {
         if (!origin) return false;
 
-        // Get allowed origins from environment variable or use defaults
-        const allowedOrigins = env?.ALLOWED_ORIGINS?.split(',') || [
+        // Get allowed origins from environment variable or use hardcoded defaults
+        const allowedOrigins = env?.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [
+            'https://e2econtacts.org',
+            'https://www.e2econtacts.org',
+            'https://contact-manager.pages.dev',
+            'http://localhost',
             'http://localhost:8080',
             'http://localhost:3000',
+            'http://127.0.0.1',
             'http://127.0.0.1:8080',
-            'https://your-domain.com'  // Replace with your production domain
+            'http://127.0.0.1:3000',
         ];
 
-        return allowedOrigins.some(allowed => 
-            origin === allowed || origin.endsWith(allowed.replace(/^https?:\/\//, ''))
-        );
+        return allowedOrigins.includes(origin);
     },
 
     /**
@@ -218,7 +230,7 @@ export default {
     addCORSHeaders(responseHeaders, origin) {
         const headers = new Headers(responseHeaders);
 
-        headers.set('Access-Control-Allow-Origin', origin || '*');
+        headers.set('Access-Control-Allow-Origin', origin || '');
         headers.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT');
         headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer');
         headers.set('Access-Control-Expose-Headers', 'ETag, Content-Type, DAV, Location');
@@ -232,7 +244,7 @@ export default {
      */
     getCORSHeaders(origin) {
         return {
-            'Access-Control-Allow-Origin': origin || '*',
+            'Access-Control-Allow-Origin': origin || '',
             'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match',
             'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV',

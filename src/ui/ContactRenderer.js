@@ -100,11 +100,22 @@ export class ContactRenderer {
                 `;
                 break;
                 
-            case 'url':
-                content = `
-                    <a href="${escapedValue}" target="_blank" class="field-value">${escapedValue}</a>
-                `;
+            case 'url': {
+                // Block javascript: and data: protocols — only allow http/https
+                let safeUrl = null;
+                try {
+                    const parsed = new URL(field.value || '');
+                    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+                        safeUrl = field.value;
+                    }
+                } catch {
+                    // Invalid URL — render as plain text
+                }
+                content = safeUrl
+                    ? `<a href="${escapedValue}" target="_blank" rel="noopener noreferrer" class="field-value">${escapedValue}</a>`
+                    : `<span class="field-value">${escapedValue}</span>`;
                 break;
+            }
                 
             default:
                 content = `<span class="field-value">${escapedValue}</span>`;

@@ -15,6 +15,7 @@
 export class SecureCredentialStorage {
     constructor() {
         this.storagePrefix = 'carddav_creds_';
+        this.saltKey = 'carddav_pbkdf2_salt';
         this.memoryStorage = new Map(); // Fallback for private browsing
         this.encryptionKey = null;
         this.isPrivateBrowsing = false;
@@ -39,24 +40,49 @@ export class SecureCredentialStorage {
     }
 
     /**
-     * Generate encryption key from user's master password
-     * This allows encrypted storage even in private browsing
+     * Generate encryption key from user's master password using PBKDF2.
+     * A random 16-byte salt is generated on first use and persisted in
+     * localStorage so the same key can be re-derived on subsequent logins.
+     * OWASP 2024 recommends PBKDF2-SHA256 with ≥310,000 iterations.
      */
     async setMasterPassword(masterPassword) {
         try {
             const encoder = new TextEncoder();
-            const data = encoder.encode(masterPassword);
-            
-            // Generate key using Web Crypto API
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            this.encryptionKey = await crypto.subtle.importKey(
+            const passwordData = encoder.encode(masterPassword);
+
+            // Load or generate a per-installation salt
+            let salt;
+            const storedSalt = localStorage.getItem(this.saltKey);
+            if (storedSalt) {
+                salt = Uint8Array.from(atob(storedSalt), c => c.charCodeAt(0));
+            } else {
+                salt = crypto.getRandomValues(new Uint8Array(16));
+                localStorage.setItem(this.saltKey, btoa(String.fromCharCode(...salt)));
+            }
+
+            // Import raw password as key material for PBKDF2
+            const keyMaterial = await crypto.subtle.importKey(
                 'raw',
-                hashBuffer,
-                { name: 'AES-GCM' },
+                passwordData,
+                { name: 'PBKDF2' },
+                false,
+                ['deriveKey']
+            );
+
+            // Derive AES-GCM key using PBKDF2 (310,000 iterations per OWASP 2024)
+            this.encryptionKey = await crypto.subtle.deriveKey(
+                {
+                    name: 'PBKDF2',
+                    salt: salt,
+                    iterations: 310000,
+                    hash: 'SHA-256'
+                },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
                 false,
                 ['encrypt', 'decrypt']
             );
-            
+
             return true;
         } catch (error) {
             console.error('❌ Failed to set master password:', error);
@@ -181,15 +207,9 @@ export class SecureCredentialStorage {
                 }
             }
 
-            // Strategy 3: Plain localStorage (less secure, but works)
-            if (usePersistentStorage && !this.isPrivateBrowsing && !useEncryption) {
-                try {
-                    localStorage.setItem(`${this.storagePrefix}${profileName}`, credentialsData);
-                    return { success: true, method: 'localStorage_plain', warning: 'Credentials stored unencrypted' };
-                } catch (error) {
-                    console.warn('⚠️ localStorage failed:', error.message);
-                }
-            }
+            // Strategy 3 (plain localStorage) has been removed — plaintext credential
+            // storage is a security risk. If encryption is unavailable, fall through
+            // to encrypted memory storage below.
 
             // Strategy 4: Encrypted memory storage (private browsing)
             if (this.isPrivateBrowsing && useEncryption && this.encryptionKey) {

@@ -3,6 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Content Security Policy
+         connect-src: Userbase API + Cloudflare Worker proxy + self
+         script-src:  Only same-origin modules (no inline scripts, no eval)
+         style-src:   Same-origin + font-awesome CDN (inline styles needed by some components)
+         font-src:    font-awesome CDN
+         img-src:     Same-origin + data URIs (contact avatars)
+         object-src:  Disallow plugins (Flash etc.)
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
+        font-src 'self' https://cdnjs.cloudflare.com;
+        img-src 'self' data:;
+        connect-src 'self' https://carddav-proxy.data4-9de.workers.dev https://v1.userbase.com wss://v1.userbase.com;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
     <title>Contact Management System</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style-dark.css">
@@ -1026,7 +1045,7 @@
                     </div>
                     <div class="form-group">
                         <label>App-Specific Password:</label>
-                        <input type="password" id="icloud-password" placeholder="xxxx-xxxx-xxxx-xxxx" class="form-control">
+                        <input type="password" id="icloud-password" placeholder="xxxx-xxxx-xxxx-xxxx" class="form-control" autocomplete="current-password">
                         <small>Generate at: <a href="https://appleid.apple.com/account/manage" target="_blank">appleid.apple.com</a></small>
                     </div>
                 </div>

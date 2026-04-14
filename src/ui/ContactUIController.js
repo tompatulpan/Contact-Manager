@@ -2204,7 +2204,7 @@ export class ContactUIController {
                     </div>
                     ${!contact.metadata.isOwned ? `
                         <div class="contact-meta">
-                            <span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>
+                            <span class="shared-indicator">Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
                         </div>
                     ` : ''}
                 </div>
@@ -2238,7 +2238,7 @@ export class ContactUIController {
         const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
         const contactType = ContactRenderer.getContactType(contact);
         const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
-            `<div class="contact-meta"><span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span></div>` : '';
+            `<div class="contact-meta"><span class="shared-indicator">Shared by ${ContactUIHelpers.escapeHtml(contact.metadata.sharedBy)}</span></div>` : '';
         
         card.innerHTML = `
             <div class="contact-avatar avatar-${contactType}">
@@ -2298,7 +2298,7 @@ export class ContactUIController {
             <div class="contact-name">${this.escapeHtml(fullName)}</div>
             ${!contact.metadata.isOwned ? `
                 <div class="contact-meta">
-                    <span class="shared-indicator">Shared by ${contact.metadata.sharedBy}</span>
+                    <span class="shared-indicator">Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
                 </div>
             ` : ''}
         `;

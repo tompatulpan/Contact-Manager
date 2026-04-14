@@ -105,6 +105,22 @@ export class BaikalConnector {
      */
     async connectToServer(config) {
         try {
+            // Security: require HTTPS for all remote servers.
+            // localhost / 127.x.x.x are exempt for local development.
+            if (config.serverUrl) {
+                let parsedUrl;
+                try { parsedUrl = new URL(config.serverUrl); } catch { /* will fail below */ }
+                const isLocalhost = parsedUrl && (
+                    parsedUrl.hostname === 'localhost' ||
+                    parsedUrl.hostname === '127.0.0.1' ||
+                    parsedUrl.hostname.startsWith('192.168.') ||
+                    parsedUrl.hostname.endsWith('.local')
+                );
+                if (parsedUrl && parsedUrl.protocol === 'http:' && !isLocalhost) {
+                    return { success: false, error: 'CardDAV server URL must use HTTPS for non-local servers. Update the URL to start with https://' };
+                }
+            }
+
             // Use CardDAV Bridge Adapter (switches between lite and legacy)
             const result = await this.bridgeAdapter.connect(config);
 
