@@ -13,7 +13,8 @@
     -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self';
+        script-src 'self' 'unsafe-inline';
+        worker-src blob: 'self';
         style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
         font-src 'self' https://cdnjs.cloudflare.com;
         img-src 'self' data:;
@@ -1107,7 +1108,7 @@
         <span>
             <a href="https://github.com/tompatulpan/Contact-Manager" target="_blank">Source Code</a>
             &nbsp;|&nbsp;
-            Contact: <a href="mailto:hello@e2econtacts.org">hello@e2econtacts.org</a>
+            Contact: <a href="https://e2econtacts.org/#contact">hello&#64;e2econtacts.org</a>
         </span>
     </footer>
 </body>

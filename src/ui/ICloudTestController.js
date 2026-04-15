@@ -4,10 +4,11 @@
  */
 
 export class ICloudTestController {
-    constructor(eventBus, contactManager, iCloudSyncService = null) {
+    constructor(eventBus, contactManager, iCloudSyncService = null, ICloudCardDAVClient = null) {
         this.eventBus = eventBus;
         this.contactManager = contactManager;
         this.iCloudSyncService = iCloudSyncService;
+        this.ICloudCardDAVClient = ICloudCardDAVClient;
         this.iCloudClient = null;
         this.fetchedContacts = [];
         
@@ -122,7 +123,7 @@ export class ICloudTestController {
 
         try {
             // Initialize iCloud client
-            const ICloudCardDAVClient = window.ICloudCardDAVClient;
+            const ICloudCardDAVClient = this.ICloudCardDAVClient || window.ICloudCardDAVClient;
             if (!ICloudCardDAVClient) {
                 this.log('❌ ICloudCardDAVClient not loaded', 'error');
                 return;
@@ -143,6 +144,17 @@ export class ICloudTestController {
                 this.log(`✅ Connected successfully!`, 'success');
                 this.log(`   Principal: ${result.principalUrl}`, 'success');
                 this.log(`   Address Book: ${result.addressBookUrl}`, 'success');
+
+                // Also initialize ICloudSyncService so instant auto-push works immediately
+                if (this.iCloudSyncService && !this.iCloudSyncService.isConnected) {
+                    this.log('🔄 Initializing sync service for instant push...', 'info');
+                    const syncResult = await this.iCloudSyncService.initialize(creds);
+                    if (syncResult.success) {
+                        this.log('✅ Sync service ready — edits will push instantly', 'success');
+                    } else {
+                        this.log(`⚠️ Sync service init failed: ${syncResult.error}`, 'warn');
+                    }
+                }
 
                 // Enable next buttons
                 document.getElementById('icloud-fetch-btn').disabled = false;

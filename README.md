@@ -71,6 +71,27 @@ npm run serve                               # Start contact manager (port 8080)
 ./restore-dev.sh
 ```
 
+### Deploy to Cloudflare Pages
+
+The app is hosted at [e2econtacts.org](https://e2econtacts.org) via Cloudflare Pages (project name: `kontakt`).
+
+```bash
+# Run from: contact-management-system/
+fish production_zip.sh && \
+  rm -rf _deploy_tmp && mkdir _deploy_tmp && \
+  unzip -q production.zip -d _deploy_tmp && \
+  cd cloudflare-worker && \
+  node_modules/.bin/wrangler pages deploy ../_deploy_tmp --project-name=kontakt
+```
+
+> **Important:**
+> - Project name is `kontakt` (not `contact-management-system`)
+> - `wrangler pages deploy` requires a **folder**, not a zip — always unzip first
+> - The CardDAV proxy Worker is deployed separately:
+>   ```bash
+>   cd cloudflare-worker && node_modules/.bin/wrangler deploy
+>   ```
+
 ---
 ## Roadmap
 

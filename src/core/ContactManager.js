@@ -452,6 +452,26 @@ export class ContactManager {
                 }
             }
 
+            // 🆕 AUTO-PUSH TO iCLOUD: immediately sync new contact to iCloud without waiting
+            // for the next scheduled sync cycle.
+            if (this.iCloudSyncService &&
+                this.iCloudSyncService.isConnected &&
+                (contact.metadata.isOwned !== false) &&
+                !contact.metadata.isArchived &&
+                !contact.metadata.isDeleted) {
+
+                console.log(`📤 iCloud AUTO-PUSH: syncing new contact "${contact.cardName}"...`);
+                this.iCloudSyncService.pushSingleContact(contact).then(result => {
+                    if (result?.success) {
+                        console.log(`✅ iCloud auto-push succeeded for "${contact.cardName}"`);
+                    } else {
+                        console.warn(`⚠️ iCloud auto-push failed for "${contact.cardName}":`, result?.error);
+                    }
+                }).catch(err => {
+                    console.warn(`⚠️ iCloud auto-push error for "${contact.cardName}":`, err.message);
+                });
+            }
+
             return {
                 success: true,
                 contact,
@@ -627,10 +647,10 @@ export class ContactManager {
 
             // 🆕 AUTO-PUSH TO iCLOUD: immediately sync edit to iCloud without waiting
             // for the next scheduled sync cycle (same pattern as Baikal auto-push above).
-            // Guards: iCloud connected, not currently mid-sync (prevent loops), owned contact.
+            // Note: isSyncing guard removed — pushSingleContact doesn't set isSyncing, so
+            // skipping here caused silent data loss when a scheduled sync happened to run.
             if (this.iCloudSyncService &&
                 this.iCloudSyncService.isConnected &&
-                !this.iCloudSyncService.isSyncing &&
                 (updatedContact.metadata.isOwned !== false) &&
                 !updatedContact.metadata.isArchived &&
                 !updatedContact.metadata.isDeleted) {

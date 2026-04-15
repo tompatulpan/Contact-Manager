@@ -180,7 +180,8 @@ class ContactManagementApp {
         this.modules.iCloudTestController = new ICloudTestController(
             this.eventBus,
             this.modules.contactManager,
-            this.modules.iCloudSyncService
+            this.modules.iCloudSyncService,
+            this.modules.ICloudCardDAVClient
         );
 
         // ⭐ Set ContactManager reference in BaikalConnector
