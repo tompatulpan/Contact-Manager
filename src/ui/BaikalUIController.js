@@ -88,16 +88,11 @@ export class BaikalUIController {
                         let password = null;
                         let credentialSource = null;
                         
-                        // 🔐 STRATEGY 1: Try simple localStorage password first (from storePassword method)
-                        const storageKey = `baikal_password_${config.profileName}`;
+                        // 🧹 MIGRATION: Remove any legacy plaintext passwords left from older versions.
+                        // storePassword() no longer writes to localStorage, but old entries may remain.
+                        this.removeStoredPassword(config.profileName);
                         
-                        password = this.getStoredPassword(config.profileName);
-                        
-                        if (password) {
-                            credentialSource = 'localStorage (simple)';
-                        }
-                        
-                        // 🔐 STRATEGY 2: Fallback to secure credential storage
+                        // 🔐 STRATEGY: Use secure credential storage
                         if (!password) {
                             const storedCreds = await this.credentialUI.getStoredCredentials(config.profileName);
                             
@@ -107,12 +102,8 @@ export class BaikalUIController {
                             }
                         }
                         
-                        // No password found in either storage
+                        // No password found in secure storage
                         if (!password) {
-                            // List all localStorage keys for debugging
-                            const allKeys = Object.keys(localStorage);
-                            const baikalKeys = allKeys.filter(k => k.includes('baikal'));
-                            
                             console.warn(`⚠️ No saved credentials for ${config.profileName} - skipping auto-connect`);
                             continue;
                         }
@@ -334,7 +325,7 @@ export class BaikalUIController {
                                            name="password" 
                                            placeholder="your-password" 
                                            required>
-                                    <small>Password is not stored and must be entered each session</small>
+                                    <small>After connecting, you'll be asked if you want to save your password securely.</small>
                                 </div>
                                 
                                 <div class="form-group">
@@ -677,30 +668,37 @@ export class BaikalUIController {
                 let errorMessage = `Connection failed: ${result.error}`;
                 
                 // 🍎 Special handling for iCloud configuration errors
-                if (result.serverType === 'iCloud' && result.help) {
-                    
-                    // Create a detailed iCloud help modal
+                const isICloudError = result.serverType === 'iCloud' ||
+                    config.serverUrl.toLowerCase().includes('icloud.com') ||
+                    config.serverUrl.toLowerCase().includes('apple.com');
+
+                if (isICloudError && (result.error || '').match(/401|403|Unauthorized|Forbidden/i)) {
+                    errorMessage = 'iCloud authentication failed (401/403).\n\n' +
+                        '⚠️ Do NOT use your Apple ID password here.\n\n' +
+                        'You must use an app-specific password:\n' +
+                        '1. Go to appleid.apple.com → Sign-In and Security → App-Specific Passwords\n' +
+                        '2. Generate a new password for this app\n' +
+                        '3. Use your Apple ID email as the username\n' +
+                        '4. Paste the generated password (format: xxxx-xxxx-xxxx-xxxx)';
+                    alert(errorMessage);
+                } else if (result.serverType === 'iCloud' && result.help) {
                     errorMessage = `iCloud Setup Required\n\n${result.help.message}\n\n`;
                     errorMessage += `Steps to fix:\n`;
-                    result.help.steps.forEach((step, index) => {
+                    result.help.steps.forEach((step) => {
                         errorMessage += `${step}\n`;
                     });
-                    
                     if (result.help.commonIssues) {
                         errorMessage += `\nCommon Issues:\n`;
                         result.help.commonIssues.forEach(issue => {
                             if (issue.trim()) errorMessage += `${issue}\n`;
                         });
                     }
-                    
                     if (result.help.example) {
                         errorMessage += `\nExample Configuration:\n`;
                         errorMessage += `Server URL: ${result.help.example.serverUrl}\n`;
                         errorMessage += `Username: ${result.help.example.username}\n`;
                         errorMessage += `Password: ${result.help.example.password}`;
                     }
-                    
-                    // Show in a more prominent alert for iCloud
                     alert(errorMessage);
                 }
                 

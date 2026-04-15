@@ -222,14 +222,10 @@ export class SecureCredentialStorage {
                 }
             }
 
-            // Strategy 5: SessionStorage fallback (temporary)
-            try {
-                sessionStorage.setItem(`${this.storagePrefix}${profileName}`, credentialsData);
-                return { success: true, method: 'sessionStorage', warning: 'Credentials will be lost on tab close' };
-            } catch (error) {
-                console.error('❌ All storage methods failed:', error);
-                return { success: false, error: 'No storage available' };
-            }
+            // All encrypted storage methods failed — do not fall back to plaintext storage.
+            // The caller should prompt the user to re-enter their password.
+            console.warn('⚠️ No encrypted storage available for credentials. User must re-enter password each session.');
+            return { success: false, error: 'No encrypted storage available' };
 
         } catch (error) {
             console.error('❌ Failed to store credentials:', error);
@@ -295,17 +291,6 @@ export class SecureCredentialStorage {
                 } catch (error) {
                     console.warn('⚠️ Memory storage retrieval failed:', error.message);
                 }
-            }
-
-            // Strategy 4: Try sessionStorage fallback
-            try {
-                const stored = sessionStorage.getItem(`${this.storagePrefix}${profileName}`);
-                if (stored) {
-                    const credentials = JSON.parse(stored);
-                    return { success: true, credentials, method: 'sessionStorage' };
-                }
-            } catch (error) {
-                console.warn('⚠️ sessionStorage retrieval failed:', error.message);
             }
 
             return { success: false, error: 'No credentials found' };
