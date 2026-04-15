@@ -122,7 +122,6 @@ class ContactManagementApp {
         // Pass proxy configuration from APP_CONFIG
         const cardDAVProxyConfig = {
             proxyUrl: APP_CONFIG.cardDAV.proxyUrl,
-            proxyToken: APP_CONFIG.cardDAV.proxyToken,
             useProxy: APP_CONFIG.cardDAV.useProxy,
             fallbackToLocal: APP_CONFIG.cardDAV.fallbackToLocal
         };

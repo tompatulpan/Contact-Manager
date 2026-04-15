@@ -17,7 +17,6 @@ export class ICloudCardDAVClient {
         this.username = username;
         this.password = password;
         this.proxyUrl = proxyUrl || APP_CONFIG.iCloud.proxyUrl;
-        this.proxyToken = APP_CONFIG.iCloud.proxyToken || APP_CONFIG.cardDAV?.proxyToken || null;
         this.iCloudBase = APP_CONFIG.iCloud.baseUrl;
         
         this.principalUrl = null;
@@ -40,14 +39,10 @@ export class ICloudCardDAVClient {
     }
 
     /**
-     * Fetch wrapper that injects X-Worker-Token for all proxied requests.
+     * Fetch wrapper for all proxied requests.
      */
     async proxyFetch(url, options = {}) {
-        const headers = { ...(options.headers || {}) };
-        if (this.proxyToken) {
-            headers['X-Worker-Token'] = this.proxyToken;
-        }
-        return fetch(url, { ...options, headers });
+        return fetch(url, options);
     }
 
     /**

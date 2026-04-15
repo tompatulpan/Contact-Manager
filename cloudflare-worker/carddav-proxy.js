@@ -25,15 +25,6 @@ export default {
                 });
             }
 
-            // Validate worker auth token
-            const workerToken = request.headers.get('X-Worker-Token');
-            if (env.WORKER_TOKEN && workerToken !== env.WORKER_TOKEN) {
-                return new Response('Forbidden', {
-                    status: 403,
-                    headers: this.getCORSHeaders(origin)
-                });
-            }
-
             // Extract target CardDAV server URL from request
             const url = new URL(request.url);
             const targetUrl = url.searchParams.get('target');
@@ -135,7 +126,7 @@ export default {
             headers: {
                 'Access-Control-Allow-Origin': origin,
                 'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer, X-Worker-Token',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer',
                 'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV, Location',
                 'Access-Control-Max-Age': '86400',
                 'Access-Control-Allow-Credentials': 'true'
