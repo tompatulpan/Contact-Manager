@@ -832,9 +832,9 @@ END:VCARD`;
         const statusElement = document.getElementById('baikal-connection-status');
         if (statusElement) {
             statusElement.innerHTML = `
-                <div class="status ${type}">
+                <div class="status ${escapeHtml(type)}">
                     <i class="fas ${type === 'success' ? 'fa-check' : type === 'error' ? 'fa-times' : 'fa-info'}"></i>
-                    ${message}
+                    ${escapeHtml(message)}
                 </div>
             `;
         }
@@ -1486,8 +1486,8 @@ END:VCARD`;
                 // URL is a full addressbook path - show recommendation
                 validationHTML = `
                     <div class="url-validation-success">
-                        ✅ <strong>URL Detected:</strong> ${urlAnalysis.type}<br>
-                        <strong>Recommended:</strong> Use "${urlAnalysis.recommendation.serverUrl}" instead<br>
+                        ✅ <strong>URL Detected:</strong> ${escapeHtml(urlAnalysis.type)}<br>
+                        <strong>Recommended:</strong> Use "${escapeHtml(urlAnalysis.recommendation.serverUrl)}" instead<br>
                         <small>The bridge will auto-discover the addressbook path</small>
                     </div>
                 `;
@@ -1497,9 +1497,9 @@ END:VCARD`;
                 validationHTML = `
                     <div class="url-validation-warning">
                         ⚠️ <strong>Auto-fixes available:</strong><br>
-                        Original: ${url}<br>
-                        Suggested: ${urlFixes.fixedUrl}<br>
-                        <small>Changes: ${urlFixes.fixes.join(', ')}</small>
+                        Original: ${escapeHtml(url)}<br>
+                        Suggested: ${escapeHtml(urlFixes.fixedUrl)}<br>
+                        <small>Changes: ${urlFixes.fixes.map(escapeHtml).join(', ')}</small>
                     </div>
                 `;
                 validationClass = 'url-info';
@@ -1518,9 +1518,9 @@ END:VCARD`;
                     validationHTML = `
                         <div class="url-validation-error">
                             ❌ <strong>Issues found:</strong><br>
-                            ${validation.issues.join('<br>')}<br>
+                            ${validation.issues.map(escapeHtml).join('<br>')}<br>
                             ${validation.recommendations.length > 0 ? 
-                                '<strong>Suggestions:</strong><br>' + validation.recommendations.join('<br>') : ''
+                                '<strong>Suggestions:</strong><br>' + validation.recommendations.map(escapeHtml).join('<br>') : ''
                             }
                         </div>
                     `;
@@ -1535,7 +1535,7 @@ END:VCARD`;
         } catch (error) {
             validationDiv.innerHTML = `
                 <div class="url-validation-error">
-                    ❌ <strong>Invalid URL:</strong> ${error.message}
+                    ❌ <strong>Invalid URL:</strong> ${escapeHtml(error.message)}
                 </div>
             `;
             validationDiv.className = 'url-validation url-error';
@@ -1619,13 +1619,18 @@ END:VCARD`;
     }
 
     /**
-     * Retrieve stored password from localStorage
+     * Retrieve stored password from localStorage (legacy path only).
+     * Plaintext storage was removed; this reads any password left over from
+     * an older version of the app and immediately erases it so it isn't
+     * sitting in localStorage as plaintext indefinitely.
      */
     getStoredPassword(profileName) {
         try {
             const key = `baikal_password_${profileName}`;
             const password = localStorage.getItem(key);
             if (password) {
+                // Erase the legacy plaintext entry now that we've read it.
+                localStorage.removeItem(key);
             }
             return password;
         } catch (error) {
