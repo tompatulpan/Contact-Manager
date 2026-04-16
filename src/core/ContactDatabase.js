@@ -40,6 +40,7 @@ export class ContactDatabase {
         };
         this.openedSharedDatabases = new Set(); // Track which shared databases are already open
         this.isInitializingSharedDatabases = false; // Prevent concurrent initialization
+        this._userExistenceCache = new Map(); // username -> { exists: bool, ts: timestamp }
         
         // 🆕 INDIVIDUAL DATABASE STRATEGY: Initialize individual sharing strategy
         this.individualSharing = new IndividualSharingStrategy(this);
@@ -1093,6 +1094,13 @@ export class ContactDatabase {
             }
             
             const trimmedUsername = username.trim();
+
+            // Cache results for 5 seconds to limit API enumeration on rapid re-calls
+            const cached = this._userExistenceCache.get(trimmedUsername);
+            if (cached && (Date.now() - cached.ts < 5000)) {
+                if (!cached.exists) throw new Error(`User '${trimmedUsername}' does not exist`);
+                return true;
+            }
             
             // Use a minimal shareDatabase call to test user existence
             // This follows the same validation path as actual sharing
@@ -1105,11 +1113,13 @@ export class ContactDatabase {
                 const response = await fetch(`https://v1.userbase.com/v1/api/public-key?appId=${this.appId}&username=${encodeURIComponent(trimmedUsername)}&userbaseJsVersion=2.8.0`);
                 
                 if (response.status === 404) {
+                    this._userExistenceCache.set(trimmedUsername, { exists: false, ts: Date.now() });
                     throw new Error(`User '${trimmedUsername}' does not exist`);
                 } else if (!response.ok) {
                     throw new Error(`Failed to validate user: ${response.status} ${response.statusText}`);
                 }
                 
+                this._userExistenceCache.set(trimmedUsername, { exists: true, ts: Date.now() });
                 return true;
                 
             } catch (fetchError) {

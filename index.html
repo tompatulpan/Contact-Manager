@@ -13,7 +13,7 @@
     -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self' 'unsafe-inline';
+        script-src 'self';
         worker-src blob: 'self';
         style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
         font-src 'self' https://cdnjs.cloudflare.com;
@@ -1097,7 +1097,7 @@
     </div>
 
     <!-- Scripts -->
-    <script src="lib/userbase.js"></script>
+    <script src="lib/userbase.js" integrity="sha384-KGH+/t6eJhfqHsVpwpMLIyZxYg5IlTbv7d2K0Ut+GCz40StPO7YwezYLgt4uPyFj" crossorigin="anonymous"></script>
     <script src="src/ui/components/qrcode.js"></script>
     <script src="src/utils/UserbaseConnectionFix.js"></script>
     <script src="src/utils/ThemeManager.js"></script>

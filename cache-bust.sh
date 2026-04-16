@@ -199,7 +199,7 @@ function update_cache_busting
     sed -i.tmp "s|<link rel=\"stylesheet\" href=\"mobile\.css\"[^>]*>|<link rel=\"stylesheet\" href=\"mobile.css?v=$mobile_css_version\">|g" index.html
 
     # Update JavaScript files with version parameters  
-    sed -i.tmp "s|<script src=\"lib/userbase\.js\"[^>]*></script>|<script src=\"lib/userbase.js?v=$userbase_version\"></script>|g" index.html
+    sed -i.tmp "s|<script src=\"lib/userbase\.js\"[^>]*></script>|<script src=\"lib/userbase.js?v=$userbase_version\" integrity=\"sha384-KGH+/t6eJhfqHsVpwpMLIyZxYg5IlTbv7d2K0Ut+GCz40StPO7YwezYLgt4uPyFj\" crossorigin=\"anonymous\"></script>|g" index.html
     sed -i.tmp "s|<script src=\"src/utils/UserbaseConnectionFix\.js\"[^>]*></script>|<script src=\"src/utils/UserbaseConnectionFix.js?v=$connection_fix_version\"></script>|g" index.html
     sed -i.tmp "s|<script type=\"module\" src=\"src/app\.js\"[^>]*></script>|<script type=\"module\" src=\"src/app.js?v=$app_version\"></script>|g" index.html
 

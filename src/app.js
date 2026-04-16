@@ -78,7 +78,7 @@ class ContactManagementApp {
      * Only active on localhost to avoid leaking internals in production.
      */
     exposeForTesting() {
-        const isLocalDev = ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+        const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
         if (!isLocalDev) return;
 
         // Make ContactManager available globally for console testing
@@ -564,6 +564,8 @@ function reloadUserbaseScript() {
         // Add new script
         const script = document.createElement('script');
         script.src = 'lib/userbase.js';
+        script.integrity = 'sha384-KGH+/t6eJhfqHsVpwpMLIyZxYg5IlTbv7d2K0Ut+GCz40StPO7YwezYLgt4uPyFj';
+        script.crossOrigin = 'anonymous';
         script.onload = () => {
             resolve();
         };
