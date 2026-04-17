@@ -294,7 +294,7 @@ export class ContactDatabase {
                 username,
                 password,
                 rememberMe: rememberMe ? 'local' : 'session',
-                sessionLength: 24 // Hours - SDK default
+                sessionLength: rememberMe ? 720 : 24 // Hours - 720h (30 days) for persistent, 24h for session
             };
             
             // Add optional parameters if provided
@@ -305,6 +305,16 @@ export class ContactDatabase {
 
 
             this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
+
+            // Persist session preference so hasStoredSession() / restoreSession() can read it
+            if (rememberMe) {
+                localStorage.setItem('userbase-remember-me', 'true');
+                sessionStorage.removeItem('userbase-session-only');
+            } else {
+                localStorage.removeItem('userbase-remember-me');
+                sessionStorage.setItem('userbase-session-only', 'true');
+            }
+
             await this.setupDatabases();
             
             this.eventBus.emit('database:authenticated', { user: this.currentUser });
@@ -331,11 +341,21 @@ export class ContactDatabase {
                 username,
                 password,
                 rememberMe: rememberMe ? 'local' : 'session',
-                sessionLength: 24 // Hours - SDK default
+                sessionLength: rememberMe ? 720 : 24 // Hours - 720h (30 days) for persistent, 24h for session
             });
             
             
             this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
+
+            // Persist session preference so hasStoredSession() / restoreSession() can read it
+            if (rememberMe) {
+                localStorage.setItem('userbase-remember-me', 'true');
+                sessionStorage.removeItem('userbase-session-only');
+            } else {
+                localStorage.removeItem('userbase-remember-me');
+                sessionStorage.setItem('userbase-session-only', 'true');
+            }
+
             await this.setupDatabases();
             
             this.eventBus.emit('database:authenticated', { user: this.currentUser });
@@ -3400,6 +3420,7 @@ export class ContactDatabase {
      * Clear session-specific data
      */
     clearSessionData() {
+        localStorage.removeItem('userbase-remember-me');
         sessionStorage.removeItem('userbase-session-only');
         sessionStorage.removeItem('userbase-page-loaded');
         this.currentUser = null;

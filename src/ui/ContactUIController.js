@@ -40,8 +40,9 @@ export class ContactUIController {
         this.selectedContacts = new Set();
 
         // SECURITY: Track failed sign-in attempts for client-side progressive delay
-        this._failedAuthAttempts = 0;
-        this._authLockedUntil = 0; // timestamp (ms) until which sign-in is blocked
+        // Restore from sessionStorage so lockout survives page refresh
+        this._failedAuthAttempts = parseInt(sessionStorage.getItem('_failedAuthAttempts') || '0', 10);
+        this._authLockedUntil = parseInt(sessionStorage.getItem('_authLockedUntil') || '0', 10);
         
         // Periodic shared contacts refresh (fallback for missed updates)
         this.sharedContactsRefreshInterval = null;
@@ -471,7 +472,6 @@ export class ContactUIController {
             authModal: document.getElementById('auth-modal'),
             authForm: document.getElementById('auth-form'),
             authToggle: document.getElementById('toggle-auth-mode'),
-            authError: document.getElementById('auth-error'),
             authSubmit: document.getElementById('auth-submit'),
             authError: document.getElementById('auth-error'),
             
@@ -1180,8 +1180,8 @@ export class ContactUIController {
         const formData = new FormData(event.target);
         const username = formData.get('username')?.trim();
         const password = formData.get('password');
-        const keepSignedIn = formData.get('keepSignedIn') === 'on'; // Checkbox value
         const isSignUp = event.target.dataset.mode === 'signup';
+        const keepSignedIn = isSignUp ? false : (formData.get('keepSignedIn') === 'on'); // Checkbox — sign-up never persists
 
         // SECURITY: Client-side lockout — check progressive delay
         const now = Date.now();
@@ -1220,6 +1220,8 @@ export class ContactUIController {
                 // Reset failed attempt counter on success
                 this._failedAuthAttempts = 0;
                 this._authLockedUntil = 0;
+                sessionStorage.removeItem('_failedAuthAttempts');
+                sessionStorage.removeItem('_authLockedUntil');
                 this.currentUser = result.user;
                 await this.contactManager.initialize();
                 this.hideAuthenticationModal();
@@ -1247,6 +1249,9 @@ export class ContactUIController {
             // Exponential backoff: 2^attempts seconds, capped at 5 minutes
             const delaySecs = Math.min(Math.pow(2, this._failedAuthAttempts - 1), 300);
             this._authLockedUntil = Date.now() + delaySecs * 1000;
+            // Persist so lockout survives a page refresh
+            sessionStorage.setItem('_failedAuthAttempts', this._failedAuthAttempts);
+            sessionStorage.setItem('_authLockedUntil', this._authLockedUntil);
         }
 
         // Map raw SDK errors to friendly messages
@@ -2927,20 +2932,22 @@ export class ContactUIController {
         
         if (this.currentProfileInfo && welcomeSection) {
             // Show profile-specific welcome message
+            // SECURITY: escape username before injecting into innerHTML to prevent XSS
+            const safeUsername = this.escapeHtml(this.currentProfileInfo.username);
             welcomeSection.innerHTML = `
                 <div class="profile-info">
                     <div class="profile-icon">
                         <i class="fas fa-user-circle"></i>
                     </div>
-                    <h3>Connect with ${this.currentProfileInfo.username}</h3>
-                    <p>You've been invited to connect with <strong>${this.currentProfileInfo.username}</strong> on Contact Manager.</p>
+                    <h3>Connect with ${safeUsername}</h3>
+                    <p>You've been invited to connect with <strong>${safeUsername}</strong> on Contact Manager.</p>
                     
                     <div class="profile-instructions">
                         <div class="info-box">
                             <i class="fas fa-info-circle"></i>
                             <div>
-                                <p><strong>New user?</strong> Sign up to share your contact information with ${this.currentProfileInfo.username} and manage your contacts securely.</p>
-                                <p><strong>Existing user?</strong> Sign in to access contacts shared by ${this.currentProfileInfo.username} or share your own contacts with ${this.currentProfileInfo.username}.</p>
+                                <p><strong>New user?</strong> Sign up to share your contact information with ${safeUsername} and manage your contacts securely.</p>
+                                <p><strong>Existing user?</strong> Sign in to access contacts shared by ${safeUsername} or share your own contacts with ${safeUsername}.</p>
                             </div>
                         </div>
                     </div>
