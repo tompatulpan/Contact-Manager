@@ -202,8 +202,8 @@ export class ICloudSyncService {
             // Phase 1: Pull changes from iCloud (import external edits)
             const pullResult = await this.pullFromICloud();
             
-            // Phase 1.5: Detect and handle deletions
-            const deletionResult = await this.handleDeletions();
+            // Phase 1.5: Detect and handle deletions (reuse contacts fetched in Phase 1)
+            const deletionResult = await this.handleDeletions(pullResult.iCloudContacts);
             
             // Phase 2: Push changes to iCloud (export local edits)
             const pushResult = await this.pushToICloud();
@@ -388,10 +388,10 @@ export class ICloudSyncService {
                                 const isSharedContact = !localContact.metadata.isOwned;
                                 
                                 if (isSharedContact) {
-                                    // Shared contacts are memory-only - just update local cache
-                                    console.log(`✅ Updated shared contact in memory: ${localContact.cardName}`);
-                                    updated++;
-                                    this.stats.contactsPulled++;
+                                    // Shared contacts are memory-only - just update local ETag cache.
+                                    // ETag changes are caused by our own periodic force-push, not real
+                                    // external edits, so we don't count these as pulled updates in stats.
+                                    console.debug(`🔄 Refreshed shared contact ETag: ${localContact.cardName} (${localETag} → ${iCloudETag})`);
                                 } else {
                                     // Owned/imported contacts - update in database
                                     const updateResult = await this.contactManager.database.updateContact(localContact);
@@ -420,7 +420,7 @@ export class ICloudSyncService {
             
             console.log(`✅ Pull complete: ${imported} imported, ${updated} updated, ${skipped} skipped`);
             
-            return { imported, updated, skipped };
+            return { imported, updated, skipped, iCloudContacts };
             
         } catch (error) {
             console.error('❌ Pull from iCloud failed:', error);
@@ -433,15 +433,17 @@ export class ICloudSyncService {
      * - If contact deleted on iCloud → delete locally (OWNED/IMPORTED only)
      * - If contact deleted locally → delete on iCloud (push deletion)
      */
-    async handleDeletions() {
+    async handleDeletions(iCloudContacts = null) {
         console.log('🗑️ Phase 1.5: Checking for deletions...');
         
         try {
             let localDeleted = 0;
             let remoteDeleted = 0;
             
-            // Get all contacts from iCloud
-            const iCloudContacts = await this.iCloudClient.fetchContacts();
+            // Reuse contacts already fetched in Phase 1 to avoid a duplicate REPORT request
+            if (!iCloudContacts) {
+                iCloudContacts = await this.iCloudClient.fetchContacts();
+            }
             const iCloudUIDs = new Set(iCloudContacts.map(c => c.uid));
             
             // Get all local contacts that should sync with iCloud
@@ -685,7 +687,7 @@ export class ICloudSyncService {
                     const shouldPush = this.shouldPushContact(contact);
                     
                     if (!shouldPush.push) {
-                        console.log(`⏭️ Skipping: ${contact.cardName} (${shouldPush.reason})`);
+                        console.debug(`⏭️ Skipping: ${contact.cardName} (${shouldPush.reason})`);
                         skipped++;
                         continue;
                     }

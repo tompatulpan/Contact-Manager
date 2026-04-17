@@ -324,6 +324,7 @@ export class BaikalUIController {
                                            id="baikal-password" 
                                            name="password" 
                                            placeholder="your-password" 
+                                           autocomplete="current-password"
                                            required>
                                     <small>After connecting, you'll be asked if you want to save your password securely.</small>
                                 </div>
