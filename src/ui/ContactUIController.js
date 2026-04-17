@@ -38,6 +38,10 @@ export class ContactUIController {
         // Bulk selection state
         this.bulkSelectMode = false;
         this.selectedContacts = new Set();
+
+        // SECURITY: Track failed sign-in attempts for client-side progressive delay
+        this._failedAuthAttempts = 0;
+        this._authLockedUntil = 0; // timestamp (ms) until which sign-in is blocked
         
         // Periodic shared contacts refresh (fallback for missed updates)
         this.sharedContactsRefreshInterval = null;
@@ -1178,13 +1182,26 @@ export class ContactUIController {
         const password = formData.get('password');
         const keepSignedIn = formData.get('keepSignedIn') === 'on'; // Checkbox value
         const isSignUp = event.target.dataset.mode === 'signup';
+
+        // SECURITY: Client-side lockout — check progressive delay
+        const now = Date.now();
+        if (!isSignUp && this._authLockedUntil > now) {
+            const secondsLeft = Math.ceil((this._authLockedUntil - now) / 1000);
+            this.showAuthError(`Too many failed attempts. Please wait ${secondsLeft} second${secondsLeft !== 1 ? 's' : ''} before trying again.`);
+            return;
+        }
         
         // SECURITY: Validate that this is a proper form submission
         if (!username || !password) {
             this.showAuthError('Please enter both username and password');
             return;
         }
-        
+
+        // SECURITY: Enforce minimum password length on sign-up
+        if (isSignUp && password.length < 8) {
+            this.showAuthError('Password must be at least 8 characters');
+            return;
+        }
         
         // Show loading state
         this.showAuthLoading(true);
@@ -1200,19 +1217,52 @@ export class ContactUIController {
             }
             
             if (result.success) {
+                // Reset failed attempt counter on success
+                this._failedAuthAttempts = 0;
+                this._authLockedUntil = 0;
                 this.currentUser = result.user;
                 await this.contactManager.initialize();
                 this.hideAuthenticationModal();
                 this.showMainApplication();
             } else {
-                this.showAuthError(result.error);
+                this._handleFailedAuth(isSignUp, result.error);
             }
             
         } catch (error) {
-            this.showAuthError(error.message);
+            this._handleFailedAuth(isSignUp, error.message);
         }
         
         this.showAuthLoading(false);
+    }
+
+    /**
+     * Handle a failed sign-in attempt: apply progressive delay and show a friendly message.
+     * @param {boolean} isSignUp - Whether this was a sign-up attempt
+     * @param {string} rawError - Raw error string from Userbase SDK
+     */
+    _handleFailedAuth(isSignUp, rawError) {
+        // Progressive delay only applies to sign-in (brute-force target)
+        if (!isSignUp) {
+            this._failedAuthAttempts++;
+            // Exponential backoff: 2^attempts seconds, capped at 5 minutes
+            const delaySecs = Math.min(Math.pow(2, this._failedAuthAttempts - 1), 300);
+            this._authLockedUntil = Date.now() + delaySecs * 1000;
+        }
+
+        // Map raw SDK errors to friendly messages
+        const error = (rawError || '').toLowerCase();
+        if (error.includes('toomanyrequest') || error.includes('too many request')) {
+            this.showAuthError('Too many sign-in attempts. Please wait a few minutes before trying again.');
+        } else if (error.includes('user not found') || error.includes('usernotfound')) {
+            // Intentionally vague — avoid confirming whether the username exists
+            this.showAuthError('Incorrect username or password.');
+        } else if (error.includes('invalid password') || error.includes('wrongpassword')) {
+            this.showAuthError('Incorrect username or password.');
+        } else if (error.includes('username already taken') || error.includes('useralreadyexists')) {
+            this.showAuthError('That username is already taken. Please choose another.');
+        } else {
+            this.showAuthError(rawError || 'Authentication failed. Please try again.');
+        }
     }
 
     /**
@@ -3088,6 +3138,22 @@ export class ContactUIController {
         return ContactUIHelpers.debounce(func, wait);
     }
 
+    /**
+     * Escape a string for safe insertion into HTML context.
+     * Prevents XSS when user-controlled values are rendered via innerHTML.
+     * @param {string} str - Raw string to escape
+     * @returns {string} HTML-safe string
+     */
+    escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#x27;');
+    }
+
     getCurrentSort() {
         return this.elements.sortSelect?.value || 'name';
     }
@@ -3996,7 +4062,8 @@ export class ContactUIController {
             
             if (result.success) {
                 // Show the verification message in a copyable format
-                const message = `Your verification message: <code style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-family: monospace; word-break: break-all;">${result.verificationMessage}</code><br><small>Share this with others so they can verify you before sharing contacts.</small>`;
+                const safeMsg = this.escapeHtml(result.verificationMessage);
+                const message = `Your verification message: <code style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-family: monospace; word-break: break-all;">${safeMsg}</code><br><small>Share this with others so they can verify you before sharing contacts.</small>`;
                 this.showVerificationStatus('success', message);
                 
                 // Also copy to clipboard if possible
@@ -4390,11 +4457,12 @@ export class ContactUIController {
     categorizeAndFormatSharingError(error, username) {
         const errorName = error.name || '';
         const errorMessage = error.message || '';
+        const safeUsername = this.escapeHtml(username);
         
         // Handle specific Userbase error types
         switch (errorName) {
             case 'UserNotFound':
-                return `❌ User "${username}" does not exist in the system. Please verify the username is correct and that the user has created an account.`;
+                return `❌ User &quot;${safeUsername}&quot; does not exist in the system. Please verify the username is correct and that the user has created an account.`;
             
             case 'UserNotSignedIn':
                 return `❌ You must be signed in to share contacts. Please sign in and try again.`;
@@ -4424,15 +4492,15 @@ export class ContactUIController {
         
         // Handle message-based error detection (for cases where error.name isn't set)
         if (errorMessage.toLowerCase().includes('user not found')) {
-            return `❌ User "${username}" does not exist. Please check the username spelling and ensure the user has an account.`;
+            return `❌ User &quot;${safeUsername}&quot; does not exist. Please check the username spelling and ensure the user has an account.`;
         }
         
         if (errorMessage.toLowerCase().includes('usernotverified') || errorMessage.toLowerCase().includes('unverified user')) {
-            return `❌ User "${username}" needs to verify their account before you can share contacts with them.`;
+            return `❌ User &quot;${safeUsername}&quot; needs to verify their account before you can share contacts with them.`;
         }
         
         if (errorMessage.toLowerCase().includes('sharing not allowed') || errorMessage.toLowerCase().includes('permission denied')) {
-            return `❌ You don't have permission to share this contact with "${username}".`;
+            return `❌ You don't have permission to share this contact with &quot;${safeUsername}&quot;.`;
         }
         
         if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('connection')) {
@@ -4445,10 +4513,10 @@ export class ContactUIController {
         
         // Generic error with more helpful context
         if (errorMessage) {
-            return `❌ Failed to share with "${username}": ${errorMessage}`;
+            return `❌ Failed to share with &quot;${safeUsername}&quot;: ${this.escapeHtml(errorMessage)}`;
         }
         
-        return `❌ Unable to share contact with "${username}". Please try again or contact support if the problem persists.`;
+        return `❌ Unable to share contact with &quot;${safeUsername}&quot;. Please try again or contact support if the problem persists.`;
     }
 
     /**
@@ -4584,7 +4652,7 @@ export class ContactUIController {
             
             // Return to form and show error
             this.setShareModalState('form');
-            this.showShareFormError('share-distribution-list', error.message || 'Failed to share distribution list');
+            this.showShareFormError('share-distribution-list', this.escapeHtml(error.message) || 'Failed to share distribution list');
         }
     }
 
@@ -4597,21 +4665,25 @@ export class ContactUIController {
      * @param {string} message - Error message to display
      */
     showShareFormError(fieldName, message) {
+        // All callers must pass HTML-safe strings (use escapeHtml / categorizeAndFormatSharingError).
+        // innerHTML is used here only so that pre-escaped HTML entities and emoji render correctly.
+        const applyClasses = (el) => {
+            el.className = 'field-error';
+            if (message.includes('does not exist') || message.includes('not found')) {
+                el.className += ' error-user-not-found';
+            } else if (message.includes('subscription') || message.includes('trial')) {
+                el.className += ' error-subscription';
+            } else if (message.includes('network') || message.includes('connection')) {
+                el.className += ' error-network';
+            }
+        };
+
         // First try the new error element pattern
         const errorElement = document.getElementById(`${fieldName}-error`);
         if (errorElement) {
-            errorElement.innerHTML = message; // Use innerHTML to support emoji
+            errorElement.innerHTML = message;
             errorElement.style.display = 'block';
-            
-            // Add error type class for styling
-            errorElement.className = 'field-error';
-            if (message.includes('does not exist') || message.includes('not found')) {
-                errorElement.className += ' error-user-not-found';
-            } else if (message.includes('subscription') || message.includes('trial')) {
-                errorElement.className += ' error-subscription';
-            } else if (message.includes('network') || message.includes('connection')) {
-                errorElement.className += ' error-network';
-            }
+            applyClasses(errorElement);
             return;
         }
         
@@ -4628,16 +4700,8 @@ export class ContactUIController {
             
             // Add new error message with enhanced styling
             const errorDiv = document.createElement('div');
-            errorDiv.className = 'field-error';
-            if (message.includes('does not exist') || message.includes('not found')) {
-                errorDiv.className += ' error-user-not-found';
-            } else if (message.includes('subscription') || message.includes('trial')) {
-                errorDiv.className += ' error-subscription';
-            } else if (message.includes('network') || message.includes('connection')) {
-                errorDiv.className += ' error-network';
-            }
-            
-            errorDiv.innerHTML = message; // Use innerHTML to support emoji and formatting
+            applyClasses(errorDiv);
+            errorDiv.innerHTML = message;
             field.parentNode.appendChild(errorDiv);
             
             // Auto-focus on the field for better UX
