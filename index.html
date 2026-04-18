@@ -13,7 +13,7 @@
     -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self' 'sha256-pViZlsa9HB7GGHIx9+LbokBzVrTq18EyzKxRn7DEUwI=';
+        script-src 'self' 'unsafe-inline';
         worker-src blob: 'self';
         style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
         font-src 'self' https://cdnjs.cloudflare.com;
@@ -1040,15 +1040,17 @@
 
                 <div class="form-section">
                     <h3>🔐 Credentials</h3>
+                    <form id="icloud-credentials-form" autocomplete="on">
                     <div class="form-group">
                         <label>iCloud Email:</label>
-                        <input type="email" id="icloud-email" placeholder="your@icloud.com" class="form-control">
+                        <input type="email" id="icloud-email" placeholder="your@icloud.com" class="form-control" autocomplete="username">
                     </div>
                     <div class="form-group">
                         <label>App-Specific Password:</label>
                         <input type="password" id="icloud-password" placeholder="xxxx-xxxx-xxxx-xxxx" class="form-control" autocomplete="current-password">
                         <small>Generate at: <a href="https://appleid.apple.com/account/manage" target="_blank">appleid.apple.com</a></small>
                     </div>
+                    </form>
                 </div>
 
                 <div class="form-section">

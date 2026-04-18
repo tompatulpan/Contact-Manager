@@ -21,19 +21,13 @@ export class ICloudTestController {
     }
 
     initializeUI() {
-        console.log('🍎 Initializing iCloud Test Controller...');
-        
         // Modal open button
         const testBtn = document.getElementById('icloud-test-btn');
         if (testBtn) {
-            console.log('✅ Found icloud-test-btn, adding click handler');
             testBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                console.log('🍎 iCloud Test button clicked!');
                 this.openModal();
             });
-        } else {
-            console.warn('⚠️ icloud-test-btn not found in DOM');
         }
 
         // Modal close button
@@ -57,8 +51,6 @@ export class ICloudTestController {
         if (this.iCloudSyncService) {
             this.setupSyncEventListeners();
         }
-        
-        console.log('✅ iCloud Test Controller initialized');
     }
 
     openModal() {

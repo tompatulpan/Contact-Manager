@@ -46,7 +46,6 @@ export class BaikalConnector {
         
         // Log which bridge we're using
         const bridgeInfo = this.bridgeAdapter.getBridgeInfo();
-        console.log(`🌉 BaikalConnector: Using ${bridgeInfo.type} bridge (${bridgeInfo.linesOfCode} lines)`);
     }
 
     /**

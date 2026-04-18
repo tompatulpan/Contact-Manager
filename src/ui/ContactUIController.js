@@ -1850,7 +1850,6 @@ export class ContactUIController {
                 // This prevents stale data from being displayed after sharing operations
                 const freshContact = this.contactManager.getContact(contactId);
                 if (freshContact) {
-                    console.log(`🔄 Refreshing contact detail for "${freshContact.cardName}" with ${freshContact.metadata?.sharing?.sharedWithUsers?.length || 0} shared users`);
                     this.displayContactDetail(freshContact);
                 } else {
                     // Fallback to event data if contact not found in cache
@@ -2430,22 +2429,8 @@ export class ContactUIController {
             return;
         }
         
-        // � DEBUG: Log contact ID to verify we're using fresh data
-        console.log(`🔍 displayContactDetail called for: ${contact.cardName} (ID: ${contact.contactId})`);
-        console.log(`   vCard preview: ${contact.vcard ? contact.vcard.substring(0, 100) : 'NO VCARD'}`);
-        
-        // �🔄 FORCE NO CACHE - Always re-parse vCard to show latest data from sync
+        // Always re-parse vCard to show latest data from sync
         const displayData = this.contactManager.vCardStandard.extractDisplayData(contact, false);
-        
-        // 🐛 DEBUG: Log extracted phone numbers
-        console.log(`   Extracted phones:`, displayData.phones.map(p => p.value));
-        
-        // 📧 DEBUG: Log extracted emails to diagnose email display issue
-        console.log(`   Extracted emails:`, displayData.emails);
-        console.log(`   Emails length:`, displayData.emails ? displayData.emails.length : 'undefined');
-        if (displayData.emails && displayData.emails.length > 0) {
-            console.log(`   Email values:`, displayData.emails.map(e => e.value || e));
-        }
         
         const contactType = ContactRenderer.getContactType(contact);
         
@@ -3243,7 +3228,6 @@ export class ContactUIController {
         }, this.config.sharedContactsRefreshInterval);
         
         const intervalMinutes = this.config.sharedContactsRefreshInterval / 60000;
-        console.log(`🔄 Periodic shared contacts refresh initialized (every ${intervalMinutes} minutes)`);
         
         // Also initialize periodic validation of outgoing shares (with offset from config)
         const validationInterval = this.config.sharingValidationInterval || this.config.sharedContactsRefreshInterval;
@@ -3260,7 +3244,6 @@ export class ContactUIController {
         
         const validationMinutes = validationInterval / 60000;
         const offsetMinutes = validationOffset / 60000;
-        console.log(`🔍 Periodic sharing validation initialized (every ${validationMinutes} minutes, ${offsetMinutes}min offset)`);
     }
 
     /**
@@ -3274,8 +3257,6 @@ export class ContactUIController {
         }
         
         try {
-            console.log('🔄 Periodic shared contacts refresh starting...');
-            
             // Get all contacts and filter for shared ones
             const allContacts = this.contactManager.getAllContacts();
             const sharedContacts = allContacts.filter(contact => 
@@ -3283,23 +3264,16 @@ export class ContactUIController {
             );
             
             if (sharedContacts.length === 0) {
-                console.log('ℹ️ No shared contacts to refresh');
                 return;
             }
             
-            console.log(`🔄 Checking ${sharedContacts.length} shared contacts for updates...`);
-            
             // Trigger a full contacts reload from database
-            // This will pick up any updates from Userbase real-time sync
             await this.contactManager.loadContacts();
-            
-            console.log(`✅ Shared contacts refresh complete (${sharedContacts.length} contacts checked)`);
             
             // If currently viewing a shared contact, refresh the detail view
             if (this.selectedContactId) {
                 const currentContact = this.contactManager.getContact(this.selectedContactId);
                 if (currentContact && currentContact.metadata && !currentContact.metadata.isOwned) {
-                    console.log('🔄 Refreshing currently viewed shared contact detail');
                     this.displayContactDetail(currentContact);
                 }
             }
@@ -3323,12 +3297,23 @@ export class ContactUIController {
         if (this.sharedContactsRefreshInterval) {
             clearInterval(this.sharedContactsRefreshInterval);
             this.sharedContactsRefreshInterval = null;
-            console.log('🛑 Periodic shared contacts refresh stopped');
         }
         if (this.sharingValidationInterval) {
             clearInterval(this.sharingValidationInterval);
             this.sharingValidationInterval = null;
-            console.log('🛑 Periodic sharing validation stopped');
+        }
+        // Clear all pending debounce timeouts so they don't fire during/after sign-out
+        if (this.pendingDetailRefresh) {
+            clearTimeout(this.pendingDetailRefresh);
+            this.pendingDetailRefresh = null;
+        }
+        if (this.updateTimeout) {
+            clearTimeout(this.updateTimeout);
+            this.updateTimeout = null;
+        }
+        if (this.pendingContactUpdates && this.pendingContactUpdates.size > 0) {
+            this.pendingContactUpdates.forEach(timeout => clearTimeout(timeout));
+            this.pendingContactUpdates.clear();
         }
     }
 

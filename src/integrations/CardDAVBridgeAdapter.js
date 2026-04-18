@@ -28,8 +28,6 @@ export class CardDAVBridgeAdapter {
         this.config = config;
         this.bridge = null;
         this.connectedProfiles = new Map(); // Store profile → {serverUrl, addressbookUrl} mappings
-        
-        console.log('🌉 CardDAV Bridge: Using LITE bridge');
     }
 
     /**

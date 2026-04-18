@@ -86,7 +86,6 @@ export class ContactManager {
      */
     setBaikalConnector(baikalConnector) {
         this.baikalConnector = baikalConnector;
-        console.log('🔗 BaikalConnector reference set in ContactManager');
     }
 
     /**
@@ -95,7 +94,6 @@ export class ContactManager {
      */
     setiCloudSyncService(iCloudSyncService) {
         this.iCloudSyncService = iCloudSyncService;
-        console.log('🍎 iCloudSyncService reference set in ContactManager');
     }
 
     /**
@@ -203,7 +201,7 @@ export class ContactManager {
                     });
                 });
             } else {
-                console.log('✅ Database already authenticated, proceeding with initialization...');
+                // Database already authenticated, proceed with initialization
             }
 
             // Load existing contacts and settings
@@ -3264,8 +3262,6 @@ export class ContactManager {
      */
     async loadAndMergeSharedContactMetadata() {
         try {
-            console.log('📊 Loading shared contact metadata from user database...');
-            
             const metadataMap = await this.database.getAllSharedContactMetadata();
             
             // Merge metadata with shared contacts in cache
