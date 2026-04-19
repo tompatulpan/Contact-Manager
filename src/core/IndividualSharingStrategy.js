@@ -133,7 +133,7 @@ export class IndividualSharingStrategy {
                 username: username.trim(),
                 readOnly: true,
                 resharingAllowed: false,
-                requireVerified: true  // Only share with email-verified users
+                requireVerified: false  // Allow sharing with unverified users
             }, 'shareContactIndividually');
 
             const duration = Date.now() - startTime;
