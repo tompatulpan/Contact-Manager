@@ -426,7 +426,8 @@ export class VCard3Processor {
         } else {
             // Unknown property - default to multi-value for safety
             // Suppress warnings for vendor extensions (X- prefix per RFC 2426)
-            if (!property.startsWith('X-')) {
+            // and Apple/iCloud vendor properties (VND- prefix)
+            if (!property.startsWith('X-') && !property.startsWith('VND-')) {
                 console.warn(`⚠️ Unknown vCard 3.0 property "${property}" - treating as multi-value`);
             }
             contact.properties.get(property).push(propertyValue);

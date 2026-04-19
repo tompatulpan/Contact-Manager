@@ -19,7 +19,7 @@ I started this project because I was frustrated with how messy and inaccurate my
 A secure, modular contact management system with:
 - End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)
 - Real-time sharing and sync
-- Using RFC9553 for storage
+- Using vCard 3.0 (RFC 2426) for storage and CardDAV sync
 - Distribution lists for group sharing
 - Cross-device support (web application)
 
@@ -28,10 +28,10 @@ A secure, modular contact management system with:
 - Create, edit, and organize contacts
 - Share contacts with users or groups (distribution lists)
 - Archive, delete, and manage received/shared contacts
-- Import/export contacts (vCard 3.0 ~~and 4.0~~)
+- Import/export contacts (vCard 3.0)
 - QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
-- **🆕 Baical CardDAV Integration** - Sync with any CardDAV server
+- **🆕 Baikal CardDAV Integration** - Sync with any CardDAV server
 
 ## Project Structure
 
@@ -55,7 +55,7 @@ npm install
 # Start development server with live reload
 npm run serve
 
-# 🆕 Baical CardDAV integration setup
+# 🆕 Baikal CardDAV integration setup
 cd ../contact-carddav-bridge && npm start  # Start bridge server (port 3001)
 npm run serve                               # Start contact manager (port 8080)
 ```
@@ -102,7 +102,7 @@ fish production_zip.sh && \
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
-- [x] **Baical CardDAV Integration** (sync with any CardDAV server)
+- [x] **Baikal CardDAV Integration** (sync with any CardDAV server)
 - [ ] Group list features (Rename, edit, copy, etc)
 - [ ] Create e-mail distrubution list
 - [x] Bulk operations (Delete)
@@ -189,16 +189,16 @@ fish production_zip.sh && \
 
 
 ```                
-### Sync Flow Details with Baical
+### Sync Flow Details with Baikal
 
-**Push (Contact Manager → Baïcal)**
+**Push (Contact Manager → Baikal)**
 - User updates contact in web app
 - Bridge uploads vCard via CardDAV PUT
-- Baïcal stores and serves to other devices
+- Baikal stores and serves to other devices
 
-**Pull (Baïcal → Contact Manager)**  
+**Pull (Baikal → Contact Manager)**  
 - Other devices update contact via CardDAV
-- Bridge polls Baïcal for changes (PROPFIND)
+- Bridge polls Baikal for changes (PROPFIND)
 - Contact Manager updates local storage
 
 ```
@@ -211,7 +211,7 @@ fish production_zip.sh && \
 │  │                   │        │  (Per-User)      │      │
 │  │ - My Contacts     │        │                  │      │
 │  │ - Shared Contacts │        │  User Config:    │      │
-│  └───────────────────┘        │  • Baïcal URL    │      │
+│  └───────────────────┘        │  • Baikal URL    │      │
 │                               │  • Username      │      │
 │                               │  • Password      │      │
 │                               │  • Sync Settings │      │
@@ -221,7 +221,7 @@ fish production_zip.sh && \
                                          │ CardDAV Protocol
                                          │ (Bidirectional Sync)
                               ┌──────────────────────┐
-                              │  Baïcal Server       │
+                              │  Baikal Server       │
                               │  (CardDAV Endpoint)  │
                               │                      │
                               │  /dav.php/           │
@@ -239,12 +239,12 @@ fish production_zip.sh && \
          │                       │
          └───────────────────────▼
          ┌─────────────────────────────────────┐
-         │         Baïcal Server               │
+         │         Baikal Server               │
          │    (CardDAV/CalDAV Server)          │
          │                                     │
          │  ┌─────────────────────────────┐    │
          │  │    Bridge Component         │    │
-         │  │  (Sync Userbase ↔ Baïcal)   │    │
+         │  │  (Sync Userbase ↔ Baikal)   │    │
          │  └─────────────────────────────┘    │
          └─────────────────────────────────────┘
 
@@ -258,7 +258,7 @@ fish production_zip.sh && \
               │ Bridge Component
               ▼
 ┌─────────────────────────────┐
-│       Baïcal Server         │ ← Standard CardDAV server
+│       Baikal Server         │ ← Standard CardDAV server
 │    (CardDAV endpoint)       │ ← Compatible with ALL devices
 └─────────────┬───────────────┘
               │ Standard CardDAV Protocol
@@ -273,9 +273,9 @@ fish production_zip.sh && \
 └─────────────────────────────┘
 ```
 ---
-## 🔗 Baical CardDAV Integration
+## 🔗 Baikal CardDAV Integration
 
-The contact manager now supports synchronization with any CardDAV server (Baical, Nextcloud, etc.). This enables:
+The contact manager now supports synchronization with any CardDAV server (Baikal, Nextcloud, etc.). This enables:
 
 - **Universal Device Sync**: Access contacts on iPhone, Android, Thunderbird, etc.
 - **Standard Protocol**: Uses industry-standard CardDAV for maximum compatibility
@@ -290,10 +290,10 @@ cd ../contact-carddav-bridge && npm start  # Port 3001
 # Start contact manager
 npm run serve  # Port 8080
 
-# Open http://localhost:8080, click "Baical" button
+# Open http://localhost:8080, click "Baikal" button
 ```
 
-See **[BAICAL_INTEGRATION.md](BAICAL_INTEGRATION.md)** for complete setup and configuration guide.
+See **[BAIKAL_INTEGRATION.md](BAIKAL_INTEGRATION.md)** for complete setup and configuration guide.
 
 ## Acknowledgements
 

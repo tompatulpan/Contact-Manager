@@ -80,11 +80,14 @@ set critical_files \
     "src/core/VCard3Processor.js" \
     "src/core/VCard4Processor.js" \
     "src/ui/ContactUIController.js" \
+    "src/ui/MultiFieldManager.js" \
+    "src/ui/BulkOperations.js" \
     "src/ui/ContactRenderer.js" \
     "src/ui/ContactUIHelpers.js" \
     "src/ui/MobileNavigation.js" \
     "src/ui/ImportExportIntegration.js" \
     "src/ui/components/qrcode.js" \
+    "src/integrations/SyncValidator.js" \
     "src/utils/EventBus.js" \
     "src/utils/UserbaseConnectionFix.js" \
     "src/utils/ProfileRouter.js" \

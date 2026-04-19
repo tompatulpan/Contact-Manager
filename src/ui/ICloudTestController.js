@@ -419,8 +419,8 @@ END:VCARD\r
                 return;
             }
 
-            // Initialize sync service if not already initialized
-            if (!this.iCloudSyncService.isInitialized) {
+            // Initialize sync service if not already connected
+            if (!this.iCloudSyncService.isConnected) {
                 this.log('🔄 Initializing sync service...', 'info');
                 await this.iCloudSyncService.initialize(credentials);
             }

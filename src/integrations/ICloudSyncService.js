@@ -197,8 +197,6 @@ export class ICloudSyncService {
         });
         
         try {
-            this.stats.totalSyncs++;
-            
             // Phase 1: Pull changes from iCloud (import external edits)
             const pullResult = await this.pullFromICloud();
             
@@ -514,11 +512,11 @@ export class ICloudSyncService {
 
             const existsOnICloud = contact.metadata?.carddav?.etag;
 
-            // Generate a clean vCard (no internal sharing CATEGORIES)
-            const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
-            const cleanVCard = this.contactManager.vCardStandard.generateVCard(displayData, {
-                skipInternalMetadata: true
-            });
+            // Use the vCard directly — avoid lossy extractDisplayData→generateVCard
+            // roundtrip that strips PHOTO, X-properties and regenerates N from FN.
+            // Only strip internal sharing metadata (CATEGORIES:SHARED:...).
+            let cleanVCard = contact.vcard;
+            cleanVCard = cleanVCard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '');
 
             let result;
             if (existsOnICloud) {
@@ -534,10 +532,10 @@ export class ICloudSyncService {
 
                 // Contact not on iCloud yet despite having an ETag — create it
                 if (!result.success && (result.status === 404 || result.error?.includes('404'))) {
-                    result = await this.iCloudClient.createContact(uid, cleanVCard);
+                    result = await this.iCloudClient.createContact(cleanVCard);
                 }
             } else {
-                result = await this.iCloudClient.createContact(uid, cleanVCard);
+                result = await this.iCloudClient.createContact(cleanVCard);
             }
 
             if (result.success) {
@@ -699,13 +697,9 @@ export class ICloudSyncService {
                         // Update existing contact
                         console.log(`🔄 Updating on iCloud: ${contact.cardName}`);
                         
-                        // Regenerate vCard WITHOUT internal metadata (CATEGORIES, etc.)
-                        // iCloud rejects vCards with custom CATEGORIES format
-                        const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
-                        
-                        let cleanVCard = this.contactManager.vCardStandard.generateVCard(displayData, {
-                            skipInternalMetadata: true  // Skip CATEGORIES with sharing info
-                        });
+                        // Use the vCard directly — strip only internal sharing metadata
+                        let cleanVCard = contact.vcard;
+                        cleanVCard = cleanVCard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '');
                         
                         const result = await this.iCloudClient.updateContact(
                             this.extractUIDFromVCard(contact.vcard),
@@ -784,7 +778,7 @@ export class ICloudSyncService {
                             console.log(`🔍 Searching for matching contact on iCloud...`);
                             
                             const currentUID = this.extractUIDFromVCard(contact.vcard);
-                            const contactName = displayData.fullName;
+                            const contactName = contact.cardName;
                             
                             // Search for matching contact by name/phone
                             const iCloudContacts = await this.iCloudClient.fetchContacts();
@@ -881,7 +875,7 @@ export class ICloudSyncService {
                             // We need to find and sync the iCloud UID instead of creating duplicate
                             
                             const currentUID = this.extractUIDFromVCard(contact.vcard);
-                            const contactName = displayData.fullName;
+                            const contactName = contact.cardName;
                             
                             // Search for matching contact on iCloud by name/phone/email
                             const iCloudContacts = await this.iCloudClient.fetchContacts();
@@ -1104,29 +1098,13 @@ export class ICloudSyncService {
                         // Create new contact on iCloud
                         console.log(`➕ Creating on iCloud: ${contact.cardName}`);
                         
-                        // Regenerate vCard WITHOUT internal metadata (CATEGORIES, etc.)
-                        // iCloud rejects vCards with custom CATEGORIES format
-                        const displayData = this.contactManager.vCardStandard.extractDisplayData(contact);
-                        
-                        // 🐛 DEBUG: Log displayData to diagnose email sync issue
-                        console.log(`📊 DisplayData for ${contact.cardName}:`, {
-                            fullName: displayData.fullName,
-                            emailCount: displayData.emails?.length || 0,
-                            emails: displayData.emails,
-                            phoneCount: displayData.phones?.length || 0,
-                            hasVCard: !!contact.vcard
-                        });
-                        
-                        const cleanVCard = this.contactManager.vCardStandard.generateVCard(displayData, {
-                            skipInternalMetadata: true  // Skip CATEGORIES with sharing info
-                        });
+                        // Use the vCard directly — strip only internal sharing metadata
+                        let cleanVCard = contact.vcard;
+                        cleanVCard = cleanVCard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '');
                         
                         // 🐛 DEBUG: Log generated vCard to see if emails are included
                         const hasEmailInVCard = cleanVCard.includes('EMAIL');
                         console.log(`📄 Generated vCard has EMAIL properties: ${hasEmailInVCard}`);
-                        if (!hasEmailInVCard && displayData.emails?.length > 0) {
-                            console.error(`❌ CRITICAL: displayData has ${displayData.emails.length} emails but vCard has none!`);
-                        }
                         
                         // Debug: Log vCard preview for troubleshooting
                         const vCardPreview = cleanVCard.substring(0, 500).replace(/\r\n/g, '\\r\\n');
@@ -1194,168 +1172,6 @@ export class ICloudSyncService {
             console.error('❌ Push to iCloud failed:', error);
             throw error;
         }
-    }
-
-    /**
-     * Force-push shared contact to iCloud (owner authority)
-     * Used to override any external edits and maintain Userbase ecosystem integrity
-     * 
-     * @param {Object} contact - Shared contact to force-push
-     * @returns {Promise<Object>} Push result
-     */
-    async forcePushSharedContact(contact) {
-        try {
-            const uid = this.extractUIDFromVCard(contact.vcard);
-            
-            // Prepare vCard for push (ensure EMAIL property for iCloud)
-            let cleanVCard = contact.vcard;
-            
-            // Check for EMAIL property (iCloud requirement)
-            const hasEmail = /^EMAIL[;:]/m.test(cleanVCard);
-            if (!hasEmail) {
-                console.warn(`⚠️ Shared contact "${contact.cardName}" has no EMAIL, adding placeholder`);
-                // Add placeholder email before END:VCARD
-                cleanVCard = cleanVCard.replace(/END:VCARD/, 'EMAIL:shared-contact@userbase.app\nEND:VCARD');
-            }
-            
-            // Force-push with etag: null to override any external changes
-            const existingEtag = contact.metadata?.carddav?.etag;
-            
-            if (existingEtag) {
-                // Contact exists on iCloud - update with force (null ETag bypasses conflict check)
-                console.log(`🔄 Force-updating shared contact (ignoring ETag): ${contact.cardName}`);
-                
-                const result = await this.iCloudClient.updateContact(uid, cleanVCard, null);
-                
-                if (result.success) {
-                    // Store new ETag in memory cache (shared contacts can't update Userbase metadata)
-                    if (!this.sharedContactSyncCache) {
-                        this.sharedContactSyncCache = new Map();
-                    }
-                    
-                    this.sharedContactSyncCache.set(contact.contactId, {
-                        etag: result.etag,
-                        href: result.href,
-                        uid: uid,
-                        lastSyncedAt: new Date().toISOString(),
-                        lastForcePush: new Date().toISOString(),
-                        syncStatus: 'force-pushed'
-                    });
-                    
-                    return { success: true, etag: result.etag, action: 'force-updated' };
-                } else {
-                    return { success: false, error: result.error };
-                }
-            } else {
-                // Contact doesn't exist on iCloud yet - create
-                console.log(`📤 Creating shared contact on iCloud: ${contact.cardName}`);
-                
-                const result = await this.iCloudClient.createContact(cleanVCard);
-                
-                if (result.success) {
-                    // Store ETag in memory cache
-                    if (!this.sharedContactSyncCache) {
-                        this.sharedContactSyncCache = new Map();
-                    }
-                    
-                    this.sharedContactSyncCache.set(contact.contactId, {
-                        etag: result.etag,
-                        href: result.href,
-                        uid: result.uid || uid,
-                        lastSyncedAt: new Date().toISOString(),
-                        lastForcePush: new Date().toISOString(),
-                        syncStatus: 'force-pushed'
-                    });
-                    
-                    return { success: true, etag: result.etag, action: 'created' };
-                } else {
-                    return { success: false, error: result.error };
-                }
-            }
-        } catch (error) {
-            console.error('❌ Force-push shared contact failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Refresh all shared contacts to iCloud (periodic maintenance)
-     * Ensures Userbase ecosystem integrity by overriding any external edits
-     * 
-     * @returns {Promise<Object>} Refresh result
-     */
-    async refreshSharedContactsToICloud() {
-        if (!this.isConnected) {
-            console.warn('⚠️ Cannot refresh: Not connected to iCloud');
-            return { success: false, refreshed: 0, error: 'Not connected' };
-        }
-        
-        console.log('🔄 Refreshing shared contacts to iCloud (owner authority maintenance)...');
-        
-        const startTime = Date.now();
-        
-        // Get all shared contacts (green 🟢)
-        const allContacts = Array.from(this.contactManager.contacts.values());
-        const sharedContacts = allContacts.filter(c => 
-            !c.metadata.isOwned && 
-            c.contactId?.startsWith('shared_') &&
-            !c.metadata.isDeleted &&
-            !c.metadata.isArchived
-        );
-        
-        if (sharedContacts.length === 0) {
-            console.log('✅ No shared contacts to refresh');
-            return { success: true, refreshed: 0 };
-        }
-        
-        console.log(`🟢 Found ${sharedContacts.length} shared contacts to refresh`);
-        
-        let refreshedCount = 0;
-        let errorCount = 0;
-        const errors = [];
-        
-        // Force-push each shared contact
-        for (const contact of sharedContacts) {
-            try {
-                const sharedBy = contact.metadata?.sharedBy || 'unknown';
-                console.log(`📤 Refreshing: ${contact.cardName} (shared by: ${sharedBy})`);
-                
-                const result = await this.forcePushSharedContact(contact);
-                
-                if (result.success) {
-                    refreshedCount++;
-                } else {
-                    errorCount++;
-                    errors.push({
-                        contact: contact.cardName,
-                        error: result.error
-                    });
-                }
-            } catch (error) {
-                errorCount++;
-                errors.push({
-                    contact: contact.cardName,
-                    error: error.message
-                });
-            }
-        }
-        
-        const duration = Date.now() - startTime;
-        
-        console.log(`✅ Shared contact refresh complete: ${refreshedCount}/${sharedContacts.length} in ${duration}ms`);
-        
-        if (errors.length > 0) {
-            console.error(`❌ ${errorCount} errors during refresh:`, errors);
-        }
-        
-        return {
-            success: refreshedCount > 0,
-            refreshed: refreshedCount,
-            total: sharedContacts.length,
-            errorCount,
-            errors: errors.length > 0 ? errors : undefined,
-            duration
-        };
     }
 
     /**
