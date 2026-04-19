@@ -98,6 +98,59 @@ index.html.backup
 # -----------------------------------------------------------------------------
 # Temporary and backup files
 *.old
+*.backup
+
+# Cloudflare Wrangler
+.wrangler/
+
+# Cache bust temporary files
+.cache-bust-*
+
+# Deployment and temporary directories
+_deploy_tmp/
+_temp/
+
+# Test files (keep test framework config, ignore test implementations)
+test-*.html
+test-*.js
+test-*.sh
+test-*.fish
+test-*.cjs
+test-*.vcf
+
+# Demo and diagnostic files
+demo-*.html
+diagnose-*.html
+diagnose-*.sh
+
+# Development scripts (you may want to keep some of these)
+*-dev.sh
+start-dev.sh
+restore-dev.sh
+dev-cache-bust.sh
+
+# Production and deployment scripts
+production_zip*.sh
+setup-cloudflare.sh
+emergency-stop-sync.sh
+force-refresh.sh
+nuclear-cache-clear.sh
+cache-bust.sh
+check-status.sh
+clean-*.sh
+cleanup-*.sh
+manual-cleanup-*.sh
+reduce-logging.sh
+remove-bind-calls.sh
+verify-*.sh
+open-*.sh
+
+# VCF test data files
+*.vcf
+
+# Personal notes and todo files (in parent directory)
+../*.txt
+../icons8-*.png
 *.bup
 *.backup
 *temp*
@@ -149,13 +202,9 @@ contact-carddav-bridge-lite/setup-*.js
 !package.json
 
 # -----------------------------------------------------------------------------
-# Shell Scripts (Allow specific ones)
+# Shell Scripts - All ignored (dev/build scripts are project-specific)
 # -----------------------------------------------------------------------------
 *.sh
-!cache-bust.sh
-!dev-cache-bust.sh
-!restore-dev.sh
-!production_zip.sh
 
 # -----------------------------------------------------------------------------
 # Allow Essential Files
