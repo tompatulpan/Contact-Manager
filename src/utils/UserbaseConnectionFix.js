@@ -193,18 +193,29 @@ If the problem persists, the Userbase service may be temporarily unavailable.`;
             text-align: center;
         `;
 
-        content.innerHTML = `
-            <h3 style="color: #dc3545; margin-bottom: 15px;">${title}</h3>
-            <p style="white-space: pre-line; margin-bottom: 20px;">${message}</p>
-            <button onclick="location.reload()" style="
-                background: #007bff;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-            ">Refresh Page</button>
+        const heading = document.createElement('h3');
+        heading.style.cssText = 'color: #dc3545; margin-bottom: 15px;';
+        heading.textContent = title;
+
+        const para = document.createElement('p');
+        para.style.cssText = 'white-space: pre-line; margin-bottom: 20px;';
+        para.textContent = message;
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Refresh Page';
+        btn.style.cssText = `
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
         `;
+        btn.addEventListener('click', () => location.reload());
+
+        content.appendChild(heading);
+        content.appendChild(para);
+        content.appendChild(btn);
 
         modal.appendChild(content);
         document.body.appendChild(modal);

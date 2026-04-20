@@ -5,6 +5,7 @@
 
 import { VCardImporter } from '../core/VCardImporter.js';
 import { VCardExporter } from '../core/VCardExporter.js';
+import { ContactUIHelpers } from './ContactUIHelpers.js';
 
 export class ImportExportIntegration {
     constructor(contactManager, eventBus) {
@@ -153,7 +154,7 @@ export class ImportExportIntegration {
             <div class="import-modal">
                 <div class="modal-header">
                     <h3>Importing ${fileCount} file${fileCount > 1 ? 's' : ''}</h3>
-                    <button class="close-btn" onclick="this.closest('.import-modal-overlay').remove()">×</button>
+                    <button class="close-btn" data-action="close-import-modal">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="import-progress-container">
@@ -173,6 +174,10 @@ export class ImportExportIntegration {
         `;
 
         document.body.appendChild(modal);
+
+        // Attach close handler (CSP-safe — no inline onclick)
+        modal.querySelector('[data-action="close-import-modal"]')?.addEventListener('click', () => modal.remove());
+
         return modal;
     }
 
@@ -293,7 +298,7 @@ export class ImportExportIntegration {
                 <div class="format-modal">
                     <div class="modal-header">
                         <h3>Select Export Format</h3>
-                        <button class="close-btn" onclick="this.closest('.format-modal-overlay').remove(); resolve(null);">×</button>
+                        <button class="close-btn" data-action="cancel-format">×</button>
                     </div>
                     <div class="modal-body">
                         <div class="format-options">
@@ -312,20 +317,23 @@ export class ImportExportIntegration {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" onclick="this.closest('.format-modal-overlay').remove(); resolve(null);">Cancel</button>
-                        <button class="btn btn-primary" onclick="
-                            const selected = document.querySelector('input[name=export-format]:checked');
-                            this.closest('.format-modal-overlay').remove();
-                            resolve(selected ? selected.value : null);
-                        ">Export</button>
+                        <button class="btn btn-secondary" data-action="cancel-format">Cancel</button>
+                        <button class="btn btn-primary" data-action="confirm-format">Export</button>
                     </div>
                 </div>
             `;
 
-            // Bind resolve function to modal for access from onclick handlers
-            modal.resolve = resolve;
-
             document.body.appendChild(modal);
+
+            // Attach handlers (CSP-safe — no inline onclick)
+            modal.querySelectorAll('[data-action="cancel-format"]').forEach(btn => {
+                btn.addEventListener('click', () => { modal.remove(); resolve(null); });
+            });
+            modal.querySelector('[data-action="confirm-format"]')?.addEventListener('click', () => {
+                const selected = document.querySelector('input[name=export-format]:checked');
+                modal.remove();
+                resolve(selected ? selected.value : null);
+            });
         });
     }
 
@@ -335,8 +343,8 @@ export class ImportExportIntegration {
         modal.innerHTML = `
             <div class="qr-modal">
                 <div class="modal-header">
-                    <h3>QR Code - ${contactName}</h3>
-                    <button class="close-btn" onclick="this.closest('.qr-modal-overlay').remove()">×</button>
+                    <h3>QR Code - ${ContactUIHelpers.escapeHtml(contactName)}</h3>
+                    <button class="close-btn" data-action="close-qr">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="qr-code-container" id="qr-code-container">
@@ -348,13 +356,21 @@ export class ImportExportIntegration {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="this.closest('.qr-modal-overlay').remove()">Close</button>
-                    <button class="btn btn-primary" onclick="this.downloadQRData('${contactName}')">Download vCard</button>
+                    <button class="btn btn-secondary" data-action="close-qr">Close</button>
+                    <button class="btn btn-primary" data-action="download-qr">Download vCard</button>
                 </div>
             </div>
         `;
 
         document.body.appendChild(modal);
+
+        // Attach handlers (CSP-safe — no inline onclick)
+        modal.querySelectorAll('[data-action="close-qr"]').forEach(btn => {
+            btn.addEventListener('click', () => modal.remove());
+        });
+        modal.querySelector('[data-action="download-qr"]')?.addEventListener('click', () => {
+            this.downloadQRData(contactName);
+        });
 
         // Generate QR code using external library (would need to be included)
         this.generateQRCodeImage(qrData, 'qr-code-container');

@@ -25,7 +25,7 @@ export class ContactRenderer {
                     </div>
                 </div>
                 <div class="contact-actions">
-                    <button class="btn-small" onclick="window.contactController?.viewContact('${ContactUIHelpers.escapeHtml(contact.itemId)}')">
+                    <button class="btn-small" data-action="view-contact" data-contact-id="${ContactUIHelpers.escapeHtml(contact.itemId)}">
                         View
                     </button>
                 </div>
@@ -192,17 +192,17 @@ export class ContactRenderer {
         return `
             <div class="contact-actions">
                 ${canEdit ? `
-                    <button class="btn btn-primary" onclick="window.contactController?.editContact('${contactId}')">
+                    <button class="btn btn-primary" data-action="edit-contact" data-contact-id="${contactId}">
                         Edit
                     </button>
                 ` : ''}
                 ${canShare ? `
-                    <button class="btn btn-secondary" onclick="window.contactController?.shareContact('${contactId}')">
+                    <button class="btn btn-secondary" data-action="share-contact" data-contact-id="${contactId}">
                         Share
                     </button>
                 ` : ''}
                 ${canDelete ? `
-                    <button class="btn btn-danger" onclick="window.contactController?.deleteContact('${contactId}')">
+                    <button class="btn btn-danger" data-action="delete-contact" data-contact-id="${contactId}">
                         Delete
                     </button>
                 ` : ''}
@@ -219,7 +219,7 @@ export class ContactRenderer {
                 <div class="empty-state-icon">📝</div>
                 <div class="empty-state-message">${ContactUIHelpers.escapeHtml(message)}</div>
                 ${actionText && actionHandler ? `
-                    <button class="btn btn-primary" onclick="${ContactUIHelpers.escapeHtml(actionHandler)}">
+                    <button class="btn btn-primary" data-action="${ContactUIHelpers.escapeHtml(actionHandler)}">
                         ${ContactUIHelpers.escapeHtml(actionText)}
                     </button>
                 ` : ''}
@@ -248,7 +248,7 @@ export class ContactRenderer {
                 <div class="error-icon">⚠️</div>
                 <div class="error-message">${ContactUIHelpers.escapeHtml(error)}</div>
                 ${retryHandler ? `
-                    <button class="btn btn-primary" onclick="${ContactUIHelpers.escapeHtml(retryHandler)}">
+                    <button class="btn btn-primary" data-action="${ContactUIHelpers.escapeHtml(retryHandler)}">
                         Retry
                     </button>
                 ` : ''}
@@ -261,7 +261,7 @@ export class ContactRenderer {
      */
     static renderSearchResults(contacts, query) {
         if (contacts.length === 0) {
-            return this.renderEmptyState(`No contacts found for "${query}"`, 'Clear Search', 'window.contactController?.clearSearch()');
+            return this.renderEmptyState(`No contacts found for "${query}"`, 'Clear Search', 'clear-search');
         }
         
         return `

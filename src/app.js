@@ -386,13 +386,14 @@ class ContactManagementApp {
                 <div class="error-state">
                     <h3>❌ Application failed to start</h3>
                     <p id="app-error-msg"></p>
-                    <button onclick="location.reload()" class="btn btn-primary">
+                    <button class="btn btn-primary" data-action="reload">
                         Reload Application
                     </button>
                 </div>
             `;
             const msgEl = loadingStatus.querySelector('#app-error-msg');
             if (msgEl) msgEl.textContent = error.message;
+            loadingStatus.querySelector('[data-action="reload"]')?.addEventListener('click', () => location.reload());
         }
     }
 
@@ -622,13 +623,14 @@ async function initializeApp() {
                 <div class="error-state">
                     <h3>❌ Failed to load application</h3>
                     <p id="app-init-error-msg"></p>
-                    <button onclick="location.reload()" class="btn btn-primary">
+                    <button class="btn btn-primary" data-action="reload">
                         Reload Page
                     </button>
                 </div>
             `;
             const msgEl = loadingStatus.querySelector('#app-init-error-msg');
             if (msgEl) msgEl.textContent = error.message;
+            loadingStatus.querySelector('[data-action="reload"]')?.addEventListener('click', () => location.reload());
         }
     }
 }

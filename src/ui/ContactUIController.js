@@ -889,6 +889,34 @@ export class ContactUIController {
         
         // Distribution list management (event delegation)
         document.addEventListener('click', this.handleDistributionListActions.bind(this));
+
+        // Contact action event delegation (CSP-safe — replaces inline onclick handlers)
+        document.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const contactId = btn.dataset.contactId;
+            switch (action) {
+                case 'view-contact':
+                    this.viewContact(contactId);
+                    break;
+                case 'edit-contact':
+                    this.editContact(contactId);
+                    break;
+                case 'share-contact':
+                    this.shareContact(contactId);
+                    break;
+                case 'delete-contact':
+                    this.deleteContact(contactId);
+                    break;
+                case 'clear-search':
+                    this.clearSearch();
+                    break;
+                case 'reload':
+                    location.reload();
+                    break;
+            }
+        });
         
         // Username management modal
         if (this.elements.addUsernameBtn) {

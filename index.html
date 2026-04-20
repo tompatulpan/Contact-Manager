@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Content Security Policy
          connect-src: Userbase API + Cloudflare Worker proxy + self
-         script-src:  Only same-origin modules (no inline scripts, no eval)
+         script-src:  Only same-origin modules (no inline scripts, no eval, no unsafe-inline)
          style-src:   Same-origin + font-awesome CDN (inline styles needed by some components)
          font-src:    font-awesome CDN
          img-src:     Same-origin + data URIs (contact avatars)
          object-src:  Disallow plugins (Flash etc.)
     -->
-    <meta http-equi"Content-Security-Policy" content="
+    <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self' 'unsafe-inline';
+        script-src 'self';
         worker-src blob: 'self';
         style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
         font-src 'self' https://cdnjs.cloudflare.com;

@@ -125,13 +125,13 @@ export class SyncValidator {
                     </ol>
                 </div>
                 <div style="text-align: center;">
-                    <button onclick="this.closest('.server-empty-warning').remove(); document.querySelector('.modal-overlay-server-warning')?.remove();" style="
+                    <button data-action="dismiss-server-warning" style="
                         background: #007bff; color: white; border: none; padding: 12px 30px;
                         border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;
                     ">I Understand</button>
                 </div>
             </div>
-            <div class="modal-overlay-server-warning" onclick="this.remove(); document.querySelector('.server-empty-warning')?.remove();" style="
+            <div class="modal-overlay-server-warning" data-action="dismiss-server-warning" style="
                 position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                 background: rgba(0,0,0,0.5); z-index: 9999;
             "></div>
@@ -139,6 +139,14 @@ export class SyncValidator {
 
         document.querySelectorAll('.server-empty-warning, .modal-overlay-server-warning').forEach(el => el.remove());
         document.body.insertAdjacentHTML('beforeend', warningHTML);
+
+        // Attach dismiss handlers (CSP-safe — no inline onclick)
+        document.querySelectorAll('[data-action="dismiss-server-warning"]').forEach(el => {
+            el.addEventListener('click', () => {
+                document.querySelectorAll('.server-empty-warning, .modal-overlay-server-warning').forEach(e => e.remove());
+            });
+        });
+
         console.log('🚨 Server empty warning displayed to user');
     }
 
