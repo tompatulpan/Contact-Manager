@@ -40,8 +40,15 @@ export class ICloudCardDAVClient {
 
     /**
      * Fetch wrapper for all proxied requests.
+     * Adds X-Worker-Token header for authentication with Cloudflare Worker.
      */
     async proxyFetch(url, options = {}) {
+        // Add worker authentication token to all proxy requests
+        const workerToken = this.config?.cardDAV?.workerToken || APP_CONFIG?.cardDAV?.workerToken;
+        if (workerToken && url.includes('carddav-proxy')) {
+            options.headers = options.headers || {};
+            options.headers['X-Worker-Token'] = workerToken;
+        }
         return fetch(url, options);
     }
 

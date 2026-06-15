@@ -1026,7 +1026,7 @@ END:VCARD`;
             <div class="sync-details">
                 ${status.connections.map(conn => `
                     <div class="sync-item">
-                        <h5>${conn.profileName}</h5>
+                        <h5>${escapeHtml(conn.profileName)}</h5>
                         <p>Status: ${conn.connected ? '🟢 Connected' : '🔴 Disconnected'}</p>
                         <p>Last Sync: ${conn.lastSync ? new Date(conn.lastSync).toLocaleString() : 'Never'}</p>
                     </div>

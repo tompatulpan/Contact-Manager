@@ -510,8 +510,11 @@ class ContactManagementApp {
         this.config.enableDebugMode = true;
         // Debug mode enabled
         
-        // Add debug information to window for console access
-        window.contactApp = this;
+        // Only expose debug helpers in local development
+        const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (isLocalDev) {
+            window.contactApp = this;
+        }
         
         // Enable verbose logging
         this.eventBus.on('*', (eventName, data) => {
@@ -607,8 +610,11 @@ async function initializeApp() {
         
         const app = new ContactManagementApp();
         
-        // Make app globally accessible for debugging
-        window.contactApp = app;
+        // Make app globally accessible for debugging (local dev only)
+        const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (isLocalDev) {
+            window.contactApp = app;
+        }
         
         // Start the application
         await app.initialize();

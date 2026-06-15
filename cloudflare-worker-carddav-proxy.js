@@ -3,11 +3,14 @@
 
 // Allowed origins that may use this proxy (add your production domain here)
 const ALLOWED_ORIGINS = [
+  'https://e2econtacts.org',
+  'https://www.e2econtacts.org',
   'http://localhost',
   'http://localhost:3000',
+  'http://localhost:8080',
   'http://127.0.0.1',
   'http://127.0.0.1:3000',
-  // Add production domain, e.g.: 'https://yourapp.example.com'
+  'http://127.0.0.1:8080',
 ]
 
 // Allowed iCloud CardDAV hostnames (exact hostname match only — prevents SSRF)
@@ -37,14 +40,19 @@ async function handleRequest(request) {
   }
 
   // Validate worker auth token (set WORKER_TOKEN in Cloudflare env vars)
+  // Token is REQUIRED — if not configured, all proxied requests are rejected
   const workerToken = request.headers.get('X-Worker-Token')
-  if (typeof WORKER_TOKEN !== 'undefined' && WORKER_TOKEN) {
-    if (workerToken !== WORKER_TOKEN) {
-      return new Response('Forbidden', {
-        status: 403,
-        headers: getCORSHeaders(origin)
-      })
-    }
+  if (typeof WORKER_TOKEN === 'undefined' || !WORKER_TOKEN) {
+    return new Response('Server misconfigured: WORKER_TOKEN not set', {
+      status: 500,
+      headers: getCORSHeaders(origin)
+    })
+  }
+  if (workerToken !== WORKER_TOKEN) {
+    return new Response('Forbidden', {
+      status: 403,
+      headers: getCORSHeaders(origin)
+    })
   }
 
   // Get target URL from query parameter
@@ -121,7 +129,12 @@ async function handleRequest(request) {
 
 function isAllowedOrigin(origin) {
   if (!origin) return false
-  return ALLOWED_ORIGINS.some(allowed => origin === allowed || origin.startsWith(allowed + '/'))
+  // ALLOWED_ORIGINS may be a comma-separated string (from wrangler.toml env var)
+  // or an array (from hardcoded default). Normalize to array.
+  const origins = typeof ALLOWED_ORIGINS === 'string'
+    ? ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : ALLOWED_ORIGINS
+  return origins.some(allowed => origin === allowed || origin.startsWith(allowed + '/'))
 }
 
 function getCORSHeaders(origin) {

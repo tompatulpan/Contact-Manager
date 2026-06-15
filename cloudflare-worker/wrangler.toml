@@ -12,7 +12,7 @@ compatibility_date = "2024-11-22"
 
 # Default configuration (for testing)
 [vars]
-ALLOWED_ORIGINS = "http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080"
+ALLOWED_ORIGINS = "https://e2econtacts.org,https://www.e2econtacts.org,http://localhost:8080,http://localhost:3000,http://localhost,http://127.0.0.1:8080,http://127.0.0.1:3000,http://127.0.0.1"
 ALLOWED_CARDDAV_SERVERS = "contacts.icloud.com,caldav.icloud.com,p01-contacts.icloud.com,p02-contacts.icloud.com,p03-contacts.icloud.com,p04-contacts.icloud.com,p05-contacts.icloud.com,p06-contacts.icloud.com,p07-contacts.icloud.com,p08-contacts.icloud.com,127.0.0.1,localhost"
 
 # Routes (configure in Cloudflare dashboard)

@@ -1,253 +1,149 @@
-/**
- * CardDAV CORS Proxy - Cloudflare Worker
- * 
- * Forwards CardDAV requests to iCloud, Radicale, Baikal, etc.
- * Handles CORS headers to allow browser-based CardDAV clients
- * 
- * Deploy: wrangler deploy
- * Route: your-domain.com/api/carddav/* → this worker
- */
+// Cloudflare Worker for CardDAV CORS Proxy
+// Deploy this at: https://carddav-proxy.data4-9de.workers.dev
 
-export default {
-    async fetch(request, env, ctx) {
-        // Handle CORS preflight requests
-        if (request.method === 'OPTIONS') {
-            return this.handleCORS(request, env);
-        }
+// Allowed origins that may use this proxy (add your production domain here)
+const ALLOWED_ORIGINS = [
+  'https://e2econtacts.org',
+  'https://www.e2econtacts.org',
+  'http://localhost',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:8080',
+]
 
-        try {
-            // Validate origin
-            const origin = request.headers.get('Origin');
-            if (!this.isAllowedOrigin(origin, env)) {
-                return new Response('Forbidden', { 
-                    status: 403,
-                    headers: { 'Content-Type': 'text/plain' }
-                });
-            }
+// Allowed iCloud CardDAV hostnames (exact hostname match only — prevents SSRF)
+const ALLOWED_ICLOUD_HOSTNAMES = [
+  'contacts.icloud.com',
+  'caldav.icloud.com',
+]
 
-            // Extract target CardDAV server URL from request
-            const url = new URL(request.url);
-            const targetUrl = url.searchParams.get('target');
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request))
+})
 
-            if (!targetUrl) {
-                return new Response('Bad Request: Missing target URL parameter', { 
-                    status: 400,
-                    headers: this.getCORSHeaders(origin)
-                });
-            }
+async function handleRequest(request) {
+  const origin = request.headers.get('Origin')
 
-            // Validate target is an allowed CardDAV server
-            const isAllowedServer = this.isAllowedCardDAVServer(targetUrl, env);
-            console.log(`🔍 Server validation - Target: ${targetUrl}, Allowed: ${isAllowedServer}`);
-            
-            if (!isAllowedServer) {
-                console.error(`❌ Server not allowed: ${targetUrl}`);
-                return new Response('Forbidden: Target server not allowed', { 
-                    status: 403,
-                    headers: this.getCORSHeaders(origin)
-                });
-            }
+  // Reject requests from unknown origins (CORS enforcement)
+  if (!isAllowedOrigin(origin)) {
+    return new Response('Forbidden', { status: 403 })
+  }
 
-            console.log(`🔄 Proxying ${request.method} request to: ${targetUrl}`);
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: getCORSHeaders(origin)
+    })
+  }
 
-            // 🍎 iCloud workaround: Convert HEAD to GET (iCloud doesn't support HEAD)
-            // We'll fetch with GET but only return headers to the client
-            const isHeadRequest = request.method.toUpperCase() === 'HEAD';
-            const actualMethod = isHeadRequest ? 'GET' : request.method;
-            
-            if (isHeadRequest) {
-                console.log(`🔄 Converting HEAD → GET for iCloud compatibility`);
-            }
+  // Validate worker auth token (set WORKER_TOKEN in Cloudflare env vars)
+  // Token is REQUIRED — if not configured, all proxied requests are rejected
+  const workerToken = request.headers.get('X-Worker-Token')
+  if (typeof WORKER_TOKEN === 'undefined' || !WORKER_TOKEN) {
+    return new Response('Server misconfigured: WORKER_TOKEN not set', {
+      status: 500,
+      headers: getCORSHeaders(origin)
+    })
+  }
+  if (workerToken !== WORKER_TOKEN) {
+    return new Response('Forbidden', {
+      status: 403,
+      headers: getCORSHeaders(origin)
+    })
+  }
 
-            // Forward request to CardDAV server
-            // For HEAD→GET conversion, don't include body (GET doesn't have body)
-            const cardDAVResponse = await fetch(targetUrl, {
-                method: actualMethod,
-                headers: this.forwardHeaders(request.headers),
-                body: (this.shouldIncludeBody(actualMethod) && !isHeadRequest)
-                    ? await request.text() 
-                    : null
-            });
+  // Get target URL from query parameter
+  const url = new URL(request.url)
+  const targetUrl = url.searchParams.get('target')
 
-            console.log(`✅ CardDAV server responded: ${cardDAVResponse.status} ${cardDAVResponse.statusText}`);
-            
-            // Read response body and headers for logging (non-OK responses)
-            if (!cardDAVResponse.ok) {
-                const responseBodyClone = cardDAVResponse.clone();
-                const responseText = await responseBodyClone.text();
-                console.error(`📋 iCloud error response (${cardDAVResponse.status}):`, responseText.substring(0, 500));
-                
-                // Log all response headers from iCloud
-                console.error(`📋 iCloud response headers:`);
-                cardDAVResponse.headers.forEach((value, key) => {
-                    console.error(`   ${key}: ${value}`);
-                });
-            }
+  if (!targetUrl) {
+    return new Response('Missing target parameter', {
+      status: 400,
+      headers: getCORSHeaders(origin)
+    })
+  }
 
-            // Create response with CORS headers
-            const responseHeaders = this.addCORSHeaders(
-                cardDAVResponse.headers, 
-                origin
-            );
+  // Validate target hostname is an allowed iCloud host (prevents SSRF)
+  let parsedTarget
+  try {
+    parsedTarget = new URL(targetUrl)
+  } catch {
+    return new Response('Invalid target URL', {
+      status: 400,
+      headers: getCORSHeaders(origin)
+    })
+  }
 
-            // For HEAD requests, return only headers (no body)
-            return new Response(
-                isHeadRequest ? null : cardDAVResponse.body, 
-                {
-                    status: cardDAVResponse.status,
-                    statusText: cardDAVResponse.statusText,
-                    headers: responseHeaders
-                }
-            );
+  if (parsedTarget.protocol !== 'https:' || !ALLOWED_ICLOUD_HOSTNAMES.includes(parsedTarget.hostname)) {
+    return new Response('Invalid target URL', {
+      status: 403,
+      headers: getCORSHeaders(origin)
+    })
+  }
 
-        } catch (error) {
-            console.error(`❌ Proxy error:`, error.message);
-            
-            return new Response('Proxy error', { 
-                status: 500,
-                headers: {
-                    'Content-Type': 'text/plain',
-                    'Access-Control-Allow-Origin': request.headers.get('Origin') || ''
-                }
-            });
-        }
-    },
+  // Strip newlines from forwarded credential header to prevent header injection
+  const rawAuth = request.headers.get('Authorization') || ''
+  const safeAuth = rawAuth.replace(/[\r\n]/g, '')
 
-    /**
-     * Handle CORS preflight (OPTIONS) requests
-     */
-    handleCORS(request, env) {
-        const origin = request.headers.get('Origin');
-        if (!this.isAllowedOrigin(origin, env)) {
-            return new Response('Forbidden', { status: 403 });
-        }
-        return new Response(null, {
-            status: 204,
-            headers: {
-                'Access-Control-Allow-Origin': origin,
-                'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer',
-                'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV, Location',
-                'Access-Control-Max-Age': '86400',
-                'Access-Control-Allow-Credentials': 'true'
-            }
-        });
-    },
+  try {
+    // Forward request to target
+    const targetRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: {
+        'Authorization': safeAuth,
+        'Content-Type': request.headers.get('Content-Type') || 'application/xml; charset=utf-8',
+        'Depth': request.headers.get('Depth') || '0',
+        'User-Agent': 'CardDAV-Client/1.0',
+        'Accept': '*/*'
+      },
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : undefined
+    })
 
-    /**
-     * Check if origin is allowed (exact match only)
-     */
-    isAllowedOrigin(origin, env) {
-        if (!origin) return false;
+    const response = await fetch(targetRequest)
 
-        // Get allowed origins from environment variable or use hardcoded defaults
-        const allowedOrigins = env?.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [
-            'https://e2econtacts.org',
-            'https://www.e2econtacts.org',
-            'https://contact-manager.pages.dev',
-            'http://localhost',
-            'http://localhost:8080',
-            'http://localhost:3000',
-            'http://127.0.0.1',
-            'http://127.0.0.1:8080',
-            'http://127.0.0.1:3000',
-        ];
+    // Return response with CORS headers
+    const responseHeaders = new Headers(response.headers)
+    const corsHeaders = getCORSHeaders(origin)
 
-        return allowedOrigins.includes(origin);
-    },
-
-    /**
-     * Check if CardDAV server is allowed
-     */
-    isAllowedCardDAVServer(targetUrl, env) {
-        // Get allowed servers from environment variable or use defaults
-        const allowedServers = env?.ALLOWED_CARDDAV_SERVERS?.split(',') || [
-            'icloud.com',        // Allows all *.icloud.com subdomains
-            '127.0.0.1',         // Local Radicale
-            'localhost',         // Local Radicale
-            'radicale',          // Docker Radicale
-            'baikal'             // Docker Baikal
-        ];
-
-        try {
-            const url = new URL(targetUrl);
-            const hostname = url.hostname;
-
-            return allowedServers.some(allowed => {
-                // Exact match
-                if (hostname === allowed) return true;
-                
-                // Subdomain match (e.g., p68-contacts.icloud.com matches icloud.com)
-                if (hostname.endsWith(`.${allowed}`)) return true;
-                
-                return false;
-            });
-        } catch {
-            return false;
-        }
-    },
-
-    /**
-     * Forward essential headers to CardDAV server
-     */
-    forwardHeaders(requestHeaders) {
-        const headers = new Headers();
-
-        // Headers to forward (case-insensitive)
-        const headersToForward = [
-            'authorization',
-            'content-type',
-            'content-length',
-            'depth',
-            'if-match',
-            'if-none-match',
-            'prefer',
-            'user-agent'
-        ];
-
-        for (const header of headersToForward) {
-            const value = requestHeaders.get(header);
-            if (value) {
-                headers.set(header, value);
-            }
-        }
-
-        return headers;
-    },
-
-    /**
-     * Add CORS headers to response
-     */
-    addCORSHeaders(responseHeaders, origin) {
-        const headers = new Headers(responseHeaders);
-
-        headers.set('Access-Control-Allow-Origin', origin || '');
-        headers.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT');
-        headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer');
-        headers.set('Access-Control-Expose-Headers', 'ETag, Content-Type, DAV, Location');
-        headers.set('Access-Control-Allow-Credentials', 'true');
-
-        return headers;
-    },
-
-    /**
-     * Get basic CORS headers
-     */
-    getCORSHeaders(origin) {
-        return {
-            'Access-Control-Allow-Origin': origin || '',
-            'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match',
-            'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV',
-            'Content-Type': 'text/plain'
-        };
-    },
-
-    /**
-     * Check if HTTP method should include body
-     */
-    shouldIncludeBody(method) {
-        const methodsWithBody = ['POST', 'PUT', 'PATCH', 'PROPFIND', 'REPORT', 'PROPPATCH'];
-        return methodsWithBody.includes(method.toUpperCase());
+    for (const [key, value] of Object.entries(corsHeaders)) {
+      responseHeaders.set(key, value)
     }
-};
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders
+    })
+  } catch (error) {
+    // Log internally; return a generic message to avoid leaking server details
+    console.error('Proxy error:', error.message)
+    return new Response('Proxy request failed', {
+      status: 500,
+      headers: getCORSHeaders(origin)
+    })
+  }
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false
+  // ALLOWED_ORIGINS may be a comma-separated string (from wrangler.toml env var)
+  // or an array (from hardcoded default). Normalize to array.
+  const origins = typeof ALLOWED_ORIGINS === 'string'
+    ? ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : ALLOWED_ORIGINS
+  return origins.some(allowed => origin === allowed || origin.startsWith(allowed + '/'))
+}
+
+function getCORSHeaders(origin) {
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer, X-Worker-Token',
+    'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV, Location',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Max-Age': '86400'
+  }
+}

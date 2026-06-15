@@ -19,8 +19,10 @@ export const APP_CONFIG = {
     // CardDAV CORS Proxy Configuration (deployed November 23, 2025)
     cardDAV: {
         proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
-        // Authentication is handled by the Worker's origin allowlist (ALLOWED_ORIGINS env var).
-        // No client-side shared secret is used — it would be visible in the JS bundle.
+        // Worker authentication token (required for all proxy requests)
+        // Note: This is visible in the JS bundle, but provides protection against
+        // random bots/scanners. Real security comes from HTTPS + origin allowlist + user credentials.
+        workerToken: 'vMUxSJ61CcyyyJLmWtgo13Kbf/d7yFm/Ot7bm1zAAH4=',
         useProxy: true,
         fallbackToLocal: true, // Bypass proxy for localhost/127.0.0.1 servers
         // Automatically detect local servers and connect directly

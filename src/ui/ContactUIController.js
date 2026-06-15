@@ -4131,7 +4131,7 @@ export class ContactUIController {
                 break;
         }
         
-        verificationStatus.innerHTML = `${icon} <span>${message}</span>`;
+        verificationStatus.innerHTML = `${icon} <span>${this.escapeHtml(message)}</span>`;
     }
 
     /**
@@ -4705,7 +4705,7 @@ export class ContactUIController {
         // First try the new error element pattern
         const errorElement = document.getElementById(`${fieldName}-error`);
         if (errorElement) {
-            errorElement.innerHTML = message;
+            errorElement.textContent = message;
             errorElement.style.display = 'block';
             applyClasses(errorElement);
             return;
@@ -4725,7 +4725,7 @@ export class ContactUIController {
             // Add new error message with enhanced styling
             const errorDiv = document.createElement('div');
             applyClasses(errorDiv);
-            errorDiv.innerHTML = message;
+            errorDiv.textContent = message;
             field.parentNode.appendChild(errorDiv);
             
             // Auto-focus on the field for better UX
