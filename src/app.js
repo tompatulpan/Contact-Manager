@@ -100,6 +100,15 @@ class ContactManagementApp {
      * Initialize core business logic modules
      */
     async initializeCoreModules() {
+        // Security: eagerly remove any legacy plaintext CardDAV passwords left by older app
+        // versions. getStoredPassword() was the lazy migration path, but XSS could read
+        // localStorage before that method is ever called. Wipe them unconditionally at startup.
+        try {
+            Object.keys(localStorage)
+                .filter(k => k.startsWith('baikal_password_'))
+                .forEach(k => localStorage.removeItem(k));
+        } catch (e) { /* localStorage unavailable (private browsing) — nothing to clean */ }
+
         // Initialize VCard standard handler
         this.modules.vCardStandard = new VCardStandard();
         

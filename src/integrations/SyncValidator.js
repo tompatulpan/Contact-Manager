@@ -4,6 +4,17 @@
  */
 import { PERFORMANCE_CONFIG } from '../config/app.config.js';
 
+// Security: escape untrusted server-supplied strings before inserting into innerHTML
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
 export class SyncValidator {
     constructor(connector) {
         this.connector = connector;
@@ -120,7 +131,7 @@ export class SyncValidator {
                     <h3 style="font-size: 16px; margin-bottom: 10px; color: #333;">💡 Recommended Actions:</h3>
                     <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
                         <li>Check if CardDAV server is running</li>
-                        <li>Verify addressbook path: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">${profile?.addressbookUrl || 'N/A'}</code></li>
+                        <li>Verify addressbook path: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">${escapeHtml(profile?.addressbookUrl) || 'N/A'}</code></li>
                         <li>Click <strong>"Manual Push"</strong> to restore ${localCount} contacts to server</li>
                     </ol>
                 </div>
