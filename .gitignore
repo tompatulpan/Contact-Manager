@@ -1,217 +1,57 @@
 # =============================================================================
-# Contact Management System - .gitignore
+# Contact Management System - .gitignore (whitelist approach)
+# Everything is ignored by default; only the files listed below are tracked.
+# Local-only areas: scripts/, docs/, tests/manual/, examples/, tools/, .github/
 # =============================================================================
 
-# -----------------------------------------------------------------------------
-# Security & Sensitive Data
-# -----------------------------------------------------------------------------
-*.key
-*.age
-*.env
-*.env.test
-.temp_age/
-.temp_key
-public_keys/
-private_keys/
+# Ignore everything by default
+*
 
-# -----------------------------------------------------------------------------
-# System & OS Files
-# -----------------------------------------------------------------------------
-.DS_Store
-.directory
-Thumbs.db
-*~
+# Allow git to descend into directories
+!*/
 
-# -----------------------------------------------------------------------------
-# IDE & Editor Files
-# -----------------------------------------------------------------------------
-.idea/
-.vscode/
-*.swp
-*.swo
-*.kate-swp
-
-# -----------------------------------------------------------------------------
-# Node.js & NPM
-# -----------------------------------------------------------------------------
+# Always ignore, even under allowed paths
 node_modules/
-npm-debug.log*
-.npm/
-*.tgz
-.yarn-integrity
-/_temp
-# Block temp files and documentation
-.pnp.*
-.pnp/
-
-# -----------------------------------------------------------------------------
-# Python Environment
-# -----------------------------------------------------------------------------
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-venv/
-env/
-ENV/
-
-# -----------------------------------------------------------------------------
-# Development & Testing
-# -----------------------------------------------------------------------------
-*.log
-logs/
-coverage/
-test-results/
-.ipynb_checkpoints
-*.db
-
-# -----------------------------------------------------------------------------
-# Build & Compilation Artifacts
-# -----------------------------------------------------------------------------
-backend/main
-frontend/build/
-*.zip
-
-# -----------------------------------------------------------------------------
-# Cache & Generated Files
-# -----------------------------------------------------------------------------
-cache-versions.json
-index.html.backup
-
-# -----------------------------------------------------------------------------
-# Project-Specific Patterns
-# -----------------------------------------------------------------------------
-# Temporary and backup files
-*.old
-*.backup
-
-# Cloudflare Wrangler
 .wrangler/
 
-# Cache bust temporary files
-.cache-bust-*
+# --- Application ---
+!/.gitignore
+!/index.html
+!/404.html
+!/favicon.ico
+!/_headers
+!/package.json
+!/package-lock.json
+!/jest.config.js
+!/LICENSE
+!/README.md
+!/SECURITY_REVIEW.md
+!/FEATURE_CLEANUP_AND_REVIEW.md
+!/cache-bust.js
+!/style.css
+!/style-dark.css
+!/mobile.css
+!/mobile-dark.css
 
-# Deployment and temporary directories
-_deploy_tmp/
-_temp/
+# --- Source ---
+!/lib/**
+!/src/**
 
-# Test files (keep test framework config, ignore test implementations)
-test-*.html
-test-*.js
-test-*.sh
-test-*.fish
-test-*.cjs
-test-*.vcf
+# --- Cloudflare Worker (deployed separately via wrangler) ---
+!/cloudflare-worker-carddav-proxy.js
+!/cloudflare-worker/carddav-proxy.js
+!/cloudflare-worker/package.json
+!/cloudflare-worker/package-lock.json
+!/cloudflare-worker/wrangler.toml
+!/cloudflare-worker/README.md
 
-# Demo and diagnostic files
-demo-*.html
-diagnose-*.html
-diagnose-*.sh
+# --- Lightweight CardDAV bridge (optional node service) ---
+!/contact-carddav-bridge-lite/index.js
+!/contact-carddav-bridge-lite/package.json
+!/contact-carddav-bridge-lite/package-lock.json
+!/contact-carddav-bridge-lite/README.md
 
-# Development scripts (you may want to keep some of these)
-*-dev.sh
-start-dev.sh
-restore-dev.sh
-dev-cache-bust.sh
-
-# Production and deployment scripts
-production_zip*.sh
-setup-cloudflare.sh
-emergency-stop-sync.sh
-force-refresh.sh
-nuclear-cache-clear.sh
-cache-bust.sh
-check-status.sh
-clean-*.sh
-cleanup-*.sh
-manual-cleanup-*.sh
-reduce-logging.sh
-remove-bind-calls.sh
-verify-*.sh
-open-*.sh
-
-# VCF test data files
-*.vcf
-
-# Personal notes and todo files (in parent directory)
-../*.txt
-../icons8-*.png
-*.bup
-*.backup
-*temp*
-*tmp*
-*fixes*
-*test*
-*example*
-
-# Debug and test HTML files (keep main ones)
-*debug*.html
-*fix*.html
-*test*.html
-*demo*.html
-*example*.html
-*sample*.html
-*troubleshoot*.html
-*quick*.html
-*diagnose*.html
-*verify*.html
-
-# Cache bust temporary files
-.cache-bust-*
-
-# Data files that shouldn't be in git
-*.vcf
-*.txt
-*.blob
-*.meta
-*.followers
-
-# Project folders
-/tools
-/tests
-frontend/test-app/
-
-# Bridge diagnostic scripts (temporary development files)
-contact-carddav-bridge-lite/diagnostic-*.js
-contact-carddav-bridge-lite/discover-*.js
-contact-carddav-bridge-lite/setup-*.js
-
-# Documentation files (except essential ones)
-*.md
-!README.md
-!LICENSE.md
-!SECURITY_REVIEW.md
-!FEATURE_CLEANUP_AND_REVIEW.md
-
-# Configuration files (be selective)
-*.yml
-*.json
-!package.json
-
-# -----------------------------------------------------------------------------
-# Shell Scripts - All ignored (dev/build scripts are project-specific)
-# -----------------------------------------------------------------------------
-*.sh
-
-# -----------------------------------------------------------------------------
-# Allow Essential Files
-# -----------------------------------------------------------------------------
-!index.html
-!404.html
-!robots.txt
-!favicon.ico
+# --- Tests (jest suite; tests/manual/ debug pages stay local-only) ---
+!/tests/*.js
+!/tests/*.vcf
+!/tests/icloud/**

@@ -38,6 +38,9 @@ A secure, modular contact management system with:
 ```
 src/                # Core business logic and UI components
 lib/                # Third-party SDKs (e.g., userbase.js)
+tests/              # Jest test suite (tests/icloud/), manual debug pages (tests/manual/)
+scripts/            # Development, cache-busting and deployment shell scripts
+docs/               # Historical design notes and fix documentation (docs/archive/)
 index.html          # Main entry point
 style.css           # Styles
 mobile.css
@@ -62,13 +65,13 @@ npm run serve                               # Start contact manager (port 8080)
 ### Cache Busting 
 ```bash
 # For development (after CSS/JS changes)
-./dev-cache-bust.sh
+./scripts/dev-cache-bust.sh
 
 # For production deployment  
-./production_zip.sh
+./scripts/production_zip.sh
 
 # Restore original files
-./restore-dev.sh
+./scripts/restore-dev.sh
 ```
 
 ### Deploy to Cloudflare Pages
@@ -77,7 +80,7 @@ The app is hosted at [e2econtacts.org](https://e2econtacts.org) via Cloudflare P
 
 ```bash
 # Run from: contact-management-system/
-fish production_zip.sh && \
+fish scripts/production_zip.sh && \
   rm -rf _deploy_tmp && mkdir _deploy_tmp && \
   unzip -q production.zip -d _deploy_tmp && \
   cd cloudflare-worker && \
@@ -293,7 +296,7 @@ npm run serve  # Port 8080
 # Open http://localhost:8080, click "Baikal" button
 ```
 
-See **[BAIKAL_INTEGRATION.md](BAIKAL_INTEGRATION.md)** for complete setup and configuration guide.
+See **[BAIKAL_INTEGRATION.md](docs/archive/BAIKAL_INTEGRATION.md)** for complete setup and configuration guide.
 
 ## Acknowledgements
 

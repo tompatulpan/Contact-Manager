@@ -1,0 +1,1500 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John0;;Mr.;
+FN:Mr. John0 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4567
+TEL;TYPE=cell:+1-555-987-6543
+EMAIL;TYPE=work:john0.doe@example.com
+EMAIL;TYPE=home:john0.doe.home@example.com
+URL:http://www.john0doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John1;;Mr.;
+FN:Mr. John1 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4568
+TEL;TYPE=cell:+1-555-987-6544
+EMAIL;TYPE=work:john1.doe@example.com
+EMAIL;TYPE=home:john1.doe.home@example.com
+URL:http://www.john1doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John2;;Mr.;
+FN:Mr. John2 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4569
+TEL;TYPE=cell:+1-555-987-6545
+EMAIL;TYPE=work:john2.doe@example.com
+EMAIL;TYPE=home:john2.doe.home@example.com
+URL:http://www.john2doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John3;;Mr.;
+FN:Mr. John3 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4570
+TEL;TYPE=cell:+1-555-987-6546
+EMAIL;TYPE=work:john3.doe@example.com
+EMAIL;TYPE=home:john3.doe.home@example.com
+URL:http://www.john3doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John4;;Mr.;
+FN:Mr. John4 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4571
+TEL;TYPE=cell:+1-555-987-6547
+EMAIL;TYPE=work:john4.doe@example.com
+EMAIL;TYPE=home:john4.doe.home@example.com
+URL:http://www.john4doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John5;;Mr.;
+FN:Mr. John5 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4572
+TEL;TYPE=cell:+1-555-987-6548
+EMAIL;TYPE=work:john5.doe@example.com
+EMAIL;TYPE=home:john5.doe.home@example.com
+URL:http://www.john5doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John6;;Mr.;
+FN:Mr. John6 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4573
+TEL;TYPE=cell:+1-555-987-6549
+EMAIL;TYPE=work:john6.doe@example.com
+EMAIL;TYPE=home:john6.doe.home@example.com
+URL:http://www.john6doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John7;;Mr.;
+FN:Mr. John7 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4574
+TEL;TYPE=cell:+1-555-987-6550
+EMAIL;TYPE=work:john7.doe@example.com
+EMAIL;TYPE=home:john7.doe.home@example.com
+URL:http://www.john7doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John8;;Mr.;
+FN:Mr. John8 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4575
+TEL;TYPE=cell:+1-555-987-6551
+EMAIL;TYPE=work:john8.doe@example.com
+EMAIL;TYPE=home:john8.doe.home@example.com
+URL:http://www.john8doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John9;;Mr.;
+FN:Mr. John9 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4576
+TEL;TYPE=cell:+1-555-987-6552
+EMAIL;TYPE=work:john9.doe@example.com
+EMAIL;TYPE=home:john9.doe.home@example.com
+URL:http://www.john9doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John10;;Mr.;
+FN:Mr. John10 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4577
+TEL;TYPE=cell:+1-555-987-6553
+EMAIL;TYPE=work:john10.doe@example.com
+EMAIL;TYPE=home:john10.doe.home@example.com
+URL:http://www.john10doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John11;;Mr.;
+FN:Mr. John11 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4578
+TEL;TYPE=cell:+1-555-987-6554
+EMAIL;TYPE=work:john11.doe@example.com
+EMAIL;TYPE=home:john11.doe.home@example.com
+URL:http://www.john11doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John12;;Mr.;
+FN:Mr. John12 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4579
+TEL;TYPE=cell:+1-555-987-6555
+EMAIL;TYPE=work:john12.doe@example.com
+EMAIL;TYPE=home:john12.doe.home@example.com
+URL:http://www.john12doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John13;;Mr.;
+FN:Mr. John13 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4580
+TEL;TYPE=cell:+1-555-987-6556
+EMAIL;TYPE=work:john13.doe@example.com
+EMAIL;TYPE=home:john13.doe.home@example.com
+URL:http://www.john13doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John14;;Mr.;
+FN:Mr. John14 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4581
+TEL;TYPE=cell:+1-555-987-6557
+EMAIL;TYPE=work:john14.doe@example.com
+EMAIL;TYPE=home:john14.doe.home@example.com
+URL:http://www.john14doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John15;;Mr.;
+FN:Mr. John15 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4582
+TEL;TYPE=cell:+1-555-987-6558
+EMAIL;TYPE=work:john15.doe@example.com
+EMAIL;TYPE=home:john15.doe.home@example.com
+URL:http://www.john15doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John16;;Mr.;
+FN:Mr. John16 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4583
+TEL;TYPE=cell:+1-555-987-6559
+EMAIL;TYPE=work:john16.doe@example.com
+EMAIL;TYPE=home:john16.doe.home@example.com
+URL:http://www.john16doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John17;;Mr.;
+FN:Mr. John17 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4584
+TEL;TYPE=cell:+1-555-987-6560
+EMAIL;TYPE=work:john17.doe@example.com
+EMAIL;TYPE=home:john17.doe.home@example.com
+URL:http://www.john17doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John18;;Mr.;
+FN:Mr. John18 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4585
+TEL;TYPE=cell:+1-555-987-6561
+EMAIL;TYPE=work:john18.doe@example.com
+EMAIL;TYPE=home:john18.doe.home@example.com
+URL:http://www.john18doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John19;;Mr.;
+FN:Mr. John19 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4586
+TEL;TYPE=cell:+1-555-987-6562
+EMAIL;TYPE=work:john19.doe@example.com
+EMAIL;TYPE=home:john19.doe.home@example.com
+URL:http://www.john19doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John20;;Mr.;
+FN:Mr. John20 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4587
+TEL;TYPE=cell:+1-555-987-6563
+EMAIL;TYPE=work:john20.doe@example.com
+EMAIL;TYPE=home:john20.doe.home@example.com
+URL:http://www.john20doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John21;;Mr.;
+FN:Mr. John21 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4588
+TEL;TYPE=cell:+1-555-987-6564
+EMAIL;TYPE=work:john21.doe@example.com
+EMAIL;TYPE=home:john21.doe.home@example.com
+URL:http://www.john21doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John22;;Mr.;
+FN:Mr. John22 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4589
+TEL;TYPE=cell:+1-555-987-6565
+EMAIL;TYPE=work:john22.doe@example.com
+EMAIL;TYPE=home:john22.doe.home@example.com
+URL:http://www.john22doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John23;;Mr.;
+FN:Mr. John23 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4590
+TEL;TYPE=cell:+1-555-987-6566
+EMAIL;TYPE=work:john23.doe@example.com
+EMAIL;TYPE=home:john23.doe.home@example.com
+URL:http://www.john23doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John24;;Mr.;
+FN:Mr. John24 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4591
+TEL;TYPE=cell:+1-555-987-6567
+EMAIL;TYPE=work:john24.doe@example.com
+EMAIL;TYPE=home:john24.doe.home@example.com
+URL:http://www.john24doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John25;;Mr.;
+FN:Mr. John25 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4592
+TEL;TYPE=cell:+1-555-987-6568
+EMAIL;TYPE=work:john25.doe@example.com
+EMAIL;TYPE=home:john25.doe.home@example.com
+URL:http://www.john25doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John26;;Mr.;
+FN:Mr. John26 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4593
+TEL;TYPE=cell:+1-555-987-6569
+EMAIL;TYPE=work:john26.doe@example.com
+EMAIL;TYPE=home:john26.doe.home@example.com
+URL:http://www.john26doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John27;;Mr.;
+FN:Mr. John27 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4594
+TEL;TYPE=cell:+1-555-987-6570
+EMAIL;TYPE=work:john27.doe@example.com
+EMAIL;TYPE=home:john27.doe.home@example.com
+URL:http://www.john27doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John28;;Mr.;
+FN:Mr. John28 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4595
+TEL;TYPE=cell:+1-555-987-6571
+EMAIL;TYPE=work:john28.doe@example.com
+EMAIL;TYPE=home:john28.doe.home@example.com
+URL:http://www.john28doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John29;;Mr.;
+FN:Mr. John29 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4596
+TEL;TYPE=cell:+1-555-987-6572
+EMAIL;TYPE=work:john29.doe@example.com
+EMAIL;TYPE=home:john29.doe.home@example.com
+URL:http://www.john29doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John30;;Mr.;
+FN:Mr. John30 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4597
+TEL;TYPE=cell:+1-555-987-6573
+EMAIL;TYPE=work:john30.doe@example.com
+EMAIL;TYPE=home:john30.doe.home@example.com
+URL:http://www.john30doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John31;;Mr.;
+FN:Mr. John31 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4598
+TEL;TYPE=cell:+1-555-987-6574
+EMAIL;TYPE=work:john31.doe@example.com
+EMAIL;TYPE=home:john31.doe.home@example.com
+URL:http://www.john31doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John32;;Mr.;
+FN:Mr. John32 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4599
+TEL;TYPE=cell:+1-555-987-6575
+EMAIL;TYPE=work:john32.doe@example.com
+EMAIL;TYPE=home:john32.doe.home@example.com
+URL:http://www.john32doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John33;;Mr.;
+FN:Mr. John33 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4600
+TEL;TYPE=cell:+1-555-987-6576
+EMAIL;TYPE=work:john33.doe@example.com
+EMAIL;TYPE=home:john33.doe.home@example.com
+URL:http://www.john33doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John34;;Mr.;
+FN:Mr. John34 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4601
+TEL;TYPE=cell:+1-555-987-6577
+EMAIL;TYPE=work:john34.doe@example.com
+EMAIL;TYPE=home:john34.doe.home@example.com
+URL:http://www.john34doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John35;;Mr.;
+FN:Mr. John35 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4602
+TEL;TYPE=cell:+1-555-987-6578
+EMAIL;TYPE=work:john35.doe@example.com
+EMAIL;TYPE=home:john35.doe.home@example.com
+URL:http://www.john35doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John36;;Mr.;
+FN:Mr. John36 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4603
+TEL;TYPE=cell:+1-555-987-6579
+EMAIL;TYPE=work:john36.doe@example.com
+EMAIL;TYPE=home:john36.doe.home@example.com
+URL:http://www.john36doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John37;;Mr.;
+FN:Mr. John37 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4604
+TEL;TYPE=cell:+1-555-987-6580
+EMAIL;TYPE=work:john37.doe@example.com
+EMAIL;TYPE=home:john37.doe.home@example.com
+URL:http://www.john37doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John38;;Mr.;
+FN:Mr. John38 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4605
+TEL;TYPE=cell:+1-555-987-6581
+EMAIL;TYPE=work:john38.doe@example.com
+EMAIL;TYPE=home:john38.doe.home@example.com
+URL:http://www.john38doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John39;;Mr.;
+FN:Mr. John39 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4606
+TEL;TYPE=cell:+1-555-987-6582
+EMAIL;TYPE=work:john39.doe@example.com
+EMAIL;TYPE=home:john39.doe.home@example.com
+URL:http://www.john39doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John40;;Mr.;
+FN:Mr. John40 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4607
+TEL;TYPE=cell:+1-555-987-6583
+EMAIL;TYPE=work:john40.doe@example.com
+EMAIL;TYPE=home:john40.doe.home@example.com
+URL:http://www.john40doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John41;;Mr.;
+FN:Mr. John41 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4608
+TEL;TYPE=cell:+1-555-987-6584
+EMAIL;TYPE=work:john41.doe@example.com
+EMAIL;TYPE=home:john41.doe.home@example.com
+URL:http://www.john41doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John42;;Mr.;
+FN:Mr. John42 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4609
+TEL;TYPE=cell:+1-555-987-6585
+EMAIL;TYPE=work:john42.doe@example.com
+EMAIL;TYPE=home:john42.doe.home@example.com
+URL:http://www.john42doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John43;;Mr.;
+FN:Mr. John43 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4610
+TEL;TYPE=cell:+1-555-987-6586
+EMAIL;TYPE=work:john43.doe@example.com
+EMAIL;TYPE=home:john43.doe.home@example.com
+URL:http://www.john43doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John44;;Mr.;
+FN:Mr. John44 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4611
+TEL;TYPE=cell:+1-555-987-6587
+EMAIL;TYPE=work:john44.doe@example.com
+EMAIL;TYPE=home:john44.doe.home@example.com
+URL:http://www.john44doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John45;;Mr.;
+FN:Mr. John45 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4612
+TEL;TYPE=cell:+1-555-987-6588
+EMAIL;TYPE=work:john45.doe@example.com
+EMAIL;TYPE=home:john45.doe.home@example.com
+URL:http://www.john45doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John46;;Mr.;
+FN:Mr. John46 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4613
+TEL;TYPE=cell:+1-555-987-6589
+EMAIL;TYPE=work:john46.doe@example.com
+EMAIL;TYPE=home:john46.doe.home@example.com
+URL:http://www.john46doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John47;;Mr.;
+FN:Mr. John47 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4614
+TEL;TYPE=cell:+1-555-987-6590
+EMAIL;TYPE=work:john47.doe@example.com
+EMAIL;TYPE=home:john47.doe.home@example.com
+URL:http://www.john47doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John48;;Mr.;
+FN:Mr. John48 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4615
+TEL;TYPE=cell:+1-555-987-6591
+EMAIL;TYPE=work:john48.doe@example.com
+EMAIL;TYPE=home:john48.doe.home@example.com
+URL:http://www.john48doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John49;;Mr.;
+FN:Mr. John49 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4616
+TEL;TYPE=cell:+1-555-987-6592
+EMAIL;TYPE=work:john49.doe@example.com
+EMAIL;TYPE=home:john49.doe.home@example.com
+URL:http://www.john49doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John50;;Mr.;
+FN:Mr. John50 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4617
+TEL;TYPE=cell:+1-555-987-6593
+EMAIL;TYPE=work:john50.doe@example.com
+EMAIL;TYPE=home:john50.doe.home@example.com
+URL:http://www.john50doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John51;;Mr.;
+FN:Mr. John51 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4618
+TEL;TYPE=cell:+1-555-987-6594
+EMAIL;TYPE=work:john51.doe@example.com
+EMAIL;TYPE=home:john51.doe.home@example.com
+URL:http://www.john51doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John52;;Mr.;
+FN:Mr. John52 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4619
+TEL;TYPE=cell:+1-555-987-6595
+EMAIL;TYPE=work:john52.doe@example.com
+EMAIL;TYPE=home:john52.doe.home@example.com
+URL:http://www.john52doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John53;;Mr.;
+FN:Mr. John53 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4620
+TEL;TYPE=cell:+1-555-987-6596
+EMAIL;TYPE=work:john53.doe@example.com
+EMAIL;TYPE=home:john53.doe.home@example.com
+URL:http://www.john53doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John54;;Mr.;
+FN:Mr. John54 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4621
+TEL;TYPE=cell:+1-555-987-6597
+EMAIL;TYPE=work:john54.doe@example.com
+EMAIL;TYPE=home:john54.doe.home@example.com
+URL:http://www.john54doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John55;;Mr.;
+FN:Mr. John55 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4622
+TEL;TYPE=cell:+1-555-987-6598
+EMAIL;TYPE=work:john55.doe@example.com
+EMAIL;TYPE=home:john55.doe.home@example.com
+URL:http://www.john55doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John56;;Mr.;
+FN:Mr. John56 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4623
+TEL;TYPE=cell:+1-555-987-6599
+EMAIL;TYPE=work:john56.doe@example.com
+EMAIL;TYPE=home:john56.doe.home@example.com
+URL:http://www.john56doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John57;;Mr.;
+FN:Mr. John57 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4624
+TEL;TYPE=cell:+1-555-987-6600
+EMAIL;TYPE=work:john57.doe@example.com
+EMAIL;TYPE=home:john57.doe.home@example.com
+URL:http://www.john57doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John58;;Mr.;
+FN:Mr. John58 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4625
+TEL;TYPE=cell:+1-555-987-6601
+EMAIL;TYPE=work:john58.doe@example.com
+EMAIL;TYPE=home:john58.doe.home@example.com
+URL:http://www.john58doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John59;;Mr.;
+FN:Mr. John59 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4626
+TEL;TYPE=cell:+1-555-987-6602
+EMAIL;TYPE=work:john59.doe@example.com
+EMAIL;TYPE=home:john59.doe.home@example.com
+URL:http://www.john59doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John60;;Mr.;
+FN:Mr. John60 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4627
+TEL;TYPE=cell:+1-555-987-6603
+EMAIL;TYPE=work:john60.doe@example.com
+EMAIL;TYPE=home:john60.doe.home@example.com
+URL:http://www.john60doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John61;;Mr.;
+FN:Mr. John61 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4628
+TEL;TYPE=cell:+1-555-987-6604
+EMAIL;TYPE=work:john61.doe@example.com
+EMAIL;TYPE=home:john61.doe.home@example.com
+URL:http://www.john61doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John62;;Mr.;
+FN:Mr. John62 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4629
+TEL;TYPE=cell:+1-555-987-6605
+EMAIL;TYPE=work:john62.doe@example.com
+EMAIL;TYPE=home:john62.doe.home@example.com
+URL:http://www.john62doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John63;;Mr.;
+FN:Mr. John63 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4630
+TEL;TYPE=cell:+1-555-987-6606
+EMAIL;TYPE=work:john63.doe@example.com
+EMAIL;TYPE=home:john63.doe.home@example.com
+URL:http://www.john63doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John64;;Mr.;
+FN:Mr. John64 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4631
+TEL;TYPE=cell:+1-555-987-6607
+EMAIL;TYPE=work:john64.doe@example.com
+EMAIL;TYPE=home:john64.doe.home@example.com
+URL:http://www.john64doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John65;;Mr.;
+FN:Mr. John65 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4632
+TEL;TYPE=cell:+1-555-987-6608
+EMAIL;TYPE=work:john65.doe@example.com
+EMAIL;TYPE=home:john65.doe.home@example.com
+URL:http://www.john65doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John66;;Mr.;
+FN:Mr. John66 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4633
+TEL;TYPE=cell:+1-555-987-6609
+EMAIL;TYPE=work:john66.doe@example.com
+EMAIL;TYPE=home:john66.doe.home@example.com
+URL:http://www.john66doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John67;;Mr.;
+FN:Mr. John67 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4634
+TEL;TYPE=cell:+1-555-987-6610
+EMAIL;TYPE=work:john67.doe@example.com
+EMAIL;TYPE=home:john67.doe.home@example.com
+URL:http://www.john67doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John68;;Mr.;
+FN:Mr. John68 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4635
+TEL;TYPE=cell:+1-555-987-6611
+EMAIL;TYPE=work:john68.doe@example.com
+EMAIL;TYPE=home:john68.doe.home@example.com
+URL:http://www.john68doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John69;;Mr.;
+FN:Mr. John69 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4636
+TEL;TYPE=cell:+1-555-987-6612
+EMAIL;TYPE=work:john69.doe@example.com
+EMAIL;TYPE=home:john69.doe.home@example.com
+URL:http://www.john69doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John70;;Mr.;
+FN:Mr. John70 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4637
+TEL;TYPE=cell:+1-555-987-6613
+EMAIL;TYPE=work:john70.doe@example.com
+EMAIL;TYPE=home:john70.doe.home@example.com
+URL:http://www.john70doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John71;;Mr.;
+FN:Mr. John71 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4638
+TEL;TYPE=cell:+1-555-987-6614
+EMAIL;TYPE=work:john71.doe@example.com
+EMAIL;TYPE=home:john71.doe.home@example.com
+URL:http://www.john71doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John72;;Mr.;
+FN:Mr. John72 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4639
+TEL;TYPE=cell:+1-555-987-6615
+EMAIL;TYPE=work:john72.doe@example.com
+EMAIL;TYPE=home:john72.doe.home@example.com
+URL:http://www.john72doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John73;;Mr.;
+FN:Mr. John73 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4640
+TEL;TYPE=cell:+1-555-987-6616
+EMAIL;TYPE=work:john73.doe@example.com
+EMAIL;TYPE=home:john73.doe.home@example.com
+URL:http://www.john73doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John74;;Mr.;
+FN:Mr. John74 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4641
+TEL;TYPE=cell:+1-555-987-6617
+EMAIL;TYPE=work:john74.doe@example.com
+EMAIL;TYPE=home:john74.doe.home@example.com
+URL:http://www.john74doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John75;;Mr.;
+FN:Mr. John75 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4642
+TEL;TYPE=cell:+1-555-987-6618
+EMAIL;TYPE=work:john75.doe@example.com
+EMAIL;TYPE=home:john75.doe.home@example.com
+URL:http://www.john75doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John76;;Mr.;
+FN:Mr. John76 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4643
+TEL;TYPE=cell:+1-555-987-6619
+EMAIL;TYPE=work:john76.doe@example.com
+EMAIL;TYPE=home:john76.doe.home@example.com
+URL:http://www.john76doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John77;;Mr.;
+FN:Mr. John77 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4644
+TEL;TYPE=cell:+1-555-987-6620
+EMAIL;TYPE=work:john77.doe@example.com
+EMAIL;TYPE=home:john77.doe.home@example.com
+URL:http://www.john77doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John78;;Mr.;
+FN:Mr. John78 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4645
+TEL;TYPE=cell:+1-555-987-6621
+EMAIL;TYPE=work:john78.doe@example.com
+EMAIL;TYPE=home:john78.doe.home@example.com
+URL:http://www.john78doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John79;;Mr.;
+FN:Mr. John79 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4646
+TEL;TYPE=cell:+1-555-987-6622
+EMAIL;TYPE=work:john79.doe@example.com
+EMAIL;TYPE=home:john79.doe.home@example.com
+URL:http://www.john79doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John80;;Mr.;
+FN:Mr. John80 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4647
+TEL;TYPE=cell:+1-555-987-6623
+EMAIL;TYPE=work:john80.doe@example.com
+EMAIL;TYPE=home:john80.doe.home@example.com
+URL:http://www.john80doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John81;;Mr.;
+FN:Mr. John81 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4648
+TEL;TYPE=cell:+1-555-987-6624
+EMAIL;TYPE=work:john81.doe@example.com
+EMAIL;TYPE=home:john81.doe.home@example.com
+URL:http://www.john81doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John82;;Mr.;
+FN:Mr. John82 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4649
+TEL;TYPE=cell:+1-555-987-6625
+EMAIL;TYPE=work:john82.doe@example.com
+EMAIL;TYPE=home:john82.doe.home@example.com
+URL:http://www.john82doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John83;;Mr.;
+FN:Mr. John83 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4650
+TEL;TYPE=cell:+1-555-987-6626
+EMAIL;TYPE=work:john83.doe@example.com
+EMAIL;TYPE=home:john83.doe.home@example.com
+URL:http://www.john83doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John84;;Mr.;
+FN:Mr. John84 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4651
+TEL;TYPE=cell:+1-555-987-6627
+EMAIL;TYPE=work:john84.doe@example.com
+EMAIL;TYPE=home:john84.doe.home@example.com
+URL:http://www.john84doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John85;;Mr.;
+FN:Mr. John85 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4652
+TEL;TYPE=cell:+1-555-987-6628
+EMAIL;TYPE=work:john85.doe@example.com
+EMAIL;TYPE=home:john85.doe.home@example.com
+URL:http://www.john85doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John86;;Mr.;
+FN:Mr. John86 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4653
+TEL;TYPE=cell:+1-555-987-6629
+EMAIL;TYPE=work:john86.doe@example.com
+EMAIL;TYPE=home:john86.doe.home@example.com
+URL:http://www.john86doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John87;;Mr.;
+FN:Mr. John87 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4654
+TEL;TYPE=cell:+1-555-987-6630
+EMAIL;TYPE=work:john87.doe@example.com
+EMAIL;TYPE=home:john87.doe.home@example.com
+URL:http://www.john87doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John88;;Mr.;
+FN:Mr. John88 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4655
+TEL;TYPE=cell:+1-555-987-6631
+EMAIL;TYPE=work:john88.doe@example.com
+EMAIL;TYPE=home:john88.doe.home@example.com
+URL:http://www.john88doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John89;;Mr.;
+FN:Mr. John89 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4656
+TEL;TYPE=cell:+1-555-987-6632
+EMAIL;TYPE=work:john89.doe@example.com
+EMAIL;TYPE=home:john89.doe.home@example.com
+URL:http://www.john89doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John90;;Mr.;
+FN:Mr. John90 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4657
+TEL;TYPE=cell:+1-555-987-6633
+EMAIL;TYPE=work:john90.doe@example.com
+EMAIL;TYPE=home:john90.doe.home@example.com
+URL:http://www.john90doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John91;;Mr.;
+FN:Mr. John91 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4658
+TEL;TYPE=cell:+1-555-987-6634
+EMAIL;TYPE=work:john91.doe@example.com
+EMAIL;TYPE=home:john91.doe.home@example.com
+URL:http://www.john91doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John92;;Mr.;
+FN:Mr. John92 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4659
+TEL;TYPE=cell:+1-555-987-6635
+EMAIL;TYPE=work:john92.doe@example.com
+EMAIL;TYPE=home:john92.doe.home@example.com
+URL:http://www.john92doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John93;;Mr.;
+FN:Mr. John93 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4660
+TEL;TYPE=cell:+1-555-987-6636
+EMAIL;TYPE=work:john93.doe@example.com
+EMAIL;TYPE=home:john93.doe.home@example.com
+URL:http://www.john93doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John94;;Mr.;
+FN:Mr. John94 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4661
+TEL;TYPE=cell:+1-555-987-6637
+EMAIL;TYPE=work:john94.doe@example.com
+EMAIL;TYPE=home:john94.doe.home@example.com
+URL:http://www.john94doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John95;;Mr.;
+FN:Mr. John95 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4662
+TEL;TYPE=cell:+1-555-987-6638
+EMAIL;TYPE=work:john95.doe@example.com
+EMAIL;TYPE=home:john95.doe.home@example.com
+URL:http://www.john95doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John96;;Mr.;
+FN:Mr. John96 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4663
+TEL;TYPE=cell:+1-555-987-6639
+EMAIL;TYPE=work:john96.doe@example.com
+EMAIL;TYPE=home:john96.doe.home@example.com
+URL:http://www.john96doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John97;;Mr.;
+FN:Mr. John97 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4664
+TEL;TYPE=cell:+1-555-987-6640
+EMAIL;TYPE=work:john97.doe@example.com
+EMAIL;TYPE=home:john97.doe.home@example.com
+URL:http://www.john97doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John98;;Mr.;
+FN:Mr. John98 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4665
+TEL;TYPE=cell:+1-555-987-6641
+EMAIL;TYPE=work:john98.doe@example.com
+EMAIL;TYPE=home:john98.doe.home@example.com
+URL:http://www.john98doe.com
+NOTE:Key contact for project X.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;John99;;Mr.;
+FN:Mr. John99 Doe
+ORG:Example Corp;Development
+TITLE:Senior Developer
+BDAY:1980-05-15
+ADR;TYPE=work,postal,parcel:;;123 Main St;Anytown;CA;12345;USA
+TEL;TYPE=work,voice:+1-555-123-4666
+TEL;TYPE=cell:+1-555-987-6642
+EMAIL;TYPE=work:john99.doe@example.com
+EMAIL;TYPE=home:john99.doe.home@example.com
+URL:http://www.john99doe.com
+NOTE:Key contact for project X.
+END:VCARD
