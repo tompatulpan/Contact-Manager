@@ -11,7 +11,7 @@
  * ✅ Shared contact protection with read-only addressbooks
  * ✅ Lightweight bridge (200 lines, direct tsdav) - no HTTP server required
  * 
- * NOTE: For iCloud, use ICloudConnector instead (one-way export only)
+ * NOTE: For iCloud, use ICloudSyncService (ICloud Sync button) instead
  */
 import { PERFORMANCE_CONFIG } from '../config/app.config.js';
 import CardDAVBridgeAdapter from './CardDAVBridgeAdapter.js';
@@ -1774,7 +1774,7 @@ export class BaikalConnector {
             // Prepare vCard for push (Baikal/Nextcloud use vCard 4.0 natively)
             let vCardToSend = contact.vcard;
             
-            // Note: For iCloud, use ICloudConnector instead
+            // Note: For iCloud, use ICloudSyncService instead
             // BaikalConnector is for Baikal/Nextcloud which support vCard 4.0 natively
             
             // ✅ Force-push using lite bridge (NULL ETag overrides server version)

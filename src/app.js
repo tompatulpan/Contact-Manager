@@ -17,8 +17,6 @@ import { APP_CONFIG } from './config/app.config.js';
 import { BaikalConnector } from './integrations/BaikalConnector.js';
 import { BaikalConfigManager } from './integrations/BaikalConfigManager.js';
 import { BaikalUIController } from './ui/BaikalUIController.js';
-import { ICloudConnector } from './integrations/ICloudConnector.js';
-import { CardDAVConnectorFactory } from './integrations/CardDAVConnectorFactory.js';
 import { VCard3Processor } from './core/VCard3Processor.js';
 
 /**
@@ -141,12 +139,6 @@ class ContactManagementApp {
             this.modules.database
         );
         
-        // 🍎 iCloud connector (uses SimpleCardDAVBridge with proxy)
-        this.modules.iCloudConnector = new ICloudConnector(this.eventBus, cardDAVProxyConfig);
-        
-        // 🏭 CardDAV connector factory (creates connectors based on server type)
-        this.modules.cardDAVFactory = new CardDAVConnectorFactory(this.eventBus, cardDAVProxyConfig);
-        
         // 🍎 iCloud CardDAV Client (direct CORS proxy integration)
         const { ICloudCardDAVClient } = await import('./integrations/ICloudCardDAVClient.js');
         this.modules.ICloudCardDAVClient = ICloudCardDAVClient;
@@ -174,8 +166,7 @@ class ContactManagementApp {
             this.eventBus,
             this.modules.baikalConnector,
             this.modules.baikalConfigManager,
-            this.modules.contactManager,  // ⭐ Add ContactManager reference
-            this.modules.iCloudConnector  // 🍎 Add ICloudConnector reference
+            this.modules.contactManager  // ⭐ Add ContactManager reference
         );
 
         // 🍎 Initialize iCloud sync service

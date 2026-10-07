@@ -17,12 +17,11 @@ function escapeHtml(str) {
 }
 
 export class BaikalUIController {
-    constructor(eventBus, baikalConnector, configManager, contactManager, iCloudConnector = null) {
+    constructor(eventBus, baikalConnector, configManager, contactManager) {
         this.eventBus = eventBus;
         this.baikalConnector = baikalConnector;
         this.configManager = configManager;
         this.contactManager = contactManager; // ⭐ Add ContactManager reference
-        this.iCloudConnector = iCloudConnector; // 🍎 Add ICloudConnector reference
         
         // 🔐 Initialize Secure Credential Storage
         this.credentialUI = new CredentialStorageUI(eventBus);
@@ -578,15 +577,19 @@ export class BaikalUIController {
 
             this.showConnectionStatus('Connecting to Baikal server...', 'info');
 
-            // 🍎 Detect iCloud and route to ICloudConnector
+            // iCloud is not supported through this settings UI. It has its own
+            // sync path via the "iCloud Sync" button (ICloudSyncService).
             const isICloud = config.serverUrl.toLowerCase().includes('icloud.com') || 
                             config.serverUrl.toLowerCase().includes('apple.com');
             
             let result;
             
-            if (isICloud && this.iCloudConnector) {
-                this.showConnectionStatus('Connecting to iCloud CardDAV...', 'info');
-                result = await this.iCloudConnector.connect(config);
+            if (isICloud) {
+                this.showConnectionStatus(
+                    'iCloud sync is managed by the "iCloud Sync" button in the header — please use that instead.',
+                    'error'
+                );
+                result = { success: false, error: 'iCloud profiles are managed by the iCloud Sync feature' };
             } else {
                 result = await this.baikalConnector.connectToServer(config);
             }
@@ -865,12 +868,6 @@ END:VCARD`;
         // Check BaikalConnector
         if (this.baikalConnector && this.baikalConnector.connections) {
             const connection = this.baikalConnector.connections.get(profileName);
-            if (connection) return connection;
-        }
-        
-        // Check ICloudConnector
-        if (this.iCloudConnector && this.iCloudConnector.connections) {
-            const connection = this.iCloudConnector.connections.get(profileName);
             if (connection) return connection;
         }
         
@@ -1163,30 +1160,14 @@ END:VCARD`;
                 throw new Error(`Configuration for profile "${profileName}" not found`);
             }
             
-            // 🍎 Route to ICloudConnector for iCloud profiles
-            const isICloud = this.isICloudProfile(profileName);
-            
-            if (isICloud && this.iCloudConnector) {
-                
-                // Check if iCloud connection exists
-                const iCloudConnection = this.iCloudConnector.getConnectionStatus(profileName);
-                if (!iCloudConnection || !iCloudConnection.isConnected) {
-                    throw new Error(`iCloud profile ${profileName} is not connected. Please connect first.`);
-                }
-                
-                // Use ICloudConnector for one-way export with vCard regeneration
-                const result = await this.iCloudConnector.pushAllContacts(profileName);
-                
-                if (result.success) {
-                    this.showNotification(
-                        `✅ Pushed ${result.successCount}/${result.total} contacts to iCloud`,
-                        'success'
-                    );
-                } else {
-                    throw new Error(result.error || 'iCloud push failed');
-                }
-                
-                return result;
+            // iCloud is managed by the "iCloud Sync" feature, not by pushing
+            // to a CardDAV profile from this settings UI.
+            if (this.isICloudProfile(profileName)) {
+                this.showNotification(
+                    'iCloud sync is managed by the "iCloud Sync" button in the header, not by pushing to a CardDAV profile.',
+                    'warning'
+                );
+                return { success: false, error: 'iCloud profiles are managed by the iCloud Sync feature' };
             }
             
             // 📤 Use BaikalConnector for standard CardDAV servers
