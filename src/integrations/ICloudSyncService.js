@@ -284,7 +284,7 @@ export class ICloudSyncService {
             // Get pending deletions BEFORE fetching from iCloud
             // This prevents re-importing contacts that were deleted locally
             const pendingDeletions = Array.from(this.contactManager.contacts.values())
-                .filter(c => c.metadata.isDeleted && c.metadata?.carddav?.etag)
+                .filter(c => c.metadata.isDeleted && this.isICloudSynced(c))
                 .map(c => this.extractUIDFromVCard(c.vcard));
             
             if (pendingDeletions.length > 0) {
@@ -454,7 +454,7 @@ export class ICloudSyncService {
                 if (!localContact.metadata.isOwned) continue;
                 
                 const uid = this.extractUIDFromVCard(localContact.vcard);
-                const hasCardDAVSync = localContact.metadata?.carddav?.etag;
+                const hasCardDAVSync = this.isICloudSynced(localContact);
                 
                 // If contact was synced to iCloud before but no longer exists there
                 if (hasCardDAVSync && !iCloudUIDs.has(uid)) {
@@ -470,7 +470,7 @@ export class ICloudSyncService {
             
             // Check for contacts deleted locally (exist on iCloud but deleted in CM)
             const localContactsWithDeletions = Array.from(this.contactManager.contacts.values())
-                .filter(c => c.metadata.isDeleted && c.metadata?.carddav?.etag);
+                .filter(c => c.metadata.isDeleted && this.isICloudSynced(c));
             
             remoteDeleted = localContactsWithDeletions.length;
             
@@ -510,7 +510,7 @@ export class ICloudSyncService {
                 return { success: false, error: 'Contact has no UID — cannot push to iCloud' };
             }
 
-            const existsOnICloud = contact.metadata?.carddav?.etag;
+            const existsOnICloud = this.isICloudSynced(contact);
 
             // Use the vCard directly — avoid lossy extractDisplayData→generateVCard
             // roundtrip that strips PHOTO, X-properties and regenerates N from FN.
@@ -572,9 +572,9 @@ export class ICloudSyncService {
             const allContacts = Array.from(this.contactManager.contacts.values());
             
             // Separate deleted contacts from active contacts
-            const deletedContacts = allContacts.filter(contact => 
-                contact.metadata.isDeleted && 
-                contact.metadata?.carddav?.etag && // Only if previously synced to iCloud
+            const deletedContacts = allContacts.filter(contact =>
+                contact.metadata.isDeleted &&
+                this.isICloudSynced(contact) && // Only if previously synced to iCloud
                 contact.metadata?.carddav?.syncStatus !== 'deleted' // Skip already processed deletions
             );
             
@@ -691,7 +691,7 @@ export class ICloudSyncService {
                     }
                     
                     // Determine if this is a create or update
-                    const existsOnICloud = contact.metadata?.carddav?.etag;
+                    const existsOnICloud = this.isICloudSynced(contact);
                     
                     if (existsOnICloud) {
                         // Update existing contact
@@ -1196,8 +1196,11 @@ export class ICloudSyncService {
                 cleanVCard = cleanVCard.replace(/END:VCARD/, 'EMAIL:shared-contact@userbase.app\nEND:VCARD');
             }
             
-            // Force-push with etag: null to override any external changes
-            const existingEtag = contact.metadata?.carddav?.etag;
+            // Force-push with etag: null to override any external changes.
+            // Only trust an etag written by this service — a Baikal etag here
+            // would route the push into the update path against the wrong
+            // server (IS-11).
+            const existingEtag = this.isICloudSynced(contact) ? contact.metadata.carddav.etag : null;
             
             if (existingEtag) {
                 // Contact exists on iCloud - update with force (null ETag bypasses conflict check)
@@ -1355,16 +1358,12 @@ export class ICloudSyncService {
         
         // OWNED or IMPORTED contact
         const carddavMeta = contact.metadata?.carddav;
-        
-        if (!carddavMeta) {
-            // No CardDAV metadata → needs initial push
-            return { push: true, reason: 'not yet synced' };
-        }
-        
-        // CRITICAL FIX: Check if contact actually exists on iCloud
-        // If no ETag, the contact was never successfully created on iCloud
-        if (!carddavMeta.etag) {
-            return { push: true, reason: 'no ETag (not on iCloud yet)' };
+
+        // CRITICAL FIX: only state written by this service (source: 'iCloud')
+        // proves the contact exists on iCloud. Without that proof, push
+        // (create-side). A Baikal/Nextcloud etag is not an iCloud etag (IS-11).
+        if (!this.isICloudSynced(contact)) {
+            return { push: true, reason: 'not yet synced to iCloud' };
         }
         
         // Check if contact was modified after last sync
@@ -1377,6 +1376,18 @@ export class ICloudSyncService {
         
         // Contact is up to date
         return { push: false, reason: 'already synced' };
+    }
+
+    /**
+     * Only CardDAV state written by this service (source: 'iCloud') counts
+     * as "synced with iCloud". Baikal/Nextcloud sync writes metadata.carddav
+     * without an iCloud source tag; those contacts must never be treated as
+     * iCloud-synced, or they get deleted locally / force-matched against
+     * the wrong server (IS-11 in ICLOUD_SYNC_REVIEW.md).
+     */
+    isICloudSynced(contact) {
+        return contact.metadata?.carddav?.source === 'iCloud' &&
+            !!contact.metadata?.carddav?.etag;
     }
 
     /**

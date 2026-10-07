@@ -13,6 +13,7 @@ import {
     FETCH_EMPTY,
     FETCH_OWNED_IN_SYNC,
     DELETE_SUCCESS,
+    CREATE_SUCCESS,
 } from './fixtures/carddav-responses.js';
 import { OWNED_VCARD, DELETED_VCARD } from './fixtures/vcards.js';
 
@@ -172,6 +173,72 @@ describe('pushToICloud() — local deletions pushed to iCloud', () => {
         await service.pushToICloud();
 
         expect(mockClient.deleteContact).not.toHaveBeenCalled();
+    });
+
+});
+
+describe('cross-server isolation (IS-11)', () => {
+
+    it('does NOT delete a contact that was only ever synced to Baikal', async () => {
+        // A contact pushed to Baikal carries metadata.carddav written by
+        // ContactManager.updateContactCardDAVMetadata — no 'source' tag.
+        // An empty/partial iCloud snapshot must not be read as "deleted on
+        // iCloud" for that contact (ICLOUD_SYNC_REVIEW IS-11).
+        const bob = buildContact('uid-bob-baikal-001', OWNED_VCARD, {
+            cardName: 'Bob Baikal',
+            metadata: {
+                isOwned: true,
+                carddav: {
+                    etag: '"etag-baikal-v1"',
+                    href: 'https://baikal.local/dav/card.vcf',
+                    lastSyncedAt: new Date().toISOString(),
+                    // deliberately NO source: 'iCloud'
+                },
+            },
+        });
+
+        const { service, contactManager, mockClient } = await buildTestService(
+            { fetchContacts: FETCH_EMPTY },   // iCloud knows nothing about Bob
+            [bob],
+        );
+
+        await service.handleDeletions();
+        await service.pushToICloud();
+
+        const contact = contactManager.contacts.get('contact_uid-bob-baikal-001');
+        expect(contact).toBeDefined();
+        expect(contact?.metadata?.isDeleted).not.toBe(true);
+        // And nothing must be deleted on iCloud on his behalf either
+        expect(mockClient.deleteContact).not.toHaveBeenCalled();
+    });
+
+    it('does NOT push a Baikal etag as If-Match to iCloud', async () => {
+        const bob = buildContact('uid-bob-baikal-002', OWNED_VCARD, {
+            cardName: 'Bob Baikal',
+            metadata: {
+                isOwned: true,
+                carddav: {
+                    etag: '"etag-baikal-v1"',
+                    href: 'https://baikal.local/dav/card.vcf',
+                    // deliberately NO source: 'iCloud'
+                },
+            },
+        });
+
+        const { service, mockClient } = await buildTestService(
+            {
+                fetchContacts: FETCH_EMPTY,
+                createContact: CREATE_SUCCESS,
+            },
+            [bob],
+        );
+
+        // Baikal-only state means "not on iCloud yet" → create, never update
+        // with the Baikal etag.
+        await service.pushSingleContact(bob);
+
+        expect(mockClient.updateContact).not.toHaveBeenCalled();
+        expect(mockClient.createContact).toHaveBeenCalled();
     });
 
 });
