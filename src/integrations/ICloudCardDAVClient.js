@@ -44,7 +44,7 @@ export class ICloudCardDAVClient {
      */
     async proxyFetch(url, options = {}) {
         // Add worker authentication token to all proxy requests
-        const workerToken = this.config?.cardDAV?.workerToken || APP_CONFIG?.cardDAV?.workerToken;
+        const workerToken = APP_CONFIG?.cardDAV?.workerToken;
         if (workerToken && url.includes('carddav-proxy')) {
             options.headers = options.headers || {};
             options.headers['X-Worker-Token'] = workerToken;
@@ -601,10 +601,21 @@ export class ICloudCardDAVClient {
             method: 'PUT',
             headers: {
                 'Authorization': this.makeAuthHeader(),
-                'Content-Type': 'text/vcard; charset=utf-8'
+                'Content-Type': 'text/vcard; charset=utf-8',
+                // Create-only semantics: fail with 412 instead of silently
+                // overwriting a contact that already exists at this UID
+                'If-None-Match': '*'
             },
             body: vcard
         });
+
+        if (response.status === 412) {
+            return {
+                success: false,
+                error: `Contact with UID ${uid} already exists on iCloud (412 precondition failed)`,
+                status: 412
+            };
+        }
 
         if (response.ok || response.status === 201) {
             console.log(`✅ Created contact: ${uid}`);

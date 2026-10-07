@@ -1,8 +1,9 @@
 // Cloudflare Worker for CardDAV CORS Proxy
 // Deploy this at: https://carddav-proxy.data4-9de.workers.dev
 
-// Allowed origins that may use this proxy (add your production domain here)
-const ALLOWED_ORIGINS = [
+// Default allowed origins (fallback for local dev; production list comes
+// from the ALLOWED_ORIGINS var in wrangler.toml, which overrides this)
+const DEFAULT_ALLOWED_ORIGINS = [
   'https://e2econtacts.org',
   'https://www.e2econtacts.org',
   'http://localhost',
@@ -89,16 +90,27 @@ async function handleRequest(request) {
   const safeAuth = rawAuth.replace(/[\r\n]/g, '')
 
   try {
+    // Forward conditional (ETag) headers so iCloud can enforce optimistic
+    // concurrency. Without If-Match, every PUT/DELETE is unconditional and
+    // remote edits are silently overwritten (see ICLOUD_SYNC_REVIEW IS-10).
+    const headers = {
+      'Authorization': safeAuth,
+      'Content-Type': request.headers.get('Content-Type') || 'application/xml; charset=utf-8',
+      'Depth': request.headers.get('Depth') || '0',
+      'User-Agent': 'CardDAV-Client/1.0',
+      'Accept': '*/*'
+    }
+    for (const header of ['If-Match', 'If-None-Match', 'Prefer']) {
+      const value = request.headers.get(header)
+      if (value) {
+        headers[header] = value.replace(/[\r\n]/g, '')
+      }
+    }
+
     // Forward request to target
     const targetRequest = new Request(targetUrl, {
       method: request.method,
-      headers: {
-        'Authorization': safeAuth,
-        'Content-Type': request.headers.get('Content-Type') || 'application/xml; charset=utf-8',
-        'Depth': request.headers.get('Depth') || '0',
-        'User-Agent': 'CardDAV-Client/1.0',
-        'Accept': '*/*'
-      },
+      headers,
       body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : undefined
     })
 
@@ -127,14 +139,20 @@ async function handleRequest(request) {
   }
 }
 
+function getAllowedOrigins() {
+  // Production list comes from the ALLOWED_ORIGINS var in wrangler.toml.
+  // Accept a comma-separated string or an array; fall back to built-in defaults.
+  if (typeof ALLOWED_ORIGINS !== 'undefined' && ALLOWED_ORIGINS) {
+    return typeof ALLOWED_ORIGINS === 'string'
+      ? ALLOWED_ORIGINS.split(',').map(s => s.trim())
+      : ALLOWED_ORIGINS
+  }
+  return DEFAULT_ALLOWED_ORIGINS
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return false
-  // ALLOWED_ORIGINS may be a comma-separated string (from wrangler.toml env var)
-  // or an array (from hardcoded default). Normalize to array.
-  const origins = typeof ALLOWED_ORIGINS === 'string'
-    ? ALLOWED_ORIGINS.split(',').map(s => s.trim())
-    : ALLOWED_ORIGINS
-  return origins.some(allowed => origin === allowed || origin.startsWith(allowed + '/'))
+  return getAllowedOrigins().some(allowed => origin === allowed || origin.startsWith(allowed + '/'))
 }
 
 function getCORSHeaders(origin) {

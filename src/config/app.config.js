@@ -20,9 +20,12 @@ export const APP_CONFIG = {
     cardDAV: {
         proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
         // Worker authentication token (required for all proxy requests)
-        // Note: This is visible in the JS bundle, but provides protection against
-        // random bots/scanners. Real security comes from HTTPS + origin allowlist + user credentials.
-        workerToken: 'vMUxSJ61CcyyyJLmWtgo13Kbf/d7yFm/Ot7bm1zAAH4=',
+        // NOT A SECRET: this is visible in the public JS bundle and in git history.
+        // It only filters token-less scrapers. Real controls: HTTPS + SSRF allowlist
+        // + origin allowlist + Cloudflare rate limiting on the Worker route.
+        // Must match the WORKER_TOKEN env var of the deployed Worker.
+        // Rotated 2026-10-07 (previous value was exposed in git history since Nov 2025).
+        workerToken: '6UwR4KT2bnOdopjuE2dEh8W6SjpqZ5DOAVzEzuFiNAA=',
         useProxy: true,
         fallbackToLocal: true, // Bypass proxy for localhost/127.0.0.1 servers
         // Automatically detect local servers and connect directly
