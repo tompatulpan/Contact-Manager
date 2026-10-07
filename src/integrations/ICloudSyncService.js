@@ -28,6 +28,7 @@ export class ICloudSyncService {
         this.lastSyncTime = null;
         this.syncInterval = null;
         this.sharedRefreshInterval = null;
+        this.sharedRefreshTimeout = null;
         this.syncErrors = [];
         
         // Credentials
@@ -104,8 +105,12 @@ export class ICloudSyncService {
     /**
      * Start automatic sync with configurable interval
      */
-    startAutoSync(intervalMinutes = null) {
-        if (this.syncInterval) {
+    startAutoSync(intervalMinutes = null, options = {}) {
+        // Guard on every timer we arm. Checking only syncInterval used to let
+        // a second call through while the shared-refresh offset timeout was
+        // still pending, which then overwrote the first sharedRefreshInterval
+        // handle — an interval that could never be cleared again (IS-12).
+        if (this.syncInterval || this.sharedRefreshInterval || this.sharedRefreshTimeout) {
             console.warn('⚠️ Auto-sync already running');
             return;
         }
@@ -118,8 +123,12 @@ export class ICloudSyncService {
         const intervalDisplay = Math.round(intervalMs / 1000);
         console.log(`🔄 Starting iCloud auto-sync (every ${intervalDisplay}s / ${Math.round(intervalMs/60000)}min)...`);
         
-        // Initial sync
-        this.performSync();
+        // Initial sync — skipped when resuming after a pause (e.g. around a
+        // bulk operation the caller did not want a full sync cycle from)
+        const skipInitialSync = options?.skipInitialSync === true;
+        if (!skipInitialSync) {
+            this.performSync();
+        }
         
         // Schedule periodic sync (bidirectional for OWNED/IMPORTED)
         this.syncInterval = setInterval(() => {
@@ -132,8 +141,10 @@ export class ICloudSyncService {
         
         console.log(`🔄 Starting shared contact refresh (every ${Math.round(sharedRefreshMs/1000)}s, offset ${Math.round(sharedOffsetMs/1000)}s)...`);
         
-        // Start shared refresh after offset delay
-        setTimeout(() => {
+        // Start shared refresh after offset delay — keep the handle so
+        // stopAutoSync() can cancel it inside the offset window (IS-12)
+        this.sharedRefreshTimeout = setTimeout(() => {
+            this.sharedRefreshTimeout = null;
             this.refreshSharedContactsToICloud();
             
             this.sharedRefreshInterval = setInterval(() => {
@@ -158,13 +169,19 @@ export class ICloudSyncService {
             console.log('⏹️ Auto-sync stopped');
         }
         
+        if (this.sharedRefreshTimeout) {
+            clearTimeout(this.sharedRefreshTimeout);
+            this.sharedRefreshTimeout = null;
+            console.log('⏹️ Shared contact refresh (pending offset) stopped');
+        }
+        
         if (this.sharedRefreshInterval) {
             clearInterval(this.sharedRefreshInterval);
             this.sharedRefreshInterval = null;
             console.log('⏹️ Shared contact refresh stopped');
         }
         
-        if (this.syncInterval === null && this.sharedRefreshInterval === null) {
+        if (this.syncInterval === null && this.sharedRefreshInterval === null && this.sharedRefreshTimeout === null) {
             this.eventBus.emit('icloud:autoSyncStopped');
         }
     }

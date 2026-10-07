@@ -150,7 +150,9 @@ export class ContactManager {
         try {
             // Resume iCloud auto-sync if it was paused
             if (pausedServices.iCloud && this.iCloudSyncService) {
-                this.iCloudSyncService.startAutoSync();
+                // skipInitialSync: the bulk operation we were paused for is
+                // done — do not trigger a full pull+deletion+push cycle now
+                this.iCloudSyncService.startAutoSync(null, { skipInitialSync: true });
                 resumedServices.iCloud = true;
                 console.log('▶️ Resumed iCloud auto-sync');
             }
