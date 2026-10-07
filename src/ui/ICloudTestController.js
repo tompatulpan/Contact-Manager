@@ -3,6 +3,8 @@
  * Handles UI for testing iCloud CardDAV integration
  */
 
+import { CredentialStorageUI } from './CredentialStorageUI.js';
+
 export class ICloudTestController {
     constructor(eventBus, contactManager, iCloudSyncService = null, ICloudCardDAVClient = null) {
         this.eventBus = eventBus;
@@ -11,6 +13,10 @@ export class ICloudTestController {
         this.ICloudCardDAVClient = ICloudCardDAVClient;
         this.iCloudClient = null;
         this.fetchedContacts = [];
+        
+        // Secure credential storage for the iCloud profile (survives reloads,
+        // degrades gracefully in private browsing)
+        this.credentialUI = new CredentialStorageUI(eventBus);
         
         // Defer initialization until DOM is ready
         if (document.readyState === 'loading') {
@@ -21,6 +27,9 @@ export class ICloudTestController {
     }
 
     initializeUI() {
+        // Initialize secure credential storage (detects private browsing)
+        this.credentialUI.initialize().catch(err => console.warn('Credential storage unavailable:', err));
+        
         // Modal open button
         const testBtn = document.getElementById('icloud-test-btn');
         if (testBtn) {
@@ -73,30 +82,33 @@ export class ICloudTestController {
         }
     }
 
-    getCredentials() {
+    /**
+     * Get credentials from the modal inputs, falling back to securely
+     * stored credentials (profile 'icloud') so sync/auto-sync can resume
+     * after a page reload without retyping the app-specific password.
+     */
+    async getCredentials() {
         const emailField = document.getElementById('icloud-email');
         const passwordField = document.getElementById('icloud-password');
         
-        console.log('🔍 Getting credentials from fields:', {
-            emailField: !!emailField,
-            passwordField: !!passwordField,
-            emailValue: emailField?.value,
-            passwordValue: passwordField?.value ? '***' : null
-        });
-        
-        const email = emailField?.value.trim();
-        const password = passwordField?.value.trim();
+        let email = emailField?.value?.trim();
+        let password = passwordField?.value?.trim();
 
         if (!email || !password) {
-            this.log('❌ Please enter both email and password', 'error');
-            console.error('❌ Credentials validation failed:', { 
-                hasEmail: !!email, 
-                hasPassword: !!password 
-            });
+            try {
+                const stored = await this.credentialUI.getStoredCredentials('icloud');
+                if (stored?.success && stored.credentials) {
+                    email = email || stored.credentials.username;
+                    password = password || stored.credentials.password;
+                }
+            } catch (e) { /* storage unavailable (private browsing) — fall through */ }
+        }
+
+        if (!email || !password) {
+            this.log('❌ Please enter both email and app-specific password (or connect once and save them)', 'error');
             return null;
         }
 
-        console.log('✅ Credentials retrieved successfully');
         return { email, password };
     }
 
@@ -104,7 +116,7 @@ export class ICloudTestController {
         this.clearLog();
         this.log('🔌 Test 1: Connecting to iCloud...', 'info');
 
-        const creds = this.getCredentials();
+        const creds = await this.getCredentials();
         console.log('🔐 Retrieved credentials:', { 
             hasEmail: !!creds?.email, 
             emailLength: creds?.email?.length,
@@ -147,6 +159,13 @@ export class ICloudTestController {
                         this.log(`⚠️ Sync service init failed: ${syncResult.error}`, 'warn');
                     }
                 }
+
+                // Offer to store credentials securely so sync survives a page
+                // reload (IS-14). Fire-and-forget; the user can decline.
+                this.credentialUI.showStorageConsent('icloud', {
+                    username: creds.email,
+                    password: creds.password
+                }).catch(() => {});
 
                 // Enable next buttons
                 document.getElementById('icloud-fetch-btn').disabled = false;
@@ -413,7 +432,7 @@ END:VCARD\r
 
         try {
             // Get credentials
-            const credentials = this.getCredentials();
+            const credentials = await this.getCredentials();
             if (!credentials) {
                 this.log('❌ Please enter iCloud credentials', 'error');
                 return;
@@ -476,7 +495,7 @@ END:VCARD\r
         try {
             // Auto-initialize if not yet connected (user clicked Sync Now without Start Auto-Sync)
             if (!this.iCloudSyncService.isConnected) {
-                const credentials = this.getCredentials();
+                const credentials = await this.getCredentials();
                 if (!credentials) {
                     this.log('❌ Please enter iCloud credentials first', 'error');
                     return;
