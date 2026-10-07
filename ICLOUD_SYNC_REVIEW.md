@@ -158,3 +158,27 @@ If a user has a Baikal/Nextcloud profile and iCloud sync active at the same time
 10. **Extend tests** to `ICloudCardDAVClient` using the existing XML fixtures in `tests/icloud/fixtures/carddav-responses.js`, add a Worker header-forwarding test, a Baikal-tagged-contact-survives-iCloud-deletion test (IS-11), and a stop/start re-entrancy test (IS-12).
 
 Steps 1, 2, 4 and 6 are the ones that matter before the next production sync; the rest can follow incrementally.
+
+## 6. Implementation status (2026-10-07, third pass)
+
+| Step | Finding | Status | Commit |
+|---|---|---|---|
+| 1 | IS-10 | Implemented — Worker forwards `If-Match`/`If-None-Match`/`Prefer`, `createContact()` sends `If-None-Match: *` and maps 412 to an error; worker test suite added. **Requires `wrangler deploy`.** | `e6f0d47` |
+| 2 | IS-01, IS-03 | Implemented — `ICloudConnector`, `CardDAVConnectorFactory`, and all BaikalUIController iCloud branches deleted; iCloud URLs in the settings UI get a clear pointer to the iCloud Sync button. | `bc8d9ee` |
+| 3 | IS-14 (settings-UI story + credentials) | Implemented — iCloud modal falls back to stored credentials (profile `icloud`) and offers storage consent after connect; reload no longer kills auto-sync. Settings-UI story resolved as "disable + point at iCloud Sync". | `356be01` |
+| 4 | IS-11 | Implemented (minimal) — `isICloudSynced()` requires `carddav.source === 'iCloud'` at every iCloud-conditional read; survival tests added. Full per-target namespacing still open (see below). | `0f19ae1` |
+| 5 | IS-12 | Implemented — offset timeout stored/cleared, guard on all three timers, `skipInitialSync` on bulk-op resume; timer tests added. | `ad39aba` |
+| 6 | IS-02 | Partial — token rotated in `app.config.js` (old value invalid once deployed), README rewritten with security model and deploy order. **Remaining manual steps:** `wrangler secret put WORKER_TOKEN` with the new value, `wrangler deploy`, and a Cloudflare rate-limiting rule on the Worker route. | `e6f0d47` |
+| 7 | IS-04, IS-05 | Implemented — `cleanupOrphanedDeletions()` deleted, both stale console hints corrected, `ContactDatabase.hardDeleteContact()` replaces the raw `userbase.deleteItem` calls. | `0e9973f` |
+| 8 | IS-08 | Implemented — `fetchContacts()` refuses to report an empty addressbook when the REPORT body is not a multistatus document. | `0e9973f` |
+| 9 | IS-13 | Implemented — root worker copy deleted, `ALLOWED_CARDDAV_SERVERS` removed from `wrangler.toml`, `ALLOWED_ORIGINS` env var is the source of truth with a code-level dev fallback. | `e6f0d47` |
+| 10 | Tests | Partial — worker suite (10 tests: header forwarding, access control, SSRF) and timer/deletion tests added; jest 59/59. `ICloudCardDAVClient` XML/discovery tests still open. | various |
+
+Jest after this pass: 10 suites / 59 tests, all passing.
+
+### Remaining known gaps
+
+- **Per-target carddav namespacing (full IS-11):** Baikal and iCloud still share one `metadata.carddav` object. The `source === 'iCloud'` guard prevents cross-server deletions and cross-etag `If-Match`, but a contact synced to both servers can still have one server's etag clobbered by the other. Implement `metadata.carddav.icloud` / `metadata.carddav.baikal[profileName]` before supporting both simultaneously.
+- **IS-09:** `testConnect()` still builds its own client; route connection through `ICloudSyncService.initialize()`.
+- **Worker deployment:** the deployed production Worker still runs the old code until `wrangler deploy` is run; until then ETag concurrency remains a no-op in production (IS-10) and the old public token remains valid (IS-02).
+- **`ICloudCardDAVClient` unit tests:** XML parsing, discovery and ETag handling are only covered by manual diagnostic pages.
