@@ -4227,39 +4227,6 @@ export class ContactManager {
                         `Permissions updated for ${username}`,
                     action: needsContactData ? 'reshared' : 'updated'
                 }
-                
-                // Update permissions
-                const updatedContact = {
-                    ...contact,
-                    metadata: {
-                        ...contact.metadata,
-                        sharing: {
-                            ...contact.metadata.sharing,
-                            sharePermissions: {
-                                ...contact.metadata.sharing?.sharePermissions,
-                                [username]: {
-                                    ...contact.metadata.sharing?.sharePermissions?.[username],
-                                    level: readOnly ? 'readOnly' : 'write',
-                                    lastUpdated: new Date().toISOString(),
-                                    canReshare: resharingAllowed
-                                }
-                            }
-                        }
-                        // ⚠️ IMPORTANT: DO NOT update contact's lastUpdated when only changing sharing permissions
-                        // Only the permission's lastUpdated should be touched, not the contact's lastUpdated
-                    }
-                };
-                
-                // Update in database
-                await this.updateContact(contactId, updatedContact);
-                
-                return {
-                    success: true,
-                    message: needsContactData ? 
-                        `Re-shared and updated permissions for ${username}` : 
-                        `Permissions updated for ${username}`,
-                    action: needsContactData ? 'reshared' : 'updated'
-                };
             }
             
             // Share using individual sharing strategy only (no group databases)
