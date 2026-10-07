@@ -359,9 +359,14 @@ export class MockDatabase {
         if (this.shouldFail) {
             return { success: false, error: this.failureMessage };
         }
-        
+
         this.contacts.delete(itemId);
         return { success: true };
+    }
+
+    // Mirrors ContactDatabase.hardDeleteContact for sync-service tests (IS-05)
+    async hardDeleteContact(contactId) {
+        return this.deleteContact(contactId);
     }
 
     async logActivity(activity) {

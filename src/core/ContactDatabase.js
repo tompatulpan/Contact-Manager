@@ -1853,6 +1853,20 @@ export class ContactDatabase {
     }
 
     /**
+     * Permanently remove a contact item from the 'contacts' database.
+     * Used by sync services after the remote copy has been deleted; goes
+     * through safeDeleteItem so raw SDK calls stay in this layer (IS-05).
+     * @param {string} contactId - itemId of the contact to remove
+     * @returns {Promise<Object>} Delete result
+     */
+    async hardDeleteContact(contactId) {
+        return this.safeDeleteItem({
+            databaseName: 'contacts',
+            itemId: contactId
+        }, 'hardDeleteContact');
+    }
+
+    /**
      * ✅ SDK COMPLIANT: Safe shareDatabase wrapper with full validation
      * @param {Object} params - shareDatabase parameters
      * @param {string} context - Context for error reporting

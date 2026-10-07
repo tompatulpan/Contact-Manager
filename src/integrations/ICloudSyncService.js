@@ -641,10 +641,7 @@ export class ICloudSyncService {
                         
                         // Remove from local database completely (hard delete from Userbase)
                         try {
-                            await userbase.deleteItem({
-                                databaseName: 'contacts',
-                                itemId: contact.contactId
-                            });
+                            await this.contactManager.database.hardDeleteContact(contact.contactId);
                             // Also remove from memory
                             this.contactManager.contacts.delete(contact.contactId);
                             console.log(`✅ Removed from local database: ${contact.cardName}`);
@@ -669,10 +666,7 @@ export class ICloudSyncService {
                                 console.log(`⏳ Rate limited, waiting 2 seconds before retry...`);
                                 await new Promise(resolve => setTimeout(resolve, 2000));
                                 try {
-                                    await userbase.deleteItem({
-                                        databaseName: 'contacts',
-                                        itemId: contact.contactId
-                                    });
+                                    await this.contactManager.database.hardDeleteContact(contact.contactId);
                                     this.contactManager.contacts.delete(contact.contactId);
                                     console.log(`✅ Removed from local database (retry): ${contact.cardName}`);
                                 } catch (retryError) {
@@ -1486,8 +1480,8 @@ export class ICloudSyncService {
                 console.warn('⚠️ ORPHANED DELETIONS FOUND!');
                 console.warn(`   ${orphanedDeletions.length} contacts marked deleted but not cleaned up`);
                 console.warn('');
-                console.warn('   🧹 To clean up, run:');
-                console.warn('   await window.app.modules.iCloudSyncService.cleanupOrphanedDeletions()');
+                console.warn('   iCloud-synced tombstones are removed by the next sync push phase.');
+                console.warn('   Tombstones of never-synced contacts are permanent soft-delete records.');
                 console.warn('');
             }
             
@@ -1513,74 +1507,6 @@ export class ICloudSyncService {
         } catch (error) {
             console.error('❌ Failed to check sync state:', error);
             throw error;
-        }
-    }
-
-    /**
-     * Clean up orphaned deletion records (contacts marked deleted but not removed from database)
-     * This maintenance function removes stale deletion records that failed to hard-delete
-     */
-    async cleanupOrphanedDeletions() {
-        console.log('🧹 Starting cleanup of orphaned deletion records...');
-        
-        try {
-            const allContacts = Array.from(this.contactManager.contacts.values());
-            
-            // Find contacts marked as deleted
-            const orphanedDeletions = allContacts.filter(contact => 
-                contact.metadata.isDeleted
-            );
-            
-            console.log(`🔍 Found ${orphanedDeletions.length} orphaned deletion record(s)`);
-            
-            if (orphanedDeletions.length === 0) {
-                console.log('✅ No orphaned deletions to clean up');
-                return { cleaned: 0, failed: 0 };
-            }
-            
-            let cleaned = 0;
-            let failed = 0;
-            
-            // Clean up with rate limiting
-            for (let i = 0; i < orphanedDeletions.length; i++) {
-                const contact = orphanedDeletions[i];
-                
-                try {
-                    console.log(`🗑️ Cleaning up: ${contact.cardName}`);
-                    
-                    await userbase.deleteItem({
-                        databaseName: 'contacts',
-                        itemId: contact.contactId
-                    });
-                    
-                    this.contactManager.contacts.delete(contact.contactId);
-                    cleaned++;
-                    console.log(`✅ Cleaned: ${contact.cardName}`);
-                    
-                    // Rate limiting: 1.1 second delay between operations
-                    if (i < orphanedDeletions.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 1100));
-                    }
-                    
-                } catch (error) {
-                    failed++;
-                    console.error(`❌ Failed to clean ${contact.cardName}:`, error);
-                    
-                    // If rate limited, wait longer before continuing
-                    if (error.name === 'TooManyRequests') {
-                        console.log('⏳ Rate limited, waiting 2 seconds...');
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                    }
-                }
-            }
-            
-            console.log(`✅ Cleanup complete: ${cleaned} cleaned, ${failed} failed`);
-            
-            return { cleaned, failed };
-            
-        } catch (error) {
-            console.error('❌ Cleanup failed:', error);
-            return { cleaned: 0, failed: 0 };
         }
     }
 

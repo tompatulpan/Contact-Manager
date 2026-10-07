@@ -161,8 +161,8 @@ export class SyncStatistics {
 
             // Warning for orphaned records
             if (deletedRecords > 0) {
-                console.warn(`⚠️ WARNING: ${deletedRecords} orphaned deletion records in database!`);
-                console.warn(`   Run: await window.iCloudSyncService.cleanupOrphanedDeletions()`);
+                console.warn(`⚠️ NOTE: ${deletedRecords} soft-deleted records in database.`);
+                console.warn('   iCloud-synced ones are removed by the next sync push phase.');
             }
         }
 
