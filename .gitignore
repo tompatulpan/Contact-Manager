@@ -27,6 +27,7 @@ node_modules/
 !/README.md
 !/SECURITY_REVIEW.md
 !/FEATURE_CLEANUP_AND_REVIEW.md
+!/ICLOUD_SYNC_REVIEW.md
 !/cache-bust.js
 !/style.css
 !/style-dark.css
