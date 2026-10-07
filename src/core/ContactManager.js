@@ -1267,18 +1267,6 @@ export class ContactManager {
         return sorted;
     }
 
-    /**
-     * Get contacts by distribution list
-     * @param {string} listName - Distribution list name
-     * @returns {Array} Contacts in the list
-     */
-    getContactsByDistributionList(listName) {
-        return Array.from(this.contacts.values()).filter(contact => 
-            !contact.metadata.isDeleted && 
-            !contact.metadata.isArchived &&
-            contact.metadata.distributionLists?.includes(listName)
-        );
-    }
 
     /**
      * Get contact statistics
@@ -3445,60 +3433,6 @@ export class ContactManager {
     }
 
     /**
-     * Add a contact to a distribution list
-     * @param {string} contactId - ID of the contact to add
-     * @param {string} listName - Name of the distribution list
-     * @returns {Promise<Object>} Addition result
-     */
-    async addContactToDistributionList(contactId, listName) {
-        try {
-            console.log('📝 Adding contact to distribution list:', contactId, listName);
-            
-            // Get the contact
-            const contact = this.contacts.get(contactId);
-            if (!contact) {
-                return { success: false, error: 'Contact not found' };
-            }
-            
-            // Verify the distribution list exists
-            const settings = await this.database.getSettings() || {};
-            const distributionLists = settings.distributionLists || {};
-            if (!distributionLists[listName]) {
-                return { success: false, error: 'Distribution list not found' };
-            }
-            
-            // Initialize distributionLists array if it doesn't exist
-            if (!contact.metadata.distributionLists) {
-                contact.metadata.distributionLists = [];
-            }
-            
-            // Add to list if not already there
-            if (!contact.metadata.distributionLists.includes(listName)) {
-                contact.metadata.distributionLists.push(listName);
-                contact.metadata.lastUpdated = new Date().toISOString();
-                
-                // Update the contact (not save as new)
-                await this.database.updateContact(contact);
-                
-                // Update local cache
-                this.contacts.set(contactId, contact);
-                
-                console.log('✅ Contact added to distribution list successfully');
-                this.eventBus.emit('contact:updated', { contact });
-                this.eventBus.emit('distributionList:contactAdded', { contactId, listName });
-                
-                return { success: true };
-            } else {
-                return { success: false, error: 'Contact already in this distribution list' };
-            }
-            
-        } catch (error) {
-            console.error('❌ Error adding contact to distribution list:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
      * Remove a contact from a distribution list
      * @param {string} contactId - ID of the contact to remove
      * @param {string} listName - Name of the distribution list
@@ -3597,26 +3531,6 @@ export class ContactManager {
             console.error('❌ Error deleting distribution list:', error);
             return { success: false, error: error.message };
         }
-    }
-
-    /**
-     * Get contacts in a specific distribution list
-     * @param {string} listName - Name of the distribution list
-     * @returns {Array} Array of contacts in the list
-     */
-    getContactsByDistributionList(listName) {
-        const contacts = [];
-        
-        for (const contact of this.contacts.values()) {
-            if (!contact.metadata?.isDeleted && 
-                contact.metadata && 
-                contact.metadata.distributionLists && 
-                contact.metadata.distributionLists.includes(listName)) {
-                contacts.push(contact);
-            }
-        }
-        
-        return contacts;
     }
 
     /**

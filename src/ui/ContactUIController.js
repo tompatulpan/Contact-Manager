@@ -520,8 +520,6 @@ export class ContactUIController {
             verificationStatus: document.getElementById('verification-status'),
             shareLoading: document.getElementById('share-loading'),
             shareSuccess: document.getElementById('share-success'),
-            shareDistributionListSelect: document.getElementById('share-distribution-list'),
-            distributionListPreview: document.getElementById('distribution-list-preview'),
             shareInfoText: document.getElementById('share-info-text'),
             shareSubmitText: document.getElementById('share-submit-text'),
             sharedWithUser: document.getElementById('shared-with-user'),
@@ -792,11 +790,6 @@ export class ContactUIController {
         shareTypeTabs.forEach(tab => {
             tab.addEventListener('click', this.handleShareTypeChange.bind(this));
         });
-        
-        // Distribution list select change
-        if (this.elements.shareDistributionListSelect) {
-            this.elements.shareDistributionListSelect.addEventListener('change', this.handleDistributionListSelectChange.bind(this));
-        }
         
         // Share with list select change
         if (this.elements.shareWithListSelect) {
@@ -2518,8 +2511,6 @@ export class ContactUIController {
         // Add event listeners for detail actions
         this.setupContactDetailListeners(container, contact.contactId);
         
-        // Populate distribution list selects
-        setTimeout(() => this.populateDistributionListSelects(), 100);
         
         // Emit event for mobile navigation AFTER content is rendered
         this.eventBus.emit('contact:selected', { contact });
@@ -4594,93 +4585,6 @@ export class ContactUIController {
     }
 
     /**
-     * Handle distribution list sharing
-     */
-    async handleDistributionListShare(username, listName, isReadOnly) {
-        // Clear previous errors
-        this.clearShareFormErrors();
-        
-        // Prevent sharing with self
-        if (username === this.contactManager.database.currentUser?.username) {
-            this.showShareFormError('share-username', 'You cannot share contacts with yourself');
-            return;
-        }
-        
-        // Get contacts in the distribution list
-        const contacts = this.contactManager.getContactsByDistributionList(listName);
-        
-        if (contacts.length === 0) {
-            this.showShareFormError('share-distribution-list', 'This distribution list has no contacts to share');
-            return;
-        }
-        
-        
-        // Show loading state
-        this.setShareModalState('loading');
-        
-        try {
-            let successCount = 0;
-            let errorCount = 0;
-            const errors = [];
-            
-            // Share each contact individually
-            for (const contact of contacts) {
-                try {
-                    // Share individual contact via ContactManager
-                    const result = await this.contactManager.shareContact(contact.contactId, username, isReadOnly, false);
-                    
-                    if (result.success) {
-                        successCount++;
-                    } else {
-                        errorCount++;
-                        errors.push(`${contact.cardName}: ${result.error}`);
-                    }
-                } catch (error) {
-                    errorCount++;
-                    errors.push(`${contact.cardName}: ${error.message}`);
-                }
-            }
-            
-            if (successCount > 0) {
-                // Show success state
-                this.setShareModalState('success');
-                if (this.elements.sharedWithUser) {
-                    this.elements.sharedWithUser.textContent = username;
-                }
-                
-                // Update success message for bulk share
-                const successElement = document.querySelector('#share-success .success-message');
-                if (successElement) {
-                    successElement.innerHTML = `
-                        <i class="fas fa-check-circle"></i>
-                        Successfully shared ${successCount} contact${successCount !== 1 ? 's' : ''} from "${listName}" with ${username}!
-                        ${errorCount > 0 ? `<br><small>${errorCount} contact${errorCount !== 1 ? 's' : ''} failed to share.</small>` : ''}
-                    `;
-                }
-                
-                // Refresh contacts list to show sharing indicators
-                this.refreshContactsList();
-                
-                
-                // Auto-close after 5 seconds (longer for bulk operations)
-                setTimeout(() => {
-                    this.hideModal({ modalId: 'share-modal' });
-                }, 5000);
-                
-            } else {
-                throw new Error(`Failed to share any contacts from "${listName}". ${errors.join(', ')}`);
-            }
-            
-        } catch (error) {
-            console.error('❌ Distribution list share failed:', error);
-            
-            // Return to form and show error
-            this.setShareModalState('form');
-            this.showShareFormError('share-distribution-list', this.escapeHtml(error.message) || 'Failed to share distribution list');
-        }
-    }
-
-    /**
      * Show share form error
      */
     /**
@@ -4781,109 +4685,7 @@ export class ContactUIController {
             if (this.elements.shareUsernameInput) {
                 this.elements.shareUsernameInput.removeAttribute('required');
             }
-            
-        } else if (shareType === 'distribution-list') {
-            // Legacy support - can be removed later
-            document.getElementById('distribution-list-share-section').classList.add('active');
-            this.elements.shareInfoText.textContent = 'The recipient will receive ALL contacts from this distribution list. They will appear in their "Shared with Me" section and cannot be shared further.';
-            this.elements.shareSubmitText.textContent = 'Share Distribution List';
-            this.populateDistributionListSelect();
         }
-    }
-
-    /**
-     * Handle distribution list selection change
-     */
-    async handleDistributionListSelectChange(event) {
-        const listName = event.target.value;
-        
-        if (!listName) {
-            this.elements.distributionListPreview.innerHTML = '';
-            return;
-        }
-        
-        await this.updateDistributionListPreview(listName);
-    }
-
-    /**
-     * Populate distribution list select options
-     */
-    async populateDistributionListSelect() {
-        const distributionLists = await this.contactManager.getDistributionLists();
-        const select = this.elements.shareDistributionListSelect;
-        
-        // Clear existing options (except the first placeholder)
-        while (select.children.length > 1) {
-            select.removeChild(select.lastChild);
-        }
-        
-        // Add distribution list options
-        distributionLists.forEach(list => {
-            const option = document.createElement('option');
-            option.value = list.name;
-            option.textContent = `${list.name} (${list.contactCount} contacts)`;
-            select.appendChild(option);
-        });
-        
-        // Disable if no lists available
-        select.disabled = distributionLists.length === 0;
-        
-        if (distributionLists.length === 0) {
-            this.elements.distributionListPreview.innerHTML = `
-                <div class="distribution-list-summary">
-                    <i class="fas fa-info-circle"></i>
-                    No distribution lists available. Create a distribution list and assign contacts to it first.
-                </div>
-            `;
-        }
-    }
-
-    /**
-     * Update distribution list preview
-     */
-    async updateDistributionListPreview(listName) {
-        // Get usernames in the distribution list instead of contacts
-        const usernames = await this.contactManager.getUsernamesInDistributionList(listName);
-        const distributionLists = await this.contactManager.getDistributionLists();
-        const listInfo = distributionLists.find(list => list.name === listName);
-        
-        if (!listInfo) return;
-        
-        let html = `
-            <div class="distribution-list-summary">
-                <i class="fas fa-users" style="color: ${listInfo.color || '#007bff'}"></i>
-                You will share your profile with ${usernames.length} user${usernames.length !== 1 ? 's' : ''} in "${listName}"
-            </div>
-        `;
-        
-        if (usernames.length > 0) {
-            html += `
-                <h4><i class="fas fa-list"></i> Users who will receive your profile:</h4>
-                <div class="distribution-list-users">
-                    ${usernames.slice(0, 5).map(username => `
-                        <div class="distribution-list-user-item">
-                            <div class="user-avatar-small">
-                                <i class="fas fa-user"></i>
-                            </div>
-                            <div class="username">${this.escapeHtml(username)}</div>
-                        </div>
-                    `).join('')}
-                    ${usernames.length > 5 ? `<div class="more-users">... and ${usernames.length - 5} more users</div>` : ''}
-                </div>
-            `;
-        } else {
-            html += `
-                <div class="empty-list-message">
-                    <i class="fas fa-info-circle"></i>
-                    This distribution list doesn't have any users yet. 
-                    <button class="btn btn-link manage-list-btn" data-list-name="${listName}">
-                        Manage "${listName}"
-                    </button>
-                </div>
-            `;
-        }
-        
-        this.elements.distributionListPreview.innerHTML = html;
     }
 
     /**
@@ -5717,35 +5519,6 @@ export class ContactUIController {
      * Handle distribution list actions (event delegation)
      */
     async handleDistributionListActions(event) {
-        // Handle sharing distribution list
-        if (event.target.matches('.share-list-btn, .share-list-btn *')) {
-            event.preventDefault();
-            event.stopPropagation(); // Prevent triggering list selection
-            const shareBtn = event.target.closest('.share-list-btn');
-            const listName = shareBtn?.dataset.listName;
-            
-            if (listName) {
-                this.openShareModalForDistributionList(listName);
-            }
-            return;
-        }
-        
-        // Handle adding contact to distribution list
-        if (event.target.matches('.add-to-list-btn')) {
-            event.preventDefault();
-            const contactId = event.target.dataset.contactId;
-            const select = document.querySelector(`.distribution-list-select[data-contact-id="${contactId}"]`);
-            const listName = select?.value;
-            
-            if (!listName) {
-                this.showToast({ message: 'Please select a distribution list', type: 'warning' });
-                return;
-            }
-            
-            await this.addContactToList(contactId, listName);
-            return;
-        }
-        
         // Handle removing contact from distribution list
         if (event.target.matches('.distribution-list-tag')) {
             event.preventDefault();
@@ -5775,38 +5548,6 @@ export class ContactUIController {
             // User must use a different method to filter (like a separate filter button)
             
             return;
-        }
-    }
-
-    /**
-     * Add contact to distribution list
-     */
-    async addContactToList(contactId, listName) {
-        try {
-            const result = await this.contactManager.addContactToDistributionList(contactId, listName);
-            
-            if (result.success) {
-                this.showToast({ 
-                    message: `Contact added to "${listName}" list`, 
-                    type: 'success' 
-                });
-                
-                // Refresh the contact display and distribution lists
-                await this.refreshContactsList();
-                await this.renderDistributionLists();
-                
-            } else {
-                this.showToast({ 
-                    message: result.error || 'Failed to add contact to list', 
-                    type: 'error' 
-                });
-            }
-        } catch (error) {
-            console.error('❌ Error adding contact to list:', error);
-            this.showToast({ 
-                message: 'Failed to add contact to list', 
-                type: 'error' 
-            });
         }
     }
 
@@ -5846,92 +5587,6 @@ export class ContactUIController {
         }
     }
 
-    /**
-     * Filter contacts by distribution list
-     */
-    /**
-     * Populate distribution list select options
-     */
-    async populateDistributionListSelects() {
-        const distributionLists = await this.contactManager.getDistributionLists();
-        const selects = document.querySelectorAll('.distribution-list-select');
-        
-        selects.forEach(select => {
-            const contactId = select.dataset.contactId;
-            const contact = this.contactManager.contacts.get(contactId);
-            const assignedLists = contact?.metadata?.distributionLists || [];
-            
-            // Clear existing options (except the first "Choose a list..." option)
-            while (select.children.length > 1) {
-                select.removeChild(select.lastChild);
-            }
-            
-            // Add available lists (exclude already assigned ones)
-            distributionLists.forEach(list => {
-                if (!assignedLists.includes(list.name)) {
-                    const option = document.createElement('option');
-                    option.value = list.name;
-                    option.textContent = list.name;
-                    select.appendChild(option);
-                }
-            });
-            
-            // Disable if no lists available
-            select.disabled = distributionLists.filter(list => 
-                !assignedLists.includes(list.name)
-            ).length === 0;
-        });
-    }
-
-    /**
-     * Open share modal pre-configured for distribution list sharing
-     */
-    openShareModalForDistributionList(listName) {
-        // Show the share modal
-        this.elements.shareModal.style.display = 'block';
-        
-        // Switch to distribution list tab
-        const distributionTab = this.elements.shareModal.querySelector('[data-share-type="distribution-list"]');
-        const individualTab = this.elements.shareModal.querySelector('[data-share-type="individual"]');
-        
-        if (distributionTab && individualTab) {
-            individualTab.classList.remove('active');
-            distributionTab.classList.add('active');
-            
-            // Show distribution list content, hide individual content
-            const individualContent = this.elements.shareModal.querySelector('#individual-share-content');
-            const distributionContent = this.elements.shareModal.querySelector('#distribution-list-share-content');
-            
-            if (individualContent) individualContent.style.display = 'none';
-            if (distributionContent) distributionContent.style.display = 'block';
-            
-            // Pre-select the distribution list
-            const distributionSelect = this.elements.shareModal.querySelector('#distribution-list-select');
-            if (distributionSelect) {
-                distributionSelect.value = listName;
-                // Trigger the change event to update preview
-                distributionSelect.dispatchEvent(new Event('change'));
-            }
-        }
-        
-        // Clear any previous share state
-        const usernameInput = this.elements.shareModal.querySelector('#share-username');
-        if (usernameInput) {
-            usernameInput.value = '';
-        }
-        
-        // Update modal title
-        const modalTitle = this.elements.shareModal.querySelector('h2');
-        if (modalTitle) {
-            modalTitle.textContent = `Share My Profile with "${listName}"`;
-        }
-        
-        // Update instruction text
-        const instructionText = this.elements.shareModal.querySelector('.share-instruction');
-        if (instructionText) {
-            instructionText.textContent = 'Select which of your contact profiles to share with this distribution list.';
-        }
-    }
 
     /**
      * Open username management modal
