@@ -254,6 +254,18 @@ export class ICloudSyncService {
             
             this.eventBus.emit('icloud:syncCompleted', {
                 duration: syncDuration,
+                // The modal reads data.stats — keep it populated and complete:
+                // pulled includes updates (not just new imports), restored
+                // counts owned cards re-created after an iCloud-side delete.
+                stats: {
+                    pushed: pushResult.pushed,
+                    pulled: pullResult.imported + (pullResult.updated || 0),
+                    imported: pullResult.imported,
+                    updated: pullResult.updated || 0,
+                    deleted: pushResult.deleted,
+                    restored: deletionResult.restored || 0
+                },
+                // Legacy flat keys (kept for any other listener)
                 pulled: pullResult.imported,
                 pushed: pushResult.pushed,
                 deleted: pushResult.deleted,

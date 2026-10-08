@@ -395,12 +395,20 @@ END:VCARD\r
         });
 
         this.eventBus.on('icloud:syncCompleted', (data) => {
-            const stats = data.stats || {};
-            this.updateSyncStatus(
-                `✅ Sync complete: ${stats.pushed || 0} pushed, ${stats.pulled || 0} pulled`,
-                'success'
-            );
-            this.log(`Sync completed: ${stats.pushed || 0} contacts pushed, ${stats.pulled || 0} contacts pulled`, 'success');
+            const stats = data.stats || data || {};
+            const pushed = stats.pushed || 0;
+            const pulled = stats.pulled || 0;
+            const restored = stats.restored || 0;
+
+            let statusMsg = `✅ Sync complete: ${pushed} pushed, ${pulled} pulled`;
+            let logMsg = `Sync completed: ${pushed} contacts pushed, ${pulled} contacts pulled`;
+            if (restored > 0) {
+                statusMsg += `, ${restored} restored`;
+                logMsg += `, ${restored} contacts restored (protected from iCloud-side delete)`;
+            }
+
+            this.updateSyncStatus(statusMsg, 'success');
+            this.log(logMsg, 'success');
         });
 
         this.eventBus.on('icloud:syncError', (data) => {
