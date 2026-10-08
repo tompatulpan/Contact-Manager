@@ -194,10 +194,29 @@ export class VCardStandard {
             const cardName = options.cardName || displayData.fullName || 'New Contact';
             
             const now = new Date().toISOString();
+            
+            // CardDAV sync matches contacts by their vCard UID. A contact
+            // without one cannot be matched: the iCloud copy gets a
+            // server-generated UID, the next pull re-imports that copy as a
+            // duplicate, and the UID-less original is then treated as
+            // "deleted on iCloud" (IS-16). Inject a UID when the source
+            // vCard has none.
+            let vcard = vCardString;
+            if (!this.extractUID(vcard)) {
+                const uid = this.generateUID();
+                const lineEnding = vcard.includes('\r\n') ? '\r\n' : '\n';
+                if (/^VERSION:[^\r\n]+$/m.test(vcard)) {
+                    vcard = vcard.replace(/^(VERSION:[^\r\n]+)$/m, `$1${lineEnding}UID:${uid}`);
+                } else {
+                    vcard = vcard.replace(/^BEGIN:VCARD$/m, `BEGIN:VCARD${lineEnding}UID:${uid}`);
+                }
+                console.log(`🆔 Imported vCard had no UID — injected UID:${uid}`);
+            }
+            
             return {
                 success: true,
                 contact: {
-                    vcard: vCardString,
+                    vcard,
                     cardName: cardName,  // Set cardName explicitly
                     ...displayData,
                     metadata: {

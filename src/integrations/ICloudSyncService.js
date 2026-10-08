@@ -485,6 +485,14 @@ export class ICloudSyncService {
                 
                 const uid = this.extractUIDFromVCard(localContact.vcard);
                 const hasCardDAVSync = this.isICloudSynced(localContact);
+
+                // A contact without a UID can never match the iCloud
+                // snapshot — treating it as "deleted on iCloud" causes
+                // delete/re-import churn (IS-16). Skip it.
+                if (hasCardDAVSync && !uid) {
+                    console.warn(`⚠️ ${localContact.cardName} is iCloud-synced but its vCard has no UID — skipping remote-deletion check (cannot match)`);
+                    continue;
+                }
                 
                 // If contact was synced to iCloud before but no longer exists there
                 if (hasCardDAVSync && !iCloudUIDs.has(uid)) {
@@ -594,6 +602,12 @@ export class ICloudSyncService {
             }
 
             if (result.success) {
+                // Write an iCloud-assigned UID back into the local vCard so
+                // the next pull can match this contact (IS-16)
+                if (result.uid && this.extractUIDFromVCard(contact.vcard) !== result.uid) {
+                    contact.vcard = this.rewriteLocalUID(contact.vcard, result.uid);
+                }
+
                 // Persist updated carddav metadata
                 contact.metadata.carddav = {
                     ...(contact.metadata.carddav || {}),
@@ -661,7 +675,27 @@ export class ICloudSyncService {
                 try {
                     const uid = this.extractUIDFromVCard(contact.vcard);
                     const etag = contact.metadata.carddav.etag;
-                    
+
+                    // No UID → nothing addressable on iCloud; do not send a
+                    // DELETE for it (would hit .../card/null.vcf). Mark the
+                    // tombstone processed and remove the local record only.
+                    if (!uid) {
+                        console.warn(`⚠️ Tombstone ${contact.cardName} has no UID — removing local record only, nothing to delete on iCloud`);
+                        if (contact.metadata.carddav) {
+                            contact.metadata.carddav.syncStatus = 'deleted';
+                            contact.metadata.carddav.deletedAt = new Date().toISOString();
+                        }
+                        try {
+                            await this.contactManager.database.hardDeleteContact(contact.contactId);
+                            this.contactManager.contacts.delete(contact.contactId);
+                            deleted++;
+                        } catch (dbError) {
+                            console.error(`⚠️ Failed to remove UID-less tombstone from local database:`, dbError);
+                            errors++;
+                        }
+                        continue;
+                    }
+
                     console.log(`🗑️ Deleting from iCloud: ${contact.cardName} (UID: ${uid})`);
                     
                     const result = await this.iCloudClient.deleteContact(uid, etag);
@@ -1170,6 +1204,12 @@ export class ICloudSyncService {
                         const result = await this.iCloudClient.createContact(cleanVCard);
                         
                         if (result.success) {
+                            // Write an iCloud-assigned UID back into the local
+                            // vCard so the next pull can match this contact (IS-16)
+                            if (result.uid && this.extractUIDFromVCard(contact.vcard) !== result.uid) {
+                                contact.vcard = this.rewriteLocalUID(contact.vcard, result.uid);
+                            }
+
                             // Store iCloud metadata in database
                             // Set lastSyncedAt since we just PUSHED/created on iCloud
                             contact.metadata.carddav = {
@@ -1437,6 +1477,25 @@ export class ICloudSyncService {
     isICloudSynced(contact) {
         return contact.metadata?.carddav?.source === 'iCloud' &&
             !!contact.metadata?.carddav?.etag;
+    }
+
+    /**
+     * Write an iCloud-assigned UID back into the local vCard. iCloud's
+     * create assigns its own UID when the pushed vCard has none (or an
+     * invalid one); without writing it back, the next pull cannot match
+     * the contact by UID and re-imports the iCloud copy as a duplicate,
+     * while the UID-less original is treated as "deleted on iCloud"
+     * (IS-16).
+     */
+    rewriteLocalUID(vcard, uid) {
+        const lineEnding = vcard.includes('\r\n') ? '\r\n' : '\n';
+        if (/^UID:[^\r\n]*$/m.test(vcard)) {
+            return vcard.replace(/^UID:[^\r\n]*$/m, `UID:${uid}`);
+        }
+        if (/^VERSION:[^\r\n]+$/m.test(vcard)) {
+            return vcard.replace(/^(VERSION:[^\r\n]+)$/m, `$1${lineEnding}UID:${uid}`);
+        }
+        return vcard.replace(/^BEGIN:VCARD$/m, `BEGIN:VCARD${lineEnding}UID:${uid}`);
     }
 
     /**

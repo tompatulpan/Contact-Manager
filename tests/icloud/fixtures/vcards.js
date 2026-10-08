@@ -13,6 +13,17 @@ EMAIL;TYPE=WORK;PREF=1:alice@example.com
 REV:2025-11-01T10:00:00Z
 END:VCARD`;
 
+// vCard with no UID — models the IS-16 bug: a file import whose cards lack
+// a UID cannot be matched by CardDAV sync and churned create/re-import/delete.
+export const UIDLESS_VCARD = `BEGIN:VCARD
+VERSION:3.0
+FN:Ulf UID-less
+N:UID-less;Ulf;;;
+TEL;TYPE=WORK;PREF=1:+46701111111
+EMAIL;TYPE=WORK;PREF=1:ulf@example.com
+REV:2025-11-01T10:00:00Z
+END:VCARD`;
+
 export const OWNED_VCARD_UPDATED = `BEGIN:VCARD
 VERSION:3.0
 FN:Alice Owned
