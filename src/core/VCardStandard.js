@@ -212,6 +212,26 @@ export class VCardStandard {
                 }
                 console.log(`🆔 Imported vCard had no UID — injected UID:${uid}`);
             }
+
+            // vCard 3.0 (RFC 2426) requires N as well as FN; iCloud's CardDAV
+            // rejects cards without N with "403 VCARD parse error" (IS-17).
+            // Derive N from FN (or the card name) when the source omits it.
+            if (!/^N:/m.test(vcard)) {
+                const fnMatch = vcard.match(/^FN:(.+)$/m);
+                const fn = (fnMatch ? fnMatch[1] : cardName || 'Unknown').trim();
+                const escapeComponent = (s) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,');
+                const parts = fn.split(/\s+/);
+                const first = parts.length > 1 ? parts.slice(0, -1).join(' ') : fn;
+                const last = parts.length > 1 ? parts[parts.length - 1] : '';
+                const lineEnding = vcard.includes('\r\n') ? '\r\n' : '\n';
+                const nLine = `N:${escapeComponent(last)};${escapeComponent(first)};;;`;
+                if (/^FN:[^\r\n]+$/m.test(vcard)) {
+                    vcard = vcard.replace(/^(FN:[^\r\n]+)$/m, `$1${lineEnding}${nLine}`);
+                } else {
+                    vcard = vcard.replace(/^BEGIN:VCARD$/m, `BEGIN:VCARD${lineEnding}${nLine}`);
+                }
+                console.log(`🆔 Imported vCard had no N property — injected ${nLine}`);
+            }
             
             return {
                 success: true,

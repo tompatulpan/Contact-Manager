@@ -34,6 +34,14 @@ describe('VCardStandard.importVCard() — UID injection', () => {
         expect(result.contact.vcard).toMatch(/^UID:contact_\S+$/m);
     });
 
+    it('injects an N property when the source vCard has none (IS-17)', () => {
+        // iCloud's CardDAV rejects vCard 3.0 without N: "403 VCARD parse error"
+        const result = new VCardStandard().importVCard(UIDLESS_VCARD, 'Test Contact', true);
+        expect(result.success).toBe(true);
+        // UIDLESS_VCARD has FN:Ulf UID-less → N:UID-less;Ulf;;;
+        expect(result.contact.vcard).toMatch(/^N:UID-less;Ulf;;;$/m);
+    });
+
     it('preserves an existing UID from the source vCard', () => {
         const result = new VCardStandard().importVCard(OWNED_VCARD, 'Test Contact', true);
         expect(result.success).toBe(true);
@@ -106,6 +114,27 @@ describe('ICloudSyncService — UID-less contacts and sync', () => {
         expect(result.success).toBe(false);
         expect(result.error).toContain('no UID');
         expect(mockClient.createContact).not.toHaveBeenCalled();
+    });
+
+    it('pushToICloud heals an N-less contact before creating it on iCloud (IS-17)', async () => {
+        const erin = buildContact('uid-erin-nless-004', UIDLESS_VCARD, {
+            cardName: 'Erin N-less',
+            metadata: { isOwned: true },
+        });
+
+        const { service, mockClient, contactManager } = await buildTestService(
+            { fetchContacts: FETCH_EMPTY, createContact: CREATE_SUCCESS },
+            [erin],
+        );
+
+        await service.pushToICloud();
+
+        // The vCard sent to iCloud must contain an N property
+        const sentVCard = mockClient.createContact.mock.calls[0][0];
+        expect(sentVCard).toMatch(/^N:UID-less;Ulf;;;$/m);
+        // And the stored card is healed so the fix persists
+        const contact = contactManager.contacts.get('contact_uid-erin-nless-004');
+        expect(contact?.vcard).toMatch(/^N:UID-less;Ulf;;;$/m);
     });
 
     it('does not rewrite the UID when it already matches', async () => {

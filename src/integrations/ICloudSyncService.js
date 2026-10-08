@@ -596,6 +596,9 @@ export class ICloudSyncService {
             // Only strip internal sharing metadata (CATEGORIES:SHARED:...).
             let cleanVCard = contact.vcard;
             cleanVCard = cleanVCard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '');
+            // RFC 2426 requires N; iCloud rejects cards without it (IS-17)
+            this.ensureNProperty(contact);
+            cleanVCard = contact.vcard;
 
             let result;
             if (existsOnICloud) {
@@ -799,7 +802,10 @@ export class ICloudSyncService {
                         // Use the vCard directly — strip only internal sharing metadata
                         let cleanVCard = contact.vcard;
                         cleanVCard = cleanVCard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '');
-                        
+                        // RFC 2426 requires N; iCloud rejects cards without it (IS-17)
+                        this.ensureNProperty(contact);
+                        cleanVCard = contact.vcard;
+
                         const result = await this.iCloudClient.updateContact(
                             this.extractUIDFromVCard(contact.vcard),
                             cleanVCard,
@@ -1200,7 +1206,10 @@ export class ICloudSyncService {
                         // Use the vCard directly — strip only internal sharing metadata
                         let cleanVCard = contact.vcard;
                         cleanVCard = cleanVCard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '');
-                        
+                        // RFC 2426 requires N; iCloud rejects cards without it (IS-17)
+                        this.ensureNProperty(contact);
+                        cleanVCard = contact.vcard;
+
                         // 🐛 DEBUG: Log generated vCard to see if emails are included
                         const hasEmailInVCard = cleanVCard.includes('EMAIL');
                         console.log(`📄 Generated vCard has EMAIL properties: ${hasEmailInVCard}`);
@@ -1493,6 +1502,33 @@ export class ICloudSyncService {
     isICloudSynced(contact) {
         return contact.metadata?.carddav?.source === 'iCloud' &&
             !!contact.metadata?.carddav?.etag;
+    }
+
+    /**
+     * vCard 3.0 (RFC 2426) requires both FN and N. iCloud's CardDAV rejects
+     * cards without N with "403 VCARD parse error" (IS-17). File imports keep
+     * the source vCard verbatim, so cards from files that omit N fail every
+     * push. Derive N from FN (or cardName) and inject it — mutates the stored
+     * vCard so the fix also heals contacts already in the database.
+     */
+    ensureNProperty(contact) {
+        if (/^N:/m.test(contact.vcard)) return;
+
+        const fnMatch = contact.vcard.match(/^FN:(.+)$/m);
+        const fn = (fnMatch ? fnMatch[1] : contact.cardName || 'Unknown').trim();
+        const escapeComponent = (s) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,');
+        const parts = fn.split(/\s+/);
+        const first = parts.length > 1 ? parts.slice(0, -1).join(' ') : fn;
+        const last = parts.length > 1 ? parts[parts.length - 1] : '';
+        const lineEnding = contact.vcard.includes('\r\n') ? '\r\n' : '\n';
+        const nLine = `N:${escapeComponent(last)};${escapeComponent(first)};;;`;
+
+        if (/^FN:[^\r\n]+$/m.test(contact.vcard)) {
+            contact.vcard = contact.vcard.replace(/^(FN:[^\r\n]+)$/m, `$1${lineEnding}${nLine}`);
+        } else {
+            contact.vcard = contact.vcard.replace(/^BEGIN:VCARD$/m, `BEGIN:VCARD${lineEnding}${nLine}`);
+        }
+        console.log(`🆔 vCard had no N property — injected ${nLine}`);
     }
 
     /**
