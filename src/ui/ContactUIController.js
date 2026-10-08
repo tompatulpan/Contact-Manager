@@ -6026,20 +6026,27 @@ export class ContactUIController {
                 photosFiltered: 0 // Track how many contacts had photos filtered
             };
             
-            // Check CardDAV server availability before import
-            const hasCardDAVConnection = this.contactManager.baikalConnector && 
-                                        this.contactManager.baikalConnector.connections && 
+            // Pause ALL sync services during import — not just the Baikal
+            // refresh. An iCloud cycle landing mid-import is safe today
+            // (fresh imports carry no iCloud etag, so deletion detection
+            // skips them), but it would push half-imported batches and race
+            // the loop; pausing keeps the import atomic. Resume uses
+            // skipInitialSync so no extra full cycle fires afterwards
+            // (same mechanism bulk delete uses).
+            console.log('🔒 Pausing all sync services during import');
+            let syncPause = null;
+            try {
+                syncPause = this.contactManager?.pauseAllSync?.() || null;
+            } catch (e) {
+                console.warn('⚠️ Could not pause sync services:', e);
+            }
+
+            const hasCardDAVConnection = this.contactManager.baikalConnector &&
+                                        this.contactManager.baikalConnector.connections &&
                                         this.contactManager.baikalConnector.connections.size > 0;
-            
+
             if (hasCardDAVConnection) {
                 console.log(`🟢 CardDAV server connected - contacts will be synced automatically`);
-                
-                // 🔒 CRITICAL: Disable periodic sync during import to prevent race condition
-                // The periodic sync (every 5 min) can delete freshly imported contacts that haven't been pushed yet
-                console.log('🔒 Disabling periodic sync during import to prevent race condition');
-                if (this.contactManager?.baikalConnector) {
-                    this.contactManager.baikalConnector.stopPeriodicRefresh();
-                }
             } else {
                 console.log(`🟡 CardDAV server not connected - contacts will be imported to local database only`);
             }
@@ -6126,10 +6133,14 @@ export class ContactUIController {
             
             console.log(`✅ Import complete: ${results.imported} imported, ${results.duplicates} duplicates, ${results.failed} failed`);
             
-            // 🔓 Re-enable periodic sync after successful import
-            console.log('🔓 Re-enabling periodic sync after import completion');
-            if (this.contactManager?.baikalConnector) {
-                this.contactManager.baikalConnector.startPeriodicRefresh();
+            // 🔓 Resume the sync services that were paused before the import
+            console.log('🔓 Resuming sync services after import completion');
+            try {
+                if (syncPause?.pausedServices) {
+                    await this.contactManager.resumeAllSync(syncPause.pausedServices);
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not resume sync services after import:', e);
             }
             
             // Trigger contacts update
