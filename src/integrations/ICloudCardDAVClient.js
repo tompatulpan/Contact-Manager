@@ -285,12 +285,15 @@ export class ICloudCardDAVClient {
         const contacts = this.parseContactsFromXML(text);
 
         // Completeness guard (IS-08): a genuinely empty addressbook still
-        // returns a DAV multistatus document with zero <d:response> entries.
-        // A body without a multistatus element means the REPORT did not give
-        // us what we asked for (error page, login redirect, truncated body).
-        // Returning [] in that case would make the sync layer read "everything
-        // was deleted on iCloud" and delete every tracked contact locally.
-        if (contacts.length === 0 && !/<[A-Za-z0-9]+:multistatus[\s>]/.test(text)) {
+        // returns a DAV multistatus document with zero <d:response> entries —
+        // including the self-closing form (<d:multistatus/>) and the
+        // default-namespace form (<multistatus xmlns="DAV:">). A body without
+        // a multistatus element means the REPORT did not give us what we
+        // asked for (error page, login redirect, truncated body). Returning
+        // [] in that case would make the sync layer read "everything was
+        // deleted on iCloud" and delete every tracked contact locally.
+        if (contacts.length === 0 && !/<(?:[A-Za-z0-9]+:)?multistatus[\s/>]/.test(text)) {
+            console.error('REPORT body preview (first 300 chars):', text.slice(0, 300));
             throw new Error('REPORT response was not a parseable multistatus document — refusing to treat it as an empty addressbook');
         }
 
