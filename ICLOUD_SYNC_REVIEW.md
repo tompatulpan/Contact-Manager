@@ -182,3 +182,79 @@ Jest after this pass: 10 suites / 59 tests, all passing.
 - **IS-09:** `testConnect()` still builds its own client; route connection through `ICloudSyncService.initialize()`.
 - **Worker deployment:** the deployed production Worker still runs the old code until `wrangler deploy` is run; until then ETag concurrency remains a no-op in production (IS-10) and the old public token remains valid (IS-02).
 - **`ICloudCardDAVClient` unit tests:** XML parsing, discovery and ETag handling are only covered by manual diagnostic pages.
+
+## 7. Target state: simplified sync rules (proposal)
+
+Written 2026-10-07 after the IS-10…IS-14 fixes. This is a design proposal for a future refactor, **not implemented behavior** — the rules in section 2.5 (this document) and the current code apply until then. Split into what is essential complexity (keep) and accidental complexity (remove).
+
+### 7.1 The guiding model
+
+Two card classes, one sentence each. The current three types (Owned, Imported, Shared) collapse: Owned and Imported already behave identically in sync code — `metadata.isOwned` is the only discriminator, and "Imported" is a color.
+
+- **Mine** (owned + imported): two-way. App and iCloud overwrite each other; last writer wins, guarded by ETag. Deletions propagate both ways.
+- **Shared with me** (received via Userbase): one-way mirror. The owner's Userbase card always wins; anything iCloud says about it is ignored; the app force-pushes its copy.
+
+### 7.2 Essential complexity — keep
+
+| Mechanism | Why it cannot be removed |
+|---|---|
+| ETag / `If-Match` / `If-None-Match` | The minimum correct machinery for two-way sync without silent overwrites (now actually enforced, see IS-10) |
+| Deletion tombstones | Absence cannot be distinguished from "never synced" without persisted deletion state |
+| Force-push for shared cards | Required by the product promise: the owner's card updates itself in everyone's copy |
+| Import-by-UID with duplicate detection off | Sync matching must be by UID; name-based dedup during sync causes phantom merges |
+| 404/412 recovery paths in `pushToICloud` | Encode real iCloud quirks (partition-host redirects, contact regeneration) learned from production; see docs/archive fix notes |
+
+### 7.3 Accidental complexity — the five simplifications
+
+#### S-1: One dirty flag instead of two timestamp comparisons
+
+**Current:** push decisions compare `metadata.lastUpdated > carddav.lastSyncedAt`; pull decisions compare ETags only. Two mechanisms, clock-sensitive, and the pull path can **silently clobber an un-pushed local edit** (a phone edit always looks newer, pull overwrites the local card and resets `lastSyncedAt`).
+
+**Target:** a boolean `dirty` flag — set on any local create/edit, cleared on successful push. Pull skips dirty cards entirely. Removes the clobber bug and both timestamp comparisons.
+
+**Touches:** `ContactManager.createContact/updateContact`, `ICloudSyncService.shouldPushContact` / `pullFromICloud` / `pushSingleContact`.
+
+#### S-2: Drop the shared-contact ETag cache
+
+**Current:** `sharedContactSyncCache` (memory-only Map) stores ETags for shared cards solely to decide create-vs-update on force-push — a third ETag store beside `metadata.carddav` and iCloud itself, lost on reload.
+
+**Target:** no ETag state for shared cards. Update with null ETag (force semantics are already "ignore conflicts"); on 404 → create. Deletes the cache and the special-case reasoning around it.
+
+**Touches:** `ICloudSyncService.forcePushSharedContact` / `refreshSharedContactsToICloud` / `pullFromICloud` (shared ETag-refresh branch).
+
+#### S-3: Archive = full freeze
+
+**Current:** archived cards are never pushed, but still pull content updates and are exempt from remote-deletion detection — three special cases producing the odd behavior "archived card whose phone edit still arrives".
+
+**Target:** archived = excluded from sync in **both** directions (no push, no pull, no deletion detection). The card stays on iCloud untouched until unarchived. One filter, one rule.
+
+**Touches:** `pullFromICloud` loop guard, `handleDeletions` filters, `pushToICloud` filters (two already exclude archived).
+
+#### S-4: One sync cycle instead of three timers
+
+**Current:** immediate push + 10-min bidirectional cycle + 15-min shared force-push with a 5-min stagger offset. The offset exists to avoid resource conflicts between the two periodic cycles.
+
+**Target:** one periodic cycle that dispatches per contact class (Mine → two-way block, Shared → force-push block). The immediate push on edit stays. Removes `sharedRefreshInterval` / `sharedRefreshTimeout` and the offset logic IS-12 patched.
+
+**Touches:** `ICloudSyncService.startAutoSync` / `stopAutoSync` / `performSync`; `ContactManager` pause/resume simplifies to stopping one cycle.
+
+#### S-5: Collapse the deletion state machine
+
+**Current:** deletion state is spread across `isDeleted` + `carddav.etag` + `syncStatus: 'deleted'` + `deletedAt` + a TooManyRequests retry block + the `isICloudSynced` guard.
+
+**Target:** a tombstone is `{ uid, deletedAt }` and persists until *both* sides have succeeded (remote delete confirmed, local item hard-deleted). No `syncStatus` sub-states — "still present" simply means "not done yet". Retry machinery collapses into "tombstone remains".
+
+**Touches:** `handleDeletions`, `pushToICloud` deletion phase, `pullFromICloud` pending-deletion filter.
+
+### 7.4 Resulting rule set (one paragraph)
+
+*My cards sync two-way with iCloud: whoever edited most recently wins, guarded by ETag so nobody overwrites silently; deleting on either side deletes on both. Shared cards are a read-only mirror of the owner's card that I refresh by force — iCloud edits to them are discarded. Archived cards do not sync at all. Everything on iCloud that has no local card arrives as an Imported card; everything local that is dirty gets pushed immediately.*
+
+### 7.5 Sequencing and safety
+
+1. Do **not** mix with feature work — this is a standalone refactor with the 59-test suite as the guard rail.
+2. Land in this order, one commit each with tests updated alongside: S-1 (also fixes the clobber bug — highest value), S-3 (smallest), S-2, S-5, S-4 (last — most invasive to timers).
+3. Two existing tests encode current behavior that changes intentionally: the shared-ETag-refresh behavior in `pullFromICloud` (S-2) and the empty-snapshot-deletes-synced-contact semantics stay **unchanged** (a valid empty multistatus is a real deletion — S-1 only protects cards dirty locally, never synced ones).
+4. After S-1, consider adding a test: local edit (dirty) + remote edit before push → local edit must survive the pull phase.
+5. Preconditions from section 6 remain: the IS-11 minimal guard is enough for these changes; full per-target namespacing is orthogonal and can land before or after.
+
