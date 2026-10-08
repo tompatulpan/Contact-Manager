@@ -3,10 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Content Security Policy
+         connect-src: Userbase API + Cloudflare Worker proxy + self
+         script-src:  Only same-origin modules (no inline scripts, no eval, no unsafe-inline)
+         style-src:   Same-origin + font-awesome CDN (inline styles needed by some components)
+         font-src:    font-awesome CDN
+         img-src:     Same-origin + data URIs (contact avatars)
+         object-src:  Disallow plugins (Flash etc.)
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self';
+        worker-src blob: 'self';
+        style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
+        font-src 'self' https://cdnjs.cloudflare.com;
+        img-src 'self' data:;
+        connect-src 'self' https://carddav-proxy.data4-9de.workers.dev https://v1.userbase.com wss://v1.userbase.com;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
     <title>Contact Management System</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-dark.css">
     <link rel="stylesheet" href="mobile.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="mobile-dark.css">
+    <link rel="stylesheet" href="src/ui/credential-storage.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
 </head>
 <body>
     <!-- Main Application Container -->
@@ -17,7 +40,7 @@
             <div class="header-left">
                 <h1 class="app-title">
                     <i class="fas fa-address-book"></i>
-                    Contact Manager
+                    Kontakt
                 </h1>
             </div>
             <div class="header-right">
@@ -37,6 +60,21 @@
                     <i class="fas fa-user-plus"></i>
                     Share Profile
                 </button>
+                <button id="icloud-test-btn" class="btn btn-secondary" title="iCloud CardDAV Sync">
+                    <i class="fab fa-apple"></i>
+                    iCloud Sync
+                </button>
+                <!-- Theme Toggle -->
+                <div class="theme-toggle" id="theme-toggle" 
+                     role="button" 
+                     tabindex="0" 
+                     aria-label="Toggle dark mode"
+                     title="Toggle dark mode">
+                    <i class="fas fa-moon theme-toggle-icon"></i>
+                    <div class="theme-toggle-switch">
+                        <div class="theme-toggle-slider"></div>
+                    </div>
+                </div>
                 <button id="logout-btn" class="btn btn-ghost">
                     <i class="fas fa-sign-out-alt"></i>
                     Log Out (<span id="current-user">Guest</span>)
@@ -49,34 +87,49 @@
             
             <!-- Sidebar Navigation -->
             <aside class="sidebar left-sidebar">
+                <!-- Mobile Header -->
+                <div class="mobile-header mobile-only">
+                    <button class="mobile-back-btn" id="mobile-back-menu">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="mobile-page-title">Menu</h1>
+                    <div></div> <!-- Spacer -->
+                </div>
+                
+                <div class="sidebar-content">
                 <div class="sidebar-section">
                     <h3>Menu</h3>
                     
                     <div class="filter-controls">
-                        <button id="filter-btn" class="btn btn-ghost">
+                        <h4 class="filter-title">
                             <i class="fas fa-filter"></i>
-                            Filter
-                        </button>
-                        <div id="filter-dropdown" class="dropdown-menu">
+                            Filters
+                        </h4>
+                        <div class="filter-options">
                             <label class="checkbox-item">
-                                <input type="checkbox" id="filter-owned" checked>
+                                <input type="checkbox" id="filter-owned">
                                 <span>My Contacts</span>
                             </label>
                             <label class="checkbox-item">
-                                <input type="checkbox" id="filter-shared" checked>
+                                <input type="checkbox" id="filter-shared">
                                 <span>Shared with Me</span>
                             </label>
                             <label class="checkbox-item">
+                                <input type="checkbox" id="filter-imported">
+                                <span>Imported Contacts</span>
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox" id="filter-recent">
+                                <span>Recent Activity</span>
+                            </label>
+                            <label class="checkbox-item">
                                 <input type="checkbox" id="filter-archived">
-                                <span>Archived</span>
+                                <span>Archived Contacts</span>
                             </label>
                         </div>
                     </div>
-                </div>
-
-                <!-- User Groups -->
-                <div class="sidebar-section">
-                    <h3>User Groups</h3>
+                    
+                    <!-- Distribution Lists Container -->
                     <div id="distribution-lists" class="distribution-lists">
                         <!-- Dynamic user groups will be inserted here -->
                     </div>
@@ -90,27 +143,53 @@
                 <div class="sidebar-section">
                     <h3>Quick Stats</h3>
                     <div class="stats-grid">
-                        <div class="stat-item">
+                        <div class="stat-item" title="All contacts (owned + shared)">
                             <span class="stat-label">Total</span>
                             <span id="stat-total" class="stat-value">0</span>
                         </div>
-                        <div class="stat-item">
+                        <div class="stat-item" title="Contacts shared with you">
                             <span class="stat-label">Shared</span>
                             <span id="stat-shared" class="stat-value">0</span>
                         </div>
-                        <div class="stat-item">
+                        <div class="stat-item" title="All active contacts">
                             <span class="stat-label">Recent</span>
                             <span id="stat-recent" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item" title="Contacts imported from files/CardDAV">
+                            <span class="stat-label">Imported</span>
+                            <span id="stat-imported" class="stat-value">0</span>
                         </div>
                     </div>
                 </div>
             </aside>
 
             <!-- Contact List Panel -->
-            <section class="contact-list-panel">
+            <section class="contact-list-panel contact-list-section">
+                <!-- Mobile Header -->
+                <div class="mobile-header mobile-only">
+                    <button class="mobile-menu-btn" id="mobile-menu-btn">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="mobile-page-title">All Contacts</h1>
+                    <div class="mobile-header-actions">
+                        <button class="mobile-action-btn" id="mobile-share-profile" title="Share Profile">
+                            <i class="fas fa-user-plus"></i>
+                        </button>
+                        <button class="mobile-action-btn" id="mobile-logout" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </button>
+                        <button class="mobile-menu-btn" id="mobile-new-contact">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="panel-header">
                     <h2 id="contact-list-title">All Contacts</h2>
                     <div class="view-controls">
+                        <button id="bulk-select-btn" class="btn btn-ghost" title="Select multiple contacts">
+                            <i class="fas fa-check-square"></i>
+                            Select
+                        </button>
                         <button id="view-card" class="btn btn-ghost active">
                             <i class="fas fa-th-large"></i>
                         </button>
@@ -125,6 +204,26 @@
                     </div>
                 </div>
                 
+                <!-- Bulk Actions Toolbar (hidden by default) -->
+                <div id="bulk-actions-toolbar" class="bulk-actions-toolbar hidden">
+                    <div class="bulk-selection-info">
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="select-all-contacts">
+                            <span id="bulk-selection-count">0 selected</span>
+                        </label>
+                    </div>
+                    <div class="bulk-actions">
+                        <button id="bulk-delete-btn" class="btn btn-danger btn-small" title="Delete selected contacts">
+                            <i class="fas fa-trash"></i>
+                            Delete Selected
+                        </button>
+                        <button id="bulk-cancel-btn" class="btn btn-ghost btn-small" title="Cancel selection">
+                            <i class="fas fa-times"></i>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+                
                 <!-- Search Container -->
                 <div class="search-container">
                     <input 
@@ -133,6 +232,7 @@
                         placeholder="Search contacts..." 
                         class="search-input"
                     >
+                    <i class="fas fa-times search-clear" id="search-clear" title="Clear search"></i>
                     <i class="fas fa-search search-icon"></i>
                 </div>
                 
@@ -153,7 +253,17 @@
             </section>
 
             <!-- Contact Detail Panel -->
-            <section class="contact-detail-panel">
+            <section class="contact-detail-panel contact-detail-section">
+                <!-- Mobile Header -->
+                <div class="mobile-header mobile-only">
+                    <button class="mobile-back-btn" id="mobile-back-detail">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h1 class="mobile-page-title" id="mobile-contact-title">Contact</h1>
+                    <button class="mobile-menu-btn" id="mobile-contact-actions">
+                        <i class="fas fa-ellipsis-h"></i>
+                    </button>
+                </div>
                 <div id="contact-detail-content" class="detail-content">
                     <div class="welcome-state">
                         <i class="fas fa-hand-wave"></i>
@@ -205,15 +315,21 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form id="auth-form" data-mode="signin">
+                <!-- Welcome Message -->
+                <div class="auth-welcome">
+                    <h3>Welcome!</h3>
+                    <p>Your contacts are protected with secure, end-to-end encryption.</p>
+                </div>
+                
+                <form id="auth-form" data-mode="signin" method="post" autocomplete="off">
                     <div id="auth-error" class="field-error" style="display: none;"></div>
                     <div class="form-group">
                         <label for="auth-username">Username</label>
-                        <input type="text" id="auth-username" name="username" required>
+                        <input type="text" id="auth-username" name="username" required autocomplete="username" data-form-type="signin">
                     </div>
                     <div class="form-group">
                         <label for="auth-password">Password</label>
-                        <input type="password" id="auth-password" name="password" required>
+                        <input type="password" id="auth-password" name="password" required autocomplete="current-password" data-form-type="signin">
                     </div>
                     <div class="form-group" id="keep-signed-in-group">
                         <label class="checkbox-item">
@@ -391,6 +507,13 @@
                             <div class="field-error" id="title-error"></div>
                         </div>
                         
+                        <div class="form-group">
+                            <label for="birthday">Birthday</label>
+                            <input type="date" id="birthday" name="birthday">
+                            <div class="field-error" id="birthday-error"></div>
+                            <small class="help-text">vCard standard format (YYYY-MM-DD)</small>
+                        </div>
+                        
                         <!-- Multi-field Notes -->
                         <div class="form-group">
                             <label>Notes</label>
@@ -440,7 +563,7 @@
                                 </button>
                                 <button type="button" class="share-type-tab" data-type="share-with-list">
                                     <i class="fas fa-users"></i>
-                                    Share with List
+                                    Share with Group
                                 </button>
                             </div>
                         </div>
@@ -457,19 +580,41 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p>Enter a username to share this contact with one person.</p>
+                                    <p>Enter one or more usernames (comma-separated) to share this contact. Each user gets individual access that can be revoked separately.</p>
                                 </div>
                             </div>
                             
                             <div class="form-group">
-                                <label for="share-username">Share with Username *</label>
-                                <input type="text" id="share-username" name="username" 
-                                       placeholder="Enter username...">
+                                <label for="share-username">Share with Username(s) *</label>
+                                <div class="input-group">
+                                    <input type="text" id="share-username" name="username" 
+                                           placeholder="Enter username(s), comma-separated..." required>
+                                    <button type="button" id="get-verification-btn" class="btn btn-secondary">
+                                        <i class="fas fa-key"></i> Get My Code
+                                    </button>
+                                </div>
+                                <div id="verification-status" class="verification-status" style="display: none;">
+                                    <!-- Verification status will be shown here -->
+                                </div>
                                 <div class="field-error" id="share-username-error"></div>
+                                
+                                <div class="form-group" style="margin-top: 16px;">
+                                    <label for="verification-message">Verification Message (Optional)</label>
+                                    <div class="input-group">
+                                        <input type="text" id="verification-message" name="verificationMessage" 
+                                               placeholder="Enter verification message from the user...">
+                                        <button type="button" id="verify-user-btn" class="btn btn-secondary">
+                                            <i class="fas fa-shield-check"></i> Verify
+                                        </button>
+                                    </div>
+                                    <small class="field-help">
+                                        For secure sharing, ask the recipient for their verification message and enter it here.
+                                    </small>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Share with Distribution List -->
+                        <!-- Share with User Group -->
                         <div id="share-with-list-section" class="share-section">
                             <div class="contact-preview">
                                 <h3>Sharing Contact:</h3>
@@ -481,7 +626,7 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p>Share this contact with all users in a user group simultaneously.</p>
+                                    <p><strong>Groups are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
                                 </div>
                             </div>
                             
@@ -494,24 +639,16 @@
                             </div>
                             
                             <div id="share-list-preview" class="distribution-list-preview" style="display: none;">
-                                <h4><i class="fas fa-users"></i> Users who will receive your contact:</h4>
+                                <h4><i class="fas fa-users"></i> Each user will receive the contact individually:</h4>
                                 <div id="share-list-users" class="distribution-list-contacts">
                                     <!-- Users will be populated here -->
                                 </div>
+                                <p class="form-help-text" style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                                    💡 You can revoke access from each user separately after sharing.
+                                </p>
                             </div>
                         </div>
 
-                        <!-- Old Distribution List Sharing - REMOVE THIS -->
-                        <div id="distribution-list-share-section" class="share-section" style="display: none;">
-                            <div class="form-group">
-                                <label for="share-distribution-list">Select Distribution List *</label>
-                                <select id="share-distribution-list" name="distributionList">
-                                    <option value="">Choose a distribution list...</option>
-                                </select>
-                                <div class="field-error" id="share-distribution-list-error"></div>
-                            </div>
-                        </div>
-                        
                         <!-- Sharing Options -->
                         <div class="form-group">
                             <label class="checkbox-item">
@@ -523,14 +660,12 @@
                             </small>
                         </div>
                         
-                        <div class="share-info">
-                            <div class="info-box">
-                                <i class="fas fa-info-circle"></i>
-                                <p id="share-info-text">Recipients will see this contact in their "Shared with Me" section. You can enter multiple usernames separated by commas (e.g., user1, user2, user3).</p>
-                            </div>
-                        </div>
-                        
-                        <div class="form-actions">
+                            <div class="share-info">
+                                <div class="info-box">
+                                    <i class="fas fa-info-circle"></i>
+                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. All shares are individual - you can revoke access from specific users at any time. Use comma-separated usernames or groups for convenience.</p>
+                                </div>
+                            </div>                        <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary" id="share-submit-btn">
                                 <i class="fas fa-share"></i>
@@ -551,18 +686,46 @@
                     <div class="success-icon">
                         <i class="fas fa-check-circle"></i>
                     </div>
-                    <h3>Contact Shared Successfully!</h3>
-                    <p>The contact has been shared with <span id="shared-with-user"></span>.</p>
+                    <h3 id="share-success-title">Contact Shared Successfully!</h3>
+                    <p id="share-success-message">The contact has been shared with <span id="shared-with-user"></span>.</p>
+                    <div id="share-success-details" class="share-details" style="display: none;"></div>
                     <div class="form-actions">
                         <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+                    </div>
+                </div>
+                
+                <!-- Error State -->
+                <div id="share-error-container" class="error-container" style="display: none;">
+                    <div class="error-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <h3 id="share-error-title">Sharing Failed</h3>
+                    <p id="share-error-message">An error occurred while sharing.</p>
+                    <div id="share-error-details" class="share-details" style="display: none;"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" data-action="retry-share">Try Again</button>
+                    </div>
+                </div>
+                
+                <!-- Warning State (Partial Success) -->
+                <div id="share-warning-container" class="warning-container" style="display: none;">
+                    <div class="warning-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3 id="share-warning-title">Partially Shared</h3>
+                    <p id="share-warning-message">Some sharing operations failed.</p>
+                    <div id="share-warning-details" class="share-details" style="display: none;"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" data-action="retry-share">Share More</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Create Distribution List Modal -->
-        <!-- Create User Group Modal -->
+    <!-- Create User Group Modal -->
     <div id="create-list-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -678,6 +841,17 @@
                         <small class="help-text">If importing multiple contacts, this will be ignored</small>
                     </div>
                     
+                    <div class="form-group">
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="mark-as-imported" name="markAsImported" checked>
+                            <span>Mark as "Imported Contacts" (Orange)</span>
+                        </label>
+                        <small class="help-text">
+                            ✅ <strong>Checked:</strong> Orange avatar (imported contact)<br>
+                            ⬜ <strong>Unchecked:</strong> Blue avatar (owned contact)
+                        </small>
+                    </div>
+                    
                     <div class="form-actions">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">
@@ -783,56 +957,150 @@
         </div>
     </div>
 
+    <!-- Profile Sharing Modal -->
+    <div id="profile-share-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Share Your Profile</h2>
+                <button id="close-profile-share-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    <p><strong>Share your username</strong> - not your contact information! People can use this link to sign up and connect with you on Contact Manager.</p>
+                </div>
+                
+                <div class="profile-share-content">
+                    <div class="profile-info">
+                        <div class="profile-icon">
+                            <i class="fas fa-user-circle"></i>
+                        </div>
+                        <h3>Your Profile</h3>
+                        <p>Username: <strong id="profile-username-display"></strong></p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="profile-share-url">Profile Link</label>
+                        <div class="input-group">
+                            <input type="text" id="profile-share-url" readonly>
+                            <button type="button" id="copy-profile-url-btn" class="btn btn-secondary">
+                                <i class="fas fa-copy"></i>
+                                Copy
+                            </button>
+                        </div>
+                        <small class="help-text">Share this link with people you want to connect with</small>
+                    </div>
+                    
+                    <div class="share-options">
+                        <h4>Quick Share</h4>
+                        <div class="share-buttons">
+                            <button type="button" id="share-via-email" class="btn btn-secondary">
+                                <i class="fas fa-envelope"></i>
+                                Email
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- iCloud Sync Modal -->
+    <div id="icloud-test-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fab fa-apple"></i> iCloud CardDAV Sync</h2>
+                <button id="close-icloud-test-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    <strong>🍎 iCloud requires a separate implementation due to CORS restrictions</strong><br>
+                    Uses Cloudflare CORS proxy: <code>https://carddav-proxy.data4-9de.workers.dev</code><br>
+                    <small>⚠️ For standard CardDAV servers (Baikal, Radicale, Nextcloud), use the generic CardDAV connector instead</small>
+                </div>
+
+                <div class="form-section">
+                    <h3>🔐 Credentials</h3>
+                    <form id="icloud-credentials-form" autocomplete="on">
+                    <div class="form-group">
+                        <label>iCloud Email:</label>
+                        <input type="email" id="icloud-email" placeholder="your@icloud.com" class="form-control" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label>App-Specific Password:</label>
+                        <input type="password" id="icloud-password" placeholder="xxxx-xxxx-xxxx-xxxx" class="form-control" autocomplete="current-password">
+                        <small>Generate at: <a href="https://appleid.apple.com/account/manage" target="_blank" rel="noopener noreferrer">appleid.apple.com</a></small>
+                    </div>
+                    </form>
+                </div>
+
+                <div class="form-section">
+                    <h3>🧪 Tests</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                        <button id="icloud-connect-btn" class="btn btn-primary">
+                            <i class="fas fa-plug"></i> 1. Connect
+                        </button>
+                        <button id="icloud-fetch-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-download"></i> 2. Fetch Contacts
+                        </button>
+                        <button id="icloud-push-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-upload"></i> 3. Push Test Contact
+                        </button>
+                        <button id="icloud-import-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-file-import"></i> 4. Import to CM
+                        </button>
+                    </div>
+                    
+                    <div id="icloud-status" class="status-display"></div>
+                    
+                    <div id="icloud-log" class="log-display" style="background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; display: none;"></div>
+                </div>
+
+                <div class="form-section">
+                    <h3>🔄 Auto-Sync</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
+                        <button id="icloud-start-autosync-btn" class="btn btn-success" disabled>
+                            <i class="fas fa-play"></i> Start Auto-Sync
+                        </button>
+                        <button id="icloud-stop-autosync-btn" class="btn btn-danger" disabled style="display: none;">
+                            <i class="fas fa-stop"></i> Stop Auto-Sync
+                        </button>
+                        <button id="icloud-sync-now-btn" class="btn btn-secondary" disabled>
+                            <i class="fas fa-sync"></i> Sync Now
+                        </button>
+                        <div class="form-group" style="margin: 0; flex-grow: 1; max-width: 200px;">
+                            <label style="font-size: 12px; margin-bottom: 5px;">Interval (minutes):</label>
+                            <input type="number" id="icloud-sync-interval" value="10" min="1" max="60" class="form-control" style="width: 100%;">
+                        </div>
+                    </div>
+                    <div id="icloud-sync-status" class="status-display" style="font-size: 13px; padding: 10px; background: #f8f9fa; border-radius: 4px; display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
-    <script src="lib/userbase.js"></script>
+    <script src="lib/userbase.js" integrity="sha384-KGH+/t6eJhfqHsVpwpMLIyZxYg5IlTbv7d2K0Ut+GCz40StPO7YwezYLgt4uPyFj" crossorigin="anonymous"></script>
+    <script src="src/ui/components/qrcode.js"></script>
+    <script src="src/utils/UserbaseConnectionFix.js"></script>
+    <script src="src/utils/ThemeManager.js"></script>
     <script type="module" src="src/app.js"></script>
-    
-    <!-- Development: Test Button -->
-    <script>
-        // Only show test button in development environment
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            const testButton = document.createElement('button');
-            testButton.textContent = '🧪 Run Tests';
-            testButton.title = 'Run integration tests';
-            testButton.style.cssText = `
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                z-index: 10000;
-                padding: 8px 12px;
-                background: #28a745;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                transition: background-color 0.2s;
-            `;
-            testButton.onmouseover = () => testButton.style.background = '#218838';
-            testButton.onmouseout = () => testButton.style.background = '#28a745';
-            testButton.onclick = () => {
-                testButton.textContent = '⏳ Running...';
-                testButton.disabled = true;
-                import('./tests/integration.test.js').then(() => {
-                    testButton.textContent = '✅ Tests Done';
-                    setTimeout(() => {
-                        testButton.textContent = '🧪 Run Tests';
-                        testButton.disabled = false;
-                    }, 3000);
-                }).catch(error => {
-                    console.error('Failed to load tests:', error);
-                    testButton.textContent = '❌ Test Failed';
-                    testButton.style.background = '#dc3545';
-                    setTimeout(() => {
-                        testButton.textContent = '🧪 Run Tests';
-                        testButton.style.background = '#28a745';
-                        testButton.disabled = false;
-                    }, 3000);
-                });
-            };
-            document.body.appendChild(testButton);
-        }
-    </script>
+
+    <!-- Simple Footer -->
+    <footer class="app-footer">
+        <span>
+            <a href="https://github.com/tompatulpan/Contact-Manager" target="_blank" rel="noopener noreferrer">Source Code</a>
+            &nbsp;|&nbsp;
+            Contact: <a href="https://e2econtacts.org/#contact">hello&#64;e2econtacts.org</a>
+        </span>
+    </footer>
 </body>
 </html>
