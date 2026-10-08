@@ -4,3 +4,5 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-XSS-Protection: 0
+  # Keep in sync with the <meta> CSP in index.html (frame-ancestors only works as a header)
+  Content-Security-Policy: default-src 'self'; script-src 'self'; worker-src blob: 'self'; style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' https://carddav-proxy.data4-9de.workers.dev https://v1.userbase.com wss://v1.userbase.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

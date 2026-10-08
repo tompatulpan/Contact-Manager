@@ -16,6 +16,9 @@ Deployed at: `https://carddav-proxy.data4-9de.workers.dev`
 - Enforces an origin allowlist (`ALLOWED_ORIGINS`)
 - Enforces an iCloud-only hostname allowlist over `https:`
 - Requires an `X-Worker-Token` header matching the `WORKER_TOKEN` env var
+- Allows only `GET, HEAD, PUT, DELETE, PROPFIND, REPORT, MKCOL, OPTIONS` (405 otherwise)
+- Rejects request bodies over 1 MB (413)
+- Optionally rate-limits per client IP (429) when a `RATE_LIMITER` binding is configured
 
 ## Security model — read this
 
@@ -27,8 +30,11 @@ filters token-less scrapers. The controls that matter are:
 - CORS origin allowlist (browser requests only)
 - **Cloudflare rate limiting / WAF rule on the Worker route** — this is the
   only control that bounds scripted relay abuse. Configure it in the
-  Cloudflare dashboard (Workers → carddav-proxy → Settings/rate limiting),
-  e.g. limit requests per IP per minute.
+  Cloudflare dashboard (Security → WAF → Rate limiting rules, matching the
+  Worker route/hostname), e.g. ~600 requests per IP per minute — the first
+  sync pushes ~150 contacts in a burst. Alternatively uncomment the
+  `RATE_LIMITER` binding in `wrangler.toml`; the Worker enforces it
+  automatically when present.
 
 If the token is ever leaked or abused, rotate it: generate a new value,
 run `wrangler secret put WORKER_TOKEN`, deploy, and update

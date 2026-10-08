@@ -1,6 +1,7 @@
 # Security Review — Contact Management System
 **Review date:** 2026-06-14  
 **Remediation date:** 2026-06-15  
+**Revised:** 2026-10-08 (severity corrections, added observations)  
 **Scope:** Client-side code, Userbase integration, CardDAV integration
 
 ---
@@ -9,11 +10,14 @@
 
 | Finding | Severity | Status | Verified |
 |---|---|---|---|
-| 1 — XSS via unescaped CardDAV data | Medium | ✅ Fixed | ✅ Console test passed |
+| 1 — XSS via unescaped CardDAV data | Low–Medium (downgraded, see note) | ✅ Fixed | ✅ Console test passed |
 | 2 — Legacy plaintext password in localStorage | Low–Medium | ✅ Fixed | ✅ Reload test passed |
 | 3 — Missing `noopener noreferrer` | Low | ✅ Fixed | ✅ DOM query confirmed |
 | 4 — Username enumeration via auth errors | Low | ✅ Was already handled | ✅ Logic test passed |
 | 5 — `unsafe-inline` in `style-src` CSP | Low | ⏸ Deferred | — |
+| 6 — Clickjacking / CSP delivery via `<meta>` | Low | ✅ Fixed 2026-10-08 | Header added; verify after deploy |
+
+See [Additional Observations](#additional-observations-added-2026-10-08) for items not covered by the original review.
 
 ---
 
@@ -43,7 +47,7 @@ All medium and actionable low-severity findings have been remediated. One low-ri
 
 ---
 
-### FINDING 1 — XSS via Unescaped CardDAV Data (Medium Risk) — ✅ FIXED 2026-06-15
+### FINDING 1 — XSS via Unescaped CardDAV Data (Low–Medium Risk) — ✅ FIXED 2026-06-15
 
 **File:** `src/integrations/SyncValidator.js` ~line 128  
 **File:** `src/ui/BaikalUIController.js` ~line 1037
@@ -74,6 +78,8 @@ syncStatusContainer.innerHTML = statusHTML;
    ```
 4. This string lands in `profile.addressbookUrl` and is injected into the DOM unescaped.
 5. The `<img onerror>` fires — XSS achieved.
+
+> **Revision note (2026-10-08):** the attack scenario above is overstated. The CSP has `script-src 'self'` with **no** `'unsafe-inline'`, so inline event handlers such as `onerror=` are blocked, and `img-src 'self' data:` blocks the remote image load. The injected `<img>` would not execute script. The injection is still a real HTML-injection bug (UI spoofing / fake form injection), and the escaping fix is correct defense in depth, but the practical severity is Low–Medium. The bullet list below only applies in the hypothetical case where script execution *is* achieved (e.g. a CSP regression).
 
 #### Why the CSP Limits Impact
 
@@ -107,7 +113,7 @@ function escapeHtml(str) {
 <code ...>${escapeHtml(profile?.addressbookUrl) || 'N/A'}</code>
 ```
 
-For `renderSyncStatus()` in `BaikalUIController.js`, after audit all server-sourced values (`conn.connected`, `status.isConnected`, `status.connectionCount`) are booleans/integers — not raw strings. No change was needed there.
+For `renderSyncStatus()` in `BaikalUIController.js`, after audit the server-sourced values `conn.connected`, `status.isConnected` and `status.connectionCount` are booleans/integers, and the one string value, `conn.profileName`, is already passed through `escapeHtml()`. No change was needed there.
 
 #### Resolution (2026-06-15)
 
@@ -170,6 +176,8 @@ try {
 
 **Verification:** Planted `baikal_password_test` in localStorage, reloaded page — key was gone on next check. ✅
 
+**Behaviour note (2026-10-08):** this is a *wipe*, not a migration. Users who still had a legacy plaintext password lose it and must re-enter it. `getStoredPassword()` is still called in the profile-update flow (`BaikalUIController.js`, edit-profile submit), where it now effectively always returns `null`, so editing a profile without retyping the password shows "Please enter password to update profile". This is the intended security trade-off. The method and its call site can be simplified once legacy installs are no longer a concern.
+
 ---
 
 ### FINDING 3 — Missing `rel="noopener noreferrer"` on External Links (Low Risk) — ✅ FIXED 2026-06-15
@@ -195,7 +203,7 @@ Links that open in `target="_blank"` without `rel="noopener noreferrer"` allow t
 
 #### Resolution (2026-06-15)
 
-Both links updated in `index.html`. **Verification:** `document.querySelectorAll('a[target="_blank"]')` confirmed both have `rel="noopener noreferrer"`. ✅
+Both links updated in `index.html`. The only other `target="_blank"` link, the vCard `URL` field in `ContactRenderer.js`, already had `rel="noopener noreferrer"` and restricts the scheme to `http:`/`https:` (blocks `javascript:`/`data:`). **Verification:** `document.querySelectorAll('a[target="_blank"]')` confirmed both have `rel="noopener noreferrer"`. ✅
 
 ---
 
@@ -252,6 +260,23 @@ Practical security gain is low given that `script-src 'self'` already blocks any
 
 ---
 
+### FINDING 6 — Clickjacking Protection and CSP Delivery (Low Risk) — ✅ FIXED 2026-10-08
+
+**Files:** `index.html` (CSP `<meta>`), `_headers`
+
+`_headers` already sends `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` and a restrictive `Permissions-Policy`, so framing is blocked in practice. However:
+
+- The CSP is delivered only via `<meta http-equiv>`. Browsers **ignore `frame-ancestors`, `report-uri` and `sandbox` in meta CSPs**, and a meta policy only applies after the tag is parsed.
+- `X-Frame-Options` is legacy; `frame-ancestors` is the modern equivalent.
+
+**Fix:** also send the CSP as a real header in `_headers`, adding `frame-ancestors 'none'`. The header policy is identical to the `<meta>` policy except for the added `frame-ancestors`; keep the two in sync (browsers apply both, so a mismatch only ever tightens).
+
+#### Resolution (2026-10-08)
+
+Added `Content-Security-Policy` to `_headers` (already packaged by `scripts/production_zip.sh`). **Verify after deploy:** `curl -sI https://e2econtacts.org/ | grep -i content-security-policy`, then confirm the app loads with no CSP violations in the console.
+
+---
+
 ## What Is Done Well
 
 - **`script-src 'self'`** — no external scripts, no `unsafe-inline`, no `unsafe-eval`. This is the most impactful CSP directive and it is strict.
@@ -266,7 +291,24 @@ Practical security gain is low given that `script-src 'self'` already blocks any
 
 ---
 
+## Additional Observations (added 2026-10-08)
+
+Items not covered by the original review. Not all were audited in depth; status is stated per item.
+
+| Area | Status | Notes |
+|---|---|---|
+| **Cloudflare Worker proxy** | Mostly fixed; one manual step open | Per `ICLOUD_SYNC_REVIEW.md`: IS-02 token rotated 2026-10-07 and documented as non-secret; IS-10 fixed (`If-Match`/`If-None-Match`/`Prefer` now forwarded, covered by `tests/worker`). SSRF allow-list (iCloud hosts, https only) and header-injection stripping were already present. Added 2026-10-08: method allow-list (405), 1 MB body cap (413), `Vary: Origin`, and an optional `RATE_LIMITER` binding (429). The Worker logs only `error.message`, never credentials or bodies. **Still open (manual, dashboard):** create the Cloudflare WAF rate-limiting rule (or enable the `RATE_LIMITER` binding in `wrangler.toml`) and redeploy the Worker. The `Origin` check cannot stop non-browser clients, so rate limiting is the only real bound on relay abuse. |
+| **Contacts shared by other Userbase users** | Spot-checked | A sharer controls the vCard and `sharedBy`. In the render paths checked (`ContactUIController` list/card/error views, `ContactRenderer`) these are escaped. Full audit of all 78 `innerHTML`/`insertAdjacentHTML` sites was **not** done. |
+| **Single-character `charAt(0)` avatars** | Minor | `displayData.fullName.charAt(0)` and `username.charAt(0)` are inserted unescaped in `ContactUIController.js`. One character is not exploitable, but wrapping them in `escapeHtml()` removes the exception to the rule. |
+| **vCard import** | Not reviewed | Check limits on file size and contact count, parser behaviour on malformed or huge input (ReDoS, memory), and CRLF/property injection when vCards are generated from form fields. |
+| **Preventing regressions** | Recommendation | `escapeHtml()` currently depends on every author remembering it. Consider an ESLint rule (e.g. `no-unsanitized`) or a small DOM-builder/`setHTML` helper for new code. |
+| **Legacy `getStoredPassword()` path** | Cleanup | See the behaviour note under Finding 2. |
+
+---
+
 ## Priority Order for Fixes
+
+> Status as of 2026-10-08: all rows below are done except Finding 5 (deferred). Remaining manual task: Worker rate limiting (see Additional Observations).
 
 | Priority | Finding | Effort |
 |---|---|---|
@@ -274,4 +316,5 @@ Practical security gain is low given that `script-src 'self'` already blocks any
 | 2 | Finding 2 — Eager `localStorage` plaintext password cleanup on startup | 15 min |
 | 3 | Finding 3 — Add `rel="noopener noreferrer"` to all `target="_blank"` links | 5 min |
 | 4 | Finding 4 — Normalise auth error messages | 10 min |
-| 5 | Finding 5 — Reduce/eliminate `unsafe-inline` in `style-src` | 1–2 hours |
+| 5 | Finding 5 — Reduce/eliminate `unsafe-inline` in `style-src` | 1–2 hours (deferred) |
+| 6 | Finding 6 — Send CSP as a header with `frame-ancestors 'none'` | 10 min (done) |

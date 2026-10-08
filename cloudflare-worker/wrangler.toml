@@ -18,3 +18,12 @@ ALLOWED_ORIGINS = "https://e2econtacts.org,https://www.e2econtacts.org,http://lo
 # Route pattern: your-domain.com/api/carddav/*
 # Zone: your-domain.com
 # Worker: carddav-proxy
+
+# Optional per-IP rate limiting (the Worker enforces it only if this binding exists).
+# Initial sync pushes ~150 contacts in a burst, so keep the limit generous.
+# Uncomment after confirming your Wrangler version supports the ratelimit binding:
+# [[unsafe.bindings]]
+# name = "RATE_LIMITER"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 600, period = 60 }

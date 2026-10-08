@@ -20,6 +20,12 @@ const ALLOWED_ICLOUD_HOSTNAMES = [
   'caldav.icloud.com',
 ]
 
+// Only the verbs CardDAV needs; anything else is rejected before proxying
+const ALLOWED_METHODS = ['GET', 'HEAD', 'PUT', 'DELETE', 'PROPFIND', 'REPORT', 'MKCOL', 'OPTIONS']
+
+// vCards and REPORT/PROPFIND bodies are small; cap request bodies to bound relay abuse
+const MAX_BODY_BYTES = 1024 * 1024
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
@@ -38,6 +44,34 @@ async function handleRequest(request) {
       status: 204,
       headers: getCORSHeaders(origin)
     })
+  }
+
+  if (!ALLOWED_METHODS.includes(request.method)) {
+    return new Response('Method not allowed', {
+      status: 405,
+      headers: getCORSHeaders(origin)
+    })
+  }
+
+  const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10)
+  if (contentLength > MAX_BODY_BYTES) {
+    return new Response('Request body too large', {
+      status: 413,
+      headers: getCORSHeaders(origin)
+    })
+  }
+
+  // Optional per-IP rate limit. Active only when a "ratelimit" binding named
+  // RATE_LIMITER is configured in wrangler.toml; otherwise skipped.
+  if (typeof RATE_LIMITER !== 'undefined' && RATE_LIMITER) {
+    const clientKey = request.headers.get('CF-Connecting-IP') || 'unknown'
+    const { success } = await RATE_LIMITER.limit({ key: clientKey })
+    if (!success) {
+      return new Response('Too many requests', {
+        status: 429,
+        headers: { ...getCORSHeaders(origin), 'Retry-After': '60' }
+      })
+    }
   }
 
   // Validate worker auth token (set WORKER_TOKEN in Cloudflare env vars)
@@ -107,11 +141,22 @@ async function handleRequest(request) {
       }
     }
 
+    const hasBody = request.method !== 'GET' && request.method !== 'HEAD'
+    const body = hasBody ? await request.text() : undefined
+
+    // Content-Length can be absent or wrong (chunked), so re-check the real size
+    if (body !== undefined && body.length > MAX_BODY_BYTES) {
+      return new Response('Request body too large', {
+        status: 413,
+        headers: getCORSHeaders(origin)
+      })
+    }
+
     // Forward request to target
     const targetRequest = new Request(targetUrl, {
       method: request.method,
       headers,
-      body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : undefined
+      body
     })
 
     const response = await fetch(targetRequest)
@@ -158,6 +203,7 @@ function isAllowedOrigin(origin) {
 function getCORSHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
+    'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS, PROPFIND, REPORT',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, Depth, If-Match, If-None-Match, Prefer, X-Worker-Token',
     'Access-Control-Expose-Headers': 'ETag, Content-Type, DAV, Location',
