@@ -60,6 +60,10 @@ export class ICloudTestController {
         if (this.iCloudSyncService) {
             this.setupSyncEventListeners();
         }
+
+        // Resume iCloud sync automatically if credentials are stored and
+        // auto-sync was enabled before the last page load (IS-14)
+        this.attemptAutoResume().catch(err => console.warn('Auto-resume error:', err));
     }
 
     openModal() {
@@ -451,6 +455,7 @@ END:VCARD\r
             // Start auto-sync
             this.log(`🚀 Starting auto-sync with ${intervalMinutes} minute interval...`, 'info');
             this.iCloudSyncService.startAutoSync(intervalMinutes);
+            this.setAutoResumeEnabled(true);
 
             // Update UI
             document.getElementById('icloud-start-autosync-btn').style.display = 'none';
@@ -465,6 +470,61 @@ END:VCARD\r
     }
 
     /**
+     * Persist whether the user wants auto-sync to resume on the next page
+     * load. Stored separately from the credentials (which live in
+     * SecureCredentialStorage); a plain localStorage flag is enough since
+     * it is not a secret.
+     */
+    setAutoResumeEnabled(enabled) {
+        try {
+            if (enabled) {
+                localStorage.setItem('icloud_autosync_enabled', 'true');
+            } else {
+                localStorage.removeItem('icloud_autosync_enabled');
+            }
+        } catch (e) { /* storage unavailable (private browsing) */ }
+    }
+
+    /**
+     * After a page reload the iCloud connection and timers are gone (they
+     * live in memory). If the user stored credentials AND had auto-sync
+     * running, quietly reconnect and resume — no clicks needed (IS-14).
+     */
+    async attemptAutoResume() {
+        try {
+            const enabled = localStorage.getItem('icloud_autosync_enabled') === 'true';
+            if (!enabled || !this.iCloudSyncService) return;
+
+            const stored = await this.credentialUI.getStoredCredentials('icloud');
+            if (!stored?.success || !stored.credentials) {
+                console.log('🔁 iCloud auto-resume skipped: no stored credentials (consent declined or private browsing)');
+                return;
+            }
+
+            console.log('🔁 Resuming iCloud sync from stored credentials...');
+            const initResult = await this.iCloudSyncService.initialize({
+                email: stored.credentials.username,
+                password: stored.credentials.password
+            });
+            if (!initResult.success) {
+                console.warn(`🔁 iCloud auto-resume failed: ${initResult.error}`);
+                return;
+            }
+
+            this.iCloudSyncService.startAutoSync();
+            console.log('🔁 iCloud auto-sync resumed');
+
+            // Reflect the running state in the modal if it is open
+            const startBtn = document.getElementById('icloud-start-autosync-btn');
+            const stopBtn = document.getElementById('icloud-stop-autosync-btn');
+            if (startBtn) startBtn.style.display = 'none';
+            if (stopBtn) stopBtn.style.display = 'inline-block';
+        } catch (e) {
+            /* storage unavailable (private browsing) — nothing to resume */
+        }
+    }
+
+    /**
      * Stop auto-sync
      */
     stopAutoSync() {
@@ -475,6 +535,7 @@ END:VCARD\r
 
         this.log('⏸️ Stopping auto-sync...', 'info');
         this.iCloudSyncService.stopAutoSync();
+        this.setAutoResumeEnabled(false);
 
         // Update UI
         document.getElementById('icloud-start-autosync-btn').style.display = 'inline-block';
