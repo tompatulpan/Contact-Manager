@@ -523,11 +523,27 @@ export class ICloudSyncService {
                     // IMPORTED (orange) cards originated on iCloud: a delete there wins
                     console.log(`🗑️ Imported contact deleted on iCloud: ${localContact.cardName} (UID: ${uid})`);
                     console.log(`   Deleting locally...`);
-                    
-                    // Delete locally
+
+                    // The card is already gone from iCloud — that is how this
+                    // was detected. Mark the sync state processed so the push
+                    // phase does not send a redundant remote DELETE for it
+                    // (observed live: 101 pointless rate-limited deletes per
+                    // cycle), then remove the local record outright.
+                    if (localContact.metadata.carddav) {
+                        localContact.metadata.carddav.syncStatus = 'deleted';
+                        localContact.metadata.carddav.deletedAt = new Date().toISOString();
+                    }
+
                     await this.contactManager.deleteContact(localContact.contactId);
                     localDeleted++;
-                    console.log(`✅ Deleted locally: ${localContact.cardName}`);
+
+                    try {
+                        await this.contactManager.database.hardDeleteContact(localContact.contactId);
+                        this.contactManager.contacts.delete(localContact.contactId);
+                        console.log(`✅ Deleted locally: ${localContact.cardName}`);
+                    } catch (dbError) {
+                        console.error(`⚠️ Failed to hard-delete ${localContact.cardName} locally (will retry via tombstone):`, dbError);
+                    }
                 }
             }
             

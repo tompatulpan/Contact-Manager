@@ -38,18 +38,18 @@ describe('handleDeletions() — iCloud deleted, local exists', () => {
             },
         });
 
-        const { service, contactManager } = await buildTestService(
-            { fetchContacts: FETCH_EMPTY },
+        const { service, contactManager, mockClient } = await buildTestService(
+            { fetchContacts: FETCH_EMPTY, deleteContact: DELETE_SUCCESS },
             [alice],
         );
 
         await service.handleDeletions();
 
-        // Alice should now be deleted locally
+        // Alice should now be deleted locally (hard-deleted outright — the
+        // card is already gone from iCloud, so no remote DELETE is sent)
         const contact = contactManager.contacts.get(`contact_${ALICE_UID}`);
-        // Either removed from the Map entirely or flagged isDeleted
-        const deleted = !contact || contact.metadata.isDeleted;
-        expect(deleted).toBe(true);
+        expect(contact).toBeUndefined();
+        expect(mockClient.deleteContact).not.toHaveBeenCalled();
     });
 
     it('protects an OWNED contact deleted on iCloud and queues a re-create', async () => {
