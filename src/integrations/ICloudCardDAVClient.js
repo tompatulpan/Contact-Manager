@@ -514,6 +514,41 @@ export class ICloudCardDAVClient {
     }
 
     /**
+     * Rewrite comma-separated TYPE values into Apple-style separate
+     * parameters on TEL/EMAIL/URL/ADR lines.
+     *
+     * "TEL;TYPE=HOME,VOICE:..." is valid RFC 2426, but iCloud does not map
+     * the compound value to a visible label — the number shows up as a
+     * generic "phone" on icloud.com. Apple's own cards use one parameter
+     * per value ("TEL;type=HOME;type=VOICE"), so normalize to that form
+     * before pushing. Lines without a comma-separated TYPE are untouched.
+     *
+     * Runs on every pushed card (app-generated and imported verbatim alike),
+     * paired with normalizeVCardLineEndings.
+     */
+    normalizeTypeParameters(vcard) {
+        return vcard.split('\r\n').map(line => {
+            const match = line.match(/^((?:item\d+\.)?(?:TEL|EMAIL|URL|ADR));([^:]*):(.*)$/i);
+            if (!match) return line;
+            const [, property, params, value] = match;
+
+            // Quoted parameter values may contain commas legitimately — skip
+            if (params.includes('"')) return line;
+            if (!/TYPE=[^;]*,/i.test(params)) return line;
+
+            const rebuiltParams = params.split(';').map(param => {
+                const typeMatch = param.match(/^TYPE=(.+)$/i);
+                if (!typeMatch) return param;
+                const values = typeMatch[1].split(',').map(v => v.trim()).filter(Boolean);
+                if (values.length <= 1) return param;
+                return values.map(v => `type=${v}`).join(';');
+            }).join(';');
+
+            return `${property};${rebuiltParams}:${value}`;
+        }).join('\r\n');
+    }
+
+    /**
      * Fetch a single contact by UID to get fresh ETag
      * Used for ETag refresh after 412 Precondition Failed errors
      * @added 2025-11-30T09:15:00Z - For handling 412 conflicts
@@ -586,8 +621,9 @@ export class ICloudCardDAVClient {
             throw new Error('Not connected. Call connect() first.');
         }
 
-        // Normalize line endings to \r\n (RFC 2426 requirement)
-        vcard = this.normalizeVCardLineEndings(vcard);
+        // Normalize line endings to \r\n (RFC 2426 requirement) and TYPE
+        // parameters to Apple's one-value-per-parameter form
+        vcard = this.normalizeTypeParameters(this.normalizeVCardLineEndings(vcard));
 
         // Extract UID from vCard or generate one
         const uidMatch = vcard.match(/UID:([^\r\n]+)/);
@@ -652,8 +688,9 @@ export class ICloudCardDAVClient {
             throw new Error('Not connected. Call connect() first.');
         }
 
-        // Normalize line endings to \r\n (RFC 2426 requirement)
-        vcard = this.normalizeVCardLineEndings(vcard);
+        // Normalize line endings to \r\n (RFC 2426 requirement) and TYPE
+        // parameters to Apple's one-value-per-parameter form
+        vcard = this.normalizeTypeParameters(this.normalizeVCardLineEndings(vcard));
 
         // addressBookUrl already ends with /card/ - just append uid and .vcf
         const targetUrl = this.iCloudBase + this.addressBookUrl + uid + '.vcf';

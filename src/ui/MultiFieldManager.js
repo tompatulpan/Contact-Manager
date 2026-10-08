@@ -112,7 +112,8 @@ export class MultiFieldManager {
                 { value: 'work', label: 'Work' },
                 { value: 'home', label: 'Home' },
                 { value: 'cell', label: 'Mobile' },
-                { value: 'fax', label: 'Fax' }
+                { value: 'fax', label: 'Fax' },
+                { value: 'other', label: 'Other' }
             ],
             email: [
                 { value: 'work', label: 'Work' },

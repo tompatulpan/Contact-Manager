@@ -6,6 +6,35 @@ import { ContactUIHelpers } from './ContactUIHelpers.js';
 
 export class ContactRenderer {
     /**
+     * Display labels for the internal (lowercase) field types.
+     * Types not in this map (e.g. custom iCloud labels) are shown as-is.
+     */
+    static TYPE_LABELS = {
+        work: 'Work',
+        home: 'Home',
+        cell: 'Mobile',
+        mobile: 'Mobile',
+        iphone: 'iPhone',
+        fax: 'Fax',
+        voice: 'Phone',
+        main: 'Main',
+        pager: 'Pager',
+        other: 'Other',
+        internet: 'Internet',
+        personal: 'Personal',
+        blog: 'Blog',
+        social: 'Social'
+    };
+
+    /**
+     * Resolve a raw field type to a human-readable label
+     */
+    static getTypeLabel(type) {
+        if (!type) return 'Other';
+        const normalized = String(type).toLowerCase();
+        return ContactRenderer.TYPE_LABELS[normalized] || String(type);
+    }
+    /**
      * Render contact preview (for lists)
      */
     static renderContactPreview(contact) {
@@ -81,7 +110,7 @@ export class ContactRenderer {
      */
     static renderSingleField(fieldType, field) {
         const escapedValue = ContactUIHelpers.escapeHtml(field.value || '');
-        const escapedType = ContactUIHelpers.escapeHtml(field.type || '');
+        const escapedType = ContactUIHelpers.escapeHtml(this.getTypeLabel(field.type));
         const primaryBadge = field.primary ? '<span class="field-primary">Primary</span>' : '';
         
         let content = '';

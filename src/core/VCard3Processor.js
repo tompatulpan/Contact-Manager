@@ -43,11 +43,13 @@ export class VCard3Processor {
             phone: {
                 'MOBILE': 'cell',
                 'MAIN': 'work',
+                'IPHONE': 'cell',   // Apple "iPhone" label — closest app type is mobile
                 'HOME': 'home',
                 'WORK': 'work',
                 'OTHER': 'other',
                 'FAX': 'fax',
                 'CELL': 'cell',
+                'PHONE': 'voice',   // Apple generic "phone" label
                 'VOICE': 'voice'  // Added VOICE mapping
             },
             email: {
@@ -309,9 +311,15 @@ export class VCard3Processor {
             parametersString = propertyPart.substring(semicolonIndex + 1);
         }
 
-        // Handle Apple ITEM prefixes
+        // Handle Apple ITEM prefixes — iCloud's web address book writes
+        // labeled values as item groups, e.g. "item1.TEL" plus
+        // "item1.X-ABLABEL:mobile". Keep the group name so the label can be
+        // re-attached to its property when converting to display data.
         let cleanProperty = property.toUpperCase();
-        if (this.patterns.itemPrefix.test(cleanProperty)) {
+        let group = null;
+        const itemMatch = cleanProperty.match(this.patterns.itemPrefix);
+        if (itemMatch) {
+            group = cleanProperty.slice(0, itemMatch[0].length - 1);
             cleanProperty = cleanProperty.replace(this.patterns.itemPrefix, '');
         }
 
@@ -321,7 +329,8 @@ export class VCard3Processor {
             property: cleanProperty,
             parameters,
             value: this.unescapeValue(value),
-            originalProperty: property
+            originalProperty: property,
+            group
         };
     }
 
@@ -408,13 +417,23 @@ export class VCard3Processor {
      * @param {Object} parsed - Parsed property data
      */
     addPropertyToContact(contact, parsed) {
-        const { property, parameters, value } = parsed;
-        
+        const { property, parameters, value, group } = parsed;
+
+        // Collect Apple item-group labels ("item1.X-ABLABEL:mobile").
+        // iCloud's web address book stores the label the user picked only
+        // in X-ABLABEL — the grouped TEL/EMAIL carries no (or only a PREF)
+        // TYPE parameter. Without this, every iCloud-edited phone loses its
+        // Home/Work/Mobile label and falls back to "other".
+        if (property === 'X-ABLABEL' && group) {
+            if (!contact.abLabels) contact.abLabels = new Map();
+            contact.abLabels.set(group, value);
+        }
+
         if (!contact.properties.has(property)) {
             contact.properties.set(property, []);
         }
 
-        const propertyValue = { value, parameters };
+        const propertyValue = { value, parameters, group };
         
         // ⭐ IMPROVED: Use Sets for better maintainability (consistent with VCard4Processor)
         if (this.singleValueProperties.has(property)) {
@@ -496,8 +515,16 @@ export class VCard3Processor {
 
         return values.map((value, index) => {
             const originalType = value.parameters?.TYPE;
-            const convertedType = this.convertType(originalType, propertyType);
-            
+            let convertedType = this.convertType(originalType, propertyType);
+
+            // Apple item-group labels override the TYPE parameter: X-ABLABEL
+            // is the label the user actually picked in iCloud/Contacts.
+            const abLabel = value.group && parsedContact.abLabels?.get(value.group);
+            if (abLabel !== undefined && abLabel !== null && abLabel !== '') {
+                const labeledType = this.convertLabelType(abLabel, propertyType);
+                if (labeledType) convertedType = labeledType;
+            }
+
             
             // Extra debug for URL issues
             if (property === 'URL' && !originalType) {
@@ -537,8 +564,10 @@ export class VCard3Processor {
             // Priority order based on property type
             let priorityOrder;
             if (propertyType === 'phone') {
-                // For phones: specific types first, then generic
-                priorityOrder = ['WORK', 'HOME', 'CELL', 'MOBILE', 'FAX', 'MAIN', 'OTHER', 'VOICE'];
+                // For phones: capability types first, then location, then generic.
+                // FAX wins over location because Apple's "home fax" is written
+                // as TYPE=HOME,VOICE,FAX — it is a fax, not a home phone.
+                priorityOrder = ['FAX', 'WORK', 'HOME', 'CELL', 'MOBILE', 'IPHONE', 'MAIN', 'OTHER', 'PHONE', 'VOICE'];
             } else if (propertyType === 'email') {
                 // For emails: specific types first, then INTERNET
                 priorityOrder = ['WORK', 'HOME', 'OTHER', 'INTERNET'];
@@ -555,6 +584,57 @@ export class VCard3Processor {
         }
         
         return mapping[upperType] || 'other';
+    }
+
+    /**
+     * Convert an Apple X-ABLABEL value to a standard display type.
+     *
+     * iCloud's web address book writes phone/email labels as item-group
+     * X-ABLABEL properties ("item1.TEL" + "item1.X-ABLABEL:mobile") instead
+     * of TYPE parameters. Mac Address Book exports the same labels wrapped
+     * as "_$!<Mobile>!$_".
+     *
+     * Recognized labels map to the standard types; unknown/custom labels are
+     * preserved as-is so the UI can display what the user typed in iCloud.
+     *
+     * @param {string} label - Raw X-ABLABEL value
+     * @param {string} propertyType - Property category
+     * @returns {string|null} Standard type, custom label text, or null
+     */
+    convertLabelType(label, propertyType) {
+        if (!label) return null;
+
+        let normalized = String(label).trim();
+        // Mac Address Book classic wrapper: _$!<Mobile>!$_
+        const appleWrapped = normalized.match(/^_\$!<(.+)>!\$_$/);
+        if (appleWrapped) normalized = appleWrapped[1];
+
+        normalized = normalized.toUpperCase()
+            .replace(/[_.]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (!normalized) return null;
+
+        const mapping = this.typeMappings[propertyType];
+
+        // Exact standard label: "HOME", "MOBILE", "WORK", "PHONE", ...
+        if (mapping && mapping[normalized]) return mapping[normalized];
+
+        // Multi-word labels: "WORK FAX", "HOME PHONE", "WORK 2", ...
+        const parts = normalized.split(/[\s,]+/).filter(Boolean);
+        if (parts.length > 1 && mapping) {
+            if (propertyType === 'phone' && parts.includes('FAX')) return mapping['FAX'];
+            if (parts.includes('MOBILE') || parts.includes('CELL')) return mapping['CELL'];
+            if (parts.includes('WORK')) return mapping['WORK'];
+            if (parts.includes('HOME')) return mapping['HOME'];
+        }
+
+        // Numbered variants of standard labels: "HOME 2", "WORK 3"
+        const numbered = normalized.match(/^(WORK|HOME|CELL|MOBILE|FAX|MAIN|IPHONE|PHONE|OTHER|VOICE)\s*\d+$/);
+        if (numbered && mapping && mapping[numbered[1]]) return mapping[numbered[1]];
+
+        // Unknown/custom label — keep the user's original text for display
+        return String(label).trim();
     }
 
     /**
@@ -678,13 +758,12 @@ export class VCard3Processor {
                     console.warn('⚠️ Skipping phone without value:', phone);
                     return;
                 }
-                
+
                 const type = this.convertToVCard3Type(phone.type, 'phone').toUpperCase();
-                
-                // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+
+                // Apple-style separate TYPE parameters (label, capability, pref).
                 const typeValues = [type];
-                if (phone.primary) typeValues.push('PREF');
-                
+
                 // RFC 2426: TEL should always have a capability type (VOICE, FAX, etc.)
                 // For CELL/MOBILE, the location type IS the capability
                 // For WORK/HOME/OTHER, add VOICE as capability
@@ -692,9 +771,10 @@ export class VCard3Processor {
                 if (needsVoiceCapability) {
                     typeValues.push('VOICE');
                 }
-                
-                // Use single TYPE parameter with comma-separated values (UPPERCASE)
-                output += `TEL;TYPE=${typeValues.join(',')}:${this.escapeValue(phone.value)}\n`;
+
+                if (phone.primary) typeValues.push('pref');
+
+                output += `TEL;${this.formatTypeParams(typeValues)}:${this.escapeValue(phone.value)}\n`;
             });
         }
 
@@ -706,16 +786,15 @@ export class VCard3Processor {
                     console.warn('⚠️ Skipping email without value:', email);
                     return;
                 }
-                
+
                 const type = this.convertToVCard3Type(email.type, 'email').toUpperCase();
-                
-                // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+
+                // Apple-style separate TYPE parameters: label, capability, pref
                 const typeValues = [type];
-                if (email.primary) typeValues.push('PREF');
                 typeValues.push('INTERNET'); // iCloud always adds INTERNET
-                
-                // Use single TYPE parameter with comma-separated values (UPPERCASE)
-                output += `EMAIL;TYPE=${typeValues.join(',')}:${this.escapeValue(email.value)}\n`;
+                if (email.primary) typeValues.push('pref');
+
+                output += `EMAIL;${this.formatTypeParams(typeValues)}:${this.escapeValue(email.value)}\n`;
             });
         }
 
@@ -732,11 +811,11 @@ export class VCard3Processor {
                 
                 // Use standard format for WORK, HOME, OTHER
                 if (['WORK', 'HOME', 'OTHER'].includes(type)) {
-                    // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+                    // Apple-style separate TYPE parameters: label, pref
                     const typeValues = [type];
-                    if (url.primary) typeValues.push('PREF');
-                    
-                    output += `URL;TYPE=${typeValues.join(',')}:${this.escapeValue(url.value)}\n`;
+                    if (url.primary) typeValues.push('pref');
+
+                    output += `URL;${this.formatTypeParams(typeValues)}:${this.escapeValue(url.value)}\n`;
                 } else {
                     // Use ITEM format for PERSONAL, BLOG, etc. (like iCloud does)
                     output += `item${itemCounter}.URL:${this.escapeValue(url.value)}\n`;
@@ -757,16 +836,32 @@ export class VCard3Processor {
                 }
                 
                 const type = this.convertToVCard3Type(address.type, 'address').toUpperCase();
-                
-                // Build comma-separated TYPE values (RFC 2426 Section 3.3) - UPPERCASE for iCloud
+
+                // Apple-style separate TYPE parameters: label, pref
                 const typeValues = [type];
-                if (address.primary) typeValues.push('PREF');
-                
-                output += `ADR;TYPE=${typeValues.join(',')}:${adrValue}\n`;
+                if (address.primary) typeValues.push('pref');
+
+                output += `ADR;${this.formatTypeParams(typeValues)}:${adrValue}\n`;
             });
         }
 
         return output;
+    }
+
+    /**
+     * Format vCard 3.0 TYPE values as Apple-style separate parameters.
+     *
+     * Apple's Contacts and iCloud CardDAV write and expect
+     * "TEL;type=HOME;type=VOICE" — one parameter per value. A single TYPE
+     * parameter with comma-separated values ("TEL;TYPE=HOME,VOICE") is valid
+     * RFC 2426, but iCloud accepts it without mapping it to a visible label:
+     * the number shows up as a generic "phone" on icloud.com.
+     *
+     * @param {Array} values - TYPE values, e.g. ['HOME', 'VOICE', 'pref']
+     * @returns {string} Parameter string, e.g. "type=HOME;type=VOICE;type=pref"
+     */
+    formatTypeParams(values) {
+        return values.map(v => `type=${v}`).join(';');
     }
 
     /**
