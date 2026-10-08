@@ -2869,3 +2869,30 @@ body {
     color: #495057;
     font-weight: 600;
 }
+/* Status badges in the contact detail view (Owned / Imported / Shared).
+   Colors follow the avatar conventions: blue = owned, orange = imported,
+   gray = shared. */
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.badge-primary {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.badge-imported {
+    background: var(--warning-color);
+    color: #fff;
+}
+
+.badge-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color, #d1d5db);
+}

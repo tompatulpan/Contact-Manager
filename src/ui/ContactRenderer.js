@@ -140,9 +140,18 @@ export class ContactRenderer {
         
         const createdDate = ContactUIHelpers.formatDate(metadata.createdAt);
         const updatedDate = ContactUIHelpers.formatDate(metadata.lastUpdated);
-        const ownershipBadge = metadata.isOwned ? 
-            '<span class="badge badge-primary">Owned</span>' : 
-            '<span class="badge badge-secondary">Shared</span>';
+        // Imported contacts are owned by the user (they live in their
+        // Userbase database) but come from an external source — show the
+        // provenance, not just ownership, so the detail view matches the
+        // orange avatar and the "Imported" filter.
+        let ownershipBadge;
+        if (!metadata.isOwned) {
+            ownershipBadge = '<span class="badge badge-secondary">Shared</span>';
+        } else if (metadata.isImported) {
+            ownershipBadge = '<span class="badge badge-imported">Imported</span>';
+        } else {
+            ownershipBadge = '<span class="badge badge-primary">Owned</span>';
+        }
         
         return `
             <div class="contact-metadata">
