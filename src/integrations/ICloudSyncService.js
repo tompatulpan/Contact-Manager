@@ -453,6 +453,7 @@ export class ICloudSyncService {
         
         try {
             let localDeleted = 0;
+            let restored = 0;
             let remoteDeleted = 0;
             
             // Reuse contacts already fetched in Phase 1 to avoid a duplicate REPORT request
@@ -475,7 +476,32 @@ export class ICloudSyncService {
                 
                 // If contact was synced to iCloud before but no longer exists there
                 if (hasCardDAVSync && !iCloudUIDs.has(uid)) {
-                    console.log(`🗑️ Contact deleted on iCloud: ${localContact.cardName} (UID: ${uid})`);
+                    // OWNED (blue) cards are Userbase-authoritative: an iCloud-side
+                    // delete (accidental, or by another user of the same iCloud
+                    // account) must not destroy E2E data. Keep the card locally and
+                    // reset its sync state so the push phase recreates it on iCloud
+                    // (self-healing mirror). createContact sends If-None-Match: *,
+                    // so a transient snapshot glitch surfaces as a 412 error instead
+                    // of clobbering anything.
+                    if (!localContact.metadata.isImported) {
+                        console.log(`🛡️ Owned contact deleted on iCloud, keeping local and restoring to iCloud: ${localContact.cardName} (UID: ${uid})`);
+                        localContact.metadata.carddav = {
+                            ...(localContact.metadata.carddav || {}),
+                            etag: null,
+                            syncStatus: 'restore-pending',
+                            lastSyncedAt: null
+                        };
+                        try {
+                            await this.contactManager.database.updateContact(localContact);
+                        } catch (metaError) {
+                            console.error(`❌ Failed to reset sync state for ${localContact.cardName}:`, metaError);
+                        }
+                        restored++;
+                        continue;
+                    }
+
+                    // IMPORTED (orange) cards originated on iCloud: a delete there wins
+                    console.log(`🗑️ Imported contact deleted on iCloud: ${localContact.cardName} (UID: ${uid})`);
                     console.log(`   Deleting locally...`);
                     
                     // Delete locally
@@ -499,13 +525,13 @@ export class ICloudSyncService {
                 }
             }
             
-            console.log(`✅ Deletion check complete: ${localDeleted} deleted remotely (removed from CM), ${remoteDeleted} deleted locally (will push to iCloud)`);
-            
-            return { localDeleted, remoteDeleted };
-            
+            console.log(`✅ Deletion check complete: ${localDeleted} imported deleted remotely (removed from CM), ${restored} owned restored (will re-create on iCloud), ${remoteDeleted} deleted locally (will push to iCloud)`);
+
+            return { localDeleted, restored, remoteDeleted };
+
         } catch (error) {
             console.error('❌ Deletion handling failed:', error);
-            return { localDeleted: 0, remoteDeleted: 0 };
+            return { localDeleted: 0, restored: 0, remoteDeleted: 0 };
         }
     }
 

@@ -28,7 +28,7 @@ PATH B (broken):   CardDAV settings UI (Baikal modal)
 | Principal + addressbook discovery | Implemented | `ICloudCardDAVClient.discoverPrincipal/` `discoverAddressBook` via Worker proxy |
 | Full addressbook pull | Implemented | REPORT, UID-based matching against local contacts |
 | Pull authority | Implemented | Owned/imported contacts updated from iCloud; shared contacts never pulled (CM is authority) |
-| Remote deletion → local delete | Implemented | Any owned contact with a stored ETag that is missing from the server snapshot is deleted locally (`handleDeletions`) |
+| Remote deletion → local delete | Implemented, **imported-only** (see IS-15) | An **imported** contact with a stored ETag missing from the server snapshot is deleted locally. **Owned** (blue) cards are Userbase-authoritative: an iCloud-side delete keeps the card locally, resets its sync state, and the next push re-creates it on iCloud (self-healing mirror). Shared cards were never eligible. |
 | Local deletion → remote delete | Implemented | `pushToICloud` phase 0: DELETE with ETag, then hard `userbase.deleteItem` with 1.1 s rate limiting and a `TooManyRequests` retry |
 | ETag optimistic concurrency on push | **Implemented in client only — defeated by the Worker in production** | Client sets `If-Match` on PUT/DELETE and handles 412 (covered by `conflicts.test.js`), but the Worker does not forward `If-Match` to iCloud, so iCloud never sees the precondition and never returns 412. See IS-10. `createContact` also sends no `If-None-Match: *`, so a create can silently overwrite a same-UID contact. |
 | Immediate push after local edit | Implemented | `ContactManager.updateContact/createContact` → `pushSingleContact` |
@@ -175,6 +175,18 @@ Steps 1, 2, 4 and 6 are the ones that matter before the next production sync; th
 | 10 | Tests | Partial — worker suite (10 tests: header forwarding, access control, SSRF) and timer/deletion tests added; jest 59/59. `ICloudCardDAVClient` XML/discovery tests still open. | various |
 
 Jest after this pass: 10 suites / 59 tests, all passing.
+
+### IS-15 (decided and implemented 2026-10-07): remote deletion wins only for imported cards
+
+Live testing confirmed the CD-05 concern: deleting an owned (blue) card on iCloud deleted the E2E-encrypted card in the app — one finger-slip on a phone (or another user of the same iCloud account) would destroy Userbase data, contradicting the product promise that the encrypted store is authoritative.
+
+**Decision:** owned cards are protected; the `metadata.isImported` flag (set at creation and on iCloud imports) is the discriminator. `handleDeletions()` now:
+
+- **Owned (blue)** — keeps the card, resets `carddav.etag`/`syncStatus` (`restore-pending`), so the same cycle's push re-creates it on iCloud. `createContact` sends `If-None-Match: *`, so a transient-snapshot misread surfaces as a 412 instead of clobbering.
+- **Imported (orange)** — remote deletion still wins (the card originated on iCloud).
+- **Shared (green)** — unchanged, never eligible.
+
+Tests updated: remote-delete-wins test now uses an imported card; new test asserts owned survival + sync-state reset + `shouldPushContact` armed for re-create. Jest 60/60.
 
 ### Remaining known gaps
 

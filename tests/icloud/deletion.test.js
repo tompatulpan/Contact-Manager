@@ -26,12 +26,14 @@ const EVE_UID   = 'uid-eve-deleted-004';
 
 describe('handleDeletions() — iCloud deleted, local exists', () => {
 
-    it('marks contact as deleted when it disappears from iCloud', async () => {
-        // Alice exists locally with CardDAV metadata, but iCloud returns EMPTY
+    it('marks an IMPORTED contact as deleted when it disappears from iCloud', async () => {
+        // Alice exists locally with CardDAV metadata, but iCloud returns EMPTY.
+        // Imported (orange) cards originated on iCloud — remote deletion wins.
         const alice = buildContact(ALICE_UID, OWNED_VCARD, {
-            cardName: 'Alice Owned',
+            cardName: 'Alice Imported',
             metadata: {
                 isOwned: true,
+                isImported: true,
                 carddav: { etag: '"etag-alice-v1"', source: 'iCloud', lastSyncedAt: new Date().toISOString() },
             },
         });
@@ -48,6 +50,39 @@ describe('handleDeletions() — iCloud deleted, local exists', () => {
         // Either removed from the Map entirely or flagged isDeleted
         const deleted = !contact || contact.metadata.isDeleted;
         expect(deleted).toBe(true);
+    });
+
+    it('protects an OWNED contact deleted on iCloud and queues a re-create', async () => {
+        // Product rule: owned (blue) cards are Userbase-authoritative. An
+        // iCloud-side delete (accidental, or another user of the same iCloud
+        // account) must NOT destroy E2E data — the card survives locally and
+        // its sync state is reset so the push phase re-creates it on iCloud.
+        const alice = buildContact(ALICE_UID, OWNED_VCARD, {
+            cardName: 'Alice Owned',
+            metadata: {
+                isOwned: true,
+                // deliberately no isImported → owned card
+                carddav: { etag: '"etag-alice-v1"', source: 'iCloud', lastSyncedAt: new Date().toISOString() },
+            },
+        });
+
+        const { service, contactManager } = await buildTestService(
+            { fetchContacts: FETCH_EMPTY },   // iCloud no longer has Alice
+            [alice],
+        );
+
+        await service.handleDeletions();
+
+        const contact = contactManager.contacts.get(`contact_${ALICE_UID}`);
+        expect(contact).toBeDefined();
+        expect(contact?.metadata?.isDeleted).not.toBe(true);
+
+        // Sync state was reset so the push phase treats her as new on iCloud
+        expect(contact?.metadata?.carddav?.etag).toBeNull();
+        expect(contact?.metadata?.carddav?.syncStatus).toBe('restore-pending');
+
+        // And the self-heal chain is armed: the next push will re-create her
+        expect(service.shouldPushContact(contact).push).toBe(true);
     });
 
     it('does NOT delete a local contact that has no CardDAV metadata', async () => {
