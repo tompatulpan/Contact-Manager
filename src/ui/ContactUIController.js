@@ -1338,6 +1338,7 @@ export class ContactUIController {
     async handleMobileSignOut() {
         // Check if user is already signed out
         if (!this.currentUser) {
+            this.showAuthenticationModal();
             return;
         }
 
@@ -1356,6 +1357,7 @@ export class ContactUIController {
         try {
             // Check if user is already signed out
             if (!this.currentUser) {
+                this.showAuthenticationModal();
                 return;
             }
 
@@ -3508,6 +3510,12 @@ export class ContactUIController {
 
     hideModal(data) {
         const modalId = data?.modalId || 'contact-modal';
+
+        // The authentication modal is a mandatory gate — never dismiss it while unauthenticated
+        if (modalId === 'auth-modal' && !this.currentUser) {
+            return;
+        }
+
         const modal = document.getElementById(modalId);
         
         if (modal) {
