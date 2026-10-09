@@ -19,7 +19,7 @@ I started this project because I was frustrated with how messy and inaccurate my
 A secure, modular contact management system with:
 - End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)
 - Real-time sharing and sync
-- Using vCard 3.0 (RFC 2426) for storage and CardDAV sync
+- vCard 3.0 (RFC 2426) for storage, export and CardDAV sync (imports vCard 3.0 and 4.0)
 - Distribution lists for group sharing
 - Cross-device support (web application)
 
@@ -28,22 +28,26 @@ A secure, modular contact management system with:
 - Create, edit, and organize contacts
 - Share contacts with users or groups (distribution lists)
 - Archive, delete, and manage received/shared contacts
-- Import/export contacts (vCard 3.0)
+- Import contacts (vCard 3.0/4.0), export as vCard 3.0
 - QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
-- **🆕 Baikal CardDAV Integration** - Sync with any CardDAV server
+- **CardDAV Integration** - Sync with any CardDAV server (Baikal, Nextcloud, Radicale, ...)
+- **🆕 iCloud Sync** - Bidirectional sync with Apple iCloud via a CardDAV proxy Worker
 
 ## Project Structure
 
 ```
 src/                # Core business logic and UI components
 lib/                # Third-party SDKs (e.g., userbase.js)
-tests/              # Jest test suite (tests/icloud/), manual debug pages (tests/manual/)
+tests/              # Jest test suite (tests/icloud/, tests/worker/), manual debug pages (tests/manual/)
 scripts/            # Development, cache-busting and deployment shell scripts
 docs/               # Historical design notes and fix documentation (docs/archive/)
+cloudflare-worker/  # CardDAV CORS proxy Worker (iCloud sync)
 index.html          # Main entry point
+404.html            # Landing page for unknown routes
 style.css           # Styles
 mobile.css
+manifest.webmanifest # PWA manifest (home screen install)
 ```
 ---
 ## Development
@@ -55,12 +59,9 @@ mobile.css
 # Install development dependencies (testing framework, dev server)
 npm install
 
-# Start development server with live reload
+# Start the development server on http://localhost:8080
+# (requires Python 3; serves static files only, no live reload)
 npm run serve
-
-# 🆕 Baikal CardDAV integration setup
-cd ../contact-carddav-bridge && npm start  # Start bridge server (port 3001)
-npm run serve                               # Start contact manager (port 8080)
 ```
 ### Cache Busting 
 ```bash
@@ -105,7 +106,8 @@ fish scripts/production_zip.sh && \
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
-- [x] **Baikal CardDAV Integration** (sync with any CardDAV server)
+- [x] **CardDAV Integration** (sync with any CardDAV server)
+- [x] **iCloud Sync** (bidirectional, via CardDAV proxy Worker)
 - [ ] Group list features (Rename, edit, copy, etc)
 - [ ] Create e-mail distrubution list
 - [x] Bulk operations (Delete)
@@ -119,9 +121,9 @@ fish scripts/production_zip.sh && \
 - [x] Complete disaster recovery system via vCards
 
 ### Ideas
-- [ ] A Progressive Web App (PWA)
+- [x] A Progressive Web App (PWA)
 - [ ] An Electron or Tauri App
-- [(x)] Better integration on phones, CardDAV support
+- [x] Better integration on phones, CardDAV support
 - [ ] Improve decentralization using userbase
 
 ```  
@@ -192,7 +194,7 @@ fish scripts/production_zip.sh && \
 
 
 ```                
-### Sync Flow Details with Baikal
+### Sync Flow Details with CardDAV
 
 **Push (Contact Manager → Baikal)**
 - User updates contact in web app
@@ -276,27 +278,33 @@ fish scripts/production_zip.sh && \
 └─────────────────────────────┘
 ```
 ---
-## 🔗 Baikal CardDAV Integration
+## 🔗 CardDAV Integration
 
-The contact manager now supports synchronization with any CardDAV server (Baikal, Nextcloud, etc.). This enables:
+The contact manager supports synchronization with CardDAV servers. This enables:
 
 - **Universal Device Sync**: Access contacts on iPhone, Android, Thunderbird, etc.
 - **Standard Protocol**: Uses industry-standard CardDAV for maximum compatibility
 - **Bidirectional Sync**: Changes sync both ways between contact manager and CardDAV server
 - **Self-Service Setup**: No admin required - users configure their own connections
 
+There are two sync paths in the app:
+
+- **Generic CardDAV connector** (Baikal, Nextcloud, Radicale, ...): connects directly from the browser - no bridge server required.
+- **iCloud Sync**: syncs with Apple iCloud through a CardDAV CORS proxy Worker (`cloudflare-worker/`), required because of iCloud's CORS restrictions.
+
 ### Quick Start
 ```bash
-# Start CardDAV bridge server (separate project)
-cd ../contact-carddav-bridge && npm start  # Port 3001
-
-# Start contact manager
-npm run serve  # Port 8080
-
-# Open http://localhost:8080, click "Baikal" button
+npm run serve   # http://localhost:8080
 ```
 
-See **[BAIKAL_INTEGRATION.md](docs/archive/BAIKAL_INTEGRATION.md)** for complete setup and configuration guide.
+Open http://localhost:8080 and use the **iCloud Sync** button (iCloud) or the CardDAV account settings (other servers).
+
+The iCloud proxy Worker is deployed separately:
+```bash
+cd cloudflare-worker && node_modules/.bin/wrangler deploy
+```
+
+See **[BAIKAL_INTEGRATION.md](docs/archive/BAIKAL_INTEGRATION.md)** for the complete Baikal setup and configuration guide.
 
 ## Acknowledgements
 
