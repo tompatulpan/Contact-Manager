@@ -1,5 +1,5 @@
 import { IndividualSharingStrategy } from './IndividualSharingStrategy.js';
-import { PERFORMANCE_CONFIG } from '../config/app.config.js';
+import { PERFORMANCE_CONFIG, USERBASE_CONFIG } from '../config/app.config.js';
 
 /**
  * ContactDatabase - Userbase integration for encrypted contact storage
@@ -117,8 +117,10 @@ export class ContactDatabase {
                 }
             }
             
-            // Store the appId (required parameter)
-            this.appId = appId;
+            // Ensure appId is set (required by userbase.init) — initialize() may not have run yet
+            if (!this.appId) {
+                this.appId = USERBASE_CONFIG.appId;
+            }
             
             // ✅ SDK COMPLIANT: Use proper async/await instead of Promise constructor
             const session = await userbase.init({
@@ -303,6 +305,13 @@ export class ContactDatabase {
             
             const result = await userbase.signUp(signUpParams);
 
+            // The SDK writes the new session only to the storage matching rememberMe;
+            // remove any stale record from the other storage so it cannot be resumed
+            if (rememberMe) {
+                sessionStorage.removeItem('userbaseCurrentSession');
+            } else {
+                localStorage.removeItem('userbaseCurrentSession');
+            }
 
             this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
 
@@ -343,8 +352,15 @@ export class ContactDatabase {
                 rememberMe: rememberMe ? 'local' : 'session',
                 sessionLength: rememberMe ? 720 : 24 // Hours - 720h (30 days) for persistent, 24h for session
             });
-            
-            
+
+            // The SDK writes the new session only to the storage matching rememberMe;
+            // remove any stale record from the other storage so it cannot be resumed
+            if (rememberMe) {
+                sessionStorage.removeItem('userbaseCurrentSession');
+            } else {
+                localStorage.removeItem('userbaseCurrentSession');
+            }
+
             this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
 
             // Persist session preference so hasStoredSession() / restoreSession() can read it
@@ -392,7 +408,12 @@ export class ContactDatabase {
             
             // Let Userbase handle the logout completely - no manual storage clearing
             await userbase.signOut();
-            
+
+            // The SDK only invalidates the session matching the current rememberMe setting;
+            // remove both session records so no stale one can be resumed in a new tab
+            sessionStorage.removeItem('userbaseCurrentSession');
+            localStorage.removeItem('userbaseCurrentSession');
+
             // Only clear application-specific state
             this.currentUser = null;
             this.clearSessionData();
