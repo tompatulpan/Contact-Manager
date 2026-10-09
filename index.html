@@ -24,6 +24,15 @@
         form-action 'self';
     ">
     <title>Contact Management System</title>
+    <!-- PWA: home screen icons and install support -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <meta name="theme-color" content="#228be6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Kontakt">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style-dark.css">
     <link rel="stylesheet" href="mobile.css">
@@ -158,22 +167,6 @@
                         <div class="stat-item" title="Contacts imported from files/CardDAV">
                             <span class="stat-label">Imported</span>
                             <span id="stat-imported" class="stat-value">0</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Install on iPhone (mobile/iPhone mode only) -->
-                <div class="sidebar-section mobile-only install-on-iphone">
-                    <h3>Install App</h3>
-                    <div class="info-box">
-                        <i class="fas fa-mobile-screen-button"></i>
-                        <div>
-                            <p>Add Kontakt as an app to your iPhone home screen:</p>
-                            <p>1. Open this app in <strong>Safari</strong>.</p>
-                            <p>2. Tap the <strong>Share</strong> button (the square with an arrow at the bottom of the screen).</p>
-                            <p>3. Scroll down and tap <strong>Add to Home Screen</strong>.</p>
-                            <p>4. Tap <strong>Add</strong> in the top-right corner.</p>
-                            <p>The app now appears on your home screen and opens full-screen, just like a regular app.</p>
                         </div>
                     </div>
                 </div>
@@ -318,6 +311,32 @@
             <button id="dismiss-success" class="toast-close">
                 <i class="fas fa-times"></i>
             </button>
+        </div>
+    </div>
+
+    <!-- Install App Info Modal (iPhone mode only, shown once on app start) -->
+    <div id="install-info-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Install Kontakt on Your iPhone</h2>
+            </div>
+            <div class="modal-body">
+                <div class="info-box">
+                    <i class="fas fa-mobile-screen-button"></i>
+                    <div>
+                        <p>You can add Kontakt to your iPhone home screen and use it like a regular app:</p>
+                        <p>1. Open this app in <strong>Safari</strong>.</p>
+                        <p>2. Tap the <strong>Share</strong> button (the square with an arrow at the bottom of the screen).</p>
+                        <p>3. Scroll down and tap <strong>Add to Home Screen</strong>.</p>
+                        <p>4. Tap <strong>Add</strong> in the top-right corner.</p>
+                        <p>The app will appear on your home screen and open full-screen, just like a native app.</p>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="install-info-close" class="btn btn-primary">Close</button>
+                    <button type="button" id="install-info-dismiss" class="btn btn-ghost">Close and Never Show Again</button>
+                </div>
+            </div>
         </div>
     </div>
 

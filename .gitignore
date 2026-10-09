@@ -19,6 +19,11 @@ node_modules/
 !/index.html
 !/404.html
 !/favicon.ico
+!/manifest.webmanifest
+!/apple-touch-icon.png
+!/icon-192.png
+!/icon-512.png
+!/icon-512-maskable.png
 !/_headers
 !/package.json
 !/package-lock.json

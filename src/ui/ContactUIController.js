@@ -29,6 +29,7 @@ export class ContactUIController {
         this.currentView = 'contacts'; // contacts, archived, shared
         this.viewMode = this.getDefaultViewMode(); // Responsive default: list for mobile, card for desktop
         this.searchQuery = '';
+        this.installInfoShown = false; // Install-on-iPhone info modal (once per session)
         
         // Load saved filter state from localStorage or use defaults
         this.activeFilters = this.loadFilterState() || {
@@ -854,6 +855,26 @@ export class ContactUIController {
                 }
             });
         });
+
+        // Install info modal buttons (add app to iPhone home screen)
+        const installInfoCloseBtn = document.getElementById('install-info-close');
+        if (installInfoCloseBtn) {
+            installInfoCloseBtn.addEventListener('click', () => {
+                this.hideModal({ modalId: 'install-info-modal' });
+            });
+        }
+
+        const installInfoDismissBtn = document.getElementById('install-info-dismiss');
+        if (installInfoDismissBtn) {
+            installInfoDismissBtn.addEventListener('click', async () => {
+                try {
+                    await this.contactManager?.database?.dismissInstallInfo();
+                } catch (error) {
+                    console.warn('⚠️ Could not persist install info dismissal:', error);
+                }
+                this.hideModal({ modalId: 'install-info-modal' });
+            });
+        }
 
         // Retry share buttons (Share More / Try Again)
         const retryShareButtons = document.querySelectorAll('[data-action="retry-share"]');
@@ -2998,6 +3019,30 @@ export class ContactUIController {
         
         this.renderDistributionLists(); // Render distribution lists on app start
         this.performSearch();
+
+        this.maybeShowInstallInfo();
+    }
+
+    /**
+     * Show the install-on-iPhone info modal once per session,
+     * only in mobile/iPhone mode and only if not permanently dismissed.
+     */
+    async maybeShowInstallInfo() {
+        if (this.installInfoShown) return;
+        if (window.innerWidth > 768) return; // Info is only relevant in iPhone/mobile mode
+
+        this.installInfoShown = true;
+
+        try {
+            const database = this.contactManager?.database;
+            if (database && await database.isInstallInfoDismissed()) {
+                return;
+            }
+        } catch (error) {
+            // If the check fails, fall through and show the info modal
+        }
+
+        this.showModal({ modalId: 'install-info-modal' });
     }
 
     /**

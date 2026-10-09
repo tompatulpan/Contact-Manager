@@ -3806,9 +3806,44 @@ export class ContactDatabase {
             theme: 'light',
             defaultSort: 'name',
             defaultViewMode: 'card',
+            installInfoDismissed: false, // Install-on-iPhone info modal dismissed
             createdAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString()
         };
+    }
+
+    /**
+     * Check if the install info modal has been dismissed by the user
+     * @returns {Promise<boolean>} True if the user chose "never show again"
+     */
+    async isInstallInfoDismissed() {
+        try {
+            const settings = await this.getSettings();
+            return settings.installInfoDismissed === true;
+        } catch (error) {
+            console.error('❌ Error checking install info dismissed state:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Mark the install info modal as dismissed so it is never shown again
+     * @returns {Promise<boolean>} Success status
+     */
+    async dismissInstallInfo() {
+        try {
+            const currentSettings = await this.getSettings();
+
+            if (currentSettings.installInfoDismissed === true) {
+                return true;
+            }
+
+            currentSettings.installInfoDismissed = true;
+            return await this.updateSettings(currentSettings);
+        } catch (error) {
+            console.error('❌ Error dismissing install info:', error);
+            return false;
+        }
     }
 
     // 🆕 BAICAL INTEGRATION: Configuration management methods
