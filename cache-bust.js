@@ -2,14 +2,14 @@
 // ============================================================================
 // Cache Busting Script (Node.js Implementation)
 // ============================================================================
-// Purpose: Generates MD5-based version parameters for CSS/JS files
+// Purpose: Generates SHA-256-based version parameters for CSS/JS files
 //
 // NOTE: This is the Node.js implementation. The primary cache busting script
 //       is cache-bust.sh (Fish shell), which provides more comprehensive
 //       coverage including ES6 module imports.
 //
 // Features:
-// - MD5 hash-based versioning (content-based, not time-based)
+// - SHA-256 hash-based versioning (content-based, not time-based)
 // - Updates index.html with version parameters
 // - Creates cache-versions.json report
 // - Standalone execution or module usage
@@ -46,10 +46,10 @@ class CacheBuster {
 
     /**
      * Generate version hash for a file based on its content
-     * Uses MD5 hash for deterministic versioning (same content = same hash)
+     * Uses SHA-256 hash for deterministic versioning (same content = same hash)
      * 
      * @param {string} filePath - Path to file to hash
-     * @returns {string} 8-character MD5 hash or timestamp fallback
+     * @returns {string} 8-character SHA-256 hash or timestamp fallback
      */
     generateFileVersion(filePath) {
         try {
@@ -59,7 +59,7 @@ class CacheBuster {
             }
 
             const content = fs.readFileSync(filePath, 'utf8');
-            const hash = crypto.createHash('md5').update(content).digest('hex');
+            const hash = crypto.createHash('sha256').update(content).digest('hex');
             return hash.substring(0, 8); // Use first 8 characters for compact version
         } catch (error) {
             console.warn(`⚠️  Error reading ${filePath}:`, error.message);
@@ -87,7 +87,7 @@ class CacheBuster {
 
     /**
      * Generate versions for all files
-     * Iterates through files and creates MD5 hash versions
+     * Iterates through files and creates SHA-256 hash versions
      */
     generateVersions() {
         const filesToBust = this.getFilesToBust();
