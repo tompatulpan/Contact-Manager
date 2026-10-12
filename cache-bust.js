@@ -146,50 +146,26 @@ class CacheBuster {
         
         console.log('📝 Updating index.html with cache bust parameters...\n');
         
-        // Update CSS files
-        const cssFiles = [
-            { file: 'style.css', pattern: /<link rel="stylesheet" href="style\.css"[^>]*>/ },
-            { file: 'mobile.css', pattern: /<link rel="stylesheet" href="mobile\.css"[^>]*>/ }
+        // Only the src/href value is rewritten; every other attribute on the
+        // tag (integrity, crossorigin, type, ...) is preserved as-is.
+        const targets = [
+            { file: 'style.css', tag: 'link', attr: 'href' },
+            { file: 'mobile.css', tag: 'link', attr: 'href' },
+            { file: 'lib/userbase.js', tag: 'script', attr: 'src' },
+            { file: 'src/utils/UserbaseConnectionFix.js', tag: 'script', attr: 'src' },
+            { file: 'src/app.js', tag: 'script', attr: 'src' }
         ];
         
-        cssFiles.forEach(({ file, pattern }) => {
+        targets.forEach(({ file, tag, attr }) => {
             const version = this.versions.get(file);
-            const newLink = `<link rel="stylesheet" href="${file}?v=${version}">`;
+            const escapedFile = file.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+            const pattern = new RegExp(
+                `(<${tag}\\b[^>]*?\\b${attr}=")${escapedFile}(?:\\?v=[^"]*)?(")`
+            );
             
             if (pattern.test(content)) {
-                content = content.replace(pattern, newLink);
-                console.log(`  ✅ Updated ${file} → ?v=${version}`);
-            }
-        });
-
-        // Update JavaScript files
-        const jsFiles = [
-            { 
-                file: 'lib/userbase.js', 
-                pattern: /<script src="lib\/userbase\.js"[^>]*><\/script>/ 
-            },
-            { 
-                file: 'src/utils/UserbaseConnectionFix.js', 
-                pattern: /<script src="src\/utils\/UserbaseConnectionFix\.js"[^>]*><\/script>/ 
-            },
-            { 
-                file: 'src/app.js', 
-                pattern: /<script type="module" src="src\/app\.js"[^>]*><\/script>/ 
-            }
-        ];
-        
-        jsFiles.forEach(({ file, pattern }) => {
-            const version = this.versions.get(file);
-            let newScript;
-            
-            if (file === 'src/app.js') {
-                newScript = `<script type="module" src="${file}?v=${version}"></script>`;
-            } else {
-                newScript = `<script src="${file}?v=${version}"></script>`;
-            }
-            
-            if (pattern.test(content)) {
-                content = content.replace(pattern, newScript);
+                content = content.replace(pattern, (_, before, after) =>
+                    `${before}${file}?v=${version}${after}`);
                 console.log(`  ✅ Updated ${file} → ?v=${version}`);
             }
         });
