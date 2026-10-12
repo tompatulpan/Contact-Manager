@@ -2,14 +2,14 @@
 // ============================================================================
 // Cache Busting Script (Node.js Implementation)
 // ============================================================================
-// Purpose: Generates checksum-based version parameters for CSS/JS files
+// Purpose: Generates SHA-256-based version parameters for CSS/JS files
 //
 // NOTE: This is the Node.js implementation. The primary cache busting script
 //       is cache-bust.sh (Fish shell), which provides more comprehensive
 //       coverage including ES6 module imports.
 //
 // Features:
-// - Checksum-based versioning (content-based, not time-based)
+// - SHA-256 content-based versioning (not time-based)
 // - Updates index.html with version parameters
 // - Creates cache-versions.json report
 // - Standalone execution or module usage
@@ -29,32 +29,13 @@
 //   import CacheBuster from './cache-bust.js'; new CacheBuster().run();  # Module usage (ESM)
 // ============================================================================
 
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 // ES module replacement for the CommonJS __dirname global
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// ============================================================================
-// Helper: contentChecksum
-// ============================================================================
-// Deterministic, non-cryptographic checksum used ONLY for cache-busting
-// version strings (a change detector, not a security primitive). Combines
-// two independent 32-bit hashes (FNV-1a and djb2) into 16 hex characters —
-// more entropy than the previous 8-character truncated hash.
-// ============================================================================
-function contentChecksum(content) {
-    let fnv = 0x811c9dc5;   // FNV-1a 32-bit offset basis
-    let djb2 = 5381;        // djb2 initial value
-    for (let i = 0; i < content.length; i++) {
-        const c = content.charCodeAt(i);
-        fnv = Math.imul(fnv ^ c, 0x01000193);   // FNV-1a: xor then multiply by prime
-        djb2 = (Math.imul(djb2, 33) + c) >>> 0; // djb2: hash * 33 + c
-    }
-    fnv >>>= 0;
-    return fnv.toString(16).padStart(8, '0') + djb2.toString(16).padStart(8, '0');
-}
 
 // ============================================================================
 // Class: CacheBuster
@@ -71,11 +52,11 @@ class CacheBuster {
 
     /**
      * Generate version string for a file based on its content
-     * Uses a non-cryptographic checksum for deterministic versioning
+     * Uses a SHA-256 hash of the raw file bytes for deterministic versioning
      * (same content = same version)
      * 
      * @param {string} filePath - Path to file to hash
-     * @returns {string} 16-character checksum or timestamp fallback
+     * @returns {string} 8-character SHA-256 hash or timestamp fallback
      */
     generateFileVersion(filePath) {
         try {
@@ -84,8 +65,9 @@ class CacheBuster {
                 return this.timestamp.toString();
             }
 
-            const content = fs.readFileSync(filePath, 'utf8');
-            return contentChecksum(content); // Compact deterministic version
+            const content = fs.readFileSync(filePath); // raw bytes, no text decoding
+            const hash = crypto.createHash('sha256').update(content).digest('hex');
+            return hash.substring(0, 8); // Compact version string
         } catch (error) {
             console.warn(`⚠️  Error reading ${filePath}:`, error.message);
             return this.timestamp.toString();
@@ -112,7 +94,7 @@ class CacheBuster {
 
     /**
      * Generate versions for all files
-     * Iterates through files and creates checksum-based versions
+     * Iterates through files and creates SHA-256-based versions
      */
     generateVersions() {
         const filesToBust = this.getFilesToBust();
