@@ -53,6 +53,12 @@ class FakeDatabase {
         this.calls.push(['safeUpdateItem', databaseName, itemId]);
         const items = this.databases.get(databaseName);
         const idx = items.findIndex(i => i.itemId === itemId);
+        if (idx === -1) {
+            // Match the Userbase SDK: updating a non-existent item throws
+            const err = new Error('Item does not exist');
+            err.name = 'ItemDoesNotExist';
+            throw err;
+        }
         items[idx] = { ...item, itemId };
     }
 
@@ -183,6 +189,55 @@ describe('IndividualSharingStrategy — recipient projection (SH-02)', () => {
         expect(stored.cardName).toBe('Alice Edited');
         expect(JSON.stringify(stored)).not.toMatch(/dave|carol/);
         expect(stored.metadata.sharedWith).toBe('bob');
+    });
+
+    it('SH-03: update lands even when openDatabase throws (already-open database)', async () => {
+        // Regression: the update used to pre-open each recipient database to
+        // "check for items" and silently skip the update when the open failed
+        // (e.g. DatabaseAlreadyOpening, since login already opened it). Owner
+        // edits then never reached recipients — stale green cards.
+        await strategy.shareContactIndividually(ownerContact(), 'bob');
+        strategy.getContactSharedDatabases = async () => ['shared-contact-abc123-to-bob'];
+
+        db.openDatabase = async () => {
+            const err = new Error('Already attempting to open database.');
+            err.name = 'DatabaseAlreadyOpening';
+            throw err;
+        };
+
+        const edited = ownerContact();
+        edited.cardName = 'Alice Edited Despite Closed Reopen';
+
+        const result = await strategy.updateContactAcrossSharedDatabases(edited);
+
+        expect(result.success).toBe(true);
+        expect(result.skippedCount).toBe(0);
+        expect(result.errorCount).toBe(0);
+
+        const stored = db.databases.get('shared-contact-abc123-to-bob')[0];
+        expect(stored.cardName).toBe('Alice Edited Despite Closed Reopen');
+    });
+
+    it('SH-03: empty (revoked) recipient databases are skipped via ItemDoesNotExist', async () => {
+        await strategy.shareContactIndividually(ownerContact(), 'bob');
+        // carol's database exists but is empty (copy removed by a revoke)
+        db.databases.set('shared-contact-abc123-to-carol', []);
+        strategy.getContactSharedDatabases = async () => [
+            'shared-contact-abc123-to-bob',
+            'shared-contact-abc123-to-carol'
+        ];
+
+        const result = await strategy.updateContactAcrossSharedDatabases(ownerContact());
+
+        expect(result.success).toBe(true);
+        expect(result.updatedCount).toBe(1);
+        expect(result.skippedCount).toBe(1);
+        expect(result.errorCount).toBe(0);
+
+        // bob's copy was updated; carol's database was left untouched
+        expect(db.databases.get('shared-contact-abc123-to-bob')[0].metadata.lastSharedUpdate)
+            .toBeDefined();
+        expect(db.databases.get('shared-contact-abc123-to-carol')).toEqual([]);
     });
 });
 

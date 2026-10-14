@@ -476,35 +476,6 @@ export class IndividualSharingStrategy {
                 
                 const batchPromises = batch.map(async (dbName) => {
                     try {
-                        // First, check if the database has any items (skip empty databases)
-                        let hasItems = false;
-                        try {
-                            await new Promise((resolve, reject) => {
-                                this.database.openDatabase(dbName, (items) => {
-                                    hasItems = items && items.length > 0;
-                                    resolve();
-                                }).catch(reject);
-                            });
-                            
-                            if (!hasItems) {
-                                return {
-                                    dbName,
-                                    username: this.extractUsernameFromDbName(dbName),
-                                    success: true, 
-                                    message: 'Skipped - database is empty',
-                                    skipped: true 
-                                };
-                            }
-                        } catch (checkError) {
-                            return {
-                                dbName,
-                                username: this.extractUsernameFromDbName(dbName),
-                                success: true, 
-                                message: 'Skipped - database not accessible',
-                                skipped: true 
-                            };
-                        }
-                        
                         // Extract username from database name for metadata
                         const username = this.extractUsernameFromDbName(dbName);
                         
@@ -515,13 +486,36 @@ export class IndividualSharingStrategy {
                         // 🎯 OPTIMIZE: Trim metadata before updating shared database to avoid 10KB limit
                         const optimizedContact = this.database.optimizeContactForStorage(updatedContact);
 
-                        await this.database.safeUpdateItem({
-                            databaseName: dbName,
-                            itemId: contact.contactId,
-                            item: optimizedContact
-                        }, 'updateContactAcrossSharedDatabases');
-                        
-                        return { dbName, username, success: true };
+                        // Update directly — no re-open to "check for items".
+                        // The per-recipient databases are already open (login's
+                        // setupSharedDatabases opened every owned shared
+                        // database), and a second openDatabase call on an
+                        // already-open database can fail; the old pre-check
+                        // swallowed that failure and silently skipped the
+                        // update, leaving recipients with stale copies after
+                        // every owner edit.
+                        try {
+                            await this.database.safeUpdateItem({
+                                databaseName: dbName,
+                                itemId: contact.contactId,
+                                item: optimizedContact
+                            }, 'updateContactAcrossSharedDatabases');
+
+                            return { dbName, username, success: true };
+                        } catch (updateError) {
+                            if (updateError.name === 'ItemDoesNotExist') {
+                                // Empty database (e.g. the recipient copy was
+                                // removed by a revoke): nothing to update
+                                return {
+                                    dbName,
+                                    username,
+                                    success: true, 
+                                    message: 'Skipped - database is empty',
+                                    skipped: true 
+                                };
+                            }
+                            throw updateError;
+                        }
                     } catch (error) {
                         console.error(`❌ Failed to update ${dbName}:`, error);
                         return { 
