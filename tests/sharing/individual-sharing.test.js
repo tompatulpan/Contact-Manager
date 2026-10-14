@@ -19,6 +19,9 @@ class FakeDatabase {
         // databaseName -> array of flattened items ({...item, itemId})
         this.databases = new Map();
         this.failPermissionWith = null;
+        this.failDeleteWith = null;
+        this.transientOpenFailures = 0;
+        this.transientDeleteFailures = 0;
     }
 
     validateInsertItemParams() { return { isValid: true, errors: [] }; }
@@ -29,6 +32,12 @@ class FakeDatabase {
 
     async openDatabase(databaseName, changeHandler) {
         this.calls.push(['openDatabase', databaseName]);
+        if (this.transientOpenFailures > 0) {
+            this.transientOpenFailures--;
+            const err = new Error('Service unavailable');
+            err.name = 'ServiceUnavailable';
+            throw err;
+        }
         if (!this.databases.has(databaseName)) {
             this.databases.set(databaseName, []);
         }
@@ -49,6 +58,17 @@ class FakeDatabase {
 
     async safeDeleteItem({ databaseName, itemId }) {
         this.calls.push(['safeDeleteItem', databaseName, itemId]);
+        if (this.transientDeleteFailures > 0) {
+            this.transientDeleteFailures--;
+            const err = new Error('Service unavailable');
+            err.name = 'ServiceUnavailable';
+            throw err;
+        }
+        if (this.failDeleteWith) {
+            const err = new Error(this.failDeleteWith);
+            err.name = this.failDeleteWith;
+            throw err;
+        }
         const items = this.databases.get(databaseName) || [];
         const idx = items.findIndex(i => i.itemId === itemId);
         if (idx === -1) {
@@ -232,5 +252,84 @@ describe('IndividualSharingStrategy — revocation (SH-01)', () => {
         expect(result.itemDeleted).toBe(true);
         expect(result.permissionRevoked).toBe(false);
         expect(result.error).toMatch(/permission/);
+    });
+
+    it('retries transient connection errors while removing the recipient copy', async () => {
+        db.transientOpenFailures = 1;
+        db.transientDeleteFailures = 1;
+
+        const result = await strategy.revokeIndividualAccess('contact_abc123', 'bob');
+
+        expect(result.success).toBe(true);
+        expect(result.itemDeleted).toBe(true);
+        expect(result.permissionRevoked).toBe(true);
+        expect(db.databases.get('shared-contact-abc123-to-bob')).toHaveLength(0);
+    }, 10000);
+
+    it('succeeds when the copy delete fails persistently but the permission is revoked', async () => {
+        db.failDeleteWith = 'TransactionUnauthorized';
+
+        const result = await strategy.revokeIndividualAccess('contact_abc123', 'bob');
+
+        // Permission revocation is authoritative: the recipient can no
+        // longer read the database, so the revoke counts as successful.
+        expect(result.success).toBe(true);
+        expect(result.permissionRevoked).toBe(true);
+        expect(result.warnings).toHaveLength(1);
+        expect(result.warnings[0]).toMatch(/delete:/);
+        expect(result.errors).toHaveLength(0);
+        expect(db.calls).toContainEqual(['safeModifyDatabasePermissions', 'shared-contact-abc123-to-bob', 'bob', undefined, true]);
+    });
+});
+
+describe('ContactDatabase — transient error retry helpers', () => {
+    const transientError = () => {
+        const err = new Error('Service unavailable');
+        err.name = 'ServiceUnavailable';
+        return err;
+    };
+
+    it('isTransientError recognizes SDK and reconnect-style errors', () => {
+        const check = ContactDatabase.prototype.isTransientError;
+
+        expect(check.call({}, transientError())).toBe(true);
+        expect(check.call({}, { name: 'TooManyRequests', message: 'Too many requests' })).toBe(true);
+        expect(check.call({}, { name: 'Error', message: 'Reconnecting.' })).toBe(true);
+        expect(check.call({}, { name: 'DatabaseNotFound', message: 'Database not found' })).toBe(false);
+        expect(check.call({}, null)).toBe(false);
+    });
+
+    it('retryTransientError retries transient failures and then succeeds', async () => {
+        const self = {
+            isTransientError: ContactDatabase.prototype.isTransientError,
+            sleep: () => Promise.resolve()
+        };
+        let attempts = 0;
+        const operation = async () => {
+            attempts++;
+            if (attempts < 3) {
+                throw transientError();
+            }
+            return { ok: true };
+        };
+
+        const result = await ContactDatabase.prototype.retryTransientError.call(self, operation, 'test', 3, 0);
+
+        expect(result).toEqual({ ok: true });
+        expect(attempts).toBe(3);
+    });
+
+    it('retryTransientError does not retry non-transient failures', async () => {
+        const self = {
+            isTransientError: ContactDatabase.prototype.isTransientError,
+            sleep: () => Promise.resolve()
+        };
+        const permanent = new Error('Database not found');
+        permanent.name = 'DatabaseNotFound';
+        const operation = async () => { throw permanent; };
+
+        await expect(
+            ContactDatabase.prototype.retryTransientError.call(self, operation, 'test', 3, 0)
+        ).rejects.toMatchObject({ name: 'DatabaseNotFound' });
     });
 });

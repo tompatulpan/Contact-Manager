@@ -277,6 +277,47 @@ export class ContactDatabase {
     }
 
     /**
+     * Check whether an SDK error is transient (connection lost, service
+     * briefly unavailable, rate limiting). Userbase throws these while it
+     * is reconnecting; the call usually succeeds once the connection is
+     * re-established.
+     * @param {Error} error - The error object
+     * @returns {boolean} True if the error is transient and retryable
+     */
+    isTransientError(error) {
+        if (!error) {
+            return false;
+        }
+        if (error.name === 'ServiceUnavailable' || error.name === 'TooManyRequests') {
+            return true;
+        }
+        return /reconnect|service unavailable/i.test(error.message || '');
+    }
+
+    /**
+     * Retry an SDK operation on transient errors with exponential backoff.
+     * @param {Function} operation - Async operation to attempt
+     * @param {string} context - Context for error reporting
+     * @param {number} maxRetries - Maximum retry attempts (default: 3)
+     * @param {number} baseDelayMs - Base delay for backoff (default: 1000ms)
+     * @returns {Promise<Object>} Operation result
+     */
+    async retryTransientError(operation, context, maxRetries = 3, baseDelayMs = 1000) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                if (!this.isTransientError(error) || attempt >= maxRetries) {
+                    throw error;
+                }
+                const delay = Math.pow(2, attempt) * baseDelayMs; // 1s, 2s, 4s
+                console.warn(`🚫 Transient ${error.name || 'error'} in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                await this.sleep(delay);
+            }
+        }
+    }
+
+    /**
      * Sign up new user - follows Userbase SDK specification exactly
      * @param {string} username - Username
      * @param {string} password - Password
@@ -1347,7 +1388,7 @@ export class ContactDatabase {
                 this.eventBus.emit('database:rateLimited', { context });
                 break;
             case 'ServiceUnavailable':
-                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                console.error(`🚫 Service unavailable in ${context} (persistent after retries)`);
                 this.eventBus.emit('database:serviceUnavailable', { context });
                 break;
             default:
@@ -1432,7 +1473,7 @@ export class ContactDatabase {
                 this.eventBus.emit('database:rateLimited', { context });
                 break;
             case 'ServiceUnavailable':
-                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                console.error(`🚫 Service unavailable in ${context} (persistent after retries)`);
                 this.eventBus.emit('database:serviceUnavailable', { context });
                 break;
             default:
@@ -1505,7 +1546,7 @@ export class ContactDatabase {
                 this.eventBus.emit('database:rateLimited', { context });
                 break;
             case 'ServiceUnavailable':
-                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                console.error(`🚫 Service unavailable in ${context} (persistent after retries)`);
                 this.eventBus.emit('database:serviceUnavailable', { context });
                 break;
             default:
@@ -1582,7 +1623,7 @@ export class ContactDatabase {
                 this.eventBus.emit('database:rateLimited', { context });
                 break;
             case 'ServiceUnavailable':
-                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                console.error(`🚫 Service unavailable in ${context} (persistent after retries)`);
                 this.eventBus.emit('database:serviceUnavailable', { context });
                 break;
             default:
@@ -1689,7 +1730,7 @@ export class ContactDatabase {
                 this.eventBus.emit('database:rateLimited', { context });
                 break;
             case 'ServiceUnavailable':
-                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                console.error(`🚫 Service unavailable in ${context} (persistent after retries)`);
                 this.eventBus.emit('database:serviceUnavailable', { context });
                 break;
             default:
@@ -1773,11 +1814,16 @@ export class ContactDatabase {
                 
             } catch (error) {
                 lastError = error;
-                
-                // Only retry on ItemUpdateConflict
-                if (error.name === 'ItemUpdateConflict' && attempt < maxRetries) {
-                    const delay = Math.pow(2, attempt) * 100; // Exponential backoff: 100ms, 200ms, 400ms
-                    console.warn(`⚠️ ItemUpdateConflict in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+
+                // Retry on conflicts and transient connection errors
+                const isTransient = this.isTransientError(error);
+                if ((error.name === 'ItemUpdateConflict' || isTransient) && attempt < maxRetries) {
+                    // Exponential backoff: 100ms, 200ms, 400ms for conflicts;
+                    // longer for connection-level errors to survive reconnects
+                    const delay = isTransient
+                        ? Math.pow(2, attempt) * 1000
+                        : Math.pow(2, attempt) * 100;
+                    console.warn(`⚠️ ${isTransient ? 'Transient connection error' : 'ItemUpdateConflict'} in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     continue;
                 }
@@ -1861,8 +1907,12 @@ export class ContactDatabase {
                 throw error;
             }
             
-            // Call SDK modifyDatabasePermissions
-            return await userbase.modifyDatabasePermissions(params);
+            // Call SDK modifyDatabasePermissions (retries transient errors
+            // so a revoke is not lost to a brief reconnect)
+            return await this.retryTransientError(
+                () => userbase.modifyDatabasePermissions(params),
+                context
+            );
             
         } catch (error) {
             this.handleModifyDatabasePermissionsError(error, context);
@@ -1902,7 +1952,7 @@ export class ContactDatabase {
                 console.warn(`⚠️ Rate limited in ${context}, backing off`);
                 break;
             case 'ServiceUnavailable':
-                console.error(`🚫 Service unavailable in ${context}, retrying later`);
+                console.error(`🚫 Service unavailable in ${context} (persistent after retries)`);
                 this.eventBus.emit('database:serviceUnavailable', { context });
                 break;
             default:

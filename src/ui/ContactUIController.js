@@ -3396,42 +3396,53 @@ export class ContactUIController {
             }
             
             console.log(`🔍 Validating ${sharedContacts.length} contacts with outgoing shares...`);
-            
+
             let repairedCount = 0;
             let errorCount = 0;
-            
+            let skippedCount = 0;
+
             for (const contact of sharedContacts) {
                 const sharedWithUsers = contact.metadata.sharing.sharedWithUsers;
-                
+
                 for (const username of sharedWithUsers) {
                     try {
                         // Check if shared database is accessible
                         const cleanContactId = this.contactManager.sanitizeContactId(contact.contactId);
                         const sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
-                        
+
                         console.log(`🔍 Checking share: "${contact.cardName}" → ${username} (${sharedDbName})`);
-                        
+
                         // Check if user actually has access to the database
                         const allDatabases = await window.userbase.getDatabases();
                         const targetDb = allDatabases.databases.find(db => db.databaseName === sharedDbName);
-                        
+
                         if (!targetDb) {
                             console.log(`   ⚠️ Database not found - will create fresh share`);
-                            await this.contactManager.shareContact(contact.contactId, username);
-                            repairedCount++;
+                            const repairResult = await this.contactManager.shareContact(contact.contactId, username);
+                            if (repairResult && repairResult.success === false) {
+                                errorCount++;
+                                console.error(`❌ Failed to create fresh share with ${username}:`, repairResult.error);
+                            } else {
+                                repairedCount++;
+                            }
                             continue;
                         }
-                        
+
                         // Check if user has access (look for the username in database users)
                         const hasUserAccess = targetDb.users?.some(u => u.username === username);
-                        
+
                         if (!hasUserAccess) {
                             console.log(`   ⚠️ User "${username}" has NO ACCESS to database - repairing...`);
-                            await this.contactManager.shareContact(contact.contactId, username);
-                            repairedCount++;
+                            const repairResult = await this.contactManager.shareContact(contact.contactId, username);
+                            if (repairResult && repairResult.success === false) {
+                                errorCount++;
+                                console.error(`❌ Failed to repair share with ${username}:`, repairResult.error);
+                            } else {
+                                repairedCount++;
+                            }
                             continue;
                         }
-                        
+
                         // Try to open and check database content
                         const dbItems = await new Promise((resolve, reject) => {
                             window.userbase.openDatabase({
@@ -3439,31 +3450,49 @@ export class ContactUIController {
                                 changeHandler: (items) => resolve(items)
                             }).catch(reject);
                         });
-                        
+
                         console.log(`   Database opened, ${dbItems?.length || 0} items found, user has access: ${hasUserAccess}`);
-                        
+
                         // Check if contact exists in shared database
-                        const hasContact = dbItems?.some(item => 
-                            item.itemId === contact.contactId || 
+                        const hasContact = dbItems?.some(item =>
+                            item.itemId === contact.contactId ||
                             item.item?.contactId === contact.contactId
                         );
-                        
+
                         if (!hasContact) {
                             console.log(`   ⚠️ Contact missing in database - repairing...`);
-                            await this.contactManager.shareContact(contact.contactId, username);
-                            repairedCount++;
+                            const repairResult = await this.contactManager.shareContact(contact.contactId, username);
+                            if (repairResult && repairResult.success === false) {
+                                errorCount++;
+                                console.error(`❌ Failed to repair share with ${username}:`, repairResult.error);
+                            } else {
+                                repairedCount++;
+                            }
                         } else {
                             console.log(`   ✅ Share healthy (user has access, contact present)`);
                         }
-                        
+
                     } catch (error) {
+                        if (this.isTransientShareValidationError(error)) {
+                            // Connection lost / reconnecting — the database is
+                            // not broken, we just cannot inspect it right now.
+                            skippedCount++;
+                            console.log(`⏭️ Skipping share validation for "${contact.cardName}" with ${username}: transient connection issue (${error.message || error.name})`);
+                            continue;
+                        }
+
                         // Database access failed - likely recreated account or permission issue
                         console.log(`🔧 Broken share detected: "${contact.cardName}" with ${username} - attempting repair...`);
                         try {
                             // Force re-share to fix broken relationship
-                            await this.contactManager.shareContact(contact.contactId, username);
-                            repairedCount++;
-                            console.log(`✅ Repaired share: "${contact.cardName}" with ${username}`);
+                            const repairResult = await this.contactManager.shareContact(contact.contactId, username);
+                            if (repairResult && repairResult.success === false) {
+                                errorCount++;
+                                console.error(`❌ Failed to repair share with ${username}:`, repairResult.error);
+                            } else {
+                                repairedCount++;
+                                console.log(`✅ Repaired share: "${contact.cardName}" with ${username}`);
+                            }
                         } catch (repairError) {
                             errorCount++;
                             console.error(`❌ Failed to repair share with ${username}:`, repairError.message);
@@ -3473,7 +3502,7 @@ export class ContactUIController {
             }
             
             if (repairedCount > 0) {
-                console.log(`✅ Sharing validation complete: ${repairedCount} shares repaired, ${errorCount} errors`);
+                console.log(`✅ Sharing validation complete: ${repairedCount} shares repaired, ${errorCount} errors${skippedCount > 0 ? `, ${skippedCount} skipped (connection issues)` : ''}`);
                 // Refresh UI to show updated sharing status
                 if (this.selectedContactId) {
                     const contact = this.contactManager.getContact(this.selectedContactId);
@@ -3481,13 +3510,35 @@ export class ContactUIController {
                         this.displayContactDetail(contact);
                     }
                 }
+            } else if (skippedCount > 0 || errorCount > 0) {
+                console.log(`ℹ️ Sharing validation complete: 0 shares repaired, ${errorCount} errors${skippedCount > 0 ? `, ${skippedCount} skipped (connection issues)` : ''}`);
             } else {
                 console.log(`✅ Sharing validation complete: All shares healthy`);
             }
-            
+
         } catch (error) {
             console.error('⚠️ Periodic sharing validation failed:', error);
         }
+    }
+
+    /**
+     * Check whether a share-validation error is a transient connection
+     * problem rather than a genuinely broken share. Transient errors must
+     * not trigger a re-share "repair".
+     * @param {Error} error - The error object
+     * @returns {boolean} True if the error is transient
+     */
+    isTransientShareValidationError(error) {
+        if (!error) {
+            return false;
+        }
+        const db = this.contactManager?.database;
+        if (typeof db?.isTransientError === 'function' && db.isTransientError(error)) {
+            return true;
+        }
+        return error.name === 'ServiceUnavailable' ||
+            error.name === 'TooManyRequests' ||
+            /reconnect|service unavailable/i.test(error.message || '');
     }
 
     /**

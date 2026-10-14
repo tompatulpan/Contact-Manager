@@ -292,6 +292,49 @@ export class IndividualSharingStrategy {
     }
 
     /**
+     * Check whether an error is transient (connection lost / service
+     * briefly unavailable). Delegates to ContactDatabase when available and
+     * falls back to a name/message check for lighter test doubles.
+     * @param {Error} error - The error object
+     * @returns {boolean} True if retrying may succeed
+     */
+    isTransientError(error) {
+        if (!error) {
+            return false;
+        }
+        if (typeof this.database?.isTransientError === 'function' && this.database.isTransientError(error)) {
+            return true;
+        }
+        return error.name === 'ServiceUnavailable' ||
+            error.name === 'TooManyRequests' ||
+            /reconnect|service unavailable/i.test(error.message || '');
+    }
+
+    /**
+     * Retry an operation on transient errors with exponential backoff.
+     * Userbase throws these while reconnecting; waiting a few seconds
+     * usually lets the call succeed instead of failing the whole revoke.
+     * @param {Function} operation - Async operation to attempt
+     * @param {string} context - Context for logging
+     * @param {number} maxRetries - Maximum retry attempts (default: 3)
+     * @returns {Promise<Object>} Operation result
+     */
+    async retryTransient(operation, context, maxRetries = 3) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                if (!this.isTransientError(error) || attempt >= maxRetries) {
+                    throw error;
+                }
+                const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                console.warn(`🚫 Transient ${error.name || 'error'} in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    /**
      * Revoke one recipient's access to a contact.
      *
      * Idempotent: deletes the recipient copy (if present) and revokes the
@@ -324,9 +367,9 @@ export class IndividualSharingStrategy {
 
         // Step 1: remove the recipient copy
         try {
-            const items = await new Promise((resolve, reject) => {
+            const items = await this.retryTransient(() => new Promise((resolve, reject) => {
                 this.database.openDatabase(sharedDbName, (dbItems) => resolve(dbItems || [])).catch(reject);
-            });
+            }), `revokeIndividualAccess:open ${sharedDbName}`);
 
             const target = items.find(item =>
                 item.itemId === contactId ||
@@ -335,10 +378,13 @@ export class IndividualSharingStrategy {
             );
 
             if (target) {
-                await this.database.safeDeleteItem({
-                    databaseName: sharedDbName,
-                    itemId: target.itemId
-                }, 'revokeIndividualAccess');
+                await this.retryTransient(
+                    () => this.database.safeDeleteItem({
+                        databaseName: sharedDbName,
+                        itemId: target.itemId
+                    }),
+                    `revokeIndividualAccess:delete ${sharedDbName}`
+                );
                 result.itemDeleted = true;
             }
         } catch (error) {
@@ -376,11 +422,21 @@ export class IndividualSharingStrategy {
 
         this.shareCache.delete(`${contactId}-${trimmedUsername}`);
 
-        result.success = result.permissionRevoked && result.errors.length === 0;
-        result.duration = Date.now() - startTime;
-        if (!result.success) {
-            result.error = result.errors.join('; ');
+        // Permission revocation is authoritative: once the recipient's
+        // permission on the database is revoked they can no longer read it,
+        // so a leftover (now unreadable) copy does not keep the share alive.
+        result.success = result.permissionRevoked;
+        if (result.errors.length > 0) {
+            if (result.success) {
+                result.warnings = result.errors;
+                result.errors = [];
+            } else {
+                result.error = result.errors.join('; ');
+            }
+        } else if (!result.success) {
+            result.error = 'Permission revocation failed';
         }
+        result.duration = Date.now() - startTime;
         return result;
     }
 
