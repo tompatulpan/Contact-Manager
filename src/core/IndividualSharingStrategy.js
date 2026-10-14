@@ -58,7 +58,7 @@ export class IndividualSharingStrategy {
      * @param {string} username - Target username
      * @returns {Promise<Object>} Share result
      */
-    async shareContactIndividually(contact, username, readOnly = true, resharingAllowed = false) {
+    async shareContactIndividually(contact, username) {
         const startTime = Date.now();
         let databaseOpened = false; // 🔧 Track database opening state
         let sharedDbName = null; // 🔧 Store the actual database name for cleanup

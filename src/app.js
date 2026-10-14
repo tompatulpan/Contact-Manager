@@ -80,7 +80,6 @@ class ContactManagementApp {
         window.iCloudSyncService = this.modules.iCloudSyncService;
         
         console.log('🧪 Debug helpers available:');
-        console.log('  - window.contactManager.findAndDeleteCorruptedContacts()');
         console.log('  - window.database.getAllSharedContactDatabases()');
         console.log('  - window.ICloudCardDAVClient (for iCloud testing)');
         console.log('  - window.iCloudSyncService (for iCloud sync control)');

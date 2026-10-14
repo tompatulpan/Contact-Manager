@@ -41,8 +41,7 @@ export const USERBASE_CONFIG = {
         contacts: 'contacts',
         settings: 'user-settings',
         activity: 'activity-log',
-        sharedContactMeta: 'shared-contact-metadata',
-        distributionSharing: 'distribution-sharing'
+        sharedContactMeta: 'shared-contact-metadata'
     },
     
     // Connection settings

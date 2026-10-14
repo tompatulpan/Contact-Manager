@@ -514,7 +514,6 @@ export class ContactUIController {
             shareForm: document.getElementById('share-form'),
             shareContactPreview: document.getElementById('share-contact-preview'),
             shareUsernameInput: document.getElementById('share-username'),
-            shareReadonlyCheckbox: document.getElementById('share-readonly'),
             verifyUserBtn: document.getElementById('verify-user-btn'),
             getVerificationBtn: document.getElementById('get-verification-btn'),
             verificationMessageInput: document.getElementById('verification-message'),
@@ -2860,7 +2859,7 @@ export class ContactUIController {
         // Each user is an individual share (groups are just UI convenience)
         const userList = uniqueUsers.map(username => {
             const permissions = sharePermissions[username];
-            const permissionText = permissions?.level === 'write' ? 'Can edit' : 'Read only';
+            const permissionText = 'Read only';
             const sharedDate = permissions?.sharedAt ? 
                 new Date(permissions.sharedAt).toLocaleDateString() : 
                 'Unknown date';
@@ -3418,7 +3417,7 @@ export class ContactUIController {
                         
                         if (!targetDb) {
                             console.log(`   ⚠️ Database not found - will create fresh share`);
-                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            await this.contactManager.shareContact(contact.contactId, username);
                             repairedCount++;
                             continue;
                         }
@@ -3428,7 +3427,7 @@ export class ContactUIController {
                         
                         if (!hasUserAccess) {
                             console.log(`   ⚠️ User "${username}" has NO ACCESS to database - repairing...`);
-                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            await this.contactManager.shareContact(contact.contactId, username);
                             repairedCount++;
                             continue;
                         }
@@ -3451,7 +3450,7 @@ export class ContactUIController {
                         
                         if (!hasContact) {
                             console.log(`   ⚠️ Contact missing in database - repairing...`);
-                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            await this.contactManager.shareContact(contact.contactId, username);
                             repairedCount++;
                         } else {
                             console.log(`   ✅ Share healthy (user has access, contact present)`);
@@ -3462,7 +3461,7 @@ export class ContactUIController {
                         console.log(`🔧 Broken share detected: "${contact.cardName}" with ${username} - attempting repair...`);
                         try {
                             // Force re-share to fix broken relationship
-                            await this.contactManager.shareContact(contact.contactId, username, true, false);
+                            await this.contactManager.shareContact(contact.contactId, username);
                             repairedCount++;
                             console.log(`✅ Repaired share: "${contact.cardName}" with ${username}`);
                         } catch (repairError) {
@@ -3915,7 +3914,6 @@ export class ContactUIController {
             // Get form data for single or multiple user sharing
             const formData = new FormData(event.target);
             const usernameInput = formData.get('username')?.trim();
-            const isReadOnly = formData.get('readonly') === 'on';
             
             // Validate input
             if (!usernameInput) {
@@ -3940,17 +3938,16 @@ export class ContactUIController {
             // Handle single or multiple users
             if (uniqueUsernames.length === 1) {
                 // Single user - use existing flow
-                await this.handleContactShare(uniqueUsernames[0], isReadOnly);
+                await this.handleContactShare(uniqueUsernames[0]);
             } else {
                 // Multiple users - batch share
-                await this.handleBatchContactShare(uniqueUsernames, isReadOnly);
+                await this.handleBatchContactShare(uniqueUsernames);
             }
             
         } else if (shareType === 'share-with-list') {
             // Get form data for list sharing
             const formData = new FormData(event.target);
             const listName = formData.get('shareWithList');
-            const isReadOnly = formData.get('readonly') === 'on';
             
             // Validate input
             if (!listName) {
@@ -3958,14 +3955,14 @@ export class ContactUIController {
                 return;
             }
             
-            await this.handleShareWithDistributionList(listName, isReadOnly);
+            await this.handleShareWithDistributionList(listName);
         }
     }
 
     /**
      * Handle sharing contact with all users in a distribution list
      */
-    async handleShareWithDistributionList(listName, isReadOnly) {
+    async handleShareWithDistributionList(listName) {
         if (!this.currentShareContact) {
             console.error('No contact selected for sharing');
             return;
@@ -3981,21 +3978,23 @@ export class ContactUIController {
         try {
             // Use the new centralized method for distribution list sharing
             const result = await this.contactManager.shareContactWithDistributionList(
-                this.currentShareContact.contactId, 
-                listName, 
-                isReadOnly
+                this.currentShareContact.contactId,
+                listName
             );
             
             if (!result.success) {
+                const details = result.results?.length
+                    ? this.enhanceDistributionListErrors(result.results)
+                    : '';
                 this.setShareModalState('error', {
                     title: 'Sharing Failed',
-                    message: result.error,
-                    details: ''
+                    message: result.error || 'Could not share this contact with the selected group.',
+                    details
                 });
                 return;
             }
             
-            const { successCount, alreadySharedCount, errorCount, errors } = result;
+            const { successCount, alreadySharedCount, errorCount } = result;
             const totalProcessed = successCount + alreadySharedCount;
             
             // Show results with improved messaging
@@ -4164,7 +4163,7 @@ export class ContactUIController {
     /**
      * Handle individual contact sharing (existing method)
      */
-    async handleContactShare(username, isReadOnly) {
+    async handleContactShare(username) {
         if (!this.currentShareContact) {
             console.error('No contact selected for sharing');
             return;
@@ -4185,7 +4184,7 @@ export class ContactUIController {
         
         try {
             // Share individual contact via ContactManager
-            const result = await this.contactManager.shareContact(this.currentShareContact.contactId, username, isReadOnly, false);
+            const result = await this.contactManager.shareContact(this.currentShareContact.contactId, username);
             
             if (result.success) {
                 // Show success state with proper message
@@ -4231,9 +4230,8 @@ export class ContactUIController {
     /**
      * Handle sharing contact with multiple users (comma-separated input)
      * @param {Array<string>} usernames - Array of usernames to share with
-     * @param {boolean} isReadOnly - Whether sharing is read-only
      */
-    async handleBatchContactShare(usernames, isReadOnly) {
+    async handleBatchContactShare(usernames) {
         if (!this.currentShareContact) {
             console.error('No contact selected for sharing');
             return;
@@ -4264,10 +4262,8 @@ export class ContactUIController {
             for (const username of validUsernames) {
                 try {
                     const result = await this.contactManager.shareContact(
-                        this.currentShareContact.contactId, 
-                        username, 
-                        isReadOnly, 
-                        false
+                        this.currentShareContact.contactId,
+                        username
                     );
                     
                     if (result.success) {
@@ -4568,56 +4564,6 @@ export class ContactUIController {
         }
         
         return `❌ Unable to share contact with &quot;${safeUsername}&quot;. Please try again or contact support if the problem persists.`;
-    }
-
-    /**
-     * Update contact sharing metadata after successful share
-     */
-    async updateContactSharingMetadata(contactId, username, isReadOnly) {
-        try {
-            const contact = this.contactManager.getContact(contactId);
-            if (!contact) return;
-            
-            // Update sharing metadata
-            const updatedMetadata = {
-                ...contact.metadata,
-                sharing: {
-                    ...contact.metadata.sharing,
-                    isShared: true,
-                    shareCount: (contact.metadata.sharing?.shareCount || 0) + 1,
-                    sharedWithUsers: [
-                        ...(contact.metadata.sharing?.sharedWithUsers || []),
-                        username
-                    ],
-                    sharePermissions: {
-                        ...contact.metadata.sharing?.sharePermissions,
-                        [username]: {
-                            level: isReadOnly ? 'readOnly' : 'write',
-                            sharedAt: new Date().toISOString(),
-                            sharedBy: this.contactManager.database.currentUser?.username,
-                            canReshare: false,
-                            hasViewed: false
-                        }
-                    },
-                    shareHistory: [
-                        ...(contact.metadata.sharing?.shareHistory || []),
-                        {
-                            action: 'shared',
-                            targetUser: username,
-                            timestamp: new Date().toISOString(),
-                            permission: isReadOnly ? 'readOnly' : 'write',
-                            sharedBy: this.contactManager.database.currentUser?.username
-                        }
-                    ]
-                }
-            };
-            
-            // Update contact
-            await this.contactManager.updateContactMetadata(contactId, { metadata: updatedMetadata });
-            
-        } catch (error) {
-            console.error('Failed to update sharing metadata:', error);
-        }
     }
 
     /**
@@ -5717,11 +5663,7 @@ export class ContactUIController {
                 successful: 0,
                 failed: 0,
                 alreadyExists: 0,
-                errors: [],
-                retroactiveStats: {
-                    totalContactsShared: 0,
-                    totalAlreadyShared: 0
-                }
+                errors: []
             };
 
             // Process each username
@@ -5732,12 +5674,10 @@ export class ContactUIController {
                 );
 
                 if (result.success) {
-                    results.successful++;
-                    
-                    // Aggregate retroactive sharing stats
-                    if (result.retroactiveSharing) {
-                        results.retroactiveStats.totalContactsShared += result.retroactiveSharing.successfulShares || 0;
-                        results.retroactiveStats.totalAlreadyShared += result.retroactiveSharing.alreadyShared || 0;
+                    if (result.alreadyExists) {
+                        results.alreadyExists++;
+                    } else {
+                        results.successful++;
                     }
                 } else {
                     results.failed++;
@@ -5748,8 +5688,8 @@ export class ContactUIController {
                 }
             }
 
-            // Clear input on any success
-            if (results.successful > 0) {
+            // Clear input if every submitted username was saved or was already present.
+            if (results.successful + results.alreadyExists > 0) {
                 this.elements.newUsernameInput.value = '';
                 this.loadUsernamesForList(this.currentDistributionList);
                 this.renderDistributionLists();
@@ -5759,31 +5699,23 @@ export class ContactUIController {
             let message = '';
             let toastType = 'success';
 
-            if (results.successful > 0) {
-                if (results.total === 1) {
-                    message = `Added "${usernames[0]}" to distribution list`;
+            if (results.successful + results.alreadyExists > 0) {
+                if (results.total === 1 && results.alreadyExists === 1) {
+                    message = `"${usernames[0]}" is already in the distribution list`;
+                } else if (results.successful === 0) {
+                    message = `All ${results.alreadyExists} users were already in the distribution list.`;
                 } else {
-                    message = `Successfully added ${results.successful} of ${results.total} user${results.total === 1 ? '' : 's'}`;
-                }
-
-                // Add retroactive sharing info
-                if (results.retroactiveStats.totalContactsShared > 0) {
-                    message += ` and shared ${results.retroactiveStats.totalContactsShared} contact${results.retroactiveStats.totalContactsShared === 1 ? '' : 's'}`;
-                    if (results.retroactiveStats.totalAlreadyShared > 0) {
-                        message += ` (${results.retroactiveStats.totalAlreadyShared} already shared)`;
+                    message = `Added ${results.successful} of ${results.total} user${results.total === 1 ? '' : 's'}.`;
+                    if (results.alreadyExists > 0) {
+                        message += ` ${results.alreadyExists} already in the list.`;
                     }
+                    message += ' Existing contact shares are unchanged.';
                 }
-
                 if (results.failed > 0) {
-                    if (results.alreadyExists === results.failed) {
-                        message += ` (${results.failed} already in list)`;
-                    } else {
-                        message += ` (${results.failed} failed)`;
-                    }
+                    message += ` (${results.failed} failed)`;
                     toastType = 'warning';
                 }
             } else {
-                // All failed
                 toastType = 'error';
                 if (results.total === 1) {
                     message = `❌ ${results.errors[0] || 'Failed to add username'}`;
@@ -5827,7 +5759,7 @@ export class ContactUIController {
             if (result.success) {
                 this.loadUsernamesForList(this.currentDistributionList);
                 this.showToast({ 
-                    message: `Removed "${username}" from distribution list`, 
+                    message: `Removed "${username}" from distribution list. Existing contact shares are unchanged.`,
                     type: 'success' 
                 });
                 
@@ -6421,35 +6353,9 @@ export class ContactUIController {
      */
     async exportContacts(contacts, filename) {
         try {
-            // Export as vCard 3.0 format (universal compatibility)
-            // 🛡️ DISASTER RECOVERY: Ensure CATEGORIES field is present for sharing backup
-            // 🔒 SECURITY: Strip CATEGORIES from SHARED contacts (received from others)
+            // Export as vCard 3.0, excluding the legacy internal sharing marker.
             const vCardContent = contacts
-                .map(contact => {
-                    const isOwned = contact.metadata?.isOwned !== false;
-                    const hasSharing = contact.metadata?.sharing?.sharedWithUsers?.length > 0;
-                    const hasCategories = contact.vcard.includes('CATEGORIES:');
-                    
-                    // 🔒 SECURITY: If NOT owner (shared from others), strip CATEGORIES
-                    // Note: We keep CATEGORIES for imported files (isOwned=true, isImported=true)
-                    // because the user owns them and may want to restore sharing later
-                    if (!isOwned) {
-                        console.log(`🔒 Stripping CATEGORIES from shared contact: ${contact.cardName}`);
-                        // Remove CATEGORIES line from vCard
-                        return contact.vcard
-                            .split('\n')
-                            .filter(line => !line.startsWith('CATEGORIES:'))
-                            .join('\n');
-                    }
-                    
-                    // Owner contact: Add CATEGORIES if missing
-                    if (hasSharing && !hasCategories) {
-                        console.log(`🔄 Regenerating vCard with CATEGORIES for ${contact.cardName || 'contact'}`);
-                        return this.contactManager.regenerateVCardWithSharing(contact);
-                    }
-                    
-                    return contact.vcard;
-                })
+                .map(contact => contact.vcard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, ''))
                 .join('\n\n');
             
             // Create and download file

@@ -54,11 +54,6 @@ export class ContactManager {
         this.searchCache = new Map();
         this.lastSearchQuery = '';
         
-        // Distribution sharing restoration state
-        this.pendingDistributionSharing = null;
-        this.contactsLoaded = false;
-        this.distributionSharingLoaded = false;
-        
         // Setup event listeners
         this.setupEventListeners();
     }
@@ -227,11 +222,6 @@ export class ContactManager {
         // Handle settings updates
         this.eventBus.on('settings:changed', (data) => {
             this.handleSettingsChanged(data.settings);
-        });
-
-        // Handle distribution sharing updates
-        this.eventBus.on('distributionSharing:changed', (data) => {
-            this.handleDistributionSharingChanged(data.distributionSharing);
         });
 
         // Handle user sign out - clear all cached data
@@ -1565,28 +1555,6 @@ export class ContactManager {
     }
 
     /**
-     * Regenerate vCard with current sharing metadata for disaster recovery
-     * Extracts display data from contact, adds metadata, and regenerates vCard with CATEGORIES
-     * @param {Object} contact - Contact object with metadata
-     * @returns {string} Updated vCard string with CATEGORIES, or original on error
-     */
-    regenerateVCardWithSharing(contact) {
-        try {
-            // Extract display data from existing vCard to preserve all fields
-            const displayData = this.vCardStandard.extractDisplayData(contact);
-            // Add updated metadata for CATEGORIES generation
-            displayData.metadata = contact.metadata;
-            // Regenerate vCard with sharing metadata
-            const updatedVCard = this.vCardStandard.generateVCard(displayData);
-            console.log('🛡️ Regenerated vCard with sharing metadata for disaster recovery');
-            return updatedVCard;
-        } catch (vCardError) {
-            console.warn('⚠️ Failed to regenerate vCard with sharing metadata:', vCardError.message);
-            return contact.vcard; // Return original on error
-        }
-    }
-
-    /**
      * Import contact from vCard with duplicate detection
      * @param {string} vCardString - vCard string
      * @param {string} cardName - Optional card name
@@ -1611,41 +1579,6 @@ export class ContactManager {
             // Generate contactId if missing
             if (!contact.contactId) {
                 contact.contactId = this.vCardStandard.generateUID();
-            }
-            
-            // 🛡️ DISASTER RECOVERY: Extract sharing metadata from CATEGORIES field
-            // 🔒 SECURITY: Only restore sharing if user OWNS the contact (isOwned: true)
-            let sharedWithUsers = [];
-            try {
-                sharedWithUsers = this.vCardStandard.extractSharingFromVCard(vCardString);
-                if (sharedWithUsers.length > 0) {
-                    console.log(`🛡️ Found sharing metadata in vCard CATEGORIES: ${sharedWithUsers.join(', ')}`);
-                    
-                    // 🔒 SECURITY CHECK: Only allow sharing restoration for OWNED contacts
-                    // This includes both created contacts and imported files you own
-                    // Prevents recipients from re-sharing contacts they received from others
-                    const isOwned = contact.metadata?.isOwned !== false; // Default to true if not set
-                    
-                    if (isOwned) {
-                        // User OWNS this contact - allow sharing restoration
-                        console.log(`✅ Contact is OWNED by user - sharing restoration allowed`);
-                        contact.metadata = contact.metadata || {};
-                        contact.metadata.sharing = {
-                            isShared: true,
-                            sharedWithUsers: sharedWithUsers,
-                            shareCount: sharedWithUsers.length,
-                            restoredFromBackup: true,
-                            restoredAt: new Date().toISOString()
-                        };
-                    } else {
-                        // User received this contact from someone else - DO NOT restore sharing
-                        console.log(`🔒 Security: Contact is SHARED from others - ignoring CATEGORIES sharing metadata`);
-                        sharedWithUsers = []; // Clear to prevent restoration below
-                    }
-                }
-            } catch (sharingError) {
-                console.warn('⚠️ Failed to extract sharing metadata from vCard:', sharingError.message);
-                // Continue with import even if sharing extraction fails
             }
             
             // Check for duplicates before saving (skip for CardDAV sync)
@@ -1710,52 +1643,11 @@ export class ContactManager {
                 // handle it to ensure itemId is properly set by Userbase
                 // The database change handler will receive the contact with proper itemId
                 
-                // 🛡️ DISASTER RECOVERY: Restore sharing relationships if found in CATEGORIES
-                if (sharedWithUsers.length > 0) {
-                    console.log(`🛡️ Restoring sharing relationships for ${sharedWithUsers.length} users...`);
-                    console.log(`🔍 Contact state before sharing - contactId: ${contact.contactId}, has itemId: ${!!contact.itemId}`);
-                    
-                    // Wait longer for the contact to be fully saved and get itemId from Userbase
-                    // Database change handlers can take time to propagate
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    // Verify contact is in cache with itemId
-                    const cachedContact = this.contacts.get(contact.contactId);
-                    console.log(`🔍 Contact in cache after delay - found: ${!!cachedContact}, has itemId: ${!!cachedContact?.itemId}`);
-                    
-                    for (const username of sharedWithUsers) {
-                        try {
-                            console.log(`🛡️ Restoring share with user: ${username}`);
-                            const shareResult = await this.shareContact(
-                                contact.contactId,
-                                username,
-                                true,  // readOnly
-                                false  // resharingAllowed
-                            );
-                            
-                            if (shareResult.success) {
-                                console.log(`✅ Successfully restored sharing with ${username}`);
-                            } else {
-                                console.warn(`⚠️ Failed to restore sharing with ${username}:`, shareResult.error);
-                            }
-                        } catch (shareError) {
-                            console.error(`❌ Error restoring sharing with ${username}:`, shareError.message);
-                        }
-                    }
-                }
-                
                 this.clearSearchCache();
                 this.eventBus.emit('contact:imported', { 
-                    contact,
-                    sharingRestored: sharedWithUsers.length > 0,
-                    sharedWithUsers: sharedWithUsers
+                    contact
                 });
-                return { 
-                    ...saveResult, 
-                    contact,
-                    sharingRestored: sharedWithUsers.length > 0,
-                    sharedWithUsers: sharedWithUsers
-                };
+                return { ...saveResult, contact };
             }
 
             return saveResult;
@@ -1973,9 +1865,6 @@ export class ContactManager {
                 }
             });
             
-            // Mark that contacts have been loaded
-            this.contactsLoaded = true;
-            
         } else {
             // Handle shared contacts from a specific user
             
@@ -2053,9 +1942,6 @@ export class ContactManager {
             await this.loadAndMergeSharedContactMetadata();
         }
 
-        // 🔑 CRITICAL FIX: Check if we can now restore distribution sharing metadata
-        await this.attemptDistributionSharingRestoration();
-
         // Clear search cache
         this.clearSearchCache();
 
@@ -2088,10 +1974,6 @@ export class ContactManager {
         // Reset all state variables
         this.settings = {};
         this.isLoaded = false;
-        this.contactsLoaded = false;
-        this.distributionSharingLoaded = false;
-        this.pendingDistributionSharing = null;
-        
         // Clear search cache
         this.searchCache.clear();
         this.lastSearchQuery = '';
@@ -2109,143 +1991,6 @@ export class ContactManager {
     }
 
     /**
-     * Handle distribution sharing changed event from database
-     * @param {Array} distributionSharing - Updated distribution sharing array
-     */
-    handleDistributionSharingChanged(distributionSharing) {
-        // Store the distribution sharing data
-        this.pendingDistributionSharing = distributionSharing;
-        this.distributionSharingLoaded = true;
-        
-        // Attempt to restore sharing metadata
-        this.attemptDistributionSharingRestoration();
-        
-        this.eventBus.emit('contactManager:distributionSharingUpdated', { distributionSharing });
-    }
-
-    /**
-     * Attempt to restore distribution sharing metadata if both contacts and sharing data are loaded
-     */
-    async attemptDistributionSharingRestoration() {
-        // Only proceed if both contacts and distribution sharing data are available
-        if (!this.contactsLoaded || !this.distributionSharingLoaded || !this.pendingDistributionSharing) {
-            return;
-        }
-        
-        // Process sharing relationships to restore contact metadata
-        await this.restoreContactSharingMetadata(this.pendingDistributionSharing);
-        
-        // Emit event to notify UI that restoration is complete
-        this.eventBus.emit('contactManager:sharingRestorationComplete', {
-            restoredRecords: this.pendingDistributionSharing.length,
-            contactCount: this.contacts.size
-        });
-    }
-
-    /**
-     * Restore contact sharing metadata from persistent distribution sharing records
-     * This ensures sharing relationships are visible after browser/PC switches
-     * @param {Array} distributionSharing - Array of distribution sharing records
-     */
-    async restoreContactSharingMetadata(distributionSharing) {
-        try {
-            // Group sharing records by contact ID
-            const sharingByContact = new Map();
-            let validRecords = 0;
-            let invalidRecords = 0;
-            
-            distributionSharing.forEach((record, index) => {
-                if (!record.contactId) {
-                    invalidRecords++;
-                    return;
-                }
-                
-                if (!sharingByContact.has(record.contactId)) {
-                    sharingByContact.set(record.contactId, []);
-                }
-                sharingByContact.get(record.contactId).push(record);
-                validRecords++;
-            });
-            
-            // Update contact metadata for each contact with sharing records
-            let contactsFound = 0;
-            let contactsNotFound = 0;
-            let contactsUpdated = 0;
-            
-            for (const [contactId, records] of sharingByContact.entries()) {
-                const contact = this.contacts.get(contactId);
-                
-                if (!contact) {
-                    contactsNotFound++;
-                    continue;
-                }
-                
-                contactsFound++;
-                
-                // Restore the sharing metadata
-                const primaryRecord = records[0]; // Most recent record
-                const listNames = records.map(r => r.listName);
-                const allUsernames = new Set();
-                
-                records.forEach(record => {
-                    if (record.usernames && Array.isArray(record.usernames)) {
-                        record.usernames.forEach(username => allUsernames.add(username));
-                    }
-                });
-                
-                // Ensure metadata structure exists
-                if (!contact.metadata) {
-                    contact.metadata = {};
-                }
-                if (!contact.metadata.sharing) {
-                    contact.metadata.sharing = {};
-                }
-                
-                // Update contact metadata with restored sharing information
-                const updatedContact = {
-                    ...contact,
-                    metadata: {
-                        ...contact.metadata,
-                        // Add distribution list sharing metadata
-                        sharedWithDistributionList: primaryRecord.listName, // Most recent list (legacy)
-                        sharedWithDistributionLists: listNames, // All lists (new field)
-                        lastSharedAt: primaryRecord.sharedAt,
-                        lastSharedBy: primaryRecord.sharedBy,
-                        
-                        // Update sharing metadata
-                        sharing: {
-                            ...contact.metadata.sharing,
-                            isShared: allUsernames.size > 0,
-                            sharedWithUsers: Array.from(allUsernames),
-                            shareCount: allUsernames.size,
-                            distributionListSharing: records.map(r => ({
-                                listName: r.listName,
-                                usernames: r.usernames,
-                                sharedAt: r.sharedAt,
-                                sharedBy: r.sharedBy
-                            }))
-                        }
-                    }
-                };
-                
-                // Update in cache (don't save to database to avoid loops)
-                this.contacts.set(contactId, updatedContact);
-                contactsUpdated++;
-            }
-            
-            // Emit events to notify UI of restoration
-            this.eventBus.emit('contactManager:contactsUpdated', {
-                contactCount: this.contacts.size,
-                contacts: Array.from(this.contacts.values()),
-                sharingRestored: true
-            });
-            
-        } catch (error) {
-            console.error('❌ Error restoring contact sharing metadata:', error);
-        }
-    }
-
-    /**
      * Clear search cache
      */
     clearSearchCache() {
@@ -2258,8 +2003,7 @@ export class ContactManager {
      * @returns {boolean} Can edit
      */
     canEditContact(contact) {
-        return contact.metadata.isOwned || 
-               contact.metadata.sharing?.sharePermissions?.[this.database.currentUser?.username]?.level === 'write';
+        return contact.metadata?.isOwned === true;
     }
 
     /**
@@ -2762,256 +2506,43 @@ export class ContactManager {
      */
     async addUsernameToDistributionList(listName, username) {
         try {
+            const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+            if (!normalizedUsername) {
+                return { success: false, error: 'Username is required' };
+            }
+
             const settings = await this.database.getSettings() || {};
             const distributionLists = settings.distributionLists || {};
-            
-            if (!distributionLists[listName]) {
+            const list = distributionLists[listName];
+            if (!list) {
                 throw new Error(`Distribution list "${listName}" not found`);
             }
-            
-            // Initialize usernames array if it doesn't exist
-            if (!distributionLists[listName].usernames) {
-                distributionLists[listName].usernames = [];
+
+            const usernames = Array.isArray(list.usernames) ? list.usernames : [];
+            if (usernames.includes(normalizedUsername)) {
+                return { success: true, alreadyExists: true };
             }
-            
-            // 🆕 VALIDATE USERNAME EXISTS: Test if user exists before adding to list
-            if (!distributionLists[listName].usernames.includes(username)) {
-                console.log(`🔍 Validating username "${username}" exists before adding to distribution list...`);
-                
-                try {
-                    // Test username validity by attempting to create a temporary test database
-                    const testDbName = `test-user-validation-${Date.now()}`;
-                    await userbase.openDatabase({
-                        databaseName: testDbName,
-                        changeHandler: () => {}
-                    });
-                    
-                    // Try to share with the user (this will fail if user doesn't exist)
-                    // requireVerified: false - Allow adding users to distribution lists without verification
-                    await userbase.shareDatabase({
-                        databaseName: testDbName,
-                        username: username.trim(),
-                        readOnly: true,
-                        resharingAllowed: false,
-                        requireVerified: false
-                    });
-                    
-                    // If we get here, the user exists
-                    // Note: Userbase SDK doesn't have deleteDatabase, so we skip cleanup
-                    // The test database will remain but won't cause issues
-                    
-                    console.log(`✅ Username "${username}" validated - user exists`);
-                    
-                } catch (validationError) {
-                    console.error(`❌ Username validation failed for "${username}":`, validationError.message);
-                    
-                    // Categorize the error for better user feedback
-                    let errorType = 'unknown';
-                    let userMessage = `Failed to add "${username}" to distribution list.`;
-                    
-                    if (validationError.message.includes('User not found') || 
-                        validationError.message.includes('UserNotFound')) {
-                        errorType = 'userNotFound';
-                        userMessage = `User "${username}" not found. Please check the username and make sure they have an account.`;
-                    } else if (validationError.message.includes('subscription') || 
-                               validationError.message.includes('trial') || 
-                               validationError.message.includes('plan')) {
-                        errorType = 'subscription';
-                        userMessage = `Subscription issue: Cannot add "${username}". Check your account subscription status.`;
-                    } else if (validationError.message.includes('network') || 
-                               validationError.message.includes('connection')) {
-                        errorType = 'network';
-                        userMessage = `Network error: Cannot validate "${username}". Check your internet connection and try again.`;
-                    } else {
-                        userMessage = `Error adding "${username}": ${validationError.message}`;
+
+            const updatedSettings = {
+                ...settings,
+                distributionLists: {
+                    ...distributionLists,
+                    [listName]: {
+                        ...list,
+                        usernames: [...usernames, normalizedUsername]
                     }
-                    
-                    return {
-                        success: false,
-                        error: userMessage,
-                        errorType: errorType,
-                        username: username
-                    };
                 }
-                
-                // ✅ Validation passed - add username to distribution list
-                distributionLists[listName].usernames.push(username);
-                
-                // Update settings
-                const updatedSettings = {
-                    ...settings,
-                    distributionLists: distributionLists
-                };
-                
-                await this.database.updateSettings(updatedSettings);
-                
-                console.log(`✅ Added username "${username}" to distribution list "${listName}"`);
-                
-                // 🔄 RETROACTIVE SHARING: Share existing contacts with the newly added user
-                const existingContactsToShare = await this.findContactsSharedWithDistributionList(listName);
-                let retroactiveResults = {
-                    contactsFound: existingContactsToShare.length,
-                    successfulShares: 0,
-                    failedShares: 0,
-                    alreadyShared: 0,
-                    errors: []
-                };
-                
-                if (existingContactsToShare.length > 0) {
-                    console.log(`🔄 Found ${existingContactsToShare.length} existing contacts to retroactively share with "${username}"`);
-                    
-                    for (const contact of existingContactsToShare) {
-                        try {
-                            const result = await this.shareContact(contact.contactId, username, true);
-                            if (result.success) {
-                                if (result.wasAlreadyShared) {
-                                    retroactiveResults.alreadyShared++;
-                                    console.log(`ℹ️ Contact "${contact.cardName}" was already shared with ${username}`);
-                                } else {
-                                    retroactiveResults.successfulShares++;
-                                    console.log(`✅ Retroactively shared contact "${contact.cardName}" with ${username}`);
-                                }
-                            } else {
-                                retroactiveResults.failedShares++;
-                                retroactiveResults.errors.push(`${contact.cardName}: ${result.error}`);
-                                console.error(`❌ Failed to retroactively share "${contact.cardName}" with ${username}:`, result.error);
-                            }
-                        } catch (error) {
-                            retroactiveResults.failedShares++;
-                            retroactiveResults.errors.push(`${contact.cardName}: ${error.message}`);
-                            console.error(`❌ Error retroactively sharing "${contact.cardName}" with ${username}:`, error);
-                        }
-                    }
-                    
-                    console.log(`🎯 Retroactive sharing complete: ${retroactiveResults.successfulShares} new shares, ${retroactiveResults.alreadyShared} already shared, ${retroactiveResults.failedShares} failed`);
-                }
-                
-                this.eventBus.emit('distributionListsUpdated');
-                
-                return { 
-                    success: true, 
-                    retroactiveSharing: retroactiveResults
-                };
-            } else {
-                console.log(`ℹ️ Username "${username}" already in distribution list "${listName}"`);
-                return { success: true, message: 'Username already in list' };
+            };
+            const updated = await this.database.updateSettings(updatedSettings);
+            if (!updated) {
+                throw new Error('Failed to update distribution list');
             }
-            
+
+            this.eventBus.emit('distributionListsUpdated');
+            return { success: true };
         } catch (error) {
             console.error('❌ Error adding username to distribution list:', error);
             return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Find contacts that have been previously shared with ANY user in a distribution list
-     * Since groups are UI convenience only, we check if contacts are shared with any of the list's users
-     * @param {string} listName - Name of the distribution list
-     * @returns {Array} Array of contacts that have been shared with users from this distribution list
-     */
-    async findContactsSharedWithDistributionList(listName) {
-        try {
-            console.log('🔍 Finding contacts shared with ANY user in distribution list:', listName);
-            
-            // Get the list's current usernames
-            const listUsernames = await this.getUsernamesInDistributionList(listName);
-            console.log(`📋 Distribution list "${listName}" has ${listUsernames.length} users:`, listUsernames);
-            
-            if (listUsernames.length === 0) {
-                console.log('ℹ️ Distribution list has no users');
-                return [];
-            }
-            
-            const contactsSharedWithList = [];
-            
-            // Check all contacts to see if they're shared with ANY user from this list
-            for (const contact of this.contacts.values()) {
-                // Skip deleted, archived, or non-owned contacts
-                if (contact.metadata?.isDeleted || 
-                    contact.metadata?.isArchived || 
-                    !contact.metadata?.isOwned) {
-                    continue;
-                }
-                
-                // Check if contact is shared with any user from this list
-                const sharedWithUsers = contact.metadata?.sharing?.sharedWithUsers || [];
-                const hasAnyListUser = listUsernames.some(username => 
-                    sharedWithUsers.includes(username)
-                );
-                
-                if (hasAnyListUser) {
-                    console.log(`✅ Contact "${contact.cardName}" is shared with users from list "${listName}"`);
-                    contactsSharedWithList.push(contact);
-                }
-            }
-            
-            console.log(`📋 Found ${contactsSharedWithList.length} contacts shared with users from distribution list "${listName}"`);
-            return contactsSharedWithList;
-            
-        } catch (error) {
-            console.error('❌ Error finding contacts shared with distribution list:', error);
-            
-            // 🔄 FALLBACK: Use old method if persistent storage fails
-            console.log('🔄 Falling back to metadata-based search...');
-            return await this.findContactsSharedWithDistributionListFallback(listName);
-        }
-    }
-
-    /**
-     * Fallback method to find contacts shared with distribution list using metadata
-     * @param {string} listName - Name of the distribution list
-     * @returns {Array} Array of contacts found via metadata
-     */
-    async findContactsSharedWithDistributionListFallback(listName) {
-        try {
-            const contactsSharedWithList = [];
-            
-            // Search through all contacts for ones that have been shared with this distribution list
-            for (const contact of this.contacts.values()) {
-                // Debug: log contact metadata
-                console.log(`🔍 Checking contact ${contact.cardName}:`, {
-                    isDeleted: contact.metadata?.isDeleted,
-                    isArchived: contact.metadata?.isArchived,
-                    isOwned: contact.metadata?.isOwned,
-                    sharedWithDistributionList: contact.metadata?.sharedWithDistributionList,
-                    distributionLists: contact.metadata?.distributionLists
-                });
-                
-                // Skip deleted or archived contacts
-                if (contact.metadata?.isDeleted || contact.metadata?.isArchived) {
-                    console.log(`⏭️ Skipping ${contact.cardName} - deleted or archived`);
-                    continue;
-                }
-                
-                // Skip contacts that aren't owned by the current user (can't share others' contacts)
-                if (!contact.metadata?.isOwned) {
-                    console.log(`⏭️ Skipping ${contact.cardName} - not owned by current user`);
-                    continue;
-                }
-                
-                // Check if contact metadata indicates it was shared with this distribution list
-                if (contact.metadata?.sharedWithDistributionList === listName) {
-                    console.log(`✅ Found contact ${contact.cardName} shared with list ${listName}`);
-                    contactsSharedWithList.push(contact);
-                    continue;
-                }
-                
-                // Also check if the contact is in the distribution list (older method)
-                if (contact.metadata?.distributionLists?.includes(listName)) {
-                    console.log(`✅ Found contact ${contact.cardName} in distribution lists`);
-                    contactsSharedWithList.push(contact);
-                    continue;
-                }
-                
-                console.log(`⏭️ Contact ${contact.cardName} not shared with list ${listName}`);
-            }
-            
-            console.log(`📋 Found ${contactsSharedWithList.length} contacts previously shared with distribution list "${listName}" via fallback`);
-            return contactsSharedWithList;
-            
-        } catch (error) {
-            console.error('❌ Error in fallback search:', error);
-            return [];
         }
     }
 
@@ -3020,126 +2551,46 @@ export class ContactManager {
      */
     async removeUsernameFromDistributionList(listName, username) {
         try {
+            const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+            if (!normalizedUsername) {
+                return { success: false, error: 'Username is required' };
+            }
+
             const settings = await this.database.getSettings() || {};
             const distributionLists = settings.distributionLists || {};
-            
-            if (!distributionLists[listName] || !distributionLists[listName].usernames) {
+
+            const list = distributionLists[listName];
+            if (!list || !Array.isArray(list.usernames)) {
                 return { success: true, message: 'Username not in list' };
             }
-            
-            // Check if username is actually in the list
-            const index = distributionLists[listName].usernames.indexOf(username);
-            if (index === -1) {
+
+            if (!list.usernames.includes(normalizedUsername)) {
                 return { success: true, message: 'Username not in list' };
             }
-            
-            // Remove username
-            distributionLists[listName].usernames.splice(index, 1);
-            
-            // Update settings first
+
             const updatedSettings = {
                 ...settings,
-                distributionLists: distributionLists
+                distributionLists: {
+                    ...distributionLists,
+                    [listName]: {
+                        ...list,
+                        usernames: list.usernames.filter(name => name !== normalizedUsername)
+                    }
+                }
             };
-            
-            await this.database.updateSettings(updatedSettings);
-            
-            console.log(`✅ Removed username "${username}" from distribution list "${listName}"`);
-            
-            // **NEW: Revoke access to all contacts shared with this distribution list**
-            await this.revokeDistributionListAccess(listName, username);
-            
+
+            if (!await this.database.updateSettings(updatedSettings)) {
+                throw new Error('Failed to update distribution list');
+            }
+
+            console.log(`✅ Removed username "${normalizedUsername}" from distribution list "${listName}"`);
+
+            // Existing contact shares are independent of later group membership changes.
             this.eventBus.emit('distributionListsUpdated');
-            
+
             return { success: true };
-            
         } catch (error) {
             console.error('❌ Error removing username from distribution list:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Revoke access to all contacts that were shared with a distribution list
-     * @param {string} listName - Distribution list name
-     * @param {string} username - Username to revoke access from
-     */
-    async revokeDistributionListAccess(listName, username) {
-        try {
-            console.log(`🔒 Revoking access for "${username}" to contacts shared with distribution list "${listName}"`);
-            
-            // 🔑 CRITICAL FIX: Use persistent storage to find shared contacts
-            const sharedContacts = await this.findContactsSharedWithDistributionList(listName);
-            
-            console.log(`🔍 Found ${sharedContacts.length} contacts to revoke access from for user "${username}"`);
-            
-            let revokedCount = 0;
-            let errorCount = 0;
-            
-            for (const contact of sharedContacts) {
-                try {
-                    console.log(`🔒 Revoking access to contact "${contact.cardName}" (${contact.contactId}) from user "${username}"`);
-                    
-                    const result = await this.database.revokeIndividualContactAccess(contact.contactId, username);
-                    
-                    if (result.success) {
-                        revokedCount++;
-                        console.log(`✅ Successfully revoked access to "${contact.cardName}" from "${username}"`);
-                        
-                        // Update contact metadata to remove user from sharedWithUsers
-                        const updatedContact = this.contacts.get(contact.contactId);
-                        if (updatedContact) {
-                            const currentSharedUsers = updatedContact.metadata?.sharing?.sharedWithUsers || [];
-                            const remainingUsers = currentSharedUsers.filter(u => u !== username);
-                            
-                            updatedContact.metadata = {
-                                ...updatedContact.metadata,
-                                sharing: {
-                                    ...updatedContact.metadata.sharing,
-                                    sharedWithUsers: remainingUsers,
-                                    shareCount: remainingUsers.length,
-                                    isShared: remainingUsers.length > 0
-                                }
-                            };
-                            
-                            // 🛡️ DISASTER RECOVERY: Regenerate vCard with updated sharing metadata
-                            updatedContact.vcard = this.regenerateVCardWithSharing(updatedContact);
-                            
-                            // Save updated contact
-                            await this.database.updateContact(updatedContact);
-                            this.contacts.set(contact.contactId, updatedContact);
-                            
-                            this.eventBus.emit('contact:updated', { 
-                                contact: updatedContact,
-                                reason: 'access-revoked'
-                            });
-                        }
-                    } else {
-                        errorCount++;
-                        console.error(`❌ Failed to revoke access to "${contact.cardName}" from "${username}":`, result.error);
-                    }
-                    
-                } catch (error) {
-                    errorCount++;
-                    console.error(`❌ Error revoking access to "${contact.cardName}" from "${username}":`, error);
-                }
-            }
-            
-            // �️ REMOVED: Distribution list sharing persistence updates
-            // Previously updated persistence database when revoking users from groups.
-            // No longer needed - see comment in shareContactWithDistributionList() for rationale.
-            
-            console.log(`🔒 Access revocation complete: ${revokedCount} revoked, ${errorCount} errors`);
-            
-            return {
-                success: true,
-                revokedCount,
-                errorCount,
-                totalContacts: sharedContacts.length
-            };
-            
-        } catch (error) {
-            console.error('❌ Error in revokeDistributionListAccess:', error);
             return { success: false, error: error.message };
         }
     }
@@ -3165,11 +2616,9 @@ export class ContactManager {
      * Share individual contact with another user
      * @param {string} contactId - Contact ID to share
      * @param {string} username - Username to share with
-     * @param {boolean} readOnly - Whether sharing is read-only (default: true)
-     * @param {boolean} resharingAllowed - Whether resharing is allowed (default: false)
      * @returns {Promise<Object>} Share result
      */
-    async shareContact(contactId, username, readOnly = true, resharingAllowed = false) {
+    async shareContact(contactId, username) {
         try {
             console.log('🔄 ContactManager: Sharing contact:', contactId, 'with user:', username);
             
@@ -3218,42 +2667,7 @@ export class ContactManager {
             
             if (isAlreadyShared) {
                 console.log('ℹ️ Contact already shared with user:', username, '- checking database state');
-                
-                // 🔧 CRITICAL FIX: Validate that the user actually exists before assuming share is valid
-                // This prevents false positive "already shared" results for non-existent users
-                try {
-                    console.log('🔍 Validating user existence for:', username);
-                    await this.database.validateUserExists(username);
-                    console.log('✅ User exists, proceeding with database state check');
-                } catch (userError) {
-                    console.error(`❌ User ${username} does not exist, removing from shared users list:`, userError.message);
-                    
-                    // Remove the non-existent user from the metadata
-                    const updatedSharedUsers = currentSharedUsers.filter(u => u !== username);
-                    const updatedContact = {
-                        ...contact,
-                        metadata: {
-                            ...contact.metadata,
-                            sharing: {
-                                ...contact.metadata.sharing,
-                                sharedWithUsers: updatedSharedUsers,
-                                shareCount: updatedSharedUsers.length,
-                                isShared: updatedSharedUsers.length > 0
-                            }
-                        }
-                    };
-                    
-                    // Update contact metadata to remove invalid user
-                    await this.updateContact(contactId, updatedContact);
-                    
-                    // Return failure since the user doesn't exist
-                    return { 
-                        success: false, 
-                        error: `User '${username}' does not exist`,
-                        cleanedMetadata: true
-                    };
-                }
-                
+
                 // Check if the shared database actually contains the contact
                 const cleanContactId = this.sanitizeContactId(contactId);
                 const sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
@@ -3285,8 +2699,8 @@ export class ContactManager {
                             await window.userbase.shareDatabase({
                                 databaseName: sharedDbName,
                                 username: username.trim(),
-                                readOnly: readOnly,
-                                resharingAllowed: resharingAllowed,
+                                readOnly: true,
+                                resharingAllowed: false,
                                 requireVerified: false
                             });
                             console.log('✅ User access verified/granted');
@@ -3321,7 +2735,7 @@ export class ContactManager {
                             
                             // Recursively call to create fresh share
                             console.log('🔄 Creating fresh share...');
-                            return await this.shareContact(contactId, username, readOnly, resharingAllowed);
+                            return await this.shareContact(contactId, username);
                         }
                     }
                 } catch (error) {
@@ -3347,8 +2761,8 @@ export class ContactManager {
                             await window.userbase.shareDatabase({
                                 databaseName: sharedDbName,
                                 username: username.trim(),
-                                readOnly: readOnly,
-                                resharingAllowed: resharingAllowed,
+                                readOnly: true,
+                                resharingAllowed: false,
                                 requireVerified: false  // Allow sharing with unverified users
                             });
                             console.log('✅ Database access granted to user:', username);
@@ -3386,7 +2800,7 @@ export class ContactManager {
                             
                             // Step 3: Recursively call shareContact to create fresh share
                             console.log('🔄 Creating fresh share with recreated user account...');
-                            return await this.shareContact(contactId, username, readOnly, resharingAllowed);
+                            return await this.shareContact(contactId, username);
                         }
                         
                     } catch (insertError) {
@@ -3410,9 +2824,9 @@ export class ContactManager {
                                 ...contact.metadata.sharing?.sharePermissions,
                                 [username]: {
                                     ...contact.metadata.sharing?.sharePermissions?.[username],
-                                    level: readOnly ? 'readOnly' : 'write',
+                                        level: 'readOnly',
                                     lastUpdated: new Date().toISOString(),
-                                    canReshare: resharingAllowed
+                                        canReshare: false
                                 }
                             }
                         }
@@ -3432,7 +2846,7 @@ export class ContactManager {
             }
             
             // Share using individual sharing strategy only (no group databases)
-            const result = await this.database.shareContactIndividually(contact, username, readOnly, resharingAllowed);
+            const result = await this.database.shareContactIndividually(contact, username);
             
             if (result.success) {
                 // 🔧 CRITICAL FIX: Get fresh contact from cache to avoid race conditions
@@ -3456,10 +2870,10 @@ export class ContactManager {
                             sharePermissions: {
                                 ...freshContact.metadata.sharing?.sharePermissions,  // ← Use FRESH permissions
                                 [username]: {
-                                    level: readOnly ? 'readOnly' : 'write',
+                                    level: 'readOnly',
                                     sharedAt: new Date().toISOString(),
                                     sharedBy: this.database.currentUser?.username,
-                                    canReshare: resharingAllowed
+                                    canReshare: false
                                 }
                             },
                             shareHistory: [
@@ -3468,7 +2882,7 @@ export class ContactManager {
                                     action: 'shared',
                                     targetUser: username,
                                     timestamp: new Date().toISOString(),
-                                    permission: readOnly ? 'readOnly' : 'write',
+                                    permission: 'readOnly',
                                     sharedBy: this.database.currentUser?.username
                                 }
                             ]
@@ -3478,10 +2892,6 @@ export class ContactManager {
                         // lastUpdated should only be updated when the contact data (name, phone, email, etc.) changes
                     }
                 };
-                
-                // 🛡️ DISASTER RECOVERY: Regenerate vCard with updated sharing metadata
-                // This ensures CATEGORIES field includes current shared users for CardDAV backup
-                updatedContact.vcard = this.regenerateVCardWithSharing(updatedContact);
                 
                 // 🎯 OPTIMIZE: Trim metadata before saving to avoid 10KB limit
                 const optimizedContact = await this.database.optimizeContactForStorage(updatedContact);
@@ -3504,8 +2914,8 @@ export class ContactManager {
                 this.eventBus.emit('contact:shared', { 
                     contactId, 
                     username, 
-                    readOnly, 
-                    resharingAllowed,
+                    readOnly: true,
+                    resharingAllowed: false,
                     sharedDbName: result.sharedDbName
                 });
                 
@@ -3529,20 +2939,10 @@ export class ContactManager {
      * Get usernames in a distribution list
      */
     async getUsernamesInDistributionList(listName) {
-        try {
-            const settings = await this.database.getSettings() || {};
-            const distributionLists = settings.distributionLists || {};
-            
-            if (!distributionLists[listName]) {
-                return [];
-            }
-            
-            return distributionLists[listName].usernames || [];
-            
-        } catch (error) {
-            console.error('❌ Error getting usernames in distribution list:', error);
-            return [];
-        }
+        const settings = await this.database.getSettings() || {};
+        const distributionLists = settings.distributionLists || {};
+        const usernames = distributionLists[listName]?.usernames;
+        return Array.isArray(usernames) ? usernames : [];
     }
 
     /**
@@ -3603,10 +3003,9 @@ export class ContactManager {
      * No group metadata is stored, only individual usernames in contact.metadata.sharing.sharedWithUsers
      * @param {string} contactId - ID of the contact to share
      * @param {string} listName - Name of the distribution list (UI only)
-     * @param {boolean} readOnly - Whether sharing is read-only (default: true)
      * @returns {Promise<Object>} Share result with details
      */
-    async shareContactWithDistributionList(contactId, listName, readOnly = true) {
+    async shareContactWithDistributionList(contactId, listName) {
         try {
             // Get the contact to share
             const contact = this.contacts.get(contactId);
@@ -3621,7 +3020,7 @@ export class ContactManager {
             }
             
             console.log(`🔄 Sharing contact "${contact.cardName}" with ${usernames.length} users from group "${listName}":`, usernames);
-            console.log(`📝 Groups are UI convenience only - storing individual users in metadata`);
+            console.log('📝 Expanding current group membership into individual shares');
             
             // Share the contact with each username individually
             let successCount = 0;
@@ -3639,7 +3038,7 @@ export class ContactManager {
                     }
                     
                     // Use individual sharing - this automatically updates metadata.sharing.sharedWithUsers
-                    const result = await this.shareContact(contactId, username, readOnly);
+                    const result = await this.shareContact(contactId, username);
                     results.push({
                         username,
                         success: result.success,
@@ -3672,27 +3071,16 @@ export class ContactManager {
                 }
             }
             
-            // � NOTE: No group metadata stored - only individual usernames
-            // Each shareContact() call above already updated metadata.sharing.sharedWithUsers
-            // The group name is just for UI display in the share modal
-            
-            // 🗑️ REMOVED: Distribution list sharing persistence
-            // Previously tracked which contacts were shared via which groups to a separate database.
-            // This was unnecessary overhead because:
-            // - Groups are UI convenience only (expand to individual users at share-time)
-            // - Individual sharing already persists via Userbase's individual database strategy
-            // - No restoration logic was ever implemented
-            // - Doesn't align with "groups as collections" architecture
-            // The group name is only for UI display in the share modal.
-            
             console.log(`✅ Group sharing complete: ${successCount} new shares, ${alreadySharedCount} already shared, ${errorCount} errors`);
-            
-            // Get fresh contact to show accurate total count
-            const freshContact = this.contacts.get(contactId);
-            console.log(`📊 Contact now shared with ${freshContact?.metadata?.sharing?.sharedWithUsers?.length || 0} total users (individual basis)`);
-            
+
+            const hasAnyExistingAccess = successCount + alreadySharedCount > 0;
             return {
-                success: true,
+                success: hasAnyExistingAccess,
+                ...(!hasAnyExistingAccess && {
+                    error: errorCount > 0
+                        ? 'Could not share with any users in the distribution list'
+                        : 'The distribution list contains no other users to share with'
+                }),
                 successCount,
                 alreadySharedCount,
                 errorCount,
@@ -3852,57 +3240,4 @@ export class ContactManager {
         return contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
     }
 
-    /**
-     * 🛠️ Find and delete corrupted contacts (missing vcard property)
-     * Use this in console: window.contactManager.findAndDeleteCorruptedContacts()
-     */
-    async findAndDeleteCorruptedContacts() {
-        console.log('🔍 Scanning for corrupted contacts...');
-        
-        const allContacts = Array.from(this.contacts.values());
-        const corruptedContacts = [];
-        
-        for (const contact of allContacts) {
-            if (!contact.vcard || contact.vcard.trim() === '') {
-                corruptedContacts.push(contact);
-                console.log(`❌ Found corrupted contact: ${contact.contactId} (${contact.cardName || 'Unnamed'})`);
-            }
-        }
-        
-        if (corruptedContacts.length === 0) {
-            console.log('✅ No corrupted contacts found!');
-            return { success: true, deletedCount: 0 };
-        }
-        
-        console.log(`⚠️ Found ${corruptedContacts.length} corrupted contact(s). Deleting...`);
-        
-        let deletedCount = 0;
-        for (const contact of corruptedContacts) {
-            try {
-                await this.database.deleteContact(contact.contactId);
-                this.contacts.delete(contact.contactId);
-                deletedCount++;
-                console.log(`✅ Deleted corrupted contact: ${contact.contactId}`);
-            } catch (error) {
-                console.error(`❌ Failed to delete ${contact.contactId}:`, error);
-            }
-        }
-        
-        console.log(`✅ Cleanup complete: ${deletedCount}/${corruptedContacts.length} corrupted contacts deleted`);
-        
-        // Trigger UI refresh
-        this.eventBus.emit('contacts:updated');
-        
-        // Force a complete refresh after a short delay to ensure UI clears
-        setTimeout(() => {
-            console.log('🔄 Force refreshing UI to clear corrupted contacts...');
-            this.eventBus.emit('contacts:forceRefresh');
-        }, 500);
-        
-        return { 
-            success: true, 
-            deletedCount,
-            total: corruptedContacts.length
-        };
-    }
 }

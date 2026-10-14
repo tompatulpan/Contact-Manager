@@ -1449,33 +1449,6 @@ export class VCard3Processor {
     }
 
     /**
-     * Extract sharing metadata from vCard CATEGORIES field
-     * Used for disaster recovery - restores sharing relationships from backup
-     * Format: CATEGORIES:SHARED:user1,user2,user3
-     * @param {string} vcard - vCard 3.0 content
-     * @returns {Array} Array of usernames this contact is shared with
-     */
-    extractSharingFromVCard(vcard) {
-        const sharedUsers = [];
-        const lines = vcard.split('\n');
-        
-        for (const line of lines) {
-            if (line.startsWith('CATEGORIES:')) {
-                const categoriesValue = line.substring(11).trim();
-                
-                // Optimized format: CATEGORIES:SHARED:user1,user2,user3
-                if (categoriesValue.startsWith('SHARED:')) {
-                    const userList = categoriesValue.substring(7); // Remove "SHARED:"
-                    const users = userList.split(',').map(u => u.trim()).filter(u => u);
-                    sharedUsers.push(...users);
-                }
-            }
-        }
-        
-        return sharedUsers;
-    }
-
-    /**
      * Check if a property is a multi-value property
      * @param {string} property - Property name
      * @returns {boolean} True if multi-value

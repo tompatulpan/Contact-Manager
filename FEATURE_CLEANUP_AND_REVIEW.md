@@ -73,9 +73,9 @@ Sign-up/sign-in/session restore/remember-me/login throttling; contact CRUD with 
 | Real-time owner updates | Implemented | `ContactDatabase.updateContact` → `updateContactAcrossSharedDatabases`, now via the recipient projection. |
 | Recipient projection | **Implemented 2026-10-14** | `buildRecipientContact()` — see SH-02. |
 | Granular revocation | **Implemented 2026-10-14** | Deletes item + `modifyDatabasePermissions({revoke:true})`, idempotent — see SH-01. |
-| Optional write access | Not implemented | Parameters exist, strategy ignores them (SH-03). |
-| Group provenance | Partial | Add/remove member infers past shares (SH-04). |
-| Legacy `distribution-sharing` database | Legacy/stale | Restoration code still runs at startup (31 refs in core) although groups are one-time expansion. |
+| Optional write access | Not supported | Shares are read-only and cannot be reshared. |
+| Group provenance | Not stored | Current group members expand into individual shares only when the user initiates sharing. |
+| Legacy `distribution-sharing` database | Removed from the app | The app no longer opens or reads it; existing Userbase data is left untouched. |
 
 ### 5.3 External sync
 
@@ -92,10 +92,10 @@ Sign-up/sign-in/session restore/remember-me/login throttling; contact CRUD with 
 |---|---|---|
 | SH-01 | Revocation did not revoke database permission | **Fixed.** `revokeIndividualAccess()` deletes the item, calls `safeModifyDatabasePermissions({revoke:true})`, treats `UserNotFound`/`DatabaseNotFound`/`DatabaseNotShared` as already-revoked, and reports partial failure. Also fixed: `sanitizeContactId()` stripped the `contact_` prefix in share but not in revoke, so revocation targeted the wrong database name. |
 | SH-02 | Recipient copies exposed other recipients | **Fixed.** `buildRecipientContact()` drops `sharing`, `usage`, `carddav`/`cardDAV`, `ui`, `distributionLists`, `sync`, and `CATEGORIES:SHARED:` from the vCard. Used by share and update fan-out. |
-| SH-03 | `readOnly`/`resharingAllowed` parameters are misleading | Open — remove the parameters and any UI (recommended). |
-| SH-04 | Group membership changes infer provenance | Open — decide one-time expansion vs. provenance records (see §8). |
+| SH-03 | `readOnly`/`resharingAllowed` parameters are misleading | **Fixed.** The app exposes only read-only, non-reshareable contact sharing. |
+| SH-04 | Group membership changes infer provenance | **Fixed.** Groups expand to individual shares at share time; later membership changes do not affect existing shares. |
 | SH-05 | Recipient delete vs archive semantics | Open — product rule needed. |
-| SH-06 | Username validation creates a permanent database per check | Open — `addUsernameToDistributionList()` opens+shares a throwaway database with no cleanup. |
+| SH-06 | Username validation creates a permanent database per check | **Fixed.** Username existence is not prevalidated; actual share errors are surfaced. |
 
 ### Generic CardDAV (CD-01 … CD-07)
 
@@ -128,13 +128,14 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 
 ### Phase A — remove accidental complexity (low risk)
 
-- [ ] **Drop the legacy `distribution-sharing` database path.** Groups are one-time expansion; the restoration code (`handleDistributionSharingChanged`, `attemptDistributionSharingRestoration`, `saveDistributionListSharing`, `pendingDistributionSharing` state) and `USERBASE_CONFIG.databases.distributionSharing` can go. Resolves SH-04 by decision. Keep `revokeDistributionListAccess` as an explicit bulk revoke only.
-- [ ] **Remove the fake write-permission surface (SH-03):** delete `readOnly`/`resharingAllowed` parameters through `ContactManager`/`ContactDatabase`/UI; document sharing as read-only.
-- [ ] **Replace the throwaway validation database (SH-06)** with one reusable `username-validation` database (share/revoke against it), or drop pre-validation and surface the `UserNotFound` error from the real share.
+- [x] **Drop the legacy `distribution-sharing` database path.** Groups are one-time expansion; startup restoration and `USERBASE_CONFIG.databases.distributionSharing` were removed. Existing Userbase data is left untouched because it is no longer opened by the app.
+- [x] **Remove the fake write-permission surface (SH-03):** contact-sharing APIs and UI now expose only read-only, non-reshareable sharing.
+- [x] **Drop username pre-validation (SH-06):** the throwaway database was removed; errors from the actual share operation are reported.
+- [x] **Define group behavior (SH-04):** current list membership is expanded only when the user shares. List edits do not retroactively share or revoke contacts. Revoke individual recipients from the contact's sharing controls; do not infer bulk revocations from current group membership.
 - [ ] **Collapse the two vCard façades.** `VCardStandard` (→ `VCardFormatManager` → 3/4 processors) and `VCardStandardEnhanced` (used only by `VCardImporter`/`VCardExporter`) overlap; keep one entry point.
 - [ ] **Align validation with 3.0:** `ContactManager` still calls `validateContactData(…, '4.0', …)` in two places.
 - [ ] **Delete remaining dead helpers:** `findAndDeleteCorruptedContacts()` is console-only; `UserbaseConnectionFix.js` (global fetch monkey-patch) and `AuthPerformanceTracker` should be re-justified or removed.
-- [ ] **Decide the `CATEGORIES:SHARED:` backup.** It existed for CardDAV disaster recovery of the owner's recipient list. With Baikal gone, it leaks into vCard/QR exports and iCloud pushes (each strips it separately). Recommended: remove generation + the three strip sites.
+- [x] **Remove `CATEGORIES:SHARED:` as a sharing backup.** It is no longer parsed or used to restore sharing. Defensive stripping remains at recipient/export/sync boundaries so legacy cards cannot leak it.
 
 ### Phase B — iCloud sync rules (ICLOUD_SYNC_REVIEW §7, in that order)
 
@@ -162,7 +163,9 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 ### Phase E — verification
 
 - [ ] `ICloudCardDAVClient` unit tests from the existing XML fixtures.
-- [ ] Sharing tests for group share, bulk revoke, and recipient-side normalization (`handleContactsChanged` shared branch).
+- [x] Sharing tests for recipient projection and granular revocation.
+- [x] Sharing tests for one-time group expansion and list edits not sharing/revoking existing contacts.
+- [ ] Recipient-side normalization (`handleContactsChanged` shared branch).
 - [ ] One browser smoke test (app boots, modals open, no console errors) — currently done by hand.
 
 ## 9. Definition of Done
@@ -170,8 +173,8 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 - One sync path (iCloud) with explicit, tested connector behavior. ✅
 - Revocation removes data **and** permission for exactly one recipient. ✅
 - Recipient copies contain no owner-only sharing metadata. ✅
-- Groups are one-time expansion with no retroactive inference (Phase A).
-- Sharing is documented and implemented as read-only, with no dead permission parameters (Phase A).
+- Groups are one-time expansion with no retroactive inference. ✅
+- Sharing is documented and implemented as read-only, with no configurable permission parameters. ✅
 - Archive, delete, and sync rules are each stated in one sentence and encoded in one place (Phase B).
 - Credential UI choices match actual storage behavior (Phase C).
 - No file in `src/` is unreferenced from `index.html`/`app.js`; `production_zip.sh`'s critical-file list matches the tree. ✅ (re-check per release)

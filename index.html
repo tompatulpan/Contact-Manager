@@ -681,21 +681,12 @@
                             </div>
                         </div>
 
-                        <!-- Sharing Options -->
-                        <div class="form-group">
-                            <label class="checkbox-item">
-                                <input type="checkbox" id="share-readonly" name="readonly" checked>
-                                <span>Read-only access (recipient cannot edit)</span>
-                            </label>
-                            <small class="form-help-text" style="margin-left: 28px; display: block; color: #888; margin-top: 4px; font-size: 0.85em;">
-                                ℹ️ Recommended: Prevents accidental changes. Uncheck to allow collaborative editing.
-                            </small>
-                        </div>
+                        <p class="form-help-text">Shared contacts are read-only and cannot be reshared.</p>
                         
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. All shares are individual - you can revoke access from specific users at any time. Use comma-separated usernames or groups for convenience.</p>
+                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. Shared contacts are read-only and cannot be reshared. Use comma-separated usernames or groups for convenience.</p>
                                 </div>
                             </div>                        <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -827,7 +818,7 @@
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
-                            <small class="help-text">💡 Tip: Add multiple users at once using commas (e.g., alice, bob, charlie)</small>
+                            <small class="help-text">Add multiple users with commas. Usernames are validated when you share a contact, not when you add them here. Group membership only affects future shares; adding a username does not grant access to contacts shared earlier, and removing one does not revoke existing shares.</small>
                         </div>
                         
                         <div class="current-usernames">

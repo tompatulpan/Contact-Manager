@@ -14,8 +14,7 @@ export class ContactDatabase {
             contacts: 'contacts',
             settings: 'user-settings',
             activity: 'activity-log',
-            sharedContactMeta: 'shared-contact-metadata',  // Store user's metadata for shared contacts
-            distributionSharing: 'distribution-sharing'   // Store distribution list sharing relationships
+            sharedContactMeta: 'shared-contact-metadata'  // Store user's metadata for shared contacts
         };
         this.changeHandlers = new Map();
         this.lastKnownSharedCount = 0;
@@ -23,7 +22,6 @@ export class ContactDatabase {
         
         // ✅ SDK COMPLIANT: State management for real-time updates
         this.settingsItems = []; // Initialize settings items array
-        this.distributionSharingItems = null; // Cache for distribution sharing
         this.sharedContactMetaItems = null; // Cache for shared contact metadata
         this.databaseStates = new Map(); // Track database initialization states
         
@@ -40,7 +38,6 @@ export class ContactDatabase {
         };
         this.openedSharedDatabases = new Set(); // Track which shared databases are already open
         this.isInitializingSharedDatabases = false; // Prevent concurrent initialization
-        this._userExistenceCache = new Map(); // username -> { exists: bool, ts: timestamp }
         
         // 🆕 INDIVIDUAL DATABASE STRATEGY: Initialize individual sharing strategy
         this.individualSharing = new IndividualSharingStrategy(this);
@@ -266,7 +263,6 @@ export class ContactDatabase {
         this.contacts.clear();
         this.sharedContacts.clear();
         this.sharedContactMetadata.clear();
-        this.distributionSharing.clear();
         this.userSettings.clear();
         this.activityLog.clear();
         
@@ -462,7 +458,6 @@ export class ContactDatabase {
             });
 
             // ✅ SDK COMPLIANT: Initialize state management databases
-            await this.ensureDistributionSharingDatabase();
             await this.ensureSharedContactMetaDatabase();
 
         } catch (error) {
@@ -1119,86 +1114,6 @@ export class ContactDatabase {
             isValid: errors.length === 0,
             errors
         };
-    }
-    
-    /**
-     * 🔧 NEW: Validate that a user exists before sharing
-     * Uses the same method as shareDatabase to check user existence
-     * @param {string} username - Username to validate
-     * @returns {Promise<boolean>} True if user exists
-     * @throws {Error} If user doesn't exist
-     */
-    async validateUserExists(username) {
-        try {
-            if (!username || typeof username !== 'string' || username.trim() === '') {
-                throw new Error('Username is required');
-            }
-            
-            const trimmedUsername = username.trim();
-
-            // Cache results for 5 seconds to limit API enumeration on rapid re-calls
-            const cached = this._userExistenceCache.get(trimmedUsername);
-            if (cached && (Date.now() - cached.ts < 5000)) {
-                if (!cached.exists) throw new Error(`User '${trimmedUsername}' does not exist`);
-                return true;
-            }
-            
-            // Use a minimal shareDatabase call to test user existence
-            // This follows the same validation path as actual sharing
-            try {
-                // Create a temporary test database name
-                const testDbName = `uservalidation-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                
-                // Try to get the user's public key - this is what shareDatabase does internally
-                // and will fail with 404 if user doesn't exist
-                const response = await fetch(`https://v1.userbase.com/v1/api/public-key?appId=${this.appId}&username=${encodeURIComponent(trimmedUsername)}&userbaseJsVersion=2.8.0`);
-                
-                if (response.status === 404) {
-                    this._userExistenceCache.set(trimmedUsername, { exists: false, ts: Date.now() });
-                    throw new Error(`User '${trimmedUsername}' does not exist`);
-                } else if (!response.ok) {
-                    throw new Error(`Failed to validate user: ${response.status} ${response.statusText}`);
-                }
-                
-                this._userExistenceCache.set(trimmedUsername, { exists: true, ts: Date.now() });
-                return true;
-                
-            } catch (fetchError) {
-                if (fetchError.message.includes('does not exist')) {
-                    throw fetchError; // Re-throw user not found errors
-                }
-                
-                console.warn('⚠️ Could not validate user via API, falling back to shareDatabase test');
-                
-                // Fallback: Try actual shareDatabase call and catch the specific error
-                // This is more reliable but creates a temporary database
-                try {
-                    const testDbName = `uservalidation-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    
-                    // Try to share a test database - this will fail if user doesn't exist
-                    await userbase.shareDatabase({
-                        databaseName: testDbName,
-                        username: trimmedUsername,
-                        readOnly: true,
-                        resharingAllowed: false
-                    });
-                    
-                    return true;
-                    
-                } catch (shareError) {
-                    if (shareError.name === 'UserNotFound' || shareError.message.includes('User not found')) {
-                        throw new Error(`User '${trimmedUsername}' does not exist`);
-                    }
-                    
-                    // Other errors (like database doesn't exist) are expected and mean user exists
-                    return true;
-                }
-            }
-            
-        } catch (error) {
-            console.error(`❌ User validation failed for ${username}:`, error);
-            throw error;
-        }
     }
     
     /**
@@ -2019,29 +1934,6 @@ export class ContactDatabase {
     }
 
     /**
-     * ✅ SDK COMPLIANT: Ensure distribution sharing database is ready
-     */
-    async ensureDistributionSharingDatabase() {
-        if (!this.databaseStates.get('distributionSharing')) {
-            await userbase.openDatabase({
-                databaseName: this.databases.distributionSharing,
-                changeHandler: (items) => {
-                    this.distributionSharingItems = items.map(userbaseItem => ({
-                        ...userbaseItem.item,
-                        itemId: userbaseItem.itemId,
-                        createdBy: userbaseItem.createdBy,
-                        updatedBy: userbaseItem.updatedBy
-                    }));
-                    this.eventBus.emit('distributionSharing:changed', { 
-                        distributionSharing: this.distributionSharingItems 
-                    });
-                }
-            });
-            this.databaseStates.set('distributionSharing', true);
-        }
-    }
-
-    /**
      * ✅ SDK COMPLIANT: Ensure shared contact metadata database is ready
      */
     async ensureSharedContactMetaDatabase() {
@@ -2231,174 +2123,6 @@ export class ContactDatabase {
     }
 
 
-
-    // ========== DISTRIBUTION LIST SHARING PERSISTENCE METHODS ==========
-
-    /**
-     * Save distribution list sharing relationship 
-     * @param {string} contactId - Contact ID that was shared
-     * @param {string} listName - Distribution list name
-     * @param {Array} usernames - Array of usernames shared with
-     * @returns {Promise<Object>} Save result
-     */
-    async saveDistributionListSharing(contactId, listName, usernames) {
-        try {
-            const sharingRecord = {
-                contactId,
-                listName,
-                usernames: usernames.slice(), // Create a copy
-                sharedAt: new Date().toISOString(),
-                sharedBy: this.currentUser?.username || 'unknown',
-                lastUpdated: new Date().toISOString()
-            };
-
-            // Use a deterministic itemId based on contact and list
-            const itemId = `sharing_${contactId}_${listName}`;
-
-            // ✅ SDK COMPLIANT: Use safe insertItem with validation
-            await this.safeInsertItem({
-                databaseName: this.databases.distributionSharing,
-                item: sharingRecord,
-                itemId: itemId
-            }, 'saveDistributionListSharing');
-
-            return { success: true, itemId, sharingRecord };
-
-        } catch (error) {
-            // If item already exists, update it
-            if (error.name === 'ItemAlreadyExists') {
-                return await this.updateDistributionListSharing(contactId, listName, usernames);
-            }
-            
-            console.error('❌ Save distribution list sharing failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Update distribution list sharing relationship
-     * @param {string} contactId - Contact ID
-     * @param {string} listName - Distribution list name 
-     * @param {Array} usernames - Updated array of usernames
-     * @returns {Promise<Object>} Update result
-     */
-    async updateDistributionListSharing(contactId, listName, usernames) {
-        try {
-            const itemId = `sharing_${contactId}_${listName}`;
-            
-            const sharingRecord = {
-                contactId,
-                listName,
-                usernames: usernames.slice(), // Create a copy
-                sharedAt: new Date().toISOString(), // Keep original time if needed
-                sharedBy: this.currentUser?.username || 'unknown',
-                lastUpdated: new Date().toISOString()
-            };
-
-            await this.safeUpdateItem({
-                databaseName: this.databases.distributionSharing,
-                itemId: itemId,
-                item: sharingRecord
-            }, 'updateDistributionListSharing');
-
-            return { success: true, itemId, sharingRecord };
-
-        } catch (error) {
-            // If item doesn't exist, create it
-            if (error.name === 'ItemDoesNotExist') {
-                return await this.saveDistributionListSharing(contactId, listName, usernames);
-            }
-            
-            console.error('❌ Update distribution list sharing failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Get distribution list sharing relationships for a contact
-     * @param {string} contactId - Contact ID
-     * @returns {Promise<Array>} Array of sharing relationships
-     */
-    async getDistributionListSharingForContact(contactId) {
-        try {
-            // ✅ SDK COMPLIANT: Use proper state management instead of Promise anti-pattern
-            if (!this.distributionSharingItems) {
-                await this.ensureDistributionSharingDatabase();
-            }
-            
-            return this.distributionSharingItems
-                .filter(item => item.contactId === contactId)
-                .map(item => item);
-        } catch (error) {
-            console.error('❌ Get distribution list sharing for contact failed:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Get all distribution list sharing relationships
-     * @returns {Promise<Array>} Array of all sharing relationships
-     */
-    async getAllDistributionListSharings() {
-        try {
-            // ✅ SDK COMPLIANT: Use proper state management instead of Promise anti-pattern
-            if (!this.distributionSharingItems) {
-                await this.ensureDistributionSharingDatabase();
-            }
-            
-            return this.distributionSharingItems.filter(Boolean);
-        } catch (error) {
-            console.error('❌ Get all distribution list sharings failed:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Delete distribution list sharing relationship
-     * @param {string} contactId - Contact ID
-     * @param {string} listName - Distribution list name
-     * @returns {Promise<Object>} Delete result
-     */
-    async deleteDistributionListSharing(contactId, listName) {
-        try {
-            const itemId = `sharing_${contactId}_${listName}`;
-
-            // ✅ SDK COMPLIANT: Use safe deleteItem with validation
-            await this.safeDeleteItem({
-                databaseName: this.databases.distributionSharing,
-                itemId: itemId
-            }, 'deleteDistributionListSharing');
-
-            return { success: true, deleted: true };
-
-        } catch (error) {
-            console.error('❌ Delete distribution list sharing failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    /**
-     * Get contacts shared with a specific distribution list
-     * @param {string} listName - Distribution list name
-     * @returns {Promise<Array>} Array of contact IDs shared with this list
-     */
-    async getContactsSharedWithDistributionList(listName) {
-        try {
-            // ✅ SDK COMPLIANT: Use proper state management instead of Promise constructor anti-pattern
-            if (!this.distributionSharingItems) {
-                await this.ensureDistributionSharingDatabase();
-            }
-            
-            const contactIds = this.distributionSharingItems
-                .filter(item => item.listName === listName)
-                .map(item => item.contactId);
-                
-            return contactIds;
-        } catch (error) {
-            console.error('❌ Get contacts shared with distribution list failed:', error);
-            return [];
-        }
-    }
 
     /**
      * Save or update shared contact metadata (user-specific states like archive, access tracking)
@@ -2693,13 +2417,11 @@ export class ContactDatabase {
      * Creates a separate database for the contact and uses modifyDatabasePermissions for additional users
      * @param {Object} contact - Contact to share
      * @param {string} username - Target username
-     * @param {boolean} readOnly - Whether sharing is read-only
-     * @param {boolean} resharingAllowed - Whether resharing is allowed
      * @returns {Promise<Object>} Share result
      */
-    async shareContact(contact, username, readOnly = true, resharingAllowed = false) {
+    async shareContact(contact, username) {
         // Redirect all legacy sharing calls to individual sharing strategy
-        return await this.shareContactIndividually(contact, username, readOnly, resharingAllowed);
+        return await this.shareContactIndividually(contact, username);
     }
 
     // ==================================================================================
@@ -2711,11 +2433,9 @@ export class ContactDatabase {
      * Creates separate database per recipient for granular control
      * @param {Object} contact - Contact to share
      * @param {string} username - Target username
-     * @param {boolean} readOnly - Whether the share is read-only
-     * @param {boolean} resharingAllowed - Whether resharing is allowed
      * @returns {Promise<Object>} Share result
      */
-    async shareContactIndividually(contact, username, readOnly = true, resharingAllowed = false) {
+    async shareContactIndividually(contact, username) {
         try {
 
             const result = await this.individualSharing.shareContactIndividually(contact, username);
@@ -2737,8 +2457,8 @@ export class ContactDatabase {
                 this.eventBus.emit('contact:shared', { 
                     contactId: contact.contactId,
                     username: result.username, 
-                    readOnly, 
-                    resharingAllowed,
+                    readOnly: true,
+                    resharingAllowed: false,
                     sharingType: 'individual',
                     sharedDbName: result.sharedDbName,
                     duration: result.duration
@@ -2900,17 +2620,13 @@ export class ContactDatabase {
      * Uses individual database sharing for granular control
      * @param {Object} contact - Contact to share
      * @param {Array|string} users - Single user or array of users
-     * @param {Object} options - Sharing options
      * @returns {Promise<Object>} Share result with strategy used
      */
-    async smartShareContact(contact, users, options = {}) {
+    async smartShareContact(contact, users) {
         try {
             // Use individual sharing strategy directly
             const userList = Array.isArray(users) ? users : [users];
-            const result = await this.shareContactIndividually(contact, userList, {
-                readOnly: options.readOnly !== false, // Default to true
-                resharingAllowed: options.resharingAllowed || false
-            });
+            const result = await this.shareContactWithMultipleUsers(contact, userList);
             
             if (result.success) {
                 this.eventBus.emit('contact:smartShared', {
