@@ -142,6 +142,13 @@ export const CREATE_SUCCESS = {
     status: 201,
 };
 
+/** iCloud rejects a create because a contact already exists at that UID's href. */
+export const CREATE_403_EXISTS = {
+    success: false,
+    error: '403 - Forbidden',
+    status: 403,
+};
+
 // ─── deleteContact() responses ────────────────────────────────────────
 
 export const DELETE_SUCCESS = {

@@ -38,6 +38,18 @@ export class ContactDatabase {
         };
         this.openedSharedDatabases = new Set(); // Track which shared databases are already open
         this.isInitializingSharedDatabases = false; // Prevent concurrent initialization
+
+        // ✅ SYNC READINESS: resolved once the user's own contacts database
+        // and every received shared database has delivered its first snapshot
+        // via a change handler. The iCloud sync waits on this before pulling,
+        // so a pull that wins the startup race cannot import the iCloud
+        // mirror of a shared contact as an owned/imported duplicate.
+        this.contactsInitialLoadDeferred = null;
+        this.sharedInitialLoadDeferreds = new Set();
+        // vCard UIDs currently present in each received shared database
+        // (keyed by databaseId). Lets the sync pull skip re-importing the
+        // iCloud mirror of a contact that is (or was) shared with this user.
+        this.sharedDbUidsByDatabase = new Map();
         
         // 🆕 INDIVIDUAL DATABASE STRATEGY: Initialize individual sharing strategy
         this.individualSharing = new IndividualSharingStrategy(this);
@@ -478,8 +490,14 @@ export class ContactDatabase {
      */
     async setupDatabases() {
         try {
+            // Fresh readiness deferred per setup: the change handler resolves
+            // it with the first snapshot (see waitForContactDataReady)
+            const contactsInitialLoad = this._createInitialLoadDeferred();
+            this.contactsInitialLoadDeferred = contactsInitialLoad;
+
             // Setup own contacts database with real-time updates
             await this.openDatabase('contacts', (items) => {
+                contactsInitialLoad.resolve();
                 this.eventBus.emit('contacts:changed', { contacts: items, isOwned: true });
             });
 
@@ -505,6 +523,75 @@ export class ContactDatabase {
             console.error('❌ Database setup failed:', error);
             throw error;
         }
+    }
+
+    /**
+     * Create a deferred promise used to signal "first change-handler snapshot
+     * delivered" for a database. Resolved exactly once by the owner of the
+     * change handler; never rejects (waiters use allSettled + timeout).
+     * @returns {{promise: Promise, resolve: Function}} Deferred
+     */
+    _createInitialLoadDeferred() {
+        let resolve;
+        const promise = new Promise((res) => { resolve = res; });
+        return { promise, resolve };
+    }
+
+    /**
+     * Cache the vCard UIDs of the contacts currently held in one received
+     * shared database. Called on every snapshot so a revoke (item deleted
+     * from the shared database) is reflected immediately.
+     * @param {string} databaseId - Received shared database ID
+     * @param {Array} items - Userbase items from the change handler
+     */
+    _cacheSharedDbUids(databaseId, items) {
+        const uids = new Set();
+        for (const userbaseItem of items || []) {
+            const vcard = userbaseItem?.item?.vcard;
+            // Same extraction as ContactIdentifier.extractUIDFromVCard
+            const uid = vcard?.match(/^UID:(.+)$/m)?.[1]?.trim();
+            if (uid) uids.add(uid);
+        }
+        this.sharedDbUidsByDatabase.set(databaseId, uids);
+    }
+
+    /**
+     * Wait until local contact data is ready for a sync pull: the user's
+     * own contacts database and every received shared database must have
+     * delivered their first snapshot (or the timeout elapses, so a hung
+     * database never blocks syncing entirely).
+     * @param {number} timeoutMs - Fallback timeout in milliseconds
+     */
+    async waitForContactDataReady(timeoutMs = 15000) {
+        const pending = [];
+        if (this.contactsInitialLoadDeferred) {
+            pending.push(this.contactsInitialLoadDeferred.promise);
+        }
+        for (const deferred of this.sharedInitialLoadDeferreds) {
+            pending.push(deferred.promise);
+        }
+        if (pending.length === 0) return;
+
+        await Promise.race([
+            Promise.allSettled(pending),
+            new Promise(resolve => setTimeout(resolve, timeoutMs))
+        ]);
+    }
+
+    /**
+     * Whether a contact with this vCard UID currently lives in one of the
+     * databases shared with this user. The iCloud sync pull uses this to
+     * avoid re-importing the iCloud mirror of a shared contact as an
+     * owned/imported (orange) duplicate.
+     * @param {string} uid - vCard UID
+     * @returns {boolean} True if a received shared database holds this UID
+     */
+    isSharedContactUID(uid) {
+        if (!uid) return false;
+        for (const uids of this.sharedDbUidsByDatabase.values()) {
+            if (uids.has(uid)) return true;
+        }
+        return false;
     }
 
     /**
@@ -550,9 +637,15 @@ export class ContactDatabase {
                 .filter(db => !this.openedSharedDatabases.has(db.databaseId))
                 .map(async (db) => {
                     try {
+                        const initialLoad = this._createInitialLoadDeferred();
+                        this.sharedInitialLoadDeferreds.add(initialLoad);
+
                         await userbase.openDatabase({
                             databaseId: db.databaseId,
                             changeHandler: (items) => {
+                                initialLoad.resolve();
+                                this._cacheSharedDbUids(db.databaseId, items);
+
                                 // ✅ SDK COMPLIANT: Transform individual contacts with full attribution data
                                 const contacts = items.map(userbaseItem => {
                                     const item = userbaseItem.item || {};
@@ -667,9 +760,15 @@ export class ContactDatabase {
             // Open new received shared databases in parallel
             const receivedPromises = receivedDatabases.map(async (db) => {
                 try {
+                    const initialLoad = this._createInitialLoadDeferred();
+                    this.sharedInitialLoadDeferreds.add(initialLoad);
+
                     await userbase.openDatabase({
                         databaseId: db.databaseId,
                         changeHandler: (items) => {
+                            initialLoad.resolve();
+                            this._cacheSharedDbUids(db.databaseId, items);
+
                             // Same change handler logic as in setupSharedDatabases
                             const contacts = items.map(userbaseItem => {
                                 const item = userbaseItem.item || {};
@@ -3226,6 +3325,11 @@ export class ContactDatabase {
         sessionStorage.removeItem('userbase-page-loaded');
         this.currentUser = null;
         this.isInitialized = false;
+
+        // Reset sync-readiness state so a new session rebuilds it
+        this.contactsInitialLoadDeferred = null;
+        this.sharedInitialLoadDeferreds.clear();
+        this.sharedDbUidsByDatabase.clear();
     }
 
     /**

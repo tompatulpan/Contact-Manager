@@ -214,6 +214,16 @@ export class ICloudSyncService {
         });
         
         try {
+            // Gate: wait until the user's own contacts database and all
+            // received shared databases have delivered their first snapshot.
+            // A pull that wins the startup race otherwise imports the iCloud
+            // mirror of a shared contact as an owned/imported (orange)
+            // duplicate next to the green shared card.
+            const localDb = this.contactManager?.database;
+            if (localDb && typeof localDb.waitForContactDataReady === 'function') {
+                await localDb.waitForContactDataReady();
+            }
+
             // Phase 1: Pull changes from iCloud (import external edits)
             const pullResult = await this.pullFromICloud();
             
@@ -342,6 +352,20 @@ export class ICloudSyncService {
                     const localContact = this.findLocalContactByUID(iCloudContact.uid);
                     
                     if (!localContact) {
+                        // Skip the iCloud mirror of a contact that lives in a
+                        // received shared database: importing it would create
+                        // an owned/imported (orange) duplicate next to the
+                        // shared (green) card — e.g. after the user removed
+                        // the shared card from their view while the share
+                        // itself is still active.
+                        const localDb = this.contactManager?.database;
+                        if (localDb && typeof localDb.isSharedContactUID === 'function' &&
+                            localDb.isSharedContactUID(iCloudContact.uid)) {
+                            console.log(`⏭️ Skipping shared contact mirror (share still active): ${iCloudContact.fullName || iCloudContact.uid}`);
+                            skipped++;
+                            continue;
+                        }
+
                         // New contact from iCloud → Import (skip duplicate detection for sync)
                         const result = await this.contactManager.importContactFromVCard(
                             iCloudContact.vcard,
@@ -1321,21 +1345,26 @@ export class ICloudSyncService {
             // Force-push with etag: null to override any external changes.
             // Only trust an etag written by this service — legacy CardDAV
             // metadata (from the removed Baikal sync) would route the push into
-            // the update path with a foreign etag (IS-11).
-            const existingEtag = this.isICloudSynced(contact) ? contact.metadata.carddav.etag : null;
-            
+            // the update path with a foreign etag (IS-11). Shared contacts are
+            // memory-only, so the etag from a previous force-push lives in
+            // sharedContactSyncCache, not in metadata.carddav.
+            const cachedState = this.sharedContactSyncCache?.get(contact.contactId);
+            const existingEtag = this.isICloudSynced(contact)
+                ? contact.metadata.carddav.etag
+                : (cachedState?.etag || null);
+
             if (existingEtag) {
                 // Contact exists on iCloud - update with force (null ETag bypasses conflict check)
                 console.log(`🔄 Force-updating shared contact (ignoring ETag): ${contact.cardName}`);
-                
+
                 const result = await this.iCloudClient.updateContact(uid, cleanVCard, null);
-                
+
                 if (result.success) {
                     // Store new ETag in memory cache (shared contacts can't update Userbase metadata)
                     if (!this.sharedContactSyncCache) {
                         this.sharedContactSyncCache = new Map();
                     }
-                    
+
                     this.sharedContactSyncCache.set(contact.contactId, {
                         etag: result.etag,
                         href: result.href,
@@ -1344,7 +1373,7 @@ export class ICloudSyncService {
                         lastForcePush: new Date().toISOString(),
                         syncStatus: 'force-pushed'
                     });
-                    
+
                     return { success: true, etag: result.etag, action: 'force-updated' };
                 } else {
                     return { success: false, error: result.error };
@@ -1352,15 +1381,15 @@ export class ICloudSyncService {
             } else {
                 // Contact doesn't exist on iCloud yet - create
                 console.log(`📤 Creating shared contact on iCloud: ${contact.cardName}`);
-                
+
                 const result = await this.iCloudClient.createContact(cleanVCard);
-                
+
                 if (result.success) {
                     // Store ETag in memory cache
                     if (!this.sharedContactSyncCache) {
                         this.sharedContactSyncCache = new Map();
                     }
-                    
+
                     this.sharedContactSyncCache.set(contact.contactId, {
                         etag: result.etag,
                         href: result.href,
@@ -1369,11 +1398,42 @@ export class ICloudSyncService {
                         lastForcePush: new Date().toISOString(),
                         syncStatus: 'force-pushed'
                     });
-                    
+
                     return { success: true, etag: result.etag, action: 'created' };
-                } else {
-                    return { success: false, error: result.error };
                 }
+
+                // 403/412 means a contact already exists at this UID's href —
+                // typically the mirror of an imported duplicate that shares the
+                // UID. Fall back to a forced update instead of failing every
+                // refresh cycle (the memory-only cache is empty after reload,
+                // so the create path is chosen even though the resource exists).
+                if (result.status === 403 || result.status === 412) {
+                    const existingUid = result.uid || uid;
+                    console.warn(`⚠️ Contact already exists at UID ${existingUid} (HTTP ${result.status}), force-updating instead`);
+
+                    const updateResult = await this.iCloudClient.updateContact(existingUid, cleanVCard, null);
+
+                    if (updateResult.success) {
+                        if (!this.sharedContactSyncCache) {
+                            this.sharedContactSyncCache = new Map();
+                        }
+
+                        this.sharedContactSyncCache.set(contact.contactId, {
+                            etag: updateResult.etag,
+                            href: result.href,
+                            uid: existingUid,
+                            lastSyncedAt: new Date().toISOString(),
+                            lastForcePush: new Date().toISOString(),
+                            syncStatus: 'force-pushed'
+                        });
+
+                        return { success: true, etag: updateResult.etag, action: 'force-updated-existing' };
+                    }
+
+                    return { success: false, error: updateResult.error };
+                }
+
+                return { success: false, error: result.error };
             }
         } catch (error) {
             console.error('❌ Force-push shared contact failed:', error);
