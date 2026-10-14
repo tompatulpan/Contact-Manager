@@ -90,7 +90,7 @@ Sign-up/sign-in/session restore/remember-me/login throttling; contact CRUD with 
 
 | ID | Finding | Status |
 |---|---|---|
-| SH-01 | Revocation did not revoke database permission | **Fixed.** `revokeIndividualAccess()` deletes the item, calls `safeModifyDatabasePermissions({revoke:true})`, treats `UserNotFound`/`DatabaseNotFound`/`DatabaseNotShared` as already-revoked, and reports partial failure. Also fixed: `sanitizeContactId()` stripped the `contact_` prefix in share but not in revoke, so revocation targeted the wrong database name. |
+| SH-01 | Revocation did not revoke database permission or clear owner-side recipients | **Fixed.** `revokeIndividualAccess()` deletes the item and revokes the permission. `ContactManager.revokeContactSharing()` also persists the recipient-list/permission-map removal, retries case-insensitive update conflicts, and reports if access was revoked but metadata could not be saved. |
 | SH-02 | Recipient copies exposed other recipients | **Fixed.** `buildRecipientContact()` drops `sharing`, `usage`, `carddav`/`cardDAV`, `ui`, `distributionLists`, `sync`, and `CATEGORIES:SHARED:` from the vCard. Used by share and update fan-out. |
 | SH-03 | `readOnly`/`resharingAllowed` parameters are misleading | **Fixed.** The app exposes only read-only, non-reshareable contact sharing. |
 | SH-04 | Group membership changes infer provenance | **Fixed.** Groups expand to individual shares at share time; later membership changes do not affect existing shares. |
@@ -165,6 +165,7 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 - [ ] `ICloudCardDAVClient` unit tests from the existing XML fixtures.
 - [x] Sharing tests for recipient projection and granular revocation.
 - [x] Sharing tests for one-time group expansion and list edits not sharing/revoking existing contacts.
+- [x] Sharing tests for owner metadata/permission-map cleanup and conflict retry after revocation.
 - [ ] Recipient-side normalization (`handleContactsChanged` shared branch).
 - [ ] One browser smoke test (app boots, modals open, no console errors) — currently done by hand.
 

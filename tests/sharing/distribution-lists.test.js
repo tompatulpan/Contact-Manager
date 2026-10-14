@@ -13,6 +13,8 @@ class FakeDatabase {
         this.updateSettingsResult = true;
         this.updateCalls = 0;
         this.revokeIndividualContactAccess = jest.fn();
+        this.updateContact = jest.fn(async contact => ({ success: true, itemId: contact.itemId }));
+        this.optimizeContactForStorage = jest.fn(contact => contact);
     }
 
     async getSettings() {
@@ -108,5 +110,83 @@ describe('ContactManager distribution lists', () => {
         expect(result.success).toBe(false);
         expect(result.errorCount).toBe(1);
         expect(result.errors).toEqual(['alice: UserNotFound']);
+    });
+
+    it('removes revoked users from the persisted sharing list and permission map', async () => {
+        const database = new FakeDatabase();
+        database.currentUser.username = 'owner';
+        const manager = createManager(database);
+        manager.contacts.set('contact-1', {
+            contactId: 'contact-1',
+            itemId: 'contact-1',
+            cardName: 'Example',
+            metadata: {
+                isOwned: true,
+                sharing: {
+                    isShared: true,
+                    shareCount: 2,
+                    sharedWithUsers: ['alice', 'bob'],
+                    sharePermissions: {
+                        alice: { level: 'readOnly' },
+                        bob: { level: 'readOnly' }
+                    }
+                }
+            }
+        });
+        database.revokeIndividualContactAccess.mockResolvedValue({ success: true });
+
+        const result = await manager.revokeContactSharing('contact-1', 'alice');
+        const savedContact = manager.getContact('contact-1');
+
+        expect(result.success).toBe(true);
+        expect(savedContact.metadata.sharing.sharedWithUsers).toEqual(['bob']);
+        expect(savedContact.metadata.sharing.sharePermissions).toEqual({
+            bob: { level: 'readOnly' }
+        });
+        expect(savedContact.metadata.sharing.shareCount).toBe(1);
+        expect(savedContact.metadata.sharing.isShared).toBe(true);
+    });
+
+    it('retries metadata conflicts and reports if the list could not be persisted', async () => {
+        const database = new FakeDatabase();
+        const manager = createManager(database);
+        manager.contacts.set('contact-1', {
+            contactId: 'contact-1',
+            itemId: 'contact-1',
+            cardName: 'Example',
+            metadata: {
+                isOwned: true,
+                sharing: { sharedWithUsers: ['alice'], sharePermissions: { alice: {} } }
+            }
+        });
+        database.revokeIndividualContactAccess.mockResolvedValue({ success: true });
+        database.updateContact
+            .mockResolvedValueOnce({ success: false, error: 'ItemUpdateConflict' })
+            .mockResolvedValueOnce({ success: true });
+
+        const result = await manager.revokeContactSharing('contact-1', 'alice');
+
+        expect(result.success).toBe(true);
+        expect(database.updateContact).toHaveBeenCalledTimes(2);
+        expect(manager.getContact('contact-1').metadata.sharing.sharedWithUsers).toEqual([]);
+
+        const persistError = new FakeDatabase();
+        const failingManager = createManager(persistError);
+        failingManager.contacts.set('contact-1', {
+            contactId: 'contact-1',
+            itemId: 'contact-1',
+            metadata: { isOwned: true, sharing: { sharedWithUsers: ['alice'] } }
+        });
+        persistError.revokeIndividualContactAccess.mockResolvedValue({ success: true });
+        persistError.updateContact.mockResolvedValue({
+            success: false,
+            error: 'StorageUnavailable'
+        });
+
+        const failedResult = await failingManager.revokeContactSharing('contact-1', 'alice');
+
+        expect(failedResult.success).toBe(false);
+        expect(failedResult.accessRevoked).toBe(true);
+        expect(failedResult.error).toMatch(/sharing list could not be updated/);
     });
 });

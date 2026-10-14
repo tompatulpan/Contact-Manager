@@ -2160,6 +2160,10 @@ export class ContactManager {
                     lastUpdatedBy: this.database.currentUser?.username || 'unknown'
                 }
             };
+            if (Object.hasOwn(updates.metadata || {}, 'sharing')) {
+                // A revocation is a complete snapshot; deep merge would retain removed permission keys.
+                updatedContact.metadata.sharing = updates.metadata.sharing;
+            }
 
             // 🎯 OPTIMIZE: Trim metadata before saving to avoid 10KB limit
             const optimizedContact = await this.database.optimizeContactForStorage(updatedContact);
@@ -2190,6 +2194,123 @@ export class ContactManager {
         } catch (error) {
             console.error('❌ Update contact metadata failed:', error);
             this.eventBus.emit('contact:error', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Revoke one recipient's access and remove them from the owner's sharing metadata.
+     */
+    async revokeContactSharing(contactId, username) {
+        const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+        if (!contactId || !normalizedUsername) {
+            return { success: false, error: 'Contact ID and username are required' };
+        }
+
+        const contact = this.getContact(contactId);
+        if (!contact || !this.canEditContact(contact)) {
+            return { success: false, error: 'Can only revoke sharing for contacts you own' };
+        }
+
+        try {
+            const revokeResult = await this.database.revokeIndividualContactAccess(contactId, normalizedUsername);
+            if (!revokeResult.success) {
+                return revokeResult;
+            }
+
+            const revokedAt = new Date().toISOString();
+            const revokedBy = this.database.currentUser?.username || 'unknown';
+            const maxRetries = 3;
+
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                const latestContact = this.getContact(contactId);
+                if (!latestContact) {
+                    return {
+                        success: false,
+                        accessRevoked: true,
+                        error: 'Access was revoked, but the contact is no longer available to update'
+                    };
+                }
+
+                const sharing = latestContact.metadata?.sharing || {};
+                const sharedWithUsers = Array.isArray(sharing.sharedWithUsers)
+                    ? sharing.sharedWithUsers
+                    : [];
+                if (!sharedWithUsers.includes(normalizedUsername)) {
+                    return {
+                        success: true,
+                        message: `Sharing revoked from ${normalizedUsername}`,
+                        details: {
+                            username: normalizedUsername,
+                            revokedAt,
+                            remainingShares: sharedWithUsers.length,
+                            databaseRevoked: true,
+                            metadataUpdated: true
+                        }
+                    };
+                }
+
+                const remainingUsers = sharedWithUsers.filter(user => user !== normalizedUsername);
+                const sharePermissions = { ...(sharing.sharePermissions || {}) };
+                delete sharePermissions[normalizedUsername];
+
+                const revokedFrom = Array.isArray(latestContact.metadata.revokedFrom)
+                    ? latestContact.metadata.revokedFrom
+                    : [];
+                const updateResult = await this.updateContactMetadata(contactId, {
+                    metadata: {
+                        sharing: {
+                            ...sharing,
+                            sharedWithUsers: remainingUsers,
+                            sharePermissions,
+                            isShared: remainingUsers.length > 0,
+                            shareCount: remainingUsers.length
+                        },
+                        revokedFrom: [...revokedFrom, {
+                            username: normalizedUsername,
+                            revokedAt,
+                            revokedBy
+                        }]
+                    }
+                });
+
+                const savedUsers = updateResult.contact?.metadata?.sharing?.sharedWithUsers;
+                if (updateResult.success &&
+                    Array.isArray(savedUsers) &&
+                    !savedUsers.includes(normalizedUsername)) {
+                    return {
+                        success: true,
+                        message: `Sharing revoked from ${normalizedUsername}`,
+                        details: {
+                            username: normalizedUsername,
+                            revokedAt,
+                            remainingShares: remainingUsers.length,
+                            databaseRevoked: true,
+                            metadataUpdated: true
+                        }
+                    };
+                }
+
+                const error = updateResult.error || 'Sharing metadata was not updated';
+                const isConflict = /conflict/i.test(error);
+                if (!isConflict || attempt === maxRetries) {
+                    return {
+                        success: false,
+                        accessRevoked: true,
+                        error: `Access was revoked, but the sharing list could not be updated: ${error}`
+                    };
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 100 * (2 ** attempt)));
+            }
+
+            return {
+                success: false,
+                accessRevoked: true,
+                error: 'Access was revoked, but the sharing list could not be updated'
+            };
+        } catch (error) {
+            console.error('❌ Failed to revoke contact sharing:', error);
             return { success: false, error: error.message };
         }
     }
