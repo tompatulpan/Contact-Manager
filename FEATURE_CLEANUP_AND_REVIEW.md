@@ -2,7 +2,69 @@
 
 **Original review:** 2026-09-11 (static review)  
 **Revised:** 2026-10-14 — reflects the iCloud consolidation (2026-10-07/08, see [ICLOUD_SYNC_REVIEW.md](ICLOUD_SYNC_REVIEW.md)) and the generic-CardDAV removal + sharing fixes landed on this date.  
-**Guard rail:** `npm test` — 14 suites / 97 tests (iCloud sync, Worker proxy, user-to-user sharing, dedup).
+**Re-verified:** 2026-10-14 — every claim below was checked against the code at HEAD (including the sharing-retry commits landed later the same day); corrections and new findings are folded in.  
+**Guard rail:** `npm test` — 15 suites / 110 tests (iCloud sync, Worker proxy, user-to-user sharing, dedup).
+
+## 0. To-Do at a Glance
+
+**Done — 9:**
+
+- [x] Drop legacy `distribution-sharing` database path (A)
+- [x] Read-only sharing only — no configurable permission parameters (A, SH-03)
+- [x] Drop username pre-validation (A, SH-06)
+- [x] One-time group expansion, no retroactive inference (A, SH-04)
+- [x] Remove `CATEGORIES:SHARED:` sharing backup (A)
+- [x] Sharing tests: recipient projection + granular revocation (E)
+- [x] Sharing tests: group expansion / list-edit isolation (E)
+- [x] Sharing tests: owner metadata cleanup + conflict retry (E)
+- [x] Sharing tests: transient-error retry during revocation (E)
+
+**Open — 27:**
+
+*Phase A — cleanup*
+
+- [ ] Collapse the two vCard façades into one entry point
+- [ ] Align `ContactManager` validation with vCard 3.0
+- [ ] Re-justify or remove `UserbaseConnectionFix.js` and `AuthPerformanceTracker`
+- [ ] Delete or repair `tests/integration.test.js` (CR-01); unify `updateContactAcrossSharedDatabases` result keys (CR-03)
+
+*Phase B — iCloud sync rules*
+
+- [ ] S-1 dirty flag instead of timestamp comparison
+- [ ] S-3 archived = frozen in both directions
+- [ ] S-2 drop `sharedContactSyncCache`
+- [ ] S-5 finish the tombstone collapse: drop `syncStatus` sub-states, reduce tombstone to `{ uid, deletedAt }` (flow itself is done)
+- [ ] S-4 one periodic cycle instead of three timers
+- [ ] IS-09 route `testConnect()` through `ICloudSyncService.initialize()`
+- [ ] Remove IC-06 synthetic `shared-contact@userbase.app` email
+
+*Phase C — credentials*
+
+- [ ] SEC-01 implement or remove the session-storage option
+- [ ] SEC-02 private-mode salt without `localStorage`
+- [ ] SEC-03 remove the plaintext read fallback (`localStorage_plain`)
+- [ ] SEC-04 enable the Worker `RATE_LIMITER` binding in `wrangler.toml`
+
+*Phase D — structure (after A–C)*
+
+- [ ] Split `ContactUIController` by workflow
+- [ ] Extract import/dedup, sharing, groups from `ContactManager`
+- [ ] Extract auth, SDK wrappers, discovery from `ContactDatabase`
+- [ ] Use `ContactRenderer.getContactType()` everywhere
+
+*Phase E — verification*
+
+- [ ] `ICloudCardDAVClient` unit tests (XML fixtures)
+- [ ] Recipient-side normalization tests (`handleContactsChanged` shared branch)
+- [ ] One browser smoke test (app boots, modals open, no console errors)
+
+*Findings & housekeeping (no phase slot)*
+
+- [ ] SH-05 recipient delete vs archive semantics — product rule needed
+- [ ] CR-02 route `IndividualSharingStrategy` through the injected `this.database` (no global `userbase`)
+- [ ] CR-04 regenerate the stale `production.zip` before the next deploy
+- [ ] Update `production_zip.sh` critical-file list (7 files missing)
+- [ ] Reduce `.github/copilot-instructions.md` to the iCloud-only model
 
 ## 1. Purpose
 
@@ -27,7 +89,7 @@ Since the original review:
 - **Sharing P0s fixed.** Revocation now revokes the recipient's Userbase permission (SH-01). Recipient copies are built from an explicit projection that strips the owner's recipient list, permission map, usage, CardDAV state, and the `CATEGORIES:SHARED:` backup line (SH-02). Both are covered by `tests/sharing/`.
 - **Dead modules removed.** `HistoryManager`, `ImportExportIntegration`, `carddav-presets` had zero importers; `TestHelpers` was test-only but shipped in `src/` and now lives in `tests/`.
 
-`src/` went from ~40,600 to ~32,400 lines. The three largest files (`ContactUIController` 6.9k, `ContactDatabase` 4.0k, `ContactManager` 3.9k) remain the main structural debt, but are now free of sync-path branching.
+`src/` went from ~40,600 to ~31,500 lines. The three largest files (`ContactUIController` 6.7k, `ContactDatabase` 3.8k, `ContactManager` 3.4k) remain the main structural debt, but are now free of sync-path branching.
 
 ## 4. System Overview
 
@@ -56,7 +118,7 @@ flowchart LR
 | [`ContactUIController`](src/ui/ContactUIController.js) | Main UI coordinator: forms, import/export, sharing, groups, archive, profile links. |
 | [`ICloudSyncService`](src/integrations/ICloudSyncService.js) | Two-way sync for owned/imported cards, force-push for shared cards, deletions, timers. |
 | [`ICloudCardDAVClient`](src/integrations/ICloudCardDAVClient.js) | CardDAV transport (PROPFIND/REPORT/PUT/DELETE) via the Worker. |
-| [`cloudflare-worker/carddav-proxy.js`](cloudflare-worker/carddav-proxy.js) | CORS proxy, iCloud-only host allowlist, origin + token check, conditional-header forwarding, per-IP rate limit. |
+| [`cloudflare-worker/carddav-proxy.js`](cloudflare-worker/carddav-proxy.js) | CORS proxy, iCloud-only host allowlist, origin + token check (token required), conditional-header forwarding, optional per-IP rate limit (only active if the `RATE_LIMITER` binding is configured — currently commented out in `wrangler.toml`). |
 
 ## 5. Feature Inventory
 
@@ -81,7 +143,7 @@ Sign-up/sign-in/session restore/remember-me/login throttling; contact CRUD with 
 
 | Path | Status |
 |---|---|
-| iCloud (`ICloudSyncService`) | Implemented, 10 suites of unit coverage. Credentials persisted via `SecureCredentialStorage`; auto-resume on load. |
+| iCloud (`ICloudSyncService`) | Implemented, 11 suites of unit coverage. Credentials persisted via `SecureCredentialStorage`; auto-resume on load. |
 | Generic CardDAV / Baikal | **Removed 2026-10-14.** Existing databases may still carry `metadata.carddav` without `source: 'iCloud'`; `isICloudSynced()` deliberately ignores it (IS-11). |
 
 ## 6. Findings — current status
@@ -107,7 +169,16 @@ Tracked in `ICLOUD_SYNC_REVIEW.md` §6. Open there: full per-target `carddav` na
 
 ### Credentials / security (SEC-01 … SEC-04)
 
-Unchanged since the original review; `SecureCredentialStorage` is now used by the iCloud modal only. SEC-01 (session-storage option advertised but no write branch), SEC-02 (private-mode salt via `localStorage`), SEC-03 (plaintext JSON fallback) remain open. SEC-04 (public Worker token) is mitigated by the Worker's per-IP rate limit and origin allowlist.
+`SecureCredentialStorage` is now used by the iCloud modal only. SEC-01 (session-storage option advertised but no write branch — `sessionStorage` appears only in remove/clear paths) and SEC-02 (private-mode salt via `localStorage`) remain open. SEC-03 is half-fixed: the plaintext **write** branch was removed, but the legacy plaintext **read** fallback (`localStorage_plain`) remains and must be removed to close it. SEC-04 (Worker token hardcoded and shipped in `src/config/app.config.js`): the Worker requires the token and checks the origin allowlist, but the per-IP rate limit is **inactive** — the `RATE_LIMITER` binding is commented out in `wrangler.toml`, so the only deployed mitigation is the origin allowlist.
+
+### Code re-verification 2026-10-14 (new findings)
+
+| ID | Finding | Status |
+|---|---|---|
+| CR-01 | `tests/integration.test.js` is dead and broken | Excluded by `jest.config.js` `testMatch` **and** imports the removed `../src/utils/TestHelpers.js` (helpers moved to `tests/`). Would fail if ever run. Delete it, or fix the import and add it to `testMatch`. |
+| CR-02 | `IndividualSharingStrategy` calls the global `userbase` directly | `getContactSharedDatabases`, `getIndividualShares`, `getSharingStats` bypass the injected `this.database` wrappers (same class of issue as IS-05). Untestable without a global stub. |
+| CR-03 | `updateContactAcrossSharedDatabases` returns inconsistent result keys | Success path returns `{ dbName, username }`, skip path returns `{ database: dbName }`. Callers keying on `dbName` see `undefined` for skipped databases. |
+| CR-04 | `production.zip` at the repo root is stale | Dated 2026-10-09 — predates the SH-01/SH-02 fixes and the Baikal removal. Deploying from it ships pre-fix code. Regenerate before the next release (or stop committing it). |
 
 ## 7. Data and Contract Invariants (target)
 
@@ -134,15 +205,16 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 - [x] **Define group behavior (SH-04):** current list membership is expanded only when the user shares. List edits do not retroactively share or revoke contacts. Revoke individual recipients from the contact's sharing controls; do not infer bulk revocations from current group membership.
 - [ ] **Collapse the two vCard façades.** `VCardStandard` (→ `VCardFormatManager` → 3/4 processors) and `VCardStandardEnhanced` (used only by `VCardImporter`/`VCardExporter`) overlap; keep one entry point.
 - [ ] **Align validation with 3.0:** `ContactManager` still calls `validateContactData(…, '4.0', …)` in two places.
-- [ ] **Delete remaining dead helpers:** `findAndDeleteCorruptedContacts()` is console-only; `UserbaseConnectionFix.js` (global fetch monkey-patch) and `AuthPerformanceTracker` should be re-justified or removed.
+- [ ] **Delete remaining dead helpers:** `UserbaseConnectionFix.js` (global fetch monkey-patch, self-initializing via `index.html` script tag) and `AuthPerformanceTracker` (used only around the auth check in `ContactUIController`) should be re-justified or removed. (`findAndDeleteCorruptedContacts()` is already gone from the tree.)
 - [x] **Remove `CATEGORIES:SHARED:` as a sharing backup.** It is no longer parsed or used to restore sharing. Defensive stripping remains at recipient/export/sync boundaries so legacy cards cannot leak it.
+- [ ] **Close the re-verification fallout (CR-01, CR-03):** delete or repair `tests/integration.test.js` (imports a removed path and is excluded from `testMatch`); make `updateContactAcrossSharedDatabases` return one result shape (`dbName`/`username`) for both the success and skip paths.
 
 ### Phase B — iCloud sync rules (ICLOUD_SYNC_REVIEW §7, in that order)
 
 - [ ] S-1 dirty flag instead of timestamp comparison (fixes the pull-clobbers-unpushed-edit bug).
 - [ ] S-3 archived = frozen in both directions.
 - [ ] S-2 drop `sharedContactSyncCache`.
-- [ ] S-5 collapse the deletion state machine to tombstones.
+- [ ] S-5 collapse the deletion state machine to tombstones — **tombstone flow implemented and tested** (soft-deleted contacts persist until remote delete + local hard-delete both succeed, `deletion.test.js`); remaining: drop the `syncStatus` sub-states (`deleted`/`synced`/`restore-pending`) and reduce the tombstone to `{ uid, deletedAt }`.
 - [ ] S-4 one periodic cycle instead of three timers.
 - [ ] IS-09: route `testConnect()` through `ICloudSyncService.initialize()`.
 - [ ] Remove the IC-06 synthetic `shared-contact@userbase.app` email; report unsupported cards instead.
@@ -151,7 +223,8 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 
 - [ ] Implement or remove the advertised session-storage option (SEC-01).
 - [ ] Private-mode salt without `localStorage` (SEC-02).
-- [ ] Remove the plaintext JSON credential fallback (SEC-03).
+- [ ] Remove the plaintext JSON credential fallback (SEC-03) — the write branch is already gone; the legacy `localStorage_plain` read fallback remains.
+- [ ] Enable the Worker's per-IP rate limit (SEC-04): uncomment the `RATE_LIMITER` binding in `wrangler.toml` and `wrangler deploy`. One-line config change defending a token that ships in the client bundle.
 
 ### Phase D — structure (only after A–C; contracts are then small enough to test)
 
@@ -166,6 +239,7 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 - [x] Sharing tests for recipient projection and granular revocation.
 - [x] Sharing tests for one-time group expansion and list edits not sharing/revoking existing contacts.
 - [x] Sharing tests for owner metadata/permission-map cleanup and conflict retry after revocation.
+- [x] Sharing tests for transient-error retry during revocation (copy delete and permission revoke paths).
 - [ ] Recipient-side normalization (`handleContactsChanged` shared branch).
 - [ ] One browser smoke test (app boots, modals open, no console errors) — currently done by hand.
 
@@ -178,10 +252,11 @@ Ordered by value ÷ risk. Each item is a standalone commit with `npm test` green
 - Sharing is documented and implemented as read-only, with no configurable permission parameters. ✅
 - Archive, delete, and sync rules are each stated in one sentence and encoded in one place (Phase B).
 - Credential UI choices match actual storage behavior (Phase C).
-- No file in `src/` is unreferenced from `index.html`/`app.js`; `production_zip.sh`'s critical-file list matches the tree. ✅ (re-check per release)
+- No file in `src/` is unreferenced from `index.html`/`app.js`. ✅ `production_zip.sh` packages the full `src/` tree, but its critical-file list is **stale** — it omits `VCardStandardEnhanced.js`, `CredentialStorageUI.js`, `credential-storage.css`, `SecureCredentialStorage.js`, `ContactIdentifier.js`, `SyncStatistics.js`, and `ThemeManager.js`, so it cannot catch the deletion of any of those. Update the list per release.
 
 ## 10. Review Notes
 
 - This is a static-review-plus-unit-test baseline, not proof of live iCloud behavior. Live iCloud sync should be smoke-tested after the Phase B refactor.
-- `tests/manual/`, `scripts/`, `docs/archive/`, `tools/` are local-only (whitelist `.gitignore`) and may reference removed code; they are not shipped.
+- `tests/manual/`, `scripts/`, `docs/archive/`, `tools/` are local-only (whitelist `.gitignore`) and may reference removed code; they are not shipped. `tests/integration.test.js` is **not** in that set — it sits in `tests/` and is silently excluded by `testMatch` (see CR-01).
 - The `.github/copilot-instructions.md` architecture notes still describe the Baikal bridge, separate addressbooks, and ACL protection. They should be reduced to the iCloud-only model so future generated code does not re-introduce the removed path.
+- The committed `production.zip` (2026-10-09) predates the 2026-10-14 fixes; regenerate it before the next deploy (CR-04).
