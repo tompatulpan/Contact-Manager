@@ -2,7 +2,7 @@
  * SyncStatistics - Unified statistics tracking for sync operations
  * 
  * Provides consistent tracking and reporting of sync metrics across
- * different sync services (iCloud, Baikal, etc.)
+ * the iCloud sync service
  * 
  * @module utils/SyncStatistics
  */

@@ -727,7 +727,7 @@ export class VCard3Processor {
         vcard += `REV:${timestamp}\n`;
 
         // ⭐ Embed sharing metadata in CATEGORIES for disaster recovery (internal use only)
-        // Skip this for external CardDAV sync (iCloud, Baikal, etc.) as some servers reject it
+        // Skip this for external CardDAV sync (iCloud) as the server rejects it
         if (!options.skipInternalMetadata && displayData.metadata?.sharing?.sharedWithUsers?.length > 0) {
             const sharedUsers = displayData.metadata.sharing.sharedWithUsers;
             // Format: SHARED:alice,bob,charlie (compact format supports 1000+ users under 10KB limit)

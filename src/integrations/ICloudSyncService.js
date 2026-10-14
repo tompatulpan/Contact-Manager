@@ -1311,9 +1311,9 @@ export class ICloudSyncService {
             }
             
             // Force-push with etag: null to override any external changes.
-            // Only trust an etag written by this service — a Baikal etag here
-            // would route the push into the update path against the wrong
-            // server (IS-11).
+            // Only trust an etag written by this service — legacy CardDAV
+            // metadata (from the removed Baikal sync) would route the push into
+            // the update path with a foreign etag (IS-11).
             const existingEtag = this.isICloudSynced(contact) ? contact.metadata.carddav.etag : null;
             
             if (existingEtag) {
@@ -1475,7 +1475,7 @@ export class ICloudSyncService {
 
         // CRITICAL FIX: only state written by this service (source: 'iCloud')
         // proves the contact exists on iCloud. Without that proof, push
-        // (create-side). A Baikal/Nextcloud etag is not an iCloud etag (IS-11).
+        // (create-side). A legacy Baikal etag is not an iCloud etag (IS-11).
         if (!this.isICloudSynced(contact)) {
             return { push: true, reason: 'not yet synced to iCloud' };
         }
@@ -1494,10 +1494,10 @@ export class ICloudSyncService {
 
     /**
      * Only CardDAV state written by this service (source: 'iCloud') counts
-     * as "synced with iCloud". Baikal/Nextcloud sync writes metadata.carddav
-     * without an iCloud source tag; those contacts must never be treated as
-     * iCloud-synced, or they get deleted locally / force-matched against
-     * the wrong server (IS-11 in ICLOUD_SYNC_REVIEW.md).
+     * as "synced with iCloud". Contacts synced by the removed Baikal path
+     * still carry metadata.carddav without an iCloud source tag; they must
+     * never be treated as iCloud-synced, or they get deleted locally /
+     * force-matched against the wrong server (IS-11 in ICLOUD_SYNC_REVIEW.md).
      */
     isICloudSynced(contact) {
         return contact.metadata?.carddav?.source === 'iCloud' &&

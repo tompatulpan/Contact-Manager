@@ -214,11 +214,11 @@ describe('pushToICloud() — local deletions pushed to iCloud', () => {
 
 describe('cross-server isolation (IS-11)', () => {
 
-    it('does NOT delete a contact that was only ever synced to Baikal', async () => {
-        // A contact pushed to Baikal carries metadata.carddav written by
-        // ContactManager.updateContactCardDAVMetadata — no 'source' tag.
+    it('does NOT delete a contact carrying legacy (non-iCloud) carddav metadata', async () => {
+        // Contacts synced by the removed Baikal path still carry
+        // metadata.carddav without a 'source' tag in existing databases.
         // An empty/partial iCloud snapshot must not be read as "deleted on
-        // iCloud" for that contact (ICLOUD_SYNC_REVIEW IS-11).
+        // iCloud" for such a contact (ICLOUD_SYNC_REVIEW IS-11).
         const bob = buildContact('uid-bob-baikal-001', OWNED_VCARD, {
             cardName: 'Bob Baikal',
             metadata: {

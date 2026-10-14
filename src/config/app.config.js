@@ -16,8 +16,10 @@ export const APP_CONFIG = {
         environment: 'development'
     },
     
-    // CardDAV CORS Proxy Configuration (deployed November 23, 2025)
-    cardDAV: {
+    // iCloud CardDAV sync — the only external sync target.
+    // Browser → Cloudflare Worker (CORS proxy, iCloud hosts only) → contacts.icloud.com
+    iCloud: {
+        baseUrl: 'https://contacts.icloud.com',
         proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
         // Worker authentication token (required for all proxy requests)
         // NOT A SECRET: this is visible in the public JS bundle and in git history.
@@ -25,24 +27,7 @@ export const APP_CONFIG = {
         // + origin allowlist + Cloudflare rate limiting on the Worker route.
         // Must match the WORKER_TOKEN env var of the deployed Worker.
         // Rotated 2026-10-07 (previous value was exposed in git history since Nov 2025).
-        workerToken: '6UwR4KT2bnOdopjuE2dEh8W6SjpqZ5DOAVzEzuFiNAA=',
-        useProxy: true,
-        fallbackToLocal: true, // Bypass proxy for localhost/127.0.0.1 servers
-        // Automatically detect local servers and connect directly
-        localServerPatterns: ['localhost', '127.0.0.1', '192.168.', '10.0.', '172.16.']
-    },
-    
-    // iCloud CardDAV Configuration
-    iCloud: {
-        baseUrl: 'https://contacts.icloud.com',
-        proxyUrl: 'https://carddav-proxy.data4-9de.workers.dev',
-        // Test credentials (user should override in UI)
-        defaultUsername: '',  // Leave empty - user must provide
-        defaultPassword: '',  // Leave empty - user must provide
-        // Connection settings
-        timeout: 30000,  // 30 seconds
-        retryAttempts: 3,
-        retryDelay: 1000
+        workerToken: '6UwR4KT2bnOdopjuE2dEh8W6SjpqZ5DOAVzEzuFiNAA='
     }
 };
 
@@ -199,68 +184,30 @@ export const FEATURE_FLAGS = {
 
 // Performance Settings
 export const PERFORMANCE_CONFIG = {
-    // Caching
-    searchCacheSize: 1000,
-    vCardParseCache: 500,
-    imageCacheSize: 100,
-    
-    // ═══════════════════════════════════════════════════════════════════════════
-    // INTERVAL TIMING STRATEGY
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Order matters: Fast → Medium → Slow to prevent resource conflicts
-    // Staggered start times prevent startup storms
-    // Related operations grouped together for logical flow
-    
     // ───────────────────────────────────────────────────────────────────────────
-    // HIGH-FREQUENCY: Real-time operations (< 1 minute)
+    // Userbase shared-database discovery
     // ───────────────────────────────────────────────────────────────────────────
     sharedDatabaseCheckInterval: 10000, // 10 sec - Check for new shared databases from other users
     sharedDatabaseCheckDelay: 15000, // 15 sec - Initial delay before monitoring starts (allow app initialization)
     autoSaveInterval: 30000, // 30 sec - Auto-save pending changes to prevent data loss
-    statisticsUpdateInterval: 60000, // 1 min - Update contact counts, activity stats, UI metrics
-    baikalHeartbeatInterval: 60000, // 1 min - Keep CardDAV connection alive with health check
-    
-    // ───────────────────────────────────────────────────────────────────────────
-    // MEDIUM-FREQUENCY: Synchronization operations (5 minutes)
-    // ───────────────────────────────────────────────────────────────────────────
-    // NOTE: sharedContactsRefreshInterval and sharingValidationInterval run at SAME frequency
-    //       but OFFSET by 2.5 minutes to distribute load and prevent simultaneous operations
+
+    // sharedContactsRefreshInterval and sharingValidationInterval run at the SAME frequency
+    // but OFFSET by 2.5 minutes to distribute load and prevent simultaneous operations
     sharedContactsRefreshInterval: 300000, // 5 min - Force-refresh shared contacts from Userbase (ecosystem integrity)
     sharingValidationOffset: 150000, // 2.5 min - Offset for sharingValidationInterval (runs 2.5 min after refresh)
     sharingValidationInterval: 300000, // 5 min - Validate sharing relationships, repair broken shares (runs offset from refresh)
-    maintenanceInterval: 300000, // 5 min - Database cleanup, cache optimization, expired data removal
     sharedContactFallbackDelay: 300000, // 5 min - Delay before fallback sync starts (avoid startup conflicts)
-    
-    // ───────────────────────────────────────────────────────────────────────────
-    // LOW-FREQUENCY: External sync operations (5+ minutes)
-    // ───────────────────────────────────────────────────────────────────────────
-    // CardDAV bridge intervals - All synchronized to prevent conflict with Baikal server
-    baikalPullInterval: 300000, // 5 min - Sync FROM Baikal (import external edits from iPhone/Thunderbird)
-    baikalPushInterval: 1800000, // 30 min - Push TO Baikal (export local changes to CardDAV server)
-    baikalProtectionInterval: 1800000, // 30 min - Detect/correct unauthorized edits + refresh shared contacts to CardDAV
     sharedContactFallbackInterval: 3600000, // 60 min - Safety net: catch any dropped WebSocket updates for shared contacts
-    
+
     // ───────────────────────────────────────────────────────────────────────────
-    // iCloud CardDAV SYNC: Dual-timer system for contact type separation
+    // iCloud CardDAV sync: dual-timer system for contact type separation
     // ───────────────────────────────────────────────────────────────────────────
     // Main timer: OWNED + IMPORTED (2-way sync: pull + push)
     // Shared timer: SHARED contacts (force-push only, owner authority)
     // Offset: Stagger shared refresh to prevent resource conflicts
     icloudAutoSyncInterval: 600000, // 10 min - Bidirectional sync (OWNED/IMPORTED: pull + push)
     icloudSharedRefreshInterval: 900000, // 15 min - Force-push SHARED contacts (owner authority)
-    icloudSharedRefreshOffset: 300000, // 5 min - Offset from auto-sync to distribute load
-    
-    // ───────────────────────────────────────────────────────────────────────────
-    // Network timeouts and protection windows
-    // ───────────────────────────────────────────────────────────────────────────
-    networkTimeout: 5000, // 5 sec - HTTP request timeout (HEAD, GET, PUT, DELETE)
-    uiNotificationDelay: 2000, // 2 sec - Brief delay for showing UI warnings/messages
-    protectionWindowMs: 120000, // 2 min - Local edit protection window (prevents server override)
-    recentlyCreatedWindowMs: 60000, // 1 min - Window for detecting recently created contacts
-    
-    // Memory management
-    maxMemoryUsage: 100, // MB
-    garbageCollectionThreshold: 1000 // number of operations
+    icloudSharedRefreshOffset: 300000 // 5 min - Offset from auto-sync to distribute load
 };
 
 // Security Settings

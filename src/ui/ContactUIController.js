@@ -633,7 +633,6 @@ export class ContactUIController {
         this.eventBus.on('contacts:changed', this.handleContactsUpdated.bind(this));
         
         // CardDAV events - instant visibility after push
-        this.eventBus.on('contact:pushedToCardDAV', this.handleContactPushedToCardDAV.bind(this));
         
         // UI events
         this.eventBus.on('ui:showToast', this.showToast.bind(this));
@@ -1906,22 +1905,6 @@ export class ContactUIController {
                 }
                 this.pendingDetailRefresh = null;
             }, 150); // 150ms debounce - wait for all shares to complete
-        }
-    }
-
-    /**
-     * Handle contact pushed to CardDAV (instant visibility)
-     * Triggered after successfully pushing a new/updated contact to CardDAV server
-     */
-    handleContactPushedToCardDAV(data) {
-        console.log(`🚀 Contact pushed to CardDAV, triggering instant UI refresh: ${data.contact.cardName}`);
-        
-        // Refresh the contact list to show the newly pushed contact
-        this.performSearch();
-        
-        // If this was a newly created contact, select it
-        if (data.action === 'created' && data.immediate) {
-            this.selectContactWithoutTracking(data.contact.contactId);
         }
     }
 
@@ -6062,6 +6045,7 @@ export class ContactUIController {
      * Import contacts from vCard content
      */
     async importContactsFromVCard(vCardContent, cardName, markAsImported = true) {
+        let syncPause = null;
         try {
             // Split multiple vCards if present
             const vCardBlocks = this.splitVCardContent(vCardContent);
@@ -6079,31 +6063,19 @@ export class ContactUIController {
                 photosFiltered: 0 // Track how many contacts had photos filtered
             };
             
-            // Pause ALL sync services during import — not just the Baikal
-            // refresh. An iCloud cycle landing mid-import is safe today
+            // Pause sync during import. An iCloud cycle landing mid-import is safe today
             // (fresh imports carry no iCloud etag, so deletion detection
             // skips them), but it would push half-imported batches and race
             // the loop; pausing keeps the import atomic. Resume uses
             // skipInitialSync so no extra full cycle fires afterwards
             // (same mechanism bulk delete uses).
             console.log('🔒 Pausing all sync services during import');
-            let syncPause = null;
             try {
                 syncPause = this.contactManager?.pauseAllSync?.() || null;
             } catch (e) {
                 console.warn('⚠️ Could not pause sync services:', e);
             }
 
-            const hasCardDAVConnection = this.contactManager.baikalConnector &&
-                                        this.contactManager.baikalConnector.connections &&
-                                        this.contactManager.baikalConnector.connections.size > 0;
-
-            if (hasCardDAVConnection) {
-                console.log(`🟢 CardDAV server connected - contacts will be synced automatically`);
-            } else {
-                console.log(`🟡 CardDAV server not connected - contacts will be imported to local database only`);
-            }
-            
             // Batch processing configuration
             const BATCH_SIZE = 5; // Process 5 contacts at a time (reduced to avoid rate limits)
             const BATCH_DELAY_MS = 2000; // 2 second delay between batches (Userbase rate limit protection)
@@ -6213,10 +6185,13 @@ export class ContactUIController {
         } catch (error) {
             console.error('Error in importContactsFromVCard:', error);
             
-            // 🔓 Re-enable periodic sync even after error
-            console.log('🔓 Re-enabling periodic sync after import error');
-            if (this.contactManager?.baikalConnector) {
-                this.contactManager.baikalConnector.startPeriodicRefresh();
+            // Resume the sync services that were paused before the import
+            try {
+                if (syncPause?.pausedServices) {
+                    await this.contactManager.resumeAllSync(syncPause.pausedServices);
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not resume sync services after import error:', e);
             }
             
             return {
@@ -6768,8 +6743,7 @@ export class ContactUIController {
                 };
             }
 
-            // 🔧 ENHANCED: Pass contact object for Baikal deletion on revoke
-            const result = await this.contactManager.database.revokeIndividualContactAccess(contactId, username, contact);
+            const result = await this.contactManager.database.revokeIndividualContactAccess(contactId, username);
             
             if (!result.success) {
                 throw new Error(result.error || 'Failed to revoke database access');

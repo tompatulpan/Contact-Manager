@@ -18,7 +18,7 @@ import { VCardFormatManager } from './VCardFormatManager.js';
 
 export class VCardStandard {
     constructor() {
-        this.version = '3.0';  // ✅ Using vCard 3.0 (Baikal/iCloud standard)
+        this.version = '3.0';  // vCard 3.0 — what iCloud CardDAV speaks
         
         // Initialize format manager (provides access to VCard3Processor)
         this.formatManager = new VCardFormatManager();

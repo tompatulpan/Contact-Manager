@@ -2808,17 +2808,13 @@ export class ContactDatabase {
     /**
      * 🗑️ REVOKE: Revoke individual contact access (solves the granular revocation problem)
      * Removes access for specific user without affecting others
-     * 🔧 ENHANCED: Also deletes contact from Baikal server
      * @param {string} contactId - Contact ID
      * @param {string} username - Username to revoke access from
-     * @param {Object} contact - Full contact object (for Baikal deletion)
      * @returns {Promise<Object>} Revoke result
      */
-    async revokeIndividualContactAccess(contactId, username, contact = null) {
+    async revokeIndividualContactAccess(contactId, username) {
         try {
-            
-            // 🔧 ENHANCED: Pass contact object for Baikal deletion
-            const result = await this.individualSharing.revokeIndividualAccess(contactId, username, contact);
+            const result = await this.individualSharing.revokeIndividualAccess(contactId, username);
             
             if (result.success) {
                 // Log the revocation activity
@@ -2828,7 +2824,7 @@ export class ContactDatabase {
                     details: {
                         contactId,
                         revokedAt: new Date().toISOString(),
-                        method: 'individual-database-deletion',
+                        method: 'delete-item-and-revoke-permission',
                         duration: result.duration
                     }
                 });

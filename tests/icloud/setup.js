@@ -21,7 +21,7 @@ import { VCardStandard } from '../../src/core/VCardStandard.js';
 import { ContactValidator } from '../../src/core/ContactValidator.js';
 import { ContactManager } from '../../src/core/ContactManager.js';
 import { ICloudSyncService } from '../../src/integrations/ICloudSyncService.js';
-import { MockDatabase } from '../../src/utils/TestHelpers.js';
+import { MockDatabase } from '../TestHelpers.js';
 import { createMockClient } from './__mocks__/ICloudCardDAVClient.mock.js';
 
 /**

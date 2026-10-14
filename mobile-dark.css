@@ -479,28 +479,6 @@
         color: var(--primary-color) !important;
     }
     
-    /* Mobile CardDAV Sync Status */
-    body.dark-mode .sync-status {
-        background: var(--bg-primary) !important;
-        border-color: var(--border-color) !important;
-    }
-    
-    body.dark-mode .sync-status-item {
-        color: var(--text-primary) !important;
-    }
-    
-    body.dark-mode .sync-indicator {
-        color: var(--primary-color) !important;
-    }
-    
-    body.dark-mode .sync-indicator.syncing {
-        color: var(--warning-color) !important;
-    }
-    
-    body.dark-mode .sync-indicator.error {
-        color: var(--error-color) !important;
-    }
-    
     /* Mobile Touch Feedback */
     body.dark-mode .btn:active,
     body.dark-mode button:active,

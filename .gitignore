@@ -1,7 +1,7 @@
 # =============================================================================
 # Contact Management System - .gitignore (whitelist approach)
 # Everything is ignored by default; only the files listed below are tracked.
-# Local-only areas: scripts/, docs/, tests/manual/, examples/, tools/, .github/
+# Local-only areas: scripts/, docs/, tests/manual/, tools/, .github/
 # =============================================================================
 
 # Ignore everything by default
@@ -44,20 +44,14 @@ node_modules/
 !/src/**
 
 # --- Cloudflare Worker (deployed separately via wrangler) ---
-!/cloudflare-worker-carddav-proxy.js
 !/cloudflare-worker/carddav-proxy.js
 !/cloudflare-worker/package.json
 !/cloudflare-worker/package-lock.json
 !/cloudflare-worker/wrangler.toml
 !/cloudflare-worker/README.md
 
-# --- Lightweight CardDAV bridge (optional node service) ---
-!/contact-carddav-bridge-lite/index.js
-!/contact-carddav-bridge-lite/package.json
-!/contact-carddav-bridge-lite/package-lock.json
-!/contact-carddav-bridge-lite/README.md
-
 # --- Tests (jest suite; tests/manual/ debug pages stay local-only) ---
 !/tests/*.js
 !/tests/*.vcf
 !/tests/icloud/**
+!/tests/sharing/**

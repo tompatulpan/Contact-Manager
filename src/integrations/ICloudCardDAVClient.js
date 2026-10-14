@@ -44,7 +44,7 @@ export class ICloudCardDAVClient {
      */
     async proxyFetch(url, options = {}) {
         // Add worker authentication token to all proxy requests
-        const workerToken = APP_CONFIG?.cardDAV?.workerToken;
+        const workerToken = APP_CONFIG?.iCloud?.workerToken;
         if (workerToken && url.includes('carddav-proxy')) {
             options.headers = options.headers || {};
             options.headers['X-Worker-Token'] = workerToken;

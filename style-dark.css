@@ -422,20 +422,6 @@ body.dark-mode .list-count {
     color: var(--text-secondary);
 }
 
-/* CardDAV Sync Status */
-body.dark-mode .sync-status {
-    background: var(--bg-primary);
-    border-color: var(--border-color);
-}
-
-body.dark-mode .sync-status-item {
-    color: var(--text-primary);
-}
-
-body.dark-mode .sync-indicator {
-    color: var(--primary-color);
-}
-
 /* Tooltips */
 body.dark-mode .tooltip {
     background: var(--bg-primary);

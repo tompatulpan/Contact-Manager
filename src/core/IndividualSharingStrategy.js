@@ -14,6 +14,44 @@ export class IndividualSharingStrategy {
     }
 
     /**
+     * Project an owner contact into the copy a single recipient is allowed to see.
+     *
+     * Owner-only state never leaves the owner's database: the recipient list
+     * and permission map (`metadata.sharing`), usage analytics, CardDAV sync
+     * state, UI state, list membership, and the `CATEGORIES:SHARED:` backup
+     * line inside the vCard. The recipient gets contact data plus the
+     * attribution relevant to them.
+     *
+     * @param {Object} contact - Owner's contact
+     * @param {string} username - Recipient username
+     * @param {Object} extra - Additional recipient-facing metadata to merge
+     * @returns {Object} Recipient copy
+     */
+    buildRecipientContact(contact, username, extra = {}) {
+        const {
+            sharing, usage, carddav, cardDAV, ui, distributionLists,
+            isSharedWithUsers, sharePermissions, sync,
+            ...recipientMetadata
+        } = contact.metadata || {};
+
+        const vcard = typeof contact.vcard === 'string'
+            ? contact.vcard.replace(/\r?\nCATEGORIES:SHARED:[^\r\n]*/g, '')
+            : contact.vcard;
+
+        return {
+            contactId: contact.contactId,
+            cardName: contact.cardName,
+            vcard,
+            metadata: {
+                ...recipientMetadata,
+                sharedWith: username,
+                sharingType: 'individual',
+                ...extra
+            }
+        };
+    }
+
+    /**
      * 🆕 CORE: Share contact with individual user using separate database
      * Creates unique database per sharing relationship for granular control
      * @param {Object} contact - Contact to share
@@ -32,7 +70,7 @@ export class IndividualSharingStrategy {
 
             // Create unique database name for this specific sharing relationship
             // Remove 'contact_' prefix to avoid double naming  
-            const cleanContactId = contact.contactId.startsWith('contact_') ? contact.contactId.substring(8) : contact.contactId;
+            const cleanContactId = this.sanitizeContactId(contact.contactId);
             sharedDbName = `shared-contact-${cleanContactId}-to-${username.trim()}`;
             
 
@@ -64,46 +102,12 @@ export class IndividualSharingStrategy {
             
             databaseOpened = true; // 🔧 Mark database as successfully opened
 
-            // 🔧 AGGRESSIVE OPTIMIZATION: Remove bloated metadata before creating shared contact
-            let optimizedBaseContact = {
-                ...contact,
-                metadata: {
-                    ...contact.metadata,
-                    // Trim shareHistory to last 5 entries only
-                    sharing: contact.metadata?.sharing ? {
-                        ...contact.metadata.sharing,
-                        shareHistory: (contact.metadata.sharing.shareHistory || []).slice(-5),
-                        // Keep only essential permission data
-                        sharePermissions: Object.entries(contact.metadata.sharing.sharePermissions || {}).reduce((acc, [user, perm]) => {
-                            acc[user] = {
-                                level: perm.level,
-                                sharedAt: perm.sharedAt
-                            };
-                            return acc;
-                        }, {})
-                    } : undefined,
-                    // Trim usage history to last 3 entries
-                    usage: contact.metadata?.usage ? {
-                        accessCount: contact.metadata.usage.accessCount,
-                        lastAccessedAt: contact.metadata.usage.lastAccessedAt,
-                        interactionHistory: (contact.metadata.usage.interactionHistory || []).slice(-3)
-                    } : undefined
-                }
-            };
-
-            // Insert contact into individual database with sharing metadata
-            let sharedContact = {
-                ...optimizedBaseContact,
-                metadata: {
-                    ...optimizedBaseContact.metadata,
-                    sharedAt: new Date().toISOString(),
-                    sharedBy: this.database.currentUser?.username,
-                    sharedWith: username.trim(),
-                    originalContactId: contact.contactId,
-                    sharingType: 'individual',
-                    lastSharedUpdate: new Date().toISOString()
-                }
-            };
+            let sharedContact = this.buildRecipientContact(contact, username.trim(), {
+                sharedAt: new Date().toISOString(),
+                sharedBy: this.database.currentUser?.username,
+                originalContactId: contact.contactId,
+                lastSharedUpdate: new Date().toISOString()
+            });
 
             // 🔧 CRITICAL FIX: Optimize contact to fit within 10KB Userbase limit
             sharedContact = this.database.optimizeContactForStorage(sharedContact);
@@ -288,220 +292,98 @@ export class IndividualSharingStrategy {
     }
 
     /**
-     * 🆕 GRANULAR: Revoke access from specific user by deleting their individual database
-     * SOLVES: User A can revoke from User C without affecting User B
-     * 🔧 ENHANCED: Also deletes contact from Baikal server (deletion authority override)
+     * Revoke one recipient's access to a contact.
+     *
+     * Idempotent: deletes the recipient copy (if present) and revokes the
+     * recipient's permission on the per-recipient database. Each step
+     * tolerates "already gone" conditions so a retry never fails on
+     * partial state.
+     *
      * @param {string} contactId - Contact ID
      * @param {string} username - Username to revoke access from
-     * @param {Object} contact - Full contact object (needed for Baikal deletion)
      * @returns {Promise<Object>} Revoke result
      */
-    async revokeIndividualAccess(contactId, username, contact = null) {
+    async revokeIndividualAccess(contactId, username) {
         const startTime = Date.now();
-        
+
+        if (!contactId || !username) {
+            return { success: false, error: 'ContactId and username are required for revocation' };
+        }
+
+        const trimmedUsername = username.trim();
+        const cleanContactId = this.sanitizeContactId(contactId);
+        const sharedDbName = `shared-contact-${cleanContactId}-to-${trimmedUsername}`;
+        const result = {
+            success: false,
+            revokedFrom: trimmedUsername,
+            sharedDbName,
+            itemDeleted: false,
+            permissionRevoked: false,
+            errors: []
+        };
+
+        // Step 1: remove the recipient copy
         try {
-            if (!contactId || !username) {
-                throw new Error('ContactId and username are required for revocation');
+            const items = await new Promise((resolve, reject) => {
+                this.database.openDatabase(sharedDbName, (dbItems) => resolve(dbItems || [])).catch(reject);
+            });
+
+            const target = items.find(item =>
+                item.itemId === contactId ||
+                item.contactId === contactId ||
+                item.metadata?.originalContactId === contactId
+            );
+
+            if (target) {
+                await this.database.safeDeleteItem({
+                    databaseName: sharedDbName,
+                    itemId: target.itemId
+                }, 'revokeIndividualAccess');
+                result.itemDeleted = true;
             }
-
-            const trimmedUsername = username.trim();
-            // Remove 'contact_' prefix to avoid double naming
-            const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
-            const sharedDbName = `shared-contact-${cleanContactId}-to-${trimmedUsername}`;
-            
-
-            // Enhanced revocation: Query database first to find the actual item
-            let databaseItems = [];
-            let actualItemId = null;
-            let foundContactData = null; // Store full contact data for Baikal deletion
-            
-            try {
-                // First, try to open the database and get all items
-                await new Promise((resolve, reject) => {
-                    this.database.openDatabase(sharedDbName, (items) => {
-                        databaseItems = items || [];
-                        resolve();
-                    }).catch(reject);
-                });
-                
-                
-                if (databaseItems.length === 0) {
-                    // Still try Baikal deletion if contact provided
-                    if (contact) {
-                        await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
-                    }
-                    return { 
-                        success: true, 
-                        message: 'Access already revoked (database empty)',
-                        revokedFrom: trimmedUsername,
-                        duration: Date.now() - startTime
-                    };
-                }
-                
-                // Search for the contact using multiple approaches
-                let foundItem = null;
-                
-                // Approach 1: Direct itemId match
-                foundItem = databaseItems.find(item => item.itemId === contactId);
-                if (foundItem) {
-                    actualItemId = foundItem.itemId;
-                    foundContactData = foundItem.item;
-                } else {
-                    // Approach 2: Search by item.contactId property
-                    foundItem = databaseItems.find(item => item.item?.contactId === contactId);
-                    if (foundItem) {
-                        actualItemId = foundItem.itemId;
-                        foundContactData = foundItem.item;
-                    } else {
-                        // Approach 3: Search by item content (vCard or other fields)
-                        foundItem = databaseItems.find(item => {
-                            const itemData = item.item || {};
-                            return itemData.contactId === contactId || 
-                                   itemData.cardName?.includes(contactId) ||
-                                   item.itemId?.includes(contactId);
-                        });
-                        if (foundItem) {
-                            actualItemId = foundItem.itemId;
-                            foundContactData = foundItem.item;
-                        }
-                    }
-                }
-                
-                if (!actualItemId) {
-                    // Still try Baikal deletion if contact provided
-                    if (contact) {
-                        await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
-                    }
-                    return { 
-                        success: true, 
-                        message: 'Access already revoked (contact not found)',
-                        revokedFrom: trimmedUsername,
-                        duration: Date.now() - startTime
-                    };
-                }
-                
-            } catch (openError) {
-                if (openError.name === 'DatabaseNotFound') {
-                    // Still try Baikal deletion if contact provided
-                    if (contact) {
-                        await this.deleteFromBaikalOnRevoke(contact, trimmedUsername);
-                    }
-                    return { 
-                        success: true, 
-                        message: 'Access already revoked (database not found)',
-                        revokedFrom: trimmedUsername,
-                        duration: Date.now() - startTime
-                    };
-                }
-                console.error(`❌ Error opening database ${sharedDbName}:`, openError);
-                throw openError;
+        } catch (error) {
+            if (error.name === 'DatabaseNotFound') {
+                // Nothing was ever shared through this database; permission revoke below is a no-op too.
+                result.success = true;
+                result.duration = Date.now() - startTime;
+                result.message = 'Access already revoked (database not found)';
+                this.shareCache.delete(`${contactId}-${trimmedUsername}`);
+                return result;
             }
+            if (error.name !== 'ItemDoesNotExist') {
+                console.error(`❌ Failed to delete shared copy from ${sharedDbName}:`, error);
+                result.errors.push(`delete: ${error.message}`);
+            }
+        }
 
-            // Now delete the contact using the correct itemId
-            
-            await this.database.safeDeleteItem({
+        // Step 2: revoke the recipient's database permission
+        try {
+            await this.database.safeModifyDatabasePermissions({
                 databaseName: sharedDbName,
-                itemId: actualItemId
+                username: trimmedUsername,
+                revoke: true
             }, 'revokeIndividualAccess');
-
-            // 🔧 NEW: Delete from Baikal server (deletion authority override)
-            // Use found contact data or fallback to provided contact
-            const contactForBaikal = foundContactData || contact;
-            if (contactForBaikal) {
-                await this.deleteFromBaikalOnRevoke(contactForBaikal, trimmedUsername);
-            } else {
-                console.warn(`⚠️ No contact data available for Baikal deletion - contact may remain on server`);
-            }
-
-            // Clear cache entry
-            const cacheKey = `${contactId}-${trimmedUsername}`;
-            this.shareCache.delete(cacheKey);
-
-            const duration = Date.now() - startTime;
-            
-            return { 
-                success: true, 
-                revokedFrom: trimmedUsername,
-                sharedDbName,
-                duration,
-                method: 'individual-database-deletion',
-                actualItemId: actualItemId
-            };
-            
+            result.permissionRevoked = true;
         } catch (error) {
-            const duration = Date.now() - startTime;
-            console.error(`❌ Failed to revoke individual access:`, error);
-            
-            this.database.handleDeleteItemError(error, 'revokeIndividualAccess');
-            
-            return { 
-                success: false, 
-                error: error.message,
-                duration,
-                revokedFrom: username.trim()
-            };
+            if (['UserNotFound', 'DatabaseNotFound', 'DatabaseNotShared', 'UserNotVerified'].includes(error.name)) {
+                // Recipient no longer has (or never had) access — treat as already revoked.
+                result.permissionRevoked = true;
+            } else {
+                console.error(`❌ Failed to revoke permission on ${sharedDbName} for ${trimmedUsername}:`, error);
+                result.errors.push(`permission: ${error.message}`);
+            }
         }
+
+        this.shareCache.delete(`${contactId}-${trimmedUsername}`);
+
+        result.success = result.permissionRevoked && result.errors.length === 0;
+        result.duration = Date.now() - startTime;
+        if (!result.success) {
+            result.error = result.errors.join('; ');
+        }
+        return result;
     }
 
-    /**
-     * 🔧 NEW: Delete shared contact from Baikal server when revoked
-     * This prevents orphaned contacts in the "Shared with Me" addressbook
-     * @param {Object} contact - Contact to delete from Baikal
-     * @param {string} revokedUsername - Username whose access was revoked
-     */
-    async deleteFromBaikalOnRevoke(contact, revokedUsername) {
-        try {
-            // Check if BaikalConnector is available
-            if (!this.database.BaikalConnector) {
-                return { success: false, reason: 'connector_not_available' };
-            }
-
-            
-            // Get all connected Baikal profiles from BaikalConnector
-            const connections = this.database.BaikalConnector.connections || new Map();
-            
-            if (connections.size === 0) {
-                return { success: false, reason: 'no_active_connections' };
-            }
-
-            // Delete from all connected profiles
-            let deletedCount = 0;
-            let errorCount = 0;
-            
-            for (const [profileName, connectionInfo] of connections.entries()) {
-                try {
-                    
-                    // Delete from shared-contacts addressbook (where shared contacts are stored)
-                    const deleteResult = await this.database.BaikalConnector.deleteContactFromBaikal(
-                        contact,
-                        profileName,
-                        'shared-contacts' // Shared contacts addressbook
-                    );
-                    
-                    if (deleteResult && deleteResult.success) {
-                        deletedCount++;
-                    } else {
-                        errorCount++;
-                        console.warn(`⚠️ Failed to delete from Baikal profile "${profileName}":`, deleteResult?.error || 'Unknown error');
-                    }
-                } catch (profileError) {
-                    errorCount++;
-                    console.error(`❌ Error deleting from Baikal profile "${profileName}":`, profileError.message);
-                }
-            }
-
-            if (deletedCount > 0) {
-                return { success: true, deletedCount, errorCount };
-            } else {
-                console.warn(`⚠️ Could not delete revoked contact from any Baikal profiles (${errorCount} errors)`);
-                return { success: false, reason: 'deletion_failed', errorCount };
-            }
-            
-        } catch (error) {
-            console.error(`❌ Error deleting revoked contact from Baikal:`, error);
-            return { success: false, error: error.message };
-        }
-    }
 
     /**
      * 🚀 OPTIMIZED: Update contact across all individual shared databases with parallel processing
@@ -568,15 +450,9 @@ export class IndividualSharingStrategy {
                         // Extract username from database name for metadata
                         const username = this.extractUsernameFromDbName(dbName);
                         
-                        const updatedContact = {
-                            ...contact,
-                            metadata: {
-                                ...contact.metadata,
-                                lastSharedUpdate: new Date().toISOString(),
-                                sharedWith: username,
-                                sharingType: 'individual'
-                            }
-                        };
+                        const updatedContact = this.buildRecipientContact(contact, username, {
+                            lastSharedUpdate: new Date().toISOString()
+                        });
 
                         // 🎯 OPTIMIZE: Trim metadata before updating shared database to avoid 10KB limit
                         const optimizedContact = this.database.optimizeContactForStorage(updatedContact);
@@ -648,7 +524,7 @@ export class IndividualSharingStrategy {
             const allDatabases = result.databases;
             
             // Remove 'contact_' prefix to avoid double naming
-            const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+            const cleanContactId = this.sanitizeContactId(contactId);
             
             return allDatabases
                 .filter(db => 
@@ -674,7 +550,7 @@ export class IndividualSharingStrategy {
             const allDatabases = result.databases;
             
             // Remove 'contact_' prefix to avoid double naming
-            const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+            const cleanContactId = this.sanitizeContactId(contactId);
             
             // Find all individual shared databases for this contact
             const individualShares = allDatabases
@@ -721,7 +597,7 @@ export class IndividualSharingStrategy {
             let pattern;
             if (contactId) {
                 // Remove 'contact_' prefix to avoid double naming
-                const cleanContactId = contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
+                const cleanContactId = this.sanitizeContactId(contactId);
                 pattern = `shared-contact-${cleanContactId}-to-`;
             } else {
                 pattern = 'shared-contact-';
@@ -802,7 +678,13 @@ export class IndividualSharingStrategy {
      * @param {string} contactId - Contact ID to sanitize
      * @returns {string} Sanitized contact ID safe for database names
      */
+    /**
+     * Contact ID as used inside per-recipient database names
+     * (`shared-contact-{id}-to-{username}`). The `contact_` prefix is dropped
+     * to avoid `shared-contact-contact_...`; this must match everywhere a
+     * database name is built or parsed.
+     */
     sanitizeContactId(contactId) {
-        return contactId ? contactId.replace(/[^a-zA-Z0-9\-_]/g, '_') : 'unknown';
+        return contactId.startsWith('contact_') ? contactId.substring(8) : contactId;
     }
 }

@@ -2,7 +2,7 @@
  * ContactIdentifier - Utility for contact identification and UID operations
  * 
  * Pure utility functions for extracting and matching contact UIDs from vCard content.
- * Used by ContactManager, ICloudSyncService, and BaikalConnector for consistent
+ * Used by ContactManager and ICloudSyncService for consistent
  * UID-based contact matching during sync operations.
  * 
  * @module ContactIdentifier

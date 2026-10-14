@@ -38,7 +38,7 @@ filters token-less scrapers. The controls that matter are:
 
 If the token is ever leaked or abused, rotate it: generate a new value,
 run `wrangler secret put WORKER_TOKEN`, deploy, and update
-`APP_CONFIG.cardDAV.workerToken` in the app, then redeploy the Pages app.
+`APP_CONFIG.iCloud.workerToken` in the app, then redeploy the Pages app.
 
 ## Deploy
 
@@ -47,7 +47,7 @@ cd cloudflare-worker
 npm install            # first time only
 wrangler login         # first time only
 
-# Set the auth token (must match APP_CONFIG.cardDAV.workerToken in the app):
+# Set the auth token (must match APP_CONFIG.iCloud.workerToken in the app):
 wrangler secret put WORKER_TOKEN
 
 # Deploy the Worker code:

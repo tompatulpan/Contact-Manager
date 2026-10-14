@@ -18,6 +18,7 @@
  */
 import { describe, it, expect } from '@jest/globals';
 import { VCard3Processor } from '../../src/core/VCard3Processor.js';
+import { ICloudCardDAVClient } from '../../src/integrations/ICloudCardDAVClient.js';
 
 const parsePhones = (vcard) => {
     const processor = new VCard3Processor();
@@ -190,7 +191,6 @@ describe('VCard3Processor — push format keeps labels visible on iCloud', () =>
 describe('ICloudCardDAVClient — TYPE parameter normalization on push', () => {
 
     const normalize = (vcard) => {
-        const { ICloudCardDAVClient } = require('../../src/integrations/ICloudCardDAVClient.js');
         const client = new ICloudCardDAVClient('user@icloud.com', 'app-password');
         return client.normalizeTypeParameters(client.normalizeVCardLineEndings(vcard));
     };

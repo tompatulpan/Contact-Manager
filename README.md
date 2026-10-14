@@ -19,7 +19,7 @@ I started this project because I was frustrated with how messy and inaccurate my
 A secure, modular contact management system with:
 - End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)
 - Real-time sharing and sync
-- vCard 3.0 (RFC 2426) for storage, export and CardDAV sync (imports vCard 3.0 and 4.0)
+- vCard 3.0 (RFC 2426) for storage, export and iCloud sync (imports vCard 3.0 and 4.0)
 - Distribution lists for group sharing
 - Cross-device support (web application)
 
@@ -31,15 +31,14 @@ A secure, modular contact management system with:
 - Import contacts (vCard 3.0/4.0), export as vCard 3.0
 - QR code generation - Scan to easely import contacts
 - Real-time updates and cross-device sync
-- **CardDAV Integration** - Sync with any CardDAV server (Baikal, Nextcloud, Radicale, ...)
-- **🆕 iCloud Sync** - Bidirectional sync with Apple iCloud via a CardDAV proxy Worker
+- **iCloud Sync** - Bidirectional CardDAV sync with Apple iCloud via a Cloudflare proxy Worker
 
 ## Project Structure
 
 ```
 src/                # Core business logic and UI components
 lib/                # Third-party SDKs (e.g., userbase.js)
-tests/              # Jest test suite (tests/icloud/, tests/worker/), manual debug pages (tests/manual/)
+tests/              # Jest test suite (tests/icloud/, tests/worker/, tests/sharing/), manual debug pages (tests/manual/)
 scripts/            # Development, cache-busting and deployment shell scripts
 docs/               # Historical design notes and fix documentation (docs/archive/)
 cloudflare-worker/  # CardDAV CORS proxy Worker (iCloud sync)
@@ -106,8 +105,8 @@ fish scripts/production_zip.sh && \
 - [ ] Add some missing export functionality
 - [ ] Improved import duplicate and merge functionality
 - [x] Sharing-lists (for better control and bulk sharing)
-- [x] **CardDAV Integration** (sync with any CardDAV server)
-- [x] **iCloud Sync** (bidirectional, via CardDAV proxy Worker)
+- [x] **iCloud Sync** (bidirectional CardDAV, via proxy Worker)
+- [ ] Generic CardDAV servers (Baikal, Nextcloud, Radicale) — removed 2026-10-14; the old path was broken in production and untested. Re-adding it needs a generic proxy allowlist and tests.
 - [ ] Group list features (Rename, edit, copy, etc)
 - [ ] Create e-mail distrubution list
 - [x] Bulk operations (Delete)
@@ -123,7 +122,7 @@ fish scripts/production_zip.sh && \
 ### Ideas
 - [x] A Progressive Web App (PWA)
 - [ ] An Electron or Tauri App
-- [x] Better integration on phones, CardDAV support
+- [x] Better integration on phones, iCloud/CardDAV support
 - [ ] Improve decentralization using userbase
 
 ```  
@@ -194,117 +193,43 @@ fish scripts/production_zip.sh && \
 
 
 ```                
-### Sync Flow Details with CardDAV
+### iCloud sync flow
 
-**Push (Contact Manager → Baikal)**
-- User updates contact in web app
-- Bridge uploads vCard via CardDAV PUT
-- Baikal stores and serves to other devices
+**Push (Contact Manager → iCloud)**
+- You create or edit a contact in the web app
+- `ICloudSyncService` PUTs the vCard 3.0 through the proxy Worker with `If-Match`/`If-None-Match`
+- iCloud serves it to your iPhone/iPad/Mac
 
-**Pull (Baikal → Contact Manager)**  
-- Other devices update contact via CardDAV
-- Bridge polls Baikal for changes (PROPFIND)
-- Contact Manager updates local storage
+**Pull (iCloud → Contact Manager)**
+- You edit a contact on an Apple device
+- The periodic cycle REPORTs the addressbook, matches by vCard UID and ETag
+- Owned/imported cards are updated locally; shared cards are never overwritten (owner authority) and are force-pushed back
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│            User's Contact Manager Account               │
-│                                                         │
-│  ┌───────────────────┐        ┌──────────────────┐      │
-│  │ Userbase Storage  │        │  User's Bridge   │      │
-│  │  (E2E Encrypted)  │◄──────►│   Component      │      │
-│  │                   │        │  (Per-User)      │      │
-│  │ - My Contacts     │        │                  │      │
-│  │ - Shared Contacts │        │  User Config:    │      │
-│  └───────────────────┘        │  • Baikal URL    │      │
-│                               │  • Username      │      │
-│                               │  • Password      │      │
-│                               │  • Sync Settings │      │
-│                               └────────┬─────────┘      │
-└────────────────────────────────────────┼────────────────┘
-                                         │
-                                         │ CardDAV Protocol
-                                         │ (Bidirectional Sync)
-                              ┌──────────────────────┐
-                              │  Baikal Server       │
-                              │  (CardDAV Endpoint)  │
-                              │                      │
-                              │  /dav.php/           │
-                              │  addressbooks/       │
-                              │  username/contacts/  │
-                              └──────────────────────┘
-
-
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Client Apps   │    │ Contact Manager │    │ Userbase.com    │
-│ (iOS, Android,  │◄──►│                 │◄──►│   (E2E Encrypted│
-│  Thunderbird)   │    │                 │    │    Storage)     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │
-         │                       │
-         └───────────────────────▼
-         ┌─────────────────────────────────────┐
-         │         Baikal Server               │
-         │    (CardDAV/CalDAV Server)          │
-         │                                     │
-         │  ┌─────────────────────────────┐    │
-         │  │    Bridge Component         │    │
-         │  │  (Sync Userbase ↔ Baikal)   │    │
-         │  └─────────────────────────────┘    │
-         └─────────────────────────────────────┘
-
-
-
-┌─────────────────────────────┐
-│    Contact Manager          │ ← Real-time sharing, E2E encryption
-│ (Userbase.com storage)      │ ← Advanced features: distribution lists, 
-│                             │   individual sharing, revocation
-└─────────────┬───────────────┘
-              │ Bridge Component
-              ▼
-┌─────────────────────────────┐
-│       Baikal Server         │ ← Standard CardDAV server
-│    (CardDAV endpoint)       │ ← Compatible with ALL devices
-└─────────────┬───────────────┘
-              │ Standard CardDAV Protocol
-              ▼
-┌─────────────────────────────┐
-│     Native Device Apps      │
-│ • iPhone Contacts           │
-│ • Android Contacts          │
-│ • Thunderbird Address Book  │
-│ • macOS Contacts            │
-│ • Any CardDAV client        │
-└─────────────────────────────┘
+┌─────────────────────┐   HTTPS    ┌─────────────────────┐  CardDAV  ┌──────────────────┐
+│  Contact Manager    │ ─────────► │  Cloudflare Worker  │ ────────► │  iCloud CardDAV  │
+│  (browser, E2E      │ ◄───────── │  carddav-proxy      │ ◄──────── │  contacts.icloud │
+│   encrypted store)  │            │  CORS + allowlist   │           │  .com            │
+└─────────────────────┘            └─────────────────────┘           └──────────────────┘
 ```
 ---
-## 🔗 CardDAV Integration
+## 🔗 iCloud Sync
 
-The contact manager supports synchronization with CardDAV servers. This enables:
-
-- **Universal Device Sync**: Access contacts on iPhone, Android, Thunderbird, etc.
-- **Standard Protocol**: Uses industry-standard CardDAV for maximum compatibility
-- **Bidirectional Sync**: Changes sync both ways between contact manager and CardDAV server
-- **Self-Service Setup**: No admin required - users configure their own connections
-
-There are two sync paths in the app:
-
-- **Generic CardDAV connector** (Baikal, Nextcloud, Radicale, ...): connects directly from the browser - no bridge server required.
-- **iCloud Sync**: syncs with Apple iCloud through a CardDAV CORS proxy Worker (`cloudflare-worker/`), required because of iCloud's CORS restrictions.
+The only external sync target is Apple iCloud. Because iCloud's CardDAV endpoint does not send CORS headers, requests go through a small Cloudflare Worker (`cloudflare-worker/`) that only forwards to `contacts.icloud.com` / `caldav.icloud.com`, checks the request origin, and forwards conditional (ETag) headers so edits are never silently overwritten.
 
 ### Quick Start
 ```bash
 npm run serve   # http://localhost:8080
 ```
 
-Open http://localhost:8080 and use the **iCloud Sync** button (iCloud) or the CardDAV account settings (other servers).
+Open http://localhost:8080, sign in, and use the **iCloud Sync** button with your Apple ID email and an app-specific password (appleid.apple.com → Sign-In and Security → App-Specific Passwords). Credentials can be stored encrypted in the browser so auto-sync resumes after a reload.
 
-The iCloud proxy Worker is deployed separately:
+The proxy Worker is deployed separately:
 ```bash
 cd cloudflare-worker && node_modules/.bin/wrangler deploy
 ```
 
-See **[BAIKAL_INTEGRATION.md](docs/archive/BAIKAL_INTEGRATION.md)** for the complete Baikal setup and configuration guide.
+See [ICLOUD_SYNC_REVIEW.md](ICLOUD_SYNC_REVIEW.md) for the sync rules and [FEATURE_CLEANUP_AND_REVIEW.md](FEATURE_CLEANUP_AND_REVIEW.md) for the cleanup plan.
 
 ## Acknowledgements
 

@@ -12,12 +12,6 @@ import { ContactUIController } from './ui/ContactUIController.js';
 import { ICloudTestController } from './ui/ICloudTestController.js';
 import { ICloudSyncService } from './integrations/ICloudSyncService.js';
 import { profileRouter } from './utils/ProfileRouter.js';
-import { APP_CONFIG } from './config/app.config.js';
-// 🆕 CardDAV Integration
-import { BaikalConnector } from './integrations/BaikalConnector.js';
-import { BaikalConfigManager } from './integrations/BaikalConfigManager.js';
-import { BaikalUIController } from './ui/BaikalUIController.js';
-import { VCard3Processor } from './core/VCard3Processor.js';
 
 /**
  * Main Application Class
@@ -81,14 +75,12 @@ class ContactManagementApp {
 
         // Make ContactManager available globally for console testing
         window.contactManager = this.modules.contactManager;
-        window.baikalConnector = this.modules.baikalConnector;
         window.database = this.modules.database;
         window.ICloudCardDAVClient = this.modules.ICloudCardDAVClient;
         window.iCloudSyncService = this.modules.iCloudSyncService;
         
         console.log('🧪 Debug helpers available:');
-        console.log('  - window.contactManager.recoverFromDatabaseCorruption(profileName)');
-        console.log('  - window.baikalConnector.testSync(profileName)');
+        console.log('  - window.contactManager.findAndDeleteCorruptedContacts()');
         console.log('  - window.database.getAllSharedContactDatabases()');
         console.log('  - window.ICloudCardDAVClient (for iCloud testing)');
         console.log('  - window.iCloudSyncService (for iCloud sync control)');
@@ -125,26 +117,9 @@ class ContactManagementApp {
             this.modules.validator
         );
         
-        // CardDAV integration modules (lite bridge - no HTTP server)
-        // Pass proxy configuration from APP_CONFIG
-        const cardDAVProxyConfig = {
-            proxyUrl: APP_CONFIG.cardDAV.proxyUrl,
-            useProxy: APP_CONFIG.cardDAV.useProxy,
-            fallbackToLocal: APP_CONFIG.cardDAV.fallbackToLocal
-        };
-        
-        this.modules.baikalConnector = new BaikalConnector(this.eventBus, cardDAVProxyConfig);
-        this.modules.baikalConfigManager = new BaikalConfigManager(
-            this.eventBus,
-            this.modules.database
-        );
-        
         // 🍎 iCloud CardDAV Client (direct CORS proxy integration)
         const { ICloudCardDAVClient } = await import('./integrations/ICloudCardDAVClient.js');
         this.modules.ICloudCardDAVClient = ICloudCardDAVClient;
-        
-        // VCard3 processor for format conversion
-        this.modules.vCard3Processor = new VCard3Processor({});
         
         // IMPORTANT: Do NOT initialize database here - let UI Controller handle it optimally
         // The optimizedAuthenticationCheck() will decide when/how to initialize database
@@ -161,14 +136,6 @@ class ContactManagementApp {
             this.modules.contactManager
         );
 
-        // 🆕 Initialize Baikal UI controller
-        this.modules.baikalUIController = new BaikalUIController(
-            this.eventBus,
-            this.modules.baikalConnector,
-            this.modules.baikalConfigManager,
-            this.modules.contactManager  // ⭐ Add ContactManager reference
-        );
-
         // 🍎 Initialize iCloud sync service
         this.modules.iCloudSyncService = new ICloudSyncService(
             this.eventBus,
@@ -183,18 +150,11 @@ class ContactManagementApp {
             this.modules.ICloudCardDAVClient
         );
 
-        // ⭐ Set ContactManager reference in BaikalConnector
-        this.modules.baikalConnector.contactManager = this.modules.contactManager;
-        
-        // ⭐ Set BaikalConnector reference in ContactManager
-        this.modules.contactManager.setBaikalConnector(this.modules.baikalConnector);
-
         // 🍎 Set iCloudSyncService reference in ContactManager
         this.modules.contactManager.setiCloudSyncService(this.modules.iCloudSyncService);
 
         // Initialize UI controllers
         await this.modules.uiController.initialize();
-        this.modules.baikalUIController.initialize();
     }
 
     /**
@@ -243,41 +203,6 @@ class ContactManagementApp {
         // Handle contact manager initialization
         this.eventBus.on('contactManager:initialized', (data) => {
             // Contact manager ready with ${data.contactCount} contacts
-        });
-
-        // 🆕 Handle Baikal integration events
-        this.eventBus.on('baikal:configurationSaved', (data) => {
-            this.showToast(`Baikal profile "${data.profileName}" configured`, 'success');
-        });
-
-        this.eventBus.on('baikal:configurationDeleted', (data) => {
-            this.showToast(`Baikal profile "${data.profileName}" deleted`, 'info');
-        });
-
-        this.eventBus.on('contact:importFromBaikal', async (data) => {
-            try {
-                // Import contact from Baikal using vCard format
-                
-                const result = await this.modules.contactManager.importContactFromVCard(
-                    data.contact.vcard,
-                    data.contact.cardName,
-                    true // markAsImported
-                );
-                
-                if (result.success) {
-                    
-                    // Update UI if contact view is active
-                    this.eventBus.emit('contact:imported', {
-                        contact: result.contact,
-                        source: 'baikal',
-                        profileName: data.profileName
-                    });
-                } else {
-                    console.error('❌ Failed to import contact from Baikal:', result.error);
-                }
-            } catch (error) {
-                console.error('❌ Error importing contact from Baikal:', error);
-            }
         });
 
         this.eventBus.on('notification:show', (data) => {

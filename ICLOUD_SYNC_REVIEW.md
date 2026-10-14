@@ -188,9 +188,16 @@ Live testing confirmed the CD-05 concern: deleting an owned (blue) card on iClou
 
 Tests updated: remote-delete-wins test now uses an imported card; new test asserts owned survival + sync-state reset + `shouldPushContact` armed for re-create. Jest 60/60.
 
+### 2026-10-14 update: generic CardDAV path removed
+
+`BaikalConnector`, `CardDAVBridgeAdapter`, `BaikalUIController`, `BaikalConfigManager`, `SyncValidator`, `BaikalURLHelper` and `contact-carddav-bridge-lite/` were deleted (see `FEATURE_CLEANUP_AND_REVIEW.md` §3). Consequences for this document:
+
+- **IS-06** (BaikalConnector shared the iCloud-only proxy) — closed by removal.
+- **Full IS-11 per-target namespacing** — no longer needed; only one target writes `metadata.carddav`. The `source === 'iCloud'` guard stays to ignore legacy Baikal-written metadata already in user databases.
+- `ContactManager.updateContactCardDAVMetadata()` (the un-tagged writer referenced in IS-11 and `deletion.test.js`) no longer exists.
+
 ### Remaining known gaps
 
-- **Per-target carddav namespacing (full IS-11):** Baikal and iCloud still share one `metadata.carddav` object. The `source === 'iCloud'` guard prevents cross-server deletions and cross-etag `If-Match`, but a contact synced to both servers can still have one server's etag clobbered by the other. Implement `metadata.carddav.icloud` / `metadata.carddav.baikal[profileName]` before supporting both simultaneously.
 - **IS-09:** `testConnect()` still builds its own client; route connection through `ICloudSyncService.initialize()`.
 - **Worker deployment:** the deployed production Worker still runs the old code until `wrangler deploy` is run; until then ETag concurrency remains a no-op in production (IS-10) and the old public token remains valid (IS-02).
 - **`ICloudCardDAVClient` unit tests:** XML parsing, discovery and ETag handling are only covered by manual diagnostic pages.

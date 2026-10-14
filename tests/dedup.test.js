@@ -12,7 +12,7 @@ import { EventBus } from '../src/utils/EventBus.js';
 import { VCardStandard } from '../src/core/VCardStandard.js';
 import { ContactValidator } from '../src/core/ContactValidator.js';
 import { ContactManager } from '../src/core/ContactManager.js';
-import { MockDatabase } from '../src/utils/TestHelpers.js';
+import { MockDatabase } from './TestHelpers.js';
 
 beforeAll(() => {
     // Some paths in ContactManager reference userbase
