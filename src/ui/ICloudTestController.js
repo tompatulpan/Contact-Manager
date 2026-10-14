@@ -467,7 +467,11 @@ END:VCARD\r
 
             // Update UI
             document.getElementById('icloud-start-autosync-btn').style.display = 'none';
-            document.getElementById('icloud-stop-autosync-btn').style.display = 'inline-block';
+            const stopBtn = document.getElementById('icloud-stop-autosync-btn');
+            // The button is created disabled in the markup; showing it is
+            // not enough — it must also be enabled or clicks are ignored
+            stopBtn.disabled = false;
+            stopBtn.style.display = 'inline-block';
             document.getElementById('icloud-sync-now-btn').disabled = false;
             document.getElementById('icloud-sync-interval').disabled = true;
 
@@ -526,7 +530,11 @@ END:VCARD\r
             const startBtn = document.getElementById('icloud-start-autosync-btn');
             const stopBtn = document.getElementById('icloud-stop-autosync-btn');
             if (startBtn) startBtn.style.display = 'none';
-            if (stopBtn) stopBtn.style.display = 'inline-block';
+            if (stopBtn) {
+                // Enable as well as show — the markup ships it disabled
+                stopBtn.disabled = false;
+                stopBtn.style.display = 'inline-block';
+            }
         } catch (e) {
             /* storage unavailable (private browsing) — nothing to resume */
         }
@@ -547,7 +555,9 @@ END:VCARD\r
 
         // Update UI
         document.getElementById('icloud-start-autosync-btn').style.display = 'inline-block';
-        document.getElementById('icloud-stop-autosync-btn').style.display = 'none';
+        const stopBtn = document.getElementById('icloud-stop-autosync-btn');
+        stopBtn.disabled = true;
+        stopBtn.style.display = 'none';
         document.getElementById('icloud-sync-now-btn').disabled = true;
         document.getElementById('icloud-sync-interval').disabled = false;
     }
