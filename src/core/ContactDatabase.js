@@ -268,19 +268,6 @@ export class ContactDatabase {
     }
 
     /**
-     * Clear application session data - SDK compliant
-     */
-    clearSessionData() {
-        this.currentUser = null;
-        this.contacts.clear();
-        this.sharedContacts.clear();
-        this.sharedContactMetadata.clear();
-        this.userSettings.clear();
-        this.activityLog.clear();
-        
-    }
-
-    /**
      * Sleep utility for retry delays
      * @param {number} ms - Milliseconds to sleep
      */
@@ -3318,13 +3305,33 @@ export class ContactDatabase {
 
     /**
      * Clear session-specific data
+     *
+     * Single consolidated definition. (An older duplicate near the top of
+     * the class was dead code — later class methods override earlier ones,
+     * and its body referenced fields that no longer exist — so it was
+     * removed. This one is the method all call sites execute.)
      */
     clearSessionData() {
+        // Browser session keys
         localStorage.removeItem('userbase-remember-me');
         sessionStorage.removeItem('userbase-session-only');
         sessionStorage.removeItem('userbase-page-loaded');
+
+        // Auth state
         this.currentUser = null;
         this.isInitialized = false;
+
+        // In-memory session state: the previous user's data must not leak
+        // into the next session (sharedDatabaseCache serves stale database
+        // lists for up to its 30s TTL, openedSharedDatabases would skip
+        // reopening databases with a colliding name)
+        this.settingsItems = [];
+        this.sharedContactMetaItems = null;
+        this.databaseStates.clear();
+        this.openedSharedDatabases.clear();
+        this.lastKnownSharedCount = 0;
+        this.sharedDatabaseCache.isValid = false;
+        this.sharedDatabaseCache.data = null;
 
         // Reset sync-readiness state so a new session rebuilds it
         this.contactsInitialLoadDeferred = null;

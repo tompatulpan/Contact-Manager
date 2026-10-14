@@ -92,16 +92,26 @@ describe('ContactDatabase — waitForContactDataReady', () => {
         await db.waitForContactDataReady(1000); // must not hang or throw
     });
 
-    it('clearSessionData resets readiness state', () => {
+    it('clearSessionData resets readiness state and session caches', () => {
         const db = buildDb();
         db.contactsInitialLoadDeferred = db._createInitialLoadDeferred();
         db.sharedInitialLoadDeferreds.add(db._createInitialLoadDeferred());
         db._cacheSharedDbUids('db-received-1', [BOB_ITEM]);
+        db.settingsItems = [{ setting: 'previous user' }];
+        db.sharedContactMetaItems = [{ meta: 'previous user' }];
+        db.openedSharedDatabases.add('shared-contact-x-to-y');
+        db.sharedDatabaseCache.isValid = true;
+        db.sharedDatabaseCache.data = { receivedSharedDatabases: [{}] };
 
         db.clearSessionData();
 
         expect(db.contactsInitialLoadDeferred).toBeNull();
         expect(db.sharedInitialLoadDeferreds.size).toBe(0);
         expect(db.isSharedContactUID('uid-bob-shared-001')).toBe(false);
+        expect(db.settingsItems).toEqual([]);
+        expect(db.sharedContactMetaItems).toBeNull();
+        expect(db.openedSharedDatabases.size).toBe(0);
+        expect(db.sharedDatabaseCache.isValid).toBe(false);
+        expect(db.sharedDatabaseCache.data).toBeNull();
     });
 });
