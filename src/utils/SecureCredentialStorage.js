@@ -270,9 +270,19 @@ export class SecureCredentialStorage {
                         const credentials = JSON.parse(decrypted);
                         return { success: true, credentials, method: 'encrypted_localStorage' };
                     } else if (encrypted) {
-                        // Try plain localStorage
-                        const credentials = JSON.parse(encrypted);
-                        return { success: true, credentials, method: 'localStorage_plain' };
+                        // Plaintext credentials are never returned (SEC-03). If the
+                        // stored value is parseable JSON with a password, it is a
+                        // leftover from the removed plaintext write path — delete it
+                        // so it stops sitting in localStorage; the user re-enters.
+                        try {
+                            const legacy = JSON.parse(encrypted);
+                            if (legacy && typeof legacy === 'object' && 'password' in legacy) {
+                                localStorage.removeItem(`${this.storagePrefix}${profileName}`);
+                                console.warn('⚠️ Removed legacy plaintext credentials; re-enter them to continue');
+                            }
+                        } catch (parseError) {
+                            // Encrypted value without a derivable key — unusable either way.
+                        }
                     }
                 } catch (error) {
                     console.warn('⚠️ localStorage retrieval failed:', error.message);

@@ -196,6 +196,10 @@ Tests updated: remote-delete-wins test now uses an imported card; new test asser
 - **Full IS-11 per-target namespacing** — no longer needed; only one target writes `metadata.carddav`. The `source === 'iCloud'` guard stays to ignore legacy Baikal-written metadata already in user databases.
 - `ContactManager.updateContactCardDAVMetadata()` (the un-tagged writer referenced in IS-11 and `deletion.test.js`) no longer exists.
 
+### 2026-10-14 (later): S-1 implemented
+
+The §7 S-1 proposal is implemented: a `metadata.carddav.dirty` boolean replaces the timestamp comparison in `shouldPushContact()` (read via `ICloudSyncService.isDirty()`, with a timestamp fallback for pre-flag contacts). `ContactManager.updateContact()` and restore-from-archive set the flag; every successful push/pull sync write clears it. Pull now skips dirty cards, so a remote change can no longer clobber an un-pushed local edit. Regression tests: `push.test.js`, `pull.test.js` (S-1 cases). The IC-06 synthetic `shared-contact@userbase.app` email injection in `forcePushSharedContact()` was also removed (`shared.test.js`).
+
 ### Remaining known gaps
 
 - **IS-09:** `testConnect()` still builds its own client; route connection through `ICloudSyncService.initialize()`.

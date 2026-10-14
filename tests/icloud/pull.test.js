@@ -125,6 +125,38 @@ describe('pullFromICloud()', () => {
         expect(updated?.vcard).toContain('alice.updated@example.com');
     });
 
+    it('does NOT clobber a dirty local edit when the iCloud ETag differs (S-1)', async () => {
+        // Alice has an un-pushed local edit; iCloud has a different (remote) version.
+        const alice = buildContact(ALICE_UID, OWNED_VCARD, {
+            cardName: 'Alice Owned',
+            metadata: {
+                isOwned: true,
+                carddav: {
+                    etag: '"etag-alice-v1"',
+                    href: '/card/uid-alice-owned-001.vcf',
+                    lastSyncedAt: new Date(Date.now() - 60_000).toISOString(),
+                    dirty: true,
+                    source: 'iCloud',
+                },
+            },
+        });
+
+        const { service, contactManager } = await buildTestService(
+            { fetchContacts: FETCH_OWNED_UPDATED_REMOTELY },
+            [alice],
+        );
+
+        const result = await service.pullFromICloud();
+
+        // Local version wins; push will reconcile iCloud instead
+        expect(result.updated).toBe(0);
+        const local = [...contactManager.contacts.values()].find(
+            c => c.vcard?.includes(ALICE_UID)
+        );
+        expect(local?.vcard).toBe(OWNED_VCARD);
+        expect(local?.metadata?.carddav?.dirty).toBe(true);
+    });
+
     it('handles a mix of new + in-sync contacts correctly', async () => {
         const alice = buildContact(ALICE_UID, OWNED_VCARD, {
             cardName: 'Alice Owned',

@@ -119,4 +119,29 @@ describe('refreshSharedContactsToICloud()', () => {
         expect(result.refreshed).toBe(0);
     });
 
+    it('pushes a shared contact without an EMAIL unchanged (no synthetic placeholder)', async () => {
+        const noEmailVCard = SHARED_VCARD.replace(/EMAIL[^\r\n]*\r?\n/, '');
+        expect(noEmailVCard).not.toMatch(/^EMAIL/m);
+
+        const bob = buildSharedContact(BOB_UID, noEmailVCard, 'alice-user', {
+            cardName: 'Bob Shared',
+        });
+
+        const { service, mockClient } = await buildTestService(
+            {
+                fetchContacts: FETCH_EMPTY,  // not on iCloud yet → createContact
+                createContact: CREATE_SUCCESS,
+            },
+            [bob],
+        );
+
+        const result = await service.refreshSharedContactsToICloud();
+
+        expect(mockClient.createContact).toHaveBeenCalled();
+        expect(result.refreshed).toBeGreaterThanOrEqual(1);
+        const pushedVCard = mockClient.createContact.mock.calls[0][0];
+        expect(pushedVCard).not.toContain('shared-contact@userbase.app');
+        expect(pushedVCard).toBe(noEmailVCard);
+    });
+
 });

@@ -30,6 +30,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
     <meta name="theme-color" content="#228be6">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Kontakt">
@@ -393,16 +394,16 @@
             </div>
             <div class="modal-body">
                 <div id="contact-form-container">
-                    <form id="contact-form" class="contact-form">
+                    <form id="contact-form" class="contact-form" autocomplete="off">
                         <div class="form-group">
                             <label for="fullName">Full Name *</label>
-                            <input type="text" id="fullName" name="fullName" required>
+                            <input type="text" id="fullName" name="fullName" autocomplete="off" required>
                             <div class="field-error" id="fullName-error"></div>
                         </div>
                         
                         <div class="form-group">
                             <label for="cardName">Card Name</label>
-                            <input type="text" id="cardName" name="cardName" placeholder="e.g., Work, Personal">
+                            <input type="text" id="cardName" name="cardName" placeholder="e.g., Work, Personal" autocomplete="off">
                             <div class="field-error" id="cardName-error"></div>
                         </div>
                         
@@ -619,7 +620,8 @@
                             <div class="form-group">
                                 <label for="share-username">Share with Username(s) *</label>
                                 <div class="input-group">
-                                    <input type="text" id="share-username" name="username" 
+                                    <input type="text" id="share-username" name="recipientUsernames"
+                                           autocomplete="off" autocapitalize="none" spellcheck="false"
                                            placeholder="Enter username(s), comma-separated..." required>
                                     <button type="button" id="get-verification-btn" class="btn btn-secondary">
                                         <i class="fas fa-key"></i> Get My Code
@@ -681,21 +683,12 @@
                             </div>
                         </div>
 
-                        <!-- Sharing Options -->
-                        <div class="form-group">
-                            <label class="checkbox-item">
-                                <input type="checkbox" id="share-readonly" name="readonly" checked>
-                                <span>Read-only access (recipient cannot edit)</span>
-                            </label>
-                            <small class="form-help-text" style="margin-left: 28px; display: block; color: #888; margin-top: 4px; font-size: 0.85em;">
-                                ℹ️ Recommended: Prevents accidental changes. Uncheck to allow collaborative editing.
-                            </small>
-                        </div>
+                        <p class="form-help-text">Shared contacts are read-only and cannot be reshared.</p>
                         
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. All shares are individual - you can revoke access from specific users at any time. Use comma-separated usernames or groups for convenience.</p>
+                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. Shared contacts are read-only and cannot be reshared. Use comma-separated usernames or groups for convenience.</p>
                                 </div>
                             </div>                        <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -822,12 +815,13 @@
                         <div class="form-group">
                             <label for="new-username">Add Username</label>
                             <div class="input-group">
-                                <input type="text" id="new-username" placeholder="Enter username (or multiple separated by commas)">
+                                <input type="text" id="new-username" autocomplete="off" autocapitalize="none"
+                                       spellcheck="false" placeholder="Enter username (or multiple separated by commas)">
                                 <button type="button" id="add-username-btn" class="btn btn-primary">
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
-                            <small class="help-text">💡 Tip: Add multiple users at once using commas (e.g., alice, bob, charlie)</small>
+                            <small class="help-text">Add multiple users with commas. Usernames are validated when you share a contact, not when you add them here. Group membership only affects future shares; adding a username does not grant access to contacts shared earlier, and removing one does not revoke existing shares.</small>
                         </div>
                         
                         <div class="current-usernames">
@@ -1054,9 +1048,9 @@
             </div>
             <div class="modal-body">
                 <div class="info-box">
-                    <strong>🍎 iCloud requires a separate implementation due to CORS restrictions</strong><br>
-                    Uses Cloudflare CORS proxy: <code>https://carddav-proxy.data4-9de.workers.dev</code><br>
-                    <small>⚠️ For standard CardDAV servers (Baikal, Radicale, Nextcloud), use the generic CardDAV connector instead</small>
+                    <strong>🍎 Two-way sync with your iCloud contacts</strong><br>
+                    Requests go through a Cloudflare CORS proxy: <code>https://carddav-proxy.data4-9de.workers.dev</code><br>
+                    <small>Use an app-specific password from appleid.apple.com — your Apple ID password will not work.</small>
                 </div>
 
                 <div class="form-section">
@@ -1122,7 +1116,6 @@
     <!-- Scripts -->
     <script src="lib/userbase.js" integrity="sha384-KGH+/t6eJhfqHsVpwpMLIyZxYg5IlTbv7d2K0Ut+GCz40StPO7YwezYLgt4uPyFj" crossorigin="anonymous"></script>
     <script src="src/ui/components/qrcode.js"></script>
-    <script src="src/utils/UserbaseConnectionFix.js"></script>
     <script src="src/utils/ThemeManager.js"></script>
     <script type="module" src="src/app.js"></script>
 

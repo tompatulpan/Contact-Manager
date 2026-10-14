@@ -115,6 +115,67 @@ describe('pushToICloud()', () => {
         expect(result.skipped).toBeGreaterThanOrEqual(1);
     });
 
+    it('pushes a contact whose dirty flag is set even if timestamps look clean (S-1)', async () => {
+        const now = new Date().toISOString();
+
+        const alice = buildContact(ALICE_UID, OWNED_VCARD, {
+            cardName: 'Alice Owned',
+            metadata: {
+                isOwned: true,
+                lastUpdated: new Date(Date.now() - 30_000).toISOString(), // modified 30s ago
+                carddav: {
+                    etag: '"etag-alice-v1"',
+                    href: '/card/uid-alice-owned-001.vcf',
+                    lastSyncedAt: now, // ← synced after modification…
+                    dirty: true,       // …but an edit is still un-pushed
+                    source: 'iCloud',
+                },
+            },
+        });
+
+        const { service, mockClient } = await buildTestService(
+            {
+                fetchContacts: FETCH_EMPTY,
+                updateContact: UPDATE_SUCCESS,
+            },
+            [alice],
+        );
+
+        await service.pushToICloud();
+
+        expect(mockClient.updateContact).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips a contact whose dirty flag is false even if lastUpdated is newer (S-1)', async () => {
+        const past = new Date(Date.now() - 60_000).toISOString();
+
+        const alice = buildContact(ALICE_UID, OWNED_VCARD, {
+            cardName: 'Alice Owned',
+            metadata: {
+                isOwned: true,
+                lastUpdated: new Date().toISOString(), // modified "now"
+                carddav: {
+                    etag: '"etag-alice-v1"',
+                    href: '/card/uid-alice-owned-001.vcf',
+                    lastSyncedAt: past, // ← timestamp comparison would push…
+                    dirty: false,       // …but the flag says: no un-pushed edits
+                    source: 'iCloud',
+                },
+            },
+        });
+
+        const { service, mockClient } = await buildTestService(
+            { fetchContacts: FETCH_EMPTY },
+            [alice],
+        );
+
+        const result = await service.pushToICloud();
+
+        expect(mockClient.createContact).not.toHaveBeenCalled();
+        expect(mockClient.updateContact).not.toHaveBeenCalled();
+        expect(result.skipped).toBeGreaterThanOrEqual(1);
+    });
+
     it('skips an archived contact', async () => {
         const alice = buildContact(ALICE_UID, OWNED_VCARD, {
             cardName: 'Alice Owned',

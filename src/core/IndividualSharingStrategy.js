@@ -487,16 +487,18 @@ export class IndividualSharingStrategy {
                             });
                             
                             if (!hasItems) {
-                                return { 
-                                    database: dbName, 
+                                return {
+                                    dbName,
+                                    username: this.extractUsernameFromDbName(dbName),
                                     success: true, 
                                     message: 'Skipped - database is empty',
                                     skipped: true 
                                 };
                             }
                         } catch (checkError) {
-                            return { 
-                                database: dbName, 
+                            return {
+                                dbName,
+                                username: this.extractUsernameFromDbName(dbName),
                                 success: true, 
                                 message: 'Skipped - database not accessible',
                                 skipped: true 

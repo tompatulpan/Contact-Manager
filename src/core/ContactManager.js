@@ -431,6 +431,11 @@ export class ContactManager {
                 metadata: {
                     ...existingContact.metadata,
                     lastUpdated: new Date().toISOString(),
+                    // S-1: mark for iCloud push; cleared when the push succeeds
+                    carddav: {
+                        ...(existingContact.metadata.carddav || {}),
+                        dirty: true
+                    },
                     distributionLists: sanitizedData.distributionLists || existingContact.metadata.distributionLists,
                     sync: {
                         ...(existingContact.metadata.sync || {}),
@@ -806,7 +811,12 @@ export class ContactManager {
                         archiveReason: null,
                         restoredAt: new Date().toISOString(),
                         restoredBy: this.database.currentUser?.userId,
-                        lastUpdated: new Date().toISOString()
+                        lastUpdated: new Date().toISOString(),
+                        // S-1: card is active again — ensure iCloud gets the current version
+                        carddav: {
+                            ...(contact.metadata.carddav || {}),
+                            dirty: true
+                        }
                     }
                 };
 

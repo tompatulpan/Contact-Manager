@@ -363,6 +363,7 @@ export class ICloudSyncService {
                                     etag: iCloudContact.etag,
                                     href: iCloudContact.href,
                                     lastSyncedAt: new Date().toISOString(), // ✅ Just synced with iCloud
+                                    dirty: false,
                                     syncStatus: 'synced'
                                 };
                                 await this.contactManager.database.updateContact(contact);
@@ -383,6 +384,16 @@ export class ICloudSyncService {
                         
                         if (localETag !== iCloudETag) {
                             // ETag mismatch → iCloud version is different
+
+                            // S-1: local edits that were not pushed yet always win.
+                            // Pull must never clobber them; the push cycle will
+                            // update iCloud instead.
+                            if (this.isDirty(localContact)) {
+                                console.log(`⏭️ Keeping local version (un-pushed edits): ${localContact.cardName}`);
+                                skipped++;
+                                continue;
+                            }
+
                             console.log(`🔄 Updating contact from iCloud: ${localContact.cardName}`);
                             console.log(`   Local ETag: ${localETag || 'none'}`);
                             console.log(`   iCloud ETag: ${iCloudETag}`);
@@ -408,6 +419,7 @@ export class ICloudSyncService {
                                     etag: iCloudETag,
                                     href: iCloudContact.href,
                                     lastSyncedAt: new Date().toISOString(), // ✅ Just synced with iCloud
+                                    dirty: false,
                                     syncStatus: 'synced'
                                 };
                                 
@@ -634,6 +646,7 @@ export class ICloudSyncService {
                     etag: result.etag,
                     href: result.href || contact.metadata.carddav?.href,
                     lastSyncedAt: new Date().toISOString(),
+                    dirty: false,
                     syncStatus: 'synced'
                 };
                 await this.contactManager.database.updateContact(contact);
@@ -852,6 +865,7 @@ export class ICloudSyncService {
                                             // Owned/imported: update database
                                             contact.metadata.carddav.etag = retryResult.etag;
                                             contact.metadata.carddav.lastSyncedAt = new Date().toISOString();
+                                            contact.metadata.carddav.dirty = false;
                                             contact.metadata.carddav.syncStatus = 'synced';
                                             await this.contactManager.database.updateContact(contact);
                                         }
@@ -944,6 +958,7 @@ export class ICloudSyncService {
                                         href: retryResult.href,
                                         uid: matchingContact.uid,
                                         lastSyncedAt: new Date().toISOString(),
+                                        dirty: false,
                                         syncStatus: 'synced'
                                     };
                                     
@@ -1081,6 +1096,7 @@ export class ICloudSyncService {
                                         href: retryResult.href,
                                         uid: matchingContact.uid,
                                         lastSyncedAt: new Date().toISOString(),
+                                        dirty: false,
                                         syncStatus: 'synced'
                                     };
                                     
@@ -1147,6 +1163,7 @@ export class ICloudSyncService {
                                     href: createResult.href,
                                     uid: createResult.uid,
                                     lastSyncedAt: new Date().toISOString(), // PUSH timestamp
+                                    dirty: false,
                                     syncStatus: 'synced'
                                 };
                                 
@@ -1243,6 +1260,7 @@ export class ICloudSyncService {
                                 href: result.href,
                                 uid: result.uid,
                                 lastSyncedAt: new Date().toISOString(), // PUSH timestamp
+                                dirty: false,
                                 syncStatus: 'synced'
                             };
                             
@@ -1298,17 +1316,7 @@ export class ICloudSyncService {
     async forcePushSharedContact(contact) {
         try {
             const uid = this.extractUIDFromVCard(contact.vcard);
-            
-            // Prepare vCard for push (ensure EMAIL property for iCloud)
-            let cleanVCard = contact.vcard;
-            
-            // Check for EMAIL property (iCloud requirement)
-            const hasEmail = /^EMAIL[;:]/m.test(cleanVCard);
-            if (!hasEmail) {
-                console.warn(`⚠️ Shared contact "${contact.cardName}" has no EMAIL, adding placeholder`);
-                // Add placeholder email before END:VCARD
-                cleanVCard = cleanVCard.replace(/END:VCARD/, 'EMAIL:shared-contact@userbase.app\nEND:VCARD');
-            }
+            const cleanVCard = contact.vcard;
             
             // Force-push with etag: null to override any external changes.
             // Only trust an etag written by this service — legacy CardDAV
@@ -1480,12 +1488,12 @@ export class ICloudSyncService {
             return { push: true, reason: 'not yet synced to iCloud' };
         }
         
-        // Check if contact was modified after last sync
-        const lastSynced = carddavMeta.lastSyncedAt ? new Date(carddavMeta.lastSyncedAt) : null;
-        const lastModified = new Date(contact.metadata.lastUpdated);
-        
-        if (!lastSynced || lastModified > lastSynced) {
-            return { push: true, reason: 'modified locally' };
+        // S-1: the dirty flag is the single source of truth for "has local
+        // edits that were not pushed yet". Pre-existing contacts whose flag
+        // was never written fall back to the legacy timestamp comparison so
+        // no pending edit is missed before the first push stamps the flag.
+        if (this.isDirty(contact)) {
+            return { push: true, reason: 'modified locally (dirty)' };
         }
         
         // Contact is up to date
@@ -1502,6 +1510,32 @@ export class ICloudSyncService {
     isICloudSynced(contact) {
         return contact.metadata?.carddav?.source === 'iCloud' &&
             !!contact.metadata?.carddav?.etag;
+    }
+
+    /**
+     * S-1 dirty flag: `metadata.carddav.dirty === true` means the local card
+     * has changes that have not been pushed to iCloud yet. Set by
+     * `ContactManager` on every local edit, cleared on every successful
+     * push/pull sync write. Contacts written before the flag existed
+     * (`dirty === undefined`) fall back to the legacy timestamp comparison
+     * until their first sync stamps the flag.
+     */
+    isDirty(contact) {
+        const carddav = contact.metadata?.carddav;
+        if (carddav?.dirty === true) {
+            return true;
+        }
+        // Pre-flag contacts (dirty never written): fall back to the legacy
+        // timestamp signal, but only when lastSyncedAt exists — contacts
+        // synced before that field was introduced must not read as dirty.
+        if (carddav && carddav.dirty === undefined && carddav.lastSyncedAt) {
+            const lastSynced = new Date(carddav.lastSyncedAt);
+            const lastModified = new Date(contact.metadata.lastUpdated);
+            if (lastModified > lastSynced) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
