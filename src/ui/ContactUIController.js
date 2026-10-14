@@ -3913,7 +3913,7 @@ export class ContactUIController {
         if (shareType === 'contact') {
             // Get form data for single or multiple user sharing
             const formData = new FormData(event.target);
-            const usernameInput = formData.get('username')?.trim();
+            const usernameInput = formData.get('recipientUsernames')?.trim();
             
             // Validate input
             if (!usernameInput) {

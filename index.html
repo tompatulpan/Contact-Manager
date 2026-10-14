@@ -30,6 +30,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
     <meta name="theme-color" content="#228be6">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Kontakt">
@@ -619,7 +620,8 @@
                             <div class="form-group">
                                 <label for="share-username">Share with Username(s) *</label>
                                 <div class="input-group">
-                                    <input type="text" id="share-username" name="username" 
+                                    <input type="text" id="share-username" name="recipientUsernames"
+                                           autocomplete="off" autocapitalize="none" spellcheck="false"
                                            placeholder="Enter username(s), comma-separated..." required>
                                     <button type="button" id="get-verification-btn" class="btn btn-secondary">
                                         <i class="fas fa-key"></i> Get My Code
@@ -813,7 +815,8 @@
                         <div class="form-group">
                             <label for="new-username">Add Username</label>
                             <div class="input-group">
-                                <input type="text" id="new-username" placeholder="Enter username (or multiple separated by commas)">
+                                <input type="text" id="new-username" autocomplete="off" autocapitalize="none"
+                                       spellcheck="false" placeholder="Enter username (or multiple separated by commas)">
                                 <button type="button" id="add-username-btn" class="btn btn-primary">
                                     <i class="fas fa-plus"></i> Add
                                 </button>

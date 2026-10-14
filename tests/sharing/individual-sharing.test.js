@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { IndividualSharingStrategy } from '../../src/core/IndividualSharingStrategy.js';
+import { ContactDatabase } from '../../src/core/ContactDatabase.js';
 
 class FakeDatabase {
     constructor() {
@@ -63,7 +64,13 @@ class FakeDatabase {
     }
 
     async safeModifyDatabasePermissions(params) {
-        this.calls.push(['safeModifyDatabasePermissions', params.databaseName, params.username, params.revoke]);
+        this.calls.push([
+            'safeModifyDatabasePermissions',
+            params.databaseName,
+            params.username,
+            params.readOnly,
+            params.revoke
+        ]);
         if (this.failPermissionWith) {
             const err = new Error(this.failPermissionWith);
             err.name = this.failPermissionWith;
@@ -176,7 +183,7 @@ describe('IndividualSharingStrategy — revocation (SH-01)', () => {
         expect(result.permissionRevoked).toBe(true);
         expect(db.databases.get('shared-contact-abc123-to-bob')).toHaveLength(0);
         expect(db.calls).toContainEqual(['safeDeleteItem', 'shared-contact-abc123-to-bob', 'contact_abc123']);
-        expect(db.calls).toContainEqual(['safeModifyDatabasePermissions', 'shared-contact-abc123-to-bob', 'bob', true]);
+        expect(db.calls).toContainEqual(['safeModifyDatabasePermissions', 'shared-contact-abc123-to-bob', 'bob', undefined, true]);
     });
 
     it('is idempotent: a second revoke still revokes permission and succeeds', async () => {
@@ -188,7 +195,27 @@ describe('IndividualSharingStrategy — revocation (SH-01)', () => {
         expect(result.success).toBe(true);
         expect(result.itemDeleted).toBe(false);
         expect(db.calls.some(c => c[0] === 'safeDeleteItem')).toBe(false);
-        expect(db.calls).toContainEqual(['safeModifyDatabasePermissions', 'shared-contact-abc123-to-bob', 'bob', true]);
+        expect(db.calls).toContainEqual(['safeModifyDatabasePermissions', 'shared-contact-abc123-to-bob', 'bob', undefined, true]);
+    });
+
+    it('validates revocation without readOnly and still requires it for permission changes', () => {
+        const validate = ContactDatabase.prototype.validateModifyDatabasePermissionsParams;
+
+        expect(validate({
+            databaseName: 'shared-contact-abc123-to-bob',
+            username: 'bob',
+            revoke: true
+        }).isValid).toBe(true);
+        expect(validate({
+            databaseName: 'shared-contact-abc123-to-bob',
+            username: 'bob',
+            revoke: true,
+            readOnly: true
+        }).errors[0]).toMatch(/readOnly must be omitted/);
+        expect(validate({
+            databaseName: 'shared-contact-abc123-to-bob',
+            username: 'bob'
+        }).errors[0]).toMatch(/readOnly is required/);
     });
 
     it('treats "recipient no longer has access" as already revoked', async () => {

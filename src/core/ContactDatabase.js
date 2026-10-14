@@ -1088,8 +1088,12 @@ export class ContactDatabase {
             errors.push('UsernameCannotBeBlank: username cannot be blank');
         }
         
-        // readOnly validation (required)
-        if (params.readOnly === undefined || params.readOnly === null) {
+        // Userbase forbids readOnly when revoking access; otherwise it is required.
+        if (params.revoke === true) {
+            if (params.readOnly !== undefined) {
+                errors.push('ReadOnlyParamNotAllowed: readOnly must be omitted when revoking access');
+            }
+        } else if (params.readOnly === undefined || params.readOnly === null) {
             errors.push('ReadOnlyMissing: readOnly is required');
         } else if (typeof params.readOnly !== 'boolean') {
             errors.push('ReadOnlyMustBeBoolean: readOnly must be a boolean');
