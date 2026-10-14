@@ -327,7 +327,13 @@ export class ContactDatabase {
      */
     async signUp(username, password, email = null, profile = null, rememberMe = false) {
         try {
-            
+            // The auth modal can be reached before userbase.init() ran on this
+            // page load (SDK loaded late, or an earlier init attempt failed);
+            // the SDK would reject signUp with AppIdNotSet. Initialize first.
+            if (!this.isInitialized) {
+                await this.initialize(USERBASE_CONFIG.appId);
+            }
+
             const signUpParams = {
                 username,
                 password,
@@ -380,6 +386,11 @@ export class ContactDatabase {
      */
     async signIn(username, password, rememberMe = false) {
         try {
+            // Same AppIdNotSet protection as signUp: ensure the SDK has an
+            // app ID before calling into it
+            if (!this.isInitialized) {
+                await this.initialize(USERBASE_CONFIG.appId);
+            }
             
             // Follow SDK specification exactly - no custom session tracking
             const result = await userbase.signIn({

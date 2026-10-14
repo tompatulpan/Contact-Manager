@@ -1309,6 +1309,8 @@ export class ContactUIController {
             this.showAuthError('Incorrect username or password.');
         } else if (error.includes('username already taken') || error.includes('useralreadyexists')) {
             this.showAuthError('That username is already taken. Please choose another.');
+        } else if (error.includes('app id not set') || error.includes('appidnotset')) {
+            this.showAuthError('The app could not reach the sign-in service. Please refresh the page and try again.');
         } else {
             this.showAuthError(rawError || 'Authentication failed. Please try again.');
         }
