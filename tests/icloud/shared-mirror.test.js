@@ -20,7 +20,9 @@ import {
     FETCH_NEW_REMOTE_CONTACT,
     FETCH_SHARED,
     CREATE_403_EXISTS,
+    CREATE_SUCCESS,
     UPDATE_SUCCESS,
+    UPDATE_404_GONE,
 } from './fixtures/carddav-responses.js';
 import { SHARED_VCARD } from './fixtures/vcards.js';
 
@@ -118,5 +120,36 @@ describe('shared contact mirror protection', () => {
 
         expect(mockClient.createContact).toHaveBeenCalledTimes(1);
         expect(mockClient.updateContact).toHaveBeenCalledTimes(2);
+    });
+
+    it('force-push falls back to create when the cached etag points at a deleted mirror', async () => {
+        const bob = buildSharedContact(BOB_UID, SHARED_VCARD, 'alice-user', {
+            cardName: 'Bob Shared',
+        });
+
+        const { service, mockClient } = await buildTestService(
+            {
+                fetchContacts: FETCH_EMPTY,
+                updateContact: UPDATE_404_GONE,   // mirror was deleted on iCloud
+                createContact: CREATE_SUCCESS,
+            },
+            [bob],
+        );
+
+        // Simulate a cached etag from a previous successful force-push
+        // (page not reloaded since), so the push takes the update path first
+        service.sharedContactSyncCache = new Map([
+            [bob.contactId, { etag: '"etag-old"', uid: BOB_UID, syncStatus: 'force-pushed' }]
+        ]);
+
+        const result = await service.refreshSharedContactsToICloud();
+
+        expect(result.refreshed).toBe(1);
+        expect(mockClient.updateContact).toHaveBeenCalledTimes(1); // tried first
+        expect(mockClient.createContact).toHaveBeenCalledTimes(1); // then fell back
+
+        // The cache now holds the etag from the successful create
+        const cached = service.sharedContactSyncCache.get(bob.contactId);
+        expect(cached.etag).toBe('"etag-carol-created-v1"');
     });
 });

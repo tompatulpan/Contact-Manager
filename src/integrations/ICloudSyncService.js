@@ -1354,7 +1354,8 @@ export class ICloudSyncService {
                 : (cachedState?.etag || null);
 
             if (existingEtag) {
-                // Contact exists on iCloud - update with force (null ETag bypasses conflict check)
+                // Cached etag says the mirror exists — update with force
+                // (null ETag bypasses conflict check)
                 console.log(`🔄 Force-updating shared contact (ignoring ETag): ${contact.cardName}`);
 
                 const result = await this.iCloudClient.updateContact(uid, cleanVCard, null);
@@ -1375,66 +1376,70 @@ export class ICloudSyncService {
                     });
 
                     return { success: true, etag: result.etag, action: 'force-updated' };
-                } else {
-                    return { success: false, error: result.error };
                 }
-            } else {
-                // Contact doesn't exist on iCloud yet - create
-                console.log(`📤 Creating shared contact on iCloud: ${contact.cardName}`);
 
-                const result = await this.iCloudClient.createContact(cleanVCard);
+                // The cached etag can be stale: the mirror may have been
+                // deleted on iCloud since (removed manually, or the orange
+                // duplicate's deletion took the href with it). Fall through
+                // to the create path instead of failing every refresh cycle.
+                console.warn(`⚠️ Force-update failed (${result.error}), falling back to create: ${contact.cardName}`);
+            }
 
-                if (result.success) {
-                    // Store ETag in memory cache
+            // Create (also the fallback when no usable etag exists)
+            console.log(`📤 Creating shared contact on iCloud: ${contact.cardName}`);
+
+            const result = await this.iCloudClient.createContact(cleanVCard);
+
+            if (result.success) {
+                // Store ETag in memory cache
+                if (!this.sharedContactSyncCache) {
+                    this.sharedContactSyncCache = new Map();
+                }
+
+                this.sharedContactSyncCache.set(contact.contactId, {
+                    etag: result.etag,
+                    href: result.href,
+                    uid: result.uid || uid,
+                    lastSyncedAt: new Date().toISOString(),
+                    lastForcePush: new Date().toISOString(),
+                    syncStatus: 'force-pushed'
+                });
+
+                return { success: true, etag: result.etag, action: 'created' };
+            }
+
+            // 403/412 means a contact already exists at this UID's href —
+            // typically the mirror of an imported duplicate that shares the
+            // UID. Fall back to a forced update instead of failing every
+            // refresh cycle (the memory-only cache is empty after reload,
+            // so the create path is chosen even though the resource exists).
+            if (result.status === 403 || result.status === 412) {
+                const existingUid = result.uid || uid;
+                console.warn(`⚠️ Contact already exists at UID ${existingUid} (HTTP ${result.status}), force-updating instead`);
+
+                const updateResult = await this.iCloudClient.updateContact(existingUid, cleanVCard, null);
+
+                if (updateResult.success) {
                     if (!this.sharedContactSyncCache) {
                         this.sharedContactSyncCache = new Map();
                     }
 
                     this.sharedContactSyncCache.set(contact.contactId, {
-                        etag: result.etag,
+                        etag: updateResult.etag,
                         href: result.href,
-                        uid: result.uid || uid,
+                        uid: existingUid,
                         lastSyncedAt: new Date().toISOString(),
                         lastForcePush: new Date().toISOString(),
                         syncStatus: 'force-pushed'
                     });
 
-                    return { success: true, etag: result.etag, action: 'created' };
+                    return { success: true, etag: updateResult.etag, action: 'force-updated-existing' };
                 }
 
-                // 403/412 means a contact already exists at this UID's href —
-                // typically the mirror of an imported duplicate that shares the
-                // UID. Fall back to a forced update instead of failing every
-                // refresh cycle (the memory-only cache is empty after reload,
-                // so the create path is chosen even though the resource exists).
-                if (result.status === 403 || result.status === 412) {
-                    const existingUid = result.uid || uid;
-                    console.warn(`⚠️ Contact already exists at UID ${existingUid} (HTTP ${result.status}), force-updating instead`);
-
-                    const updateResult = await this.iCloudClient.updateContact(existingUid, cleanVCard, null);
-
-                    if (updateResult.success) {
-                        if (!this.sharedContactSyncCache) {
-                            this.sharedContactSyncCache = new Map();
-                        }
-
-                        this.sharedContactSyncCache.set(contact.contactId, {
-                            etag: updateResult.etag,
-                            href: result.href,
-                            uid: existingUid,
-                            lastSyncedAt: new Date().toISOString(),
-                            lastForcePush: new Date().toISOString(),
-                            syncStatus: 'force-pushed'
-                        });
-
-                        return { success: true, etag: updateResult.etag, action: 'force-updated-existing' };
-                    }
-
-                    return { success: false, error: updateResult.error };
-                }
-
-                return { success: false, error: result.error };
+                return { success: false, error: updateResult.error };
             }
+
+            return { success: false, error: result.error };
         } catch (error) {
             console.error('❌ Force-push shared contact failed:', error);
             return { success: false, error: error.message };

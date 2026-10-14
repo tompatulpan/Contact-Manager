@@ -125,6 +125,13 @@ export const UPDATE_412_STALE_ETAG = {
     status: 412,
 };
 
+/** The resource no longer exists on iCloud (deleted there since we cached an etag). */
+export const UPDATE_404_GONE = {
+    success: false,
+    error: '404 - Not Found',
+    status: 404,
+};
+
 export const UPDATE_SUCCESS_AFTER_REFRESH = {
     success: true,
     etag: '"etag-alice-v4"',
