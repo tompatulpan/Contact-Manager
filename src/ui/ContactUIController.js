@@ -5206,14 +5206,16 @@ export class ContactUIController {
             
             // Reset to login mode (not signup)
             const authTitle = document.getElementById('auth-title');
-            const authSubmit = document.getElementById('auth-submit');
+            const authSubmitText = document.getElementById('auth-submit-text');
             const authToggleText = document.getElementById('auth-toggle-text');
-            const authToggle = document.getElementById('toggle-auth-mode');
+            const keepSignedInContainer = document.getElementById('keep-signed-in-group');
             
             if (authTitle) authTitle.textContent = 'Sign In';
-            if (authSubmit) authSubmit.textContent = 'Sign In';
-            if (authToggleText) authToggleText.textContent = "Don't have an account?";
-            if (authToggle) authToggle.textContent = 'Create Account';
+            if (authSubmitText) authSubmitText.textContent = 'Sign In';
+            // Update the span inside the toggle button — writing to the
+            // button itself would destroy the span and break the toggle
+            if (authToggleText) authToggleText.textContent = 'Need an account? Sign Up';
+            if (keepSignedInContainer) keepSignedInContainer.style.display = 'block';
             
             // Reset form mode
             if (this.elements.authForm) {
@@ -5247,13 +5249,16 @@ export class ContactUIController {
                 submitText.textContent = 'Loading...';
             } else {
                 submitButton.disabled = false;
-                submitText.textContent = submitButton.dataset.mode === 'signup' ? 'Sign Up' : 'Sign In';
+                // Mode lives on the form, not the button
+                const form = this.elements.authForm;
+                submitText.textContent = form?.dataset.mode === 'signup' ? 'Sign Up' : 'Sign In';
             }
         }
     }
 
     toggleAuthMode() {
         const form = this.elements.authForm;
+        const authTitle = document.getElementById('auth-title');
         const submitText = document.getElementById('auth-submit-text');
         const toggleText = document.getElementById('auth-toggle-text');
         const keepSignedInContainer = document.getElementById('keep-signed-in-group');
@@ -5264,6 +5269,7 @@ export class ContactUIController {
             if (isSignUp) {
                 // Switch to sign in
                 form.dataset.mode = 'signin';
+                if (authTitle) authTitle.textContent = 'Sign In';
                 submitText.textContent = 'Sign In';
                 toggleText.textContent = 'Need an account? Sign Up';
                 
@@ -5274,6 +5280,7 @@ export class ContactUIController {
             } else {
                 // Switch to sign up
                 form.dataset.mode = 'signup';
+                if (authTitle) authTitle.textContent = 'Sign Up';
                 submitText.textContent = 'Sign Up';
                 toggleText.textContent = 'Already have an account? Sign In';
                 
