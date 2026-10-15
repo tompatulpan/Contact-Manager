@@ -39,7 +39,7 @@ A secure, modular contact management system with:
 src/                # Core business logic and UI components
 lib/                # Third-party SDKs (e.g., userbase.js)
 tests/              # Jest test suite (tests/icloud/, tests/worker/, tests/sharing/), manual debug pages (tests/manual/)
-scripts/            # Development, cache-busting and deployment shell scripts
+scripts/            # Development and deployment shell scripts
 docs/               # Historical design notes and fix documentation (docs/archive/)
 cloudflare-worker/  # CardDAV CORS proxy Worker (iCloud sync)
 index.html          # Main entry point
@@ -62,16 +62,19 @@ npm install
 # (requires Python 3; serves static files only, no live reload)
 npm run serve
 ```
-### Cache Busting 
+### Caching & Versioning
+Browser caching is handled entirely by the `Cache-Control: no-cache` rule in
+`_headers`: Cloudflare Pages serves assets with ETags, so browsers revalidate
+on every load and unchanged files come back as cheap 304 responses. There is
+no build-time cache busting.
+
+The packaging script injects a build stamp (`<git-sha>-<yyyymmdd>`) into
+`src/version.js`, shown in the app footer so you can verify which deploy is
+live. In development the footer shows `v1.0.0 (dev)`.
+
 ```bash
-# For development (after CSS/JS changes)
-./scripts/dev-cache-bust.sh
-
-# For production deployment  
+# For production deployment
 ./scripts/production_zip.sh
-
-# Restore original files
-./scripts/restore-dev.sh
 ```
 
 ### Deploy to Cloudflare Pages

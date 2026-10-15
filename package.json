@@ -8,7 +8,6 @@
   "scripts": {
     "serve": "python -m http.server 8080",
     "production": "./scripts/production_zip.sh",
-    "cache-bust": "./scripts/cache-bust.sh",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch"
   },

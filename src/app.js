@@ -12,6 +12,7 @@ import { ContactUIController } from './ui/ContactUIController.js';
 import { ICloudTestController } from './ui/ICloudTestController.js';
 import { ICloudSyncService } from './integrations/ICloudSyncService.js';
 import { profileRouter } from './utils/ProfileRouter.js';
+import { versionLabel } from './version.js';
 
 /**
  * Main Application Class
@@ -528,7 +529,13 @@ async function initializeApp() {
     try {
         // SECURITY: Clear any URL parameters on app startup to prevent credential exposure
         clearURLParametersOnStartup();
-        
+
+        // Show the build version in the footer (before anything that can fail)
+        const versionBadge = document.getElementById('app-version');
+        if (versionBadge) {
+            versionBadge.textContent = versionLabel();
+        }
+
         // Wait for Userbase SDK to load
         await waitForUserbase();
         
