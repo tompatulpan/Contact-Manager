@@ -372,12 +372,11 @@
     }
     
     .contact-card .shared-indicator {
-        font-size: 11px !important;
-        padding: 2px 6px !important;
-        border-radius: 12px !important;
-        color: var(--primary-color) !important;
-        font-weight: 500 !important;
-        background: transparent !important;
+        font-size: 10px !important;
+        padding: 2px 8px !important;
+        max-width: 140px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     
     .contact-card::after {
@@ -411,13 +410,11 @@
     }
     
     .contact-list.list-view .contact-list-item .shared-indicator {
-        background: transparent !important;
-        color: var(--primary-color) !important;
-        padding: 3px 8px !important;
-        border-radius: 12px !important;
-        font-size: 12px !important;
-        font-weight: 500 !important;
-        white-space: nowrap !important;
+        font-size: 10px !important;
+        padding: 1px 7px !important;
+        max-width: 140px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
     
     /* ===== CONTACT DETAIL VIEW ===== */

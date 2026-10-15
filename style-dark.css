@@ -230,7 +230,7 @@ body.dark-mode .contact-info .contact-email i {
 
 /* Shared indicators */
 body.dark-mode .shared-indicator {
-    color: var(--primary-color);
+    color: var(--text-secondary);
 }
 
 body.dark-mode .tag-shared-out {

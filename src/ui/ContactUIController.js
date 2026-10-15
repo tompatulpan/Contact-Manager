@@ -2109,12 +2109,12 @@ export class ContactUIController {
                             </div>
                         ` : ''}
                     </div>
-                    ${!contact.metadata.isOwned ? `
-                        <div class="contact-meta">
-                            <span class="shared-indicator">Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
-                        </div>
-                    ` : ''}
                 </div>
+                ${!contact.metadata.isOwned ? `
+                    <div class="contact-meta">
+                        <span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
+                    </div>
+                ` : ''}
             `;
             
             // Attach event listeners to the card buttons
@@ -2144,9 +2144,9 @@ export class ContactUIController {
         
         const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
         const contactType = ContactRenderer.getContactType(contact);
-        const sharedInfo = contact.metadata && !contact.metadata.isOwned ? 
-            `<div class="contact-meta"><span class="shared-indicator">Shared by ${ContactUIHelpers.escapeHtml(contact.metadata.sharedBy)}</span></div>` : '';
-        
+        const sharedInfo = contact.metadata && !contact.metadata.isOwned ?
+            `<div class="contact-meta"><span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${ContactUIHelpers.escapeHtml(contact.metadata.sharedBy)}</span></div>` : '';
+
         card.innerHTML = `
             <div class="contact-avatar avatar-${contactType}">
                 <span class="avatar-initial">?</span>
@@ -2154,8 +2154,8 @@ export class ContactUIController {
             <div class="contact-info">
                 <h3 class="contact-name">${ContactUIHelpers.escapeHtml(contactName)}</h3>
                 <p class="contact-error">Invalid contact data</p>
-                ${sharedInfo}
             </div>
+            ${sharedInfo}
         `;
         
         // Attach click listener for selection
