@@ -6204,13 +6204,15 @@ export class ContactUIController {
         
         for (const line of lines) {
             const trimmedLine = line.trim();
+            // BEGIN/END and the VCARD value are case-insensitive per RFC 6350
+            const upperLine = trimmedLine.toUpperCase();
             
-            if (trimmedLine === 'BEGIN:VCARD') {
+            if (upperLine === 'BEGIN:VCARD') {
                 inVCard = true;
-                currentBlock = [line];
-            } else if (trimmedLine === 'END:VCARD') {
+                currentBlock = ['BEGIN:VCARD'];
+            } else if (upperLine === 'END:VCARD') {
                 if (inVCard) {
-                    currentBlock.push(line);
+                    currentBlock.push('END:VCARD');
                     blocks.push(currentBlock.join('\n'));
                     currentBlock = [];
                     inVCard = false;

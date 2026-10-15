@@ -132,12 +132,14 @@ export class VCardStandardEnhanced {
             for (const line of unfoldedLines) {
                 lineNumber++;
 
-                if (line.trim() === 'BEGIN:VCARD') {
+                // BEGIN/END and the VCARD value are case-insensitive per RFC 6350
+                const upperLine = line.trim().toUpperCase();
+                if (upperLine === 'BEGIN:VCARD') {
                     insideVCard = true;
                     continue;
                 }
 
-                if (line.trim() === 'END:VCARD') {
+                if (upperLine === 'END:VCARD') {
                     insideVCard = false;
                     break;
                 }
@@ -661,14 +663,14 @@ export class VCardStandardEnhanced {
             warnings: []
         };
 
-        // Check for BEGIN:VCARD
-        if (!lines.some(line => line.trim() === 'BEGIN:VCARD')) {
+        // Check for BEGIN:VCARD (case-insensitive per RFC 6350)
+        if (!lines.some(line => line.trim().toUpperCase() === 'BEGIN:VCARD')) {
             result.errors.push('Missing BEGIN:VCARD');
             result.isValid = false;
         }
 
-        // Check for END:VCARD
-        if (!lines.some(line => line.trim() === 'END:VCARD')) {
+        // Check for END:VCARD (case-insensitive per RFC 6350)
+        if (!lines.some(line => line.trim().toUpperCase() === 'END:VCARD')) {
             result.errors.push('Missing END:VCARD');
             result.isValid = false;
         }
