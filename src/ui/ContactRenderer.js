@@ -176,7 +176,7 @@ export class ContactRenderer {
         // orange avatar and the "Imported" filter.
         let ownershipBadge;
         if (!metadata.isOwned) {
-            ownershipBadge = '<span class="badge badge-secondary">Shared</span>';
+            ownershipBadge = '<span class="badge badge-shared">Shared</span>';
         } else if (metadata.isImported) {
             ownershipBadge = '<span class="badge badge-imported">Imported</span>';
         } else {
