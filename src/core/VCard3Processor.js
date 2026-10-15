@@ -235,7 +235,9 @@ export class VCard3Processor {
         };
 
         for (const line of lines) {
-            if (line.startsWith('BEGIN:VCARD') || line.startsWith('END:VCARD')) {
+            // BEGIN/END and the VCARD value are case-insensitive per RFC 6350
+            const upperLine = line.toUpperCase();
+            if (upperLine.startsWith('BEGIN:VCARD') || upperLine.startsWith('END:VCARD')) {
                 continue;
             }
             

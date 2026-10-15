@@ -245,21 +245,23 @@ export class VCardImporter {
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
+                // BEGIN/END and the VCARD value are case-insensitive per RFC 6350
+                const upperLine = line.toUpperCase();
 
-                if (line === 'BEGIN:VCARD') {
+                if (upperLine === 'BEGIN:VCARD') {
                     if (insideVCard) {
                         result.warnings.push(`Line ${i + 1}: BEGIN:VCARD found inside existing vCard block`);
                     }
                     insideVCard = true;
-                    currentVCard = [line];
+                    currentVCard = ['BEGIN:VCARD'];
                     vCardCount++;
-                } else if (line === 'END:VCARD') {
+                } else if (upperLine === 'END:VCARD') {
                     if (!insideVCard) {
                         result.warnings.push(`Line ${i + 1}: END:VCARD found without matching BEGIN:VCARD`);
                         continue;
                     }
                     
-                    currentVCard.push(line);
+                    currentVCard.push('END:VCARD');
                     const vCardString = currentVCard.join('\n');
                     
                     // Validate the extracted vCard
@@ -689,9 +691,9 @@ export class VCardImporter {
     }
 
     isValidVCardStructure(vCardString) {
-        return vCardString.includes('BEGIN:VCARD') && 
-               vCardString.includes('END:VCARD') && 
-               (vCardString.includes('FN:') || vCardString.includes('VERSION:'));
+        return /BEGIN:VCARD/i.test(vCardString) &&
+               /END:VCARD/i.test(vCardString) &&
+               (/FN:/i.test(vCardString) || /VERSION:/i.test(vCardString));
     }
 
     getPropertyValue(properties, propertyName) {
