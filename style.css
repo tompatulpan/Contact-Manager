@@ -747,6 +747,52 @@ body {
     margin-top: 0.4rem;
 }
 
+/* Sync status rows (sidebar "Sync" section) */
+.sync-status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.sync-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+}
+
+.sync-status-item[data-state="connected"] .sync-dot,
+.sync-status-item[data-state="synced"] .sync-dot {
+    background: var(--success-color);
+}
+
+.sync-status-item[data-state="syncing"] .sync-dot {
+    background: var(--primary-color);
+    animation: syncPulse 1s ease-in-out infinite;
+}
+
+.sync-status-item[data-state="error"] .sync-dot {
+    background: var(--error-color);
+}
+
+.sync-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@keyframes syncPulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+
 /* Distribution List User Display */
 .distribution-list-users {
     font-size: 0.85em;

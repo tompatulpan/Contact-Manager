@@ -28,6 +28,10 @@ export class ContactUIController {
         this.selectedContactId = null;
         this.currentView = 'contacts'; // contacts, archived, shared
         this.viewMode = this.getDefaultViewMode(); // Responsive default: list for mobile, card for desktop
+
+        // iCloud sync status for the sidebar "Sync" section
+        this.syncState = { connected: false, syncing: false, lastSyncTime: null, error: null };
+        this.syncRefreshInterval = null;
         this.searchQuery = '';
         this.installInfoShown = false; // Install-on-iPhone info modal (once per session)
         
@@ -639,6 +643,29 @@ export class ContactUIController {
         this.eventBus.on('ui:hideModal', this.hideModal.bind(this));
         this.eventBus.on('ui:updateStats', this.updateStats.bind(this));
         this.eventBus.on('ui:show-contact-form', this.handleShowContactForm.bind(this));
+
+        // iCloud sync status (sidebar "Sync" section)
+        this.eventBus.on('icloud:syncInitialized', () => this.setSyncStatus({ connected: true }));
+        this.eventBus.on('icloud:syncStarted', () => this.setSyncStatus({ connected: true, syncing: true }));
+        this.eventBus.on('icloud:syncCompleted', (data) => this.setSyncStatus({
+            connected: true,
+            syncing: false,
+            lastSyncTime: data?.timestamp || new Date().toISOString(),
+            error: null
+        }));
+        this.eventBus.on('icloud:syncError', (data) => this.setSyncStatus({
+            syncing: false,
+            error: data?.error || 'Sync failed'
+        }));
+        this.eventBus.on('icloud:syncDisconnected', () => this.setSyncStatus({
+            connected: false,
+            syncing: false,
+            lastSyncTime: null,
+            error: null
+        }));
+
+        // Keep "synced X min ago" fresh
+        this.syncRefreshInterval = setInterval(() => this.updateSyncStatusItem(), 60000);
     }
 
     /**
@@ -1290,6 +1317,7 @@ export class ContactUIController {
         this.hideMainApplication();
         this.clearDistributionLists(); // Clear sharing lists on sign out
         this.updateLogoutButtonState(); // Update logout button state
+        this.setSyncStatus({ connected: false, syncing: false, lastSyncTime: null, error: null });
     }
 
     /**
@@ -3007,6 +3035,67 @@ export class ContactUIController {
         if (this.elements.contactCount) {
             this.elements.contactCount.textContent = count;
         }
+    }
+
+    /**
+     * Update the iCloud sync status from an event and re-render the row
+     */
+    setSyncStatus(patch) {
+        Object.assign(this.syncState, patch);
+        this.updateSyncStatusItem();
+    }
+
+    /**
+     * Render the sidebar iCloud sync row from this.syncState
+     */
+    updateSyncStatusItem() {
+        const item = document.getElementById('sync-status-icloud');
+        if (!item) return;
+
+        const { connected, syncing, lastSyncTime, error } = this.syncState;
+        const label = item.querySelector('.sync-label');
+        if (!label) return;
+
+        let state = 'disconnected';
+        let text = 'iCloud · not connected';
+
+        if (error) {
+            state = 'error';
+            text = 'iCloud · sync failed';
+        } else if (syncing) {
+            state = 'syncing';
+            text = 'iCloud · syncing…';
+        } else if (connected && lastSyncTime) {
+            state = 'synced';
+            text = `iCloud · synced ${this.formatRelativeTime(lastSyncTime)}`;
+        } else if (connected) {
+            state = 'connected';
+            text = 'iCloud · connected';
+        }
+
+        item.dataset.state = state;
+        item.title = error || text;
+        label.textContent = text;
+    }
+
+    /**
+     * Format a timestamp as a short relative time ("2 min ago")
+     * @param {string} isoString - ISO timestamp
+     * @returns {string} Relative time label
+     */
+    formatRelativeTime(isoString) {
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return 'recently';
+
+        const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+        if (seconds < 60) return 'just now';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes} min ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        if (days < 7) return `${days}d ago`;
+        return date.toLocaleDateString();
     }
 
     updateStats() {
