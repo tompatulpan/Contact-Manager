@@ -2339,10 +2339,11 @@ export class ContactUIController {
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
             html += `
                 <div class="field-group">
-                    <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
+                    <h4>Addresses</h4>
                     ${displayData.addresses.map((address, index) => {
                         return `
                         <div class="field-item address-item">
+                            <i class="fas fa-map-marker-alt"></i>
                             <div class="address-content">
                                 ${address.street ? `<div class="address-line">${ContactUIHelpers.escapeHtml(address.street)}</div>` : ''}
                                 <div class="address-line">
@@ -2366,8 +2367,9 @@ export class ContactUIController {
             const formattedBirthday = this.formatBirthday(displayData.birthday);
             html += `
                 <div class="field-group">
-                    <h4><i class="fas fa-birthday-cake"></i> Birthday</h4>
+                    <h4>Birthday</h4>
                     <div class="field-item">
+                        <i class="fas fa-birthday-cake"></i>
                         <span class="field-value">${ContactUIHelpers.escapeHtml(formattedBirthday)}</span>
                     </div>
                 </div>
@@ -2378,9 +2380,10 @@ export class ContactUIController {
         if (displayData.notes && displayData.notes.length > 0) {
             html += `
                 <div class="field-group">
-                    <h4><i class="fas fa-sticky-note"></i> Notes</h4>
+                    <h4>Notes</h4>
                     ${displayData.notes.map(note => `
                         <div class="field-item">
+                            <i class="fas fa-sticky-note"></i>
                             <p class="field-value">${ContactUIHelpers.escapeHtml(note)}</p>
                         </div>
                     `).join('')}
@@ -2405,7 +2408,7 @@ export class ContactUIController {
         
         return `
             <div class="field-group qr-code-section">
-                <h4><i class="fas fa-qrcode"></i> QR Code</h4>
+                <h4>QR Code</h4>
                 <div class="field-item qr-code-container">
                     <div class="qr-code-wrapper">
                         ${qrCode}
@@ -2442,10 +2445,11 @@ export class ContactUIController {
         if (displayData.addresses && Array.isArray(displayData.addresses) && displayData.addresses.length > 0) {
             html += `
                 <div class="field-group">
-                    <h4><i class="fas fa-map-marker-alt"></i> Addresses</h4>
+                    <h4>Addresses</h4>
                     ${displayData.addresses.map((address, index) => {
                         return `
                         <div class="field-item address-item">
+                            <i class="fas fa-map-marker-alt"></i>
                             <div class="address-content">
                                 ${address.street ? `<div class="address-line">${ContactUIHelpers.escapeHtml(address.street)}</div>` : ''}
                                 <div class="address-line">
@@ -2469,8 +2473,9 @@ export class ContactUIController {
             const formattedBirthday = this.formatBirthday(displayData.birthday);
             html += `
                 <div class="field-group">
-                    <h4><i class="fas fa-birthday-cake"></i> Birthday</h4>
+                    <h4>Birthday</h4>
                     <div class="field-item">
+                        <i class="fas fa-birthday-cake"></i>
                         <span class="field-value">${ContactUIHelpers.escapeHtml(formattedBirthday)}</span>
                     </div>
                 </div>
@@ -2481,9 +2486,10 @@ export class ContactUIController {
         if (displayData.notes && displayData.notes.length > 0) {
             html += `
                 <div class="field-group">
-                    <h4><i class="fas fa-sticky-note"></i> Notes</h4>
+                    <h4>Notes</h4>
                     ${displayData.notes.map(note => `
                         <div class="field-item">
+                            <i class="fas fa-sticky-note"></i>
                             <p class="field-value">${ContactUIHelpers.escapeHtml(note)}</p>
                         </div>
                     `).join('')}

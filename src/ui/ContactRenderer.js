@@ -96,11 +96,11 @@ export class ContactRenderer {
         };
         
         const config = fieldConfig[fieldType] || { icon: 'fas fa-file', label: 'Field' };
-        
+
         return `
             <div class="field-group">
-                <h4><i class="${config.icon}"></i> ${config.label}</h4>
-                ${fields.map(field => this.renderSingleField(fieldType, field)).join('')}
+                <h4>${config.label}</h4>
+                ${fields.map(field => this.renderSingleField(fieldType, field, config.icon)).join('')}
             </div>
         `;
     }
@@ -108,7 +108,7 @@ export class ContactRenderer {
     /**
      * Render a single field
      */
-    static renderSingleField(fieldType, field) {
+    static renderSingleField(fieldType, field, icon = 'fas fa-file') {
         const escapedValue = ContactUIHelpers.escapeHtml(field.value || '');
         const escapedType = ContactUIHelpers.escapeHtml(this.getTypeLabel(field.type));
         const primaryBadge = field.primary ? '<span class="field-primary">Primary</span>' : '';
@@ -152,6 +152,7 @@ export class ContactRenderer {
         
         return `
             <div class="field-item">
+                <i class="${icon}"></i>
                 ${content}
                 <div class="field-meta">
                     <span class="field-type">${escapedType}</span>

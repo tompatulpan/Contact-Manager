@@ -372,25 +372,8 @@
         background: var(--surface-color) !important;
     }
     
-    body.dark-mode .contact-detail-header {
-        background: var(--surface-color) !important;
-        border-bottom-color: var(--border-color) !important;
-    }
-    
     body.dark-mode .contact-detail-header h2 {
         color: var(--text-primary) !important;
-    }
-    
-    body.dark-mode .contact-field-label {
-        color: var(--text-secondary) !important;
-    }
-    
-    body.dark-mode .contact-field-value {
-        color: var(--text-primary) !important;
-    }
-    
-    body.dark-mode .contact-field-value a {
-        color: var(--primary-color) !important;
     }
     
     /* Mobile Tables (if any) */

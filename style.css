@@ -1074,19 +1074,20 @@ body {
 }
 
 .contact-avatar-large {
-    width: 80px;
-    height: 80px;
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
     background: var(--owned-color);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto var(--space-4);
+    margin: 0 auto var(--space-2);
+    background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(0, 0, 0, 0.12));
 }
 
 .contact-avatar-large .avatar-initial {
-    font-size: 2rem;
-    font-weight: 600;
+    font-size: 1.6rem;
+    font-weight: 700;
     color: white;
 }
 
@@ -1097,7 +1098,7 @@ body {
 }
 
 .contact-avatar-large.avatar-owned {
-    background: var(--owned-color);
+    background-color: var(--owned-color);
 }
 
 /* Shared contacts - Green */
@@ -1106,7 +1107,7 @@ body {
 }
 
 .contact-avatar-large.avatar-shared {
-    background: var(--shared-color);
+    background-color: var(--shared-color);
 }
 
 /* Imported contacts - Orange/Yellow */
@@ -1115,7 +1116,7 @@ body {
 }
 
 .contact-avatar-large.avatar-imported {
-    background: var(--imported-color);
+    background-color: var(--imported-color);
 }
 
 /* Contact Info */
@@ -1247,39 +1248,39 @@ body {
 
 /* Contact Detail Header */
 .contact-detail-header {
-    padding: var(--space-6);
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    padding: 1.25rem 1.25rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.4rem;
 }
 
 .contact-detail-header .contact-info {
     text-align: center;
-    margin-bottom: var(--space-4);
 }
 
 .contact-detail-header .contact-name {
     font-size: 1.25rem;
     font-weight: 700;
-    margin-bottom: var(--space-2);
+    margin-bottom: 0;
     color: var(--text-primary);
 }
 
 .contact-detail-header .contact-organization,
 .contact-detail-header .contact-title {
     color: var(--text-secondary);
-    margin-bottom: var(--space-1);
-    font-size: 0.95rem;
+    margin-bottom: 0;
+    font-size: 0.9rem;
 }
 
 /* Contact Detail Actions */
 .contact-detail-actions {
     display: flex;
-    gap: var(--space-2);
+    gap: 0.4rem;
     justify-content: center;
     flex-wrap: wrap;
-    margin-top: var(--space-4);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border-color);
+    margin-top: 0.4rem;
 }
 
 .contact-detail-actions .btn-icon {
@@ -1289,69 +1290,31 @@ body {
     font-size: 15px;
 }
 
-/* Action button colors */
-.contact-detail-actions .btn-icon.edit-contact {
+/* Action buttons: neutral by default, outline hover like the theme previews */
+.contact-detail-actions .btn-icon:hover {
+    background: var(--surface-raised);
     color: var(--primary-color);
-}
-
-.contact-detail-actions .btn-icon.edit-contact:hover {
-    background: var(--primary-color);
-    color: var(--primary-contrast);
-}
-
-.contact-detail-actions .btn-icon.share-contact {
-    color: var(--success-color);
-}
-
-.contact-detail-actions .btn-icon.share-contact:hover {
-    background: var(--success-color);
-    color: white;
-}
-
-.contact-detail-actions .btn-icon.delete-contact {
-    color: var(--error-color);
+    border-color: var(--primary-color);
 }
 
 .contact-detail-actions .btn-icon.delete-contact:hover {
-    background: var(--error-color);
-    color: white;
-}
-
-.contact-detail-actions .btn-icon.export-contact {
-    color: var(--primary-dark);
-}
-
-.contact-detail-actions .btn-icon.export-contact:hover {
-    background: var(--primary-dark);
-    color: white;
-}
-
-.contact-detail-actions .btn-icon.restore-contact {
-    color: var(--warning-color);
-}
-
-.contact-detail-actions .btn-icon.restore-contact:hover {
-    background: var(--warning-color);
-    color: white;
-}
-
-.contact-detail-actions .btn-icon.archive-contact {
-    color: var(--text-secondary);
+    color: var(--error-color);
+    border-color: var(--error-color);
 }
 
 .contact-detail-actions .btn-icon.archive-contact:hover {
-    background: var(--text-secondary);
-    color: white;
+    color: var(--text-primary);
+    border-color: var(--border-strong);
 }
 
 /* Contact Detail Body */
 .contact-detail-body {
-    padding: var(--space-6);
+    padding: 1.25rem;
     flex: 1;
 }
 
 .field-group {
-    margin-bottom: var(--space-6);
+    margin-bottom: 1.25rem;
 }
 
 .field-group:last-child {
@@ -1362,29 +1325,23 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: var(--space-4);
-    padding-bottom: var(--space-2);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.field-group h4 i {
-    color: var(--primary-color);
-    font-size: 1.1rem;
-    width: 20px;
-    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--space-2);
 }
 
 .field-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    margin-bottom: var(--space-2);
+    gap: 0.75rem;
+    padding: 0.55rem 0.7rem;
+    margin-bottom: 0.4rem;
     background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     transition: background-color 0.2s ease;
 }
@@ -1393,8 +1350,28 @@ body {
     margin-bottom: 0;
 }
 
-.field-item:hover {
-    background: var(--hover-color);
+.field-item i {
+    color: var(--primary-color);
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+}
+
+/* Address rows inside field items */
+.address-content {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.address-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
 }
 
 .field-value {
@@ -1402,7 +1379,8 @@ body {
     color: var(--text-primary);
     font-weight: 500;
     word-break: break-word;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    min-width: 0;
 }
 
 .field-value a {
@@ -1417,26 +1395,23 @@ body {
 }
 
 .field-type {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.025em;
-    background: var(--bg-primary);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: capitalize;
+    white-space: nowrap;
 }
 
 .field-primary {
-    font-size: 0.75rem;
-    color: var(--primary-color);
-    background: var(--primary-light);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 600;
+    font-size: 0.65rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.025em;
+    letter-spacing: 0.02em;
+    color: var(--primary-contrast);
+    background: var(--primary-color);
+    padding: 1px 6px;
+    border-radius: 999px;
+    white-space: nowrap;
 }
 
 /* Field metadata container */
