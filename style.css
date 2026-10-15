@@ -165,7 +165,6 @@ body {
     background: transparent;
     color: var(--text-secondary);
     border: none;
-    padding: 0.5rem 0.7rem;
 }
 
 .btn-ghost:hover {
@@ -674,13 +673,14 @@ body {
 }
 
 .distribution-list-item {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.6rem;
     padding: 0.45rem 0.65rem;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
     color: var(--text-secondary);
     font-size: 0.875rem;
     text-decoration: none;
@@ -690,7 +690,6 @@ body {
 .distribution-list-item:hover {
     background: var(--hover-color);
     color: var(--text-primary);
-    border-color: transparent;
 }
 
 .distribution-list-item.active {
@@ -699,25 +698,53 @@ body {
     color: var(--primary-color);
 }
 
+.distribution-list-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
 .distribution-list-name {
-    font-weight: 500;
     font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .distribution-list-count {
-    background: var(--hover-color);
-    color: var(--text-secondary);
+    margin-left: auto;
     font-size: 0.72rem;
-    font-weight: 600;
-    padding: 1px 7px;
-    border-radius: 999px;
-    min-width: 1.25rem;
-    text-align: center;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .distribution-list-item.active .distribution-list-count {
-    background: var(--primary-color);
-    color: var(--primary-contrast);
+    color: var(--primary-color);
+}
+
+.sharing-lists-header h4 {
+    margin: 16px 0 6px 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.no-lists-message {
+    padding: 0.45rem 0.65rem 0.65rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.no-lists-message p {
+    margin: 0;
+}
+
+#create-list-btn {
+    margin-top: 0.4rem;
 }
 
 /* Distribution List User Display */
@@ -732,28 +759,51 @@ body {
 }
 
 .distribution-list-actions {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-color);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.distribution-list-item:hover .distribution-list-actions,
+.distribution-list-actions:focus-within {
+    opacity: 1;
 }
 
 .manage-list-btn, .delete-list-btn {
     background: none;
     border: none;
-    color: var(--primary-color);
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.75rem;
-    padding: var(--space-1);
-    border-radius: 4px;
-    transition: all 0.2s ease;
+    font-size: 0.8rem;
+    line-height: 1;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-.manage-list-btn:hover, .delete-list-btn:hover {
+.manage-list-btn:hover {
+    color: var(--primary-color);
     background: var(--hover-color);
 }
 
-.delete-list-btn {
+.delete-list-btn:hover {
     color: var(--error-color);
+    background: var(--hover-color);
+}
+
+.manage-list-btn:focus-visible,
+.delete-list-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
 /* ========== CONTACT LIST PANEL ========== */

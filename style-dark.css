@@ -444,29 +444,6 @@ body.dark-mode .contact-type-icon {
     color: var(--primary-color);
 }
 
-/* Distribution Lists */
-body.dark-mode .distribution-lists {
-    background: var(--bg-primary);
-}
-
-body.dark-mode .list-item {
-    background: var(--surface-color);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-body.dark-mode .list-item:hover {
-    background: var(--hover-color);
-}
-
-body.dark-mode .list-name {
-    color: var(--text-primary);
-}
-
-body.dark-mode .list-count {
-    color: var(--text-secondary);
-}
-
 /* Tooltips */
 body.dark-mode .tooltip {
     background: var(--bg-primary);

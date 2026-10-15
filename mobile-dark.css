@@ -291,29 +291,6 @@
         background: var(--hover-color) !important;
     }
     
-    body.dark-mode .distribution-lists {
-        background: var(--bg-primary) !important;
-    }
-    
-    body.dark-mode .list-item {
-        background: var(--surface-color) !important;
-        border-color: var(--border-color) !important;
-        color: var(--text-primary) !important;
-    }
-    
-    body.dark-mode .list-item:hover,
-    body.dark-mode .list-item:active {
-        background: var(--hover-color) !important;
-    }
-    
-    body.dark-mode .list-name {
-        color: var(--text-primary) !important;
-    }
-    
-    body.dark-mode .list-count {
-        color: var(--text-secondary) !important;
-    }
-    
     /* Mobile Notifications/Alerts */
     body.dark-mode .notification {
         background: var(--surface-color) !important;

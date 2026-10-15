@@ -53,6 +53,23 @@
         height: calc(100vh - 120px) !important;
     }
 
+    /* Sharing list rows: no hover on touch, keep actions visible inline */
+    .distribution-list-actions {
+        position: static !important;
+        transform: none !important;
+        opacity: 1 !important;
+        background: transparent !important;
+        padding: 0 !important;
+    }
+    
+    .distribution-list-item {
+        gap: 0.4rem !important;
+    }
+    
+    .distribution-list-count {
+        font-size: 0.65rem !important;
+    }
+
     .contact-detail-panel {
         order: 3 !important;
         display: none !important;

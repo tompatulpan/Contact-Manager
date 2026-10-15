@@ -1751,34 +1751,32 @@ export class ContactUIController {
             if (distributionLists.length === 0) {
                 this.elements.distributionListsContainer.innerHTML = `
                     <div class="no-lists-message">
-                        <p style="margin-top: 10px; opacity: 0.7;">No user groups yet</p>
+                        <p>No sharing lists yet</p>
                     </div>
                 `;
                 return;
             }
 
-            // Add user groups section header
-            const sharingListsHeader = distributionLists.length > 0 ? `
+            // Add sharing lists section header
+            const sharingListsHeader = `
                 <div class="sharing-lists-header">
-                    <h4 style="margin: 16px 0 8px 0; font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">
-                        <i class="fas fa-users" style="margin-right: 8px;"></i>User Groups
-                    </h4>
+                    <h4>Sharing Lists</h4>
                 </div>
-            ` : '';
+            `;
             
             const listItems = distributionLists.map(list => {
                 const userCount = list.usernames ? list.usernames.length : 0;
+                const countLabel = `${userCount} user${userCount === 1 ? '' : 's'}`;
                 return `
-                    <div class="distribution-list-item" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}" title="">
-                        <div class="list-item-content" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">
-                            <span class="distribution-list-name" style="color: ${list.color || '#007bff'}" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">${ContactUIHelpers.escapeHtml(list.name)}</span>
-                            <span class="distribution-list-count">${userCount}</span>
-                        </div>
+                    <div class="distribution-list-item" data-list-name="${ContactUIHelpers.escapeHtml(list.name)}">
+                        <span class="distribution-list-dot" style="background: ${list.color || 'var(--owned-color)'}"></span>
+                        <span class="distribution-list-name">${ContactUIHelpers.escapeHtml(list.name)}</span>
+                        <span class="distribution-list-count">${countLabel}</span>
                         <div class="distribution-list-actions">
                             <button class="manage-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Manage users in this list">
-                                <i class="fas fa-users"></i> Manage
+                                <i class="fas fa-users"></i>
                             </button>
-                            <button class="delete-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Delete this user group">
+                            <button class="delete-list-btn" data-list-name="${this.escapeHtml(list.name)}" title="Delete this sharing list">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -3348,7 +3346,7 @@ export class ContactUIController {
         if (this.elements.distributionListsContainer) {
             this.elements.distributionListsContainer.innerHTML = `
                 <div class="no-lists-message">
-                    <p style="margin-top: 10px; opacity: 0.7;">No user groups</p>
+                    <p>No sharing lists</p>
                 </div>
             `;
         }
@@ -3501,10 +3499,10 @@ export class ContactUIController {
             const distributionLists = await this.contactManager.getDistributionLists();
             
             // Clear existing options (except the first placeholder)
-            this.elements.shareWithListSelect.innerHTML = '<option value="">Choose a user group...</option>';
-            
+            this.elements.shareWithListSelect.innerHTML = '<option value="">Choose a sharing list...</option>';
+
             if (distributionLists.length === 0) {
-                this.elements.shareWithListSelect.innerHTML += '<option value="" disabled>No user groups created yet</option>';
+                this.elements.shareWithListSelect.innerHTML += '<option value="" disabled>No sharing lists created yet</option>';
                 return;
             }
             
@@ -3526,7 +3524,7 @@ export class ContactUIController {
     }
 
     /**
-     * Show preview of users in selected user group
+     * Show preview of users in selected sharing list
      */
     async showShareListPreview(listName) {
         if (!this.elements.shareListPreview || !this.elements.shareListUsers) return;
@@ -3802,7 +3800,7 @@ export class ContactUIController {
             
             // Validate input
             if (!listName) {
-                this.showFieldError('share-with-distribution-list', 'Please select a user group');
+                this.showFieldError('share-with-distribution-list', 'Please select a sharing list');
                 return;
             }
             
@@ -4511,8 +4509,8 @@ export class ContactUIController {
             
         } else if (shareType === 'share-with-list') {
             document.getElementById('share-with-list-section').classList.add('active');
-            this.elements.shareInfoText.textContent = 'This contact will be shared with ALL users in the selected user group simultaneously.';
-            this.elements.shareSubmitText.textContent = 'Share with Group';
+            this.elements.shareInfoText.textContent = 'This contact will be shared with ALL users in the selected sharing list simultaneously.';
+            this.elements.shareSubmitText.textContent = 'Share with List';
             
             // Remove required attribute from username field for list sharing
             if (this.elements.shareUsernameInput) {
@@ -4637,7 +4635,7 @@ export class ContactUIController {
             if (result.success) {
                 this.hideModal({ modalId: 'create-list-modal' });
                 this.showToast({ 
-                    message: `Distribution list "${listData.name}" created successfully!`, 
+                    message: `Sharing list "${listData.name}" created successfully!`, 
                     type: 'success' 
                 });
                 
@@ -4646,7 +4644,7 @@ export class ContactUIController {
             } else {
                 console.error('❌ Failed to create distribution list:', result.error);
                 this.showToast({ 
-                    message: result.error || 'Failed to create distribution list', 
+                    message: result.error || 'Failed to create sharing list', 
                     type: 'error' 
                 });
             }
@@ -5462,7 +5460,7 @@ export class ContactUIController {
             this.elements.usernamesList.innerHTML = `
                 <div class="empty-usernames">
                     <i class="fas fa-info-circle"></i>
-                    No users in this distribution list yet.
+                    No users in this sharing list yet.
                 </div>
             `;
             return;
@@ -5500,7 +5498,7 @@ export class ContactUIController {
         }
 
         if (!this.currentDistributionList) {
-            this.showToast({ message: 'No distribution list selected', type: 'error' });
+            this.showToast({ message: 'No sharing list selected', type: 'error' });
             return;
         }
 
@@ -5559,9 +5557,9 @@ export class ContactUIController {
 
             if (results.successful + results.alreadyExists > 0) {
                 if (results.total === 1 && results.alreadyExists === 1) {
-                    message = `"${usernames[0]}" is already in the distribution list`;
+                    message = `"${usernames[0]}" is already in the sharing list`;
                 } else if (results.successful === 0) {
-                    message = `All ${results.alreadyExists} users were already in the distribution list.`;
+                    message = `All ${results.alreadyExists} users were already in the sharing list.`;
                 } else {
                     message = `Added ${results.successful} of ${results.total} user${results.total === 1 ? '' : 's'}.`;
                     if (results.alreadyExists > 0) {
@@ -5617,7 +5615,7 @@ export class ContactUIController {
             if (result.success) {
                 this.loadUsernamesForList(this.currentDistributionList);
                 this.showToast({ 
-                    message: `Removed "${username}" from distribution list. Existing contact shares are unchanged.`,
+                    message: `Removed "${username}" from sharing list. Existing contact shares are unchanged.`,
                     type: 'success' 
                 });
                 
@@ -5663,7 +5661,7 @@ export class ContactUIController {
             
             if (result.success) {
                 this.showToast({ 
-                    message: `Distribution list "${listName}" deleted successfully`, 
+                    message: `Sharing list "${listName}" deleted successfully`, 
                     type: 'success' 
                 });
                 
@@ -5678,13 +5676,13 @@ export class ContactUIController {
             } else {
                 console.error('❌ UI: Distribution list deletion failed:', result.error);
                 this.showToast({ 
-                    message: result.error || 'Failed to delete distribution list', 
+                    message: result.error || 'Failed to delete sharing list', 
                     type: 'error' 
                 });
             }
         } catch (error) {
             console.error('Error deleting distribution list:', error);
-            this.showToast({ message: 'Failed to delete distribution list', type: 'error' });
+            this.showToast({ message: 'Failed to delete sharing list', type: 'error' });
         }
     }
 

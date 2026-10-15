@@ -152,11 +152,11 @@
                     
                     <!-- Distribution Lists Container -->
                     <div id="distribution-lists" class="distribution-lists">
-                        <!-- Dynamic user groups will be inserted here -->
+                        <!-- Dynamic sharing lists will be inserted here -->
                     </div>
                     <button id="create-list-btn" class="btn btn-ghost btn-small">
                         <i class="fas fa-plus"></i>
-                        Create User Group
+                        Create Sharing List
                     </button>
                 </div>
 
@@ -601,7 +601,7 @@
                                 </button>
                                 <button type="button" class="share-type-tab" data-type="share-with-list">
                                     <i class="fas fa-users"></i>
-                                    Share with Group
+                                    Share with List
                                 </button>
                             </div>
                         </div>
@@ -653,7 +653,7 @@
                             </div>
                         </div>
 
-                        <!-- Share with User Group -->
+                        <!-- Share with Sharing List -->
                         <div id="share-with-list-section" class="share-section">
                             <div class="contact-preview">
                                 <h3>Sharing Contact:</h3>
@@ -665,14 +665,14 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p><strong>Groups are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
+                                    <p><strong>Sharing lists are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
                                 </div>
                             </div>
                             
                             <div class="form-group">
-                                <label for="share-with-distribution-list">Select User Group *</label>
+                                <label for="share-with-distribution-list">Select Sharing List *</label>
                                 <select id="share-with-distribution-list" name="shareWithList">
-                                    <option value="">Choose a user group...</option>
+                                    <option value="">Choose a sharing list...</option>
                                 </select>
                                 <div class="field-error" id="share-with-distribution-list-error"></div>
                             </div>
@@ -755,22 +755,22 @@
         </div>
     </div>
 
-    <!-- Create User Group Modal -->
+    <!-- Create Sharing List Modal -->
     <div id="create-list-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Create User Group</h2>
+                <h2>Create Sharing List</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="info-box">
                     <i class="fas fa-info-circle"></i>
-                    <p>Create a group of usernames to share your contact information with. For example, create a "Work" group with colleagues' usernames to quickly share your work contact details.</p>
+                    <p>Create a list of usernames to share your contact information with. For example, create a "Work" list with colleagues' usernames to quickly share your work contact details.</p>
                 </div>
                 
                 <form id="create-list-form" class="create-list-form">
                     <div class="form-group">
-                        <label for="list-name">User Group Name *</label>
+                        <label for="list-name">Sharing List Name *</label>
                         <input type="text" id="list-name" name="listName" required 
                                placeholder="e.g., Work Colleagues, Family, Clients" maxlength="50">
                         <div class="field-error" id="list-name-error"></div>
@@ -809,7 +809,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2 id="username-modal-title">Manage Distribution List</h2>
+                    <h2 id="username-modal-title">Manage Sharing List</h2>
                     <button id="close-username-modal" class="modal-close" data-dismiss="modal">
                         <i class="fas fa-times"></i>
                     </button>
@@ -826,7 +826,7 @@
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
-                            <small class="help-text">Add multiple users with commas. Usernames are validated when you share a contact, not when you add them here. Group membership only affects future shares; adding a username does not grant access to contacts shared earlier, and removing one does not revoke existing shares.</small>
+                            <small class="help-text">Add multiple users with commas. Usernames are validated when you share a contact, not when you add them here. List membership only affects future shares; adding a username does not grant access to contacts shared earlier, and removing one does not revoke existing shares.</small>
                         </div>
                         
                         <div class="current-usernames">
