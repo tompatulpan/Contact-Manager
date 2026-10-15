@@ -1307,6 +1307,25 @@ body {
     line-height: 1.6;
 }
 
+/* Welcome CTA button */
+.welcome-state .btn-primary {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md), 0 4px 14px color-mix(in srgb, var(--primary-color) 28%, transparent);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.welcome-state .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg), 0 8px 22px color-mix(in srgb, var(--primary-color) 38%, transparent);
+}
+
+.welcome-state .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+
 /* Contact Detail Header */
 .contact-detail-header {
     padding: 1.25rem 1.25rem 0.5rem;
