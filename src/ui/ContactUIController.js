@@ -582,11 +582,11 @@ export class ContactUIController {
             
             // Stats elements
             contactCount: document.getElementById('contact-count'),
-            statsTotal: document.getElementById('stat-total'),
-            statsShared: document.getElementById('stat-shared'),
-            statsRecent: document.getElementById('stat-recent'),
-            statsImported: document.getElementById('stat-imported'),
-            statsContainer: document.querySelector('.stats-grid'),
+            filterCountOwned: document.getElementById('filter-count-owned'),
+            filterCountShared: document.getElementById('filter-count-shared'),
+            filterCountImported: document.getElementById('filter-count-imported'),
+            filterCountRecent: document.getElementById('filter-count-recent'),
+            filterCountArchived: document.getElementById('filter-count-archived'),
             
             // Mobile action buttons
             mobileShareProfile: document.getElementById('mobile-share-profile'),
@@ -954,211 +954,6 @@ export class ContactUIController {
                 this.openUsernameManagementModal(listName);
             }
         });
-
-        // Quick stats click handlers for filtering
-        this.setupStatsClickHandlers();
-    }
-
-    /**
-     * Setup click handlers for quick stats to enable filtering
-     */
-    setupStatsClickHandlers() {
-        // Shared contacts filter
-        const sharedStatItem = this.elements.statsShared?.closest('.stat-item');
-        if (sharedStatItem) {
-            sharedStatItem.style.cursor = 'pointer';
-            sharedStatItem.title = 'Click to filter shared contacts';
-            sharedStatItem.addEventListener('click', () => {
-                this.filterBySharedContacts();
-            });
-        }
-
-        // Recent contacts filter
-        const recentStatItem = this.elements.statsRecent?.closest('.stat-item');
-        if (recentStatItem) {
-            recentStatItem.style.cursor = 'pointer';
-            recentStatItem.title = 'Click to filter recently accessed contacts';
-            recentStatItem.addEventListener('click', () => {
-                this.filterByRecentContacts();
-            });
-        }
-
-        // Imported contacts filter
-        const importedStatItem = this.elements.statsImported?.closest('.stat-item');
-        if (importedStatItem) {
-            importedStatItem.style.cursor = 'pointer';
-            importedStatItem.title = 'Click to filter imported contacts';
-            importedStatItem.addEventListener('click', () => {
-                this.filterByImportedContacts();
-            });
-        }
-
-        // Total contacts (clear filters)
-        const totalStatItem = this.elements.statsTotal?.closest('.stat-item');
-        if (totalStatItem) {
-            totalStatItem.style.cursor = 'pointer';
-            totalStatItem.title = 'Click to show all contacts';
-            totalStatItem.addEventListener('click', () => {
-                this.clearAllFilters();
-            });
-        }
-    }
-
-    /**
-     * Filter contacts to show only shared contacts
-     */
-    filterBySharedContacts() {
-        // Clear other filters and set shared filter
-        const filterShared = document.getElementById('filter-shared');
-        const filterOwned = document.getElementById('filter-owned');
-        const filterImported = document.getElementById('filter-imported');
-        const filterRecent = document.getElementById('filter-recent');
-        const filterArchived = document.getElementById('filter-archived');
-        
-        if (filterShared) filterShared.checked = true;
-        if (filterOwned) filterOwned.checked = false;
-        if (filterImported) filterImported.checked = false;
-        if (filterRecent) filterRecent.checked = false;
-        if (filterArchived) filterArchived.checked = false;
-        
-        // Clear search
-        if (this.elements.searchInput) {
-            this.elements.searchInput.value = '';
-            this.searchQuery = '';
-        }
-        
-        // Apply filters using the standard handleFilterChange method
-        this.handleFilterChange();
-        
-        // Show feedback
-        this.showStatusMessage('Showing shared contacts');
-    }
-
-    /**
-     * Filter contacts to show all contacts sorted by most recent activity (accessed/updated)
-     */
-    filterByRecentContacts() {
-        // Clear other filters
-        const filterShared = document.getElementById('filter-shared');
-        const filterOwned = document.getElementById('filter-owned');
-        const filterImported = document.getElementById('filter-imported');
-        const filterArchived = document.getElementById('filter-archived');
-        
-        if (filterShared) filterShared.checked = false;
-        if (filterOwned) filterOwned.checked = false;
-        if (filterImported) filterImported.checked = false;
-        if (filterArchived) filterArchived.checked = false;
-        
-        // Check the Recent filter
-        const filterRecent = document.getElementById('filter-recent');
-        if (filterRecent) filterRecent.checked = true;
-        
-        // Clear search
-        if (this.elements.searchInput) {
-            this.elements.searchInput.value = '';
-            this.searchQuery = '';
-        }
-        
-        // Apply filters using the standard handleFilterChange method
-        this.handleFilterChange();
-        
-        // Show feedback
-        this.showStatusMessage('Showing all contacts sorted by most recent activity');
-    }
-
-    /**
-     * Filter contacts to show only imported contacts
-     */
-    filterByImportedContacts() {
-        // Clear other filters and set imported filter
-        const filterShared = document.getElementById('filter-shared');
-        const filterOwned = document.getElementById('filter-owned');
-        const filterImported = document.getElementById('filter-imported');
-        const filterRecent = document.getElementById('filter-recent');
-        const filterArchived = document.getElementById('filter-archived');
-        
-        if (filterShared) filterShared.checked = false;
-        if (filterOwned) filterOwned.checked = false;
-        if (filterImported) filterImported.checked = true;
-        if (filterRecent) filterRecent.checked = false;
-        if (filterArchived) filterArchived.checked = false;
-        
-        // Clear search
-        if (this.elements.searchInput) {
-            this.elements.searchInput.value = '';
-            this.searchQuery = '';
-        }
-        
-        // Apply filters using the standard handleFilterChange method
-        this.handleFilterChange();
-        
-        // Show feedback
-        this.showStatusMessage('Showing imported contacts');
-    }
-
-    /**
-     * Clear all filters and show all contacts
-     */
-    clearAllFilters() {
-        // Clear all filter checkboxes
-        const filterShared = document.getElementById('filter-shared');
-        const filterOwned = document.getElementById('filter-owned');
-        const filterImported = document.getElementById('filter-imported');
-        const filterRecent = document.getElementById('filter-recent');
-        const filterArchived = document.getElementById('filter-archived');
-        
-        if (filterShared) filterShared.checked = false;
-        if (filterOwned) filterOwned.checked = false;
-        if (filterImported) filterImported.checked = false;
-        if (filterRecent) filterRecent.checked = false;
-        if (filterArchived) filterArchived.checked = false;
-        
-        // Clear search
-        if (this.elements.searchInput) {
-            this.elements.searchInput.value = '';
-            this.searchQuery = '';
-        }
-        
-        // Apply filters using the standard handleFilterChange method
-        this.handleFilterChange();
-        
-        // Show feedback
-        this.showStatusMessage('Showing all contacts');
-    }
-
-    /**
-     * Show status message to user
-     */
-    showStatusMessage(message) {
-        // Create or update status message element
-        let statusEl = document.getElementById('filter-status-message');
-        if (!statusEl) {
-            statusEl = document.createElement('div');
-            statusEl.id = 'filter-status-message';
-            statusEl.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: var(--primary-color, #007bff);
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-                z-index: 1000;
-                font-size: 14px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            `;
-            document.body.appendChild(statusEl);
-        }
-        
-        statusEl.textContent = message;
-        statusEl.style.display = 'block';
-        
-        // Auto-hide after 3 seconds
-        setTimeout(() => {
-            if (statusEl) {
-                statusEl.style.display = 'none';
-            }
-        }, 3000);
     }
 
     /**
@@ -3212,19 +3007,22 @@ export class ContactUIController {
 
     updateStats() {
         const stats = this.contactManager.getContactStatistics();
-        
-        // Update individual stat elements
-        if (this.elements.statsTotal) {
-            this.elements.statsTotal.textContent = stats.total;
+
+        // Update the inline count pill on each sidebar filter row
+        if (this.elements.filterCountOwned) {
+            this.elements.filterCountOwned.textContent = stats.owned;
         }
-        if (this.elements.statsShared) {
-            this.elements.statsShared.textContent = stats.shared;
+        if (this.elements.filterCountShared) {
+            this.elements.filterCountShared.textContent = stats.shared;
         }
-        if (this.elements.statsRecent) {
-            this.elements.statsRecent.textContent = stats.recent;
+        if (this.elements.filterCountImported) {
+            this.elements.filterCountImported.textContent = stats.imported;
         }
-        if (this.elements.statsImported) {
-            this.elements.statsImported.textContent = stats.imported;
+        if (this.elements.filterCountRecent) {
+            this.elements.filterCountRecent.textContent = stats.recent;
+        }
+        if (this.elements.filterCountArchived) {
+            this.elements.filterCountArchived.textContent = stats.archived;
         }
     }
 

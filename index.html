@@ -121,26 +121,31 @@
                                 <input type="checkbox" id="filter-owned">
                                 <i class="fas fa-user"></i>
                                 <span>My Contacts</span>
+                                <span class="count" id="filter-count-owned">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-shared">
                                 <i class="fas fa-share-alt"></i>
                                 <span>Shared with Me</span>
+                                <span class="count" id="filter-count-shared">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-imported">
                                 <i class="fas fa-cloud"></i>
                                 <span>Imported Contacts</span>
+                                <span class="count" id="filter-count-imported">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-recent">
                                 <i class="fas fa-history"></i>
                                 <span>Recent Activity</span>
+                                <span class="count" id="filter-count-recent">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-archived">
                                 <i class="fas fa-archive"></i>
                                 <span>Archived Contacts</span>
+                                <span class="count" id="filter-count-archived">0</span>
                             </label>
                         </div>
                     </div>
@@ -153,29 +158,6 @@
                         <i class="fas fa-plus"></i>
                         Create User Group
                     </button>
-                </div>
-
-                <!-- Quick Stats -->
-                <div class="sidebar-section">
-                    <h3>Quick Stats</h3>
-                    <div class="stats-grid">
-                        <div class="stat-item" title="All contacts (owned + shared)">
-                            <span class="stat-label">Total</span>
-                            <span id="stat-total" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item" title="Contacts shared with you">
-                            <span class="stat-label">Shared</span>
-                            <span id="stat-shared" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item" title="All active contacts">
-                            <span class="stat-label">Recent</span>
-                            <span id="stat-recent" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item" title="Contacts imported from files/CardDAV">
-                            <span class="stat-label">Imported</span>
-                            <span id="stat-imported" class="stat-value">0</span>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Appearance (theme picker) -->

@@ -623,6 +623,21 @@ body {
     box-shadow: var(--focus-ring);
 }
 
+.filter-options .checkbox-item .count {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--hover-color);
+    color: var(--text-secondary);
+    padding: 1px 7px;
+    border-radius: 999px;
+}
+
+.filter-options .checkbox-item:has(input:checked) .count {
+    background: var(--primary-color);
+    color: var(--primary-contrast);
+}
+
 .checkbox-item {
     display: flex;
     align-items: center; /* Changed from baseline to center for better radio button alignment */
@@ -649,47 +664,6 @@ body {
 .checkbox-item span {
     line-height: 1.4;
     font-size: 0.875rem;
-}
-
-/* Stats Grid */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.stat-item {
-    text-align: center;
-    padding: 8px 4px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    transition: all 0.2s ease;
-}
-
-.stat-item:hover {
-    background: var(--primary-light);
-    border-color: var(--primary-color);
-    transform: translateY(-1px);
-}
-
-.stat-label {
-    display: block;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
-    margin-bottom: 2px;
-}
-
-.stat-value {
-    display: block;
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.2;
 }
 
 /* Distribution Lists */
