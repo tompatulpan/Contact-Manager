@@ -2792,6 +2792,17 @@ export class ContactManager {
                 throw new Error('Cannot share contacts that were shared with you');
             }
             
+            // TODO(orange-copy, docs/SYNC_RULES.md section 6 / Decision 3):
+            // Sharing an IMPORTED (orange) card is not yet implemented. Per
+            // the sync rules it must be a one-time copy transfer, not a share:
+            // the recipient receives an independent orange card (isImported,
+            // owned by the recipient, no live link, no sharedBy, re-shareable)
+            // and rule 3 (owner-only edits) never applies to it. Green shares
+            // may only ever originate from blue (owned, !isImported) cards.
+            // When implementing: branch here on contact.metadata.isImported and
+            // route to the copy path; keep the failing orange-copy integration
+            // test in sync (see SYNC_RULES.md section 10, action items).
+            
             // Check if already shared with this user
             const currentSharedUsers = contact.metadata.sharing?.sharedWithUsers || [];
             const isAlreadyShared = currentSharedUsers.includes(username);
