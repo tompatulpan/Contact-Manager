@@ -119,6 +119,7 @@ fish scripts/production_zip.sh && \
 - [ ] Change password
 - [ ] Set passwords rules
 - [x] Dark mode
+- [x] Colour themes (6 selectable looks, each with light + dark; see `themes.css` and the sidebar "Appearance" section)
 - [ ] Pictures as avatars
 - [x] Complete disaster recovery system via vCards
 

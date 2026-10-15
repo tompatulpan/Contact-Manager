@@ -38,6 +38,7 @@
     <link rel="stylesheet" href="style-dark.css">
     <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="mobile-dark.css">
+    <link rel="stylesheet" href="themes.css">
     <link rel="stylesheet" href="src/ui/credential-storage.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
 </head>
@@ -169,6 +170,23 @@
                             <span class="stat-label">Imported</span>
                             <span id="stat-imported" class="stat-value">0</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Appearance (theme picker) -->
+                <div class="sidebar-section appearance-section">
+                    <h3>Appearance</h3>
+                    <div class="appearance-mode-row">
+                        <span><i class="fas fa-adjust"></i> Dark mode</span>
+                        <div class="theme-toggle" data-theme-toggle role="button" tabindex="0" aria-label="Toggle dark mode" title="Toggle dark mode">
+                            <i class="fas fa-moon theme-toggle-icon"></i>
+                            <div class="theme-toggle-switch">
+                                <div class="theme-toggle-slider"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="theme-picker" class="theme-picker" role="radiogroup" aria-label="Colour theme">
+                        <!-- Theme options rendered by ThemeManager -->
                     </div>
                 </div>
             </aside>

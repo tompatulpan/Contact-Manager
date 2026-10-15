@@ -59,7 +59,7 @@
     }
     
     body.dark-mode #mobile-logout:hover {
-        background: rgba(239, 68, 68, 0.1) !important;
+        background: color-mix(in srgb, var(--error-color) 12%, transparent) !important;
         color: var(--error-color) !important;
     }
     
@@ -158,7 +158,7 @@
     /* Mobile Buttons in Dark Mode */
     body.dark-mode .btn-primary {
         background: var(--primary-color) !important;
-        color: white !important;
+        color: var(--primary-contrast) !important;
         border-color: var(--primary-color) !important;
     }
     
@@ -222,7 +222,7 @@
     }
     
     body.dark-mode .contact-card.selected {
-        background: var(--primary-light) !important;
+        background: var(--selected-color) !important;
         border-color: var(--primary-color) !important;
     }
     
@@ -237,7 +237,7 @@
     }
     
     body.dark-mode .contact-list-item.selected {
-        background: var(--primary-light) !important;
+        background: var(--selected-color) !important;
         border-left-color: var(--primary-color) !important;
     }
     
@@ -316,22 +316,22 @@
     
     body.dark-mode .notification.success {
         border-color: var(--success-color) !important;
-        background: rgba(16, 185, 129, 0.1) !important;
+        background: color-mix(in srgb, var(--success-color) 12%, transparent) !important;
     }
     
     body.dark-mode .notification.error {
         border-color: var(--error-color) !important;
-        background: rgba(239, 68, 68, 0.1) !important;
+        background: color-mix(in srgb, var(--error-color) 12%, transparent) !important;
     }
     
     body.dark-mode .notification.warning {
         border-color: var(--warning-color) !important;
-        background: rgba(245, 158, 11, 0.1) !important;
+        background: color-mix(in srgb, var(--warning-color) 12%, transparent) !important;
     }
     
     /* Mobile Error Messages */
     body.dark-mode .field-error {
-        background: rgba(239, 68, 68, 0.1) !important;
+        background: color-mix(in srgb, var(--error-color) 12%, transparent) !important;
         border-color: var(--error-color) !important;
         color: var(--text-primary) !important;
     }
@@ -345,23 +345,23 @@
     
     /* Mobile Badges */
     body.dark-mode .badge {
-        background: var(--primary-light) !important;
+        background: var(--selected-color) !important;
         color: var(--primary-color) !important;
     }
     
     body.dark-mode .badge-owned {
-        background: rgba(59, 130, 246, 0.2) !important;
-        color: var(--primary-color) !important;
+        background: color-mix(in srgb, var(--owned-color) 20%, transparent) !important;
+        color: var(--owned-color) !important;
     }
     
     body.dark-mode .badge-shared {
-        background: rgba(16, 185, 129, 0.2) !important;
-        color: var(--success-color) !important;
+        background: color-mix(in srgb, var(--shared-color) 20%, transparent) !important;
+        color: var(--shared-color) !important;
     }
     
     body.dark-mode .badge-imported {
-        background: rgba(245, 158, 11, 0.2) !important;
-        color: var(--warning-color) !important;
+        background: color-mix(in srgb, var(--imported-color) 20%, transparent) !important;
+        color: var(--imported-color) !important;
     }
     
     /* Mobile Scrollbars */

@@ -93,8 +93,8 @@
         align-items: center !important;
         justify-content: space-between !important;
         padding: 12px 16px !important;
-        background: #f8f9fa !important;
-        border-bottom: 1px solid #dee2e6 !important;
+        background: var(--surface-color) !important;
+        border-bottom: 1px solid var(--border-color) !important;
         position: sticky !important;
         top: 0 !important;
         z-index: 10 !important;
@@ -106,7 +106,7 @@
         background: none !important;
         border: none !important;
         font-size: 24px !important;
-        color: #007bff !important;
+        color: var(--primary-color) !important;
         cursor: pointer !important;
         padding: 8px !important;
         border-radius: 4px !important;
@@ -117,7 +117,7 @@
     
     .mobile-back-btn:hover,
     .mobile-menu-btn:hover {
-        background: rgba(0, 123, 255, 0.1) !important;
+        background: var(--hover-color) !important;
     }
     
     .mobile-header-actions {
@@ -130,7 +130,7 @@
         background: none !important;
         border: none !important;
         font-size: 18px !important;
-        color: #6c757d !important;
+        color: var(--text-secondary) !important;
         cursor: pointer !important;
         padding: 8px !important;
         border-radius: 4px !important;
@@ -143,32 +143,32 @@
     }
     
     .mobile-action-btn:hover {
-        background: rgba(108, 117, 125, 0.1) !important;
-        color: #495057 !important;
+        background: var(--hover-color) !important;
+        color: var(--text-primary) !important;
     }
     
     #mobile-share-profile {
-        color: #17a2b8 !important;
+        color: var(--primary-color) !important;
     }
     
     #mobile-share-profile:hover {
-        background: rgba(23, 162, 184, 0.1) !important;
-        color: #138496 !important;
+        background: color-mix(in srgb, var(--primary-color) 12%, transparent) !important;
+        color: var(--primary-dark) !important;
     }
     
     #mobile-logout {
-        color: #dc3545 !important;
+        color: var(--error-color) !important;
     }
     
     #mobile-logout:hover {
-        background: rgba(220, 53, 69, 0.1) !important;
-        color: #c82333 !important;
+        background: color-mix(in srgb, var(--error-color) 12%, transparent) !important;
+        color: var(--error-color) !important;
     }
     
     .mobile-page-title {
         font-size: 18px !important;
         font-weight: 600 !important;
-        color: #212529 !important;
+        color: var(--text-primary) !important;
         margin: 0 !important;
         flex: 1 !important;
         text-align: center !important;
@@ -229,8 +229,8 @@
     
     .contact-search-controls {
         padding: 16px !important;
-        background: white !important;
-        border-bottom: 1px solid #dee2e6 !important;
+        background: var(--surface-color) !important;
+        border-bottom: 1px solid var(--border-color) !important;
         position: sticky !important;
         top: 60px !important;
         z-index: 9 !important;
@@ -243,13 +243,13 @@
         border: 1px solid var(--primary-color) !important;
         border-radius: 8px !important;
         margin-bottom: 12px !important;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+        box-shadow: none !important;
     }
     
     .search-input:focus {
         outline: none !important;
         border-color: var(--primary-color) !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+        box-shadow: var(--focus-ring) !important;
         background: var(--bg-primary) !important;
     }
     
@@ -258,8 +258,8 @@
         display: flex !important;
         align-items: center !important;
         padding: 16px !important;
-        border-bottom: 1px solid #f0f0f0 !important;
-        background: white !important;
+        border-bottom: 1px solid var(--border-color) !important;
+        background: var(--surface-color) !important;
         cursor: pointer !important;
         min-height: 80px !important;
         transition: background-color 0.2s ease !important;
@@ -267,7 +267,7 @@
     }
     
     .contact-card:hover {
-        background: #f8f9fa !important;
+        background: var(--hover-color) !important;
     }
     
     .contact-card:last-child {
@@ -295,17 +295,17 @@
     }
     
     .contact-card .contact-avatar.avatar-shared {
-        background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%) !important;
+        background: linear-gradient(135deg, var(--shared-color) 0%, color-mix(in srgb, var(--shared-color) 80%, black) 100%) !important;
     }
     
     .contact-card .contact-avatar.avatar-imported {
-        background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%) !important;
+        background: linear-gradient(135deg, var(--imported-color) 0%, color-mix(in srgb, var(--imported-color) 80%, black) 100%) !important;
     }
     
     .contact-card .contact-name {
         font-size: 18px !important;
         font-weight: 500 !important;
-        color: #212529 !important;
+        color: var(--text-primary) !important;
         margin: 0 0 4px 0 !important;
         padding: 5px 0 !important;
         white-space: nowrap !important;
@@ -321,7 +321,7 @@
     .contact-card .contact-organization,
     .contact-card .contact-title {
         font-size: 14px !important;
-        color: #6c757d !important;
+        color: var(--text-secondary) !important;
         margin: 0 0 2px 0 !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -330,7 +330,7 @@
     
     .contact-card .contact-meta {
         font-size: 13px !important;
-        color: #868e96 !important;
+        color: var(--text-muted) !important;
     }
     
     .contact-card .contact-badges {
@@ -347,7 +347,7 @@
         font-size: 11px !important;
         padding: 2px 6px !important;
         border-radius: 12px !important;
-        color: #007bff !important;
+        color: var(--primary-color) !important;
         font-weight: 500 !important;
         background: transparent !important;
     }
@@ -357,7 +357,7 @@
         position: absolute !important;
         right: 16px !important;
         bottom: 16px !important;
-        color: #ced4da !important;
+        color: var(--text-muted) !important;
         font-size: 20px !important;
         font-weight: 300 !important;
     }
@@ -374,7 +374,7 @@
         font-weight: 500 !important;
         line-height: 1.2 !important;
         padding: 5px 0 !important;
-        color: #000000 !important;
+        color: var(--text-primary) !important;
     }
     
     .contact-list.list-view .contact-list-item .contact-meta {
@@ -384,7 +384,7 @@
     
     .contact-list.list-view .contact-list-item .shared-indicator {
         background: transparent !important;
-        color: #007bff !important;
+        color: var(--primary-color) !important;
         padding: 3px 8px !important;
         border-radius: 12px !important;
         font-size: 12px !important;
@@ -608,30 +608,30 @@
 
     /* Enhanced error type styling for mobile */
     .field-error.error-user-not-found {
-        background-color: #fff3cd !important;
-        border: 1px solid #ffeaa7 !important;
-        border-left: 4px solid #fdcb6e !important;
-        color: #856404 !important;
+        background-color: color-mix(in srgb, var(--warning-color) 14%, var(--surface-color)) !important;
+        border: 1px solid color-mix(in srgb, var(--warning-color) 35%, transparent) !important;
+        border-left: 4px solid var(--warning-color) !important;
+        color: color-mix(in srgb, var(--warning-color) 70%, var(--text-primary)) !important;
         font-weight: 500 !important;
         padding: 1rem !important;
         margin: 0.75rem 0 !important;
     }
 
     .field-error.error-subscription {
-        background-color: #f8d7da !important;
-        border: 1px solid #f5c6cb !important;
-        border-left: 4px solid #dc3545 !important;
-        color: #721c24 !important;
+        background-color: color-mix(in srgb, var(--error-color) 14%, var(--surface-color)) !important;
+        border: 1px solid color-mix(in srgb, var(--error-color) 35%, transparent) !important;
+        border-left: 4px solid var(--error-color) !important;
+        color: color-mix(in srgb, var(--error-color) 70%, var(--text-primary)) !important;
         font-weight: 500 !important;
         padding: 1rem !important;
         margin: 0.75rem 0 !important;
     }
 
     .field-error.error-network {
-        background-color: #d1ecf1 !important;
-        border: 1px solid #bee5eb !important;
-        border-left: 4px solid #17a2b8 !important;
-        color: #0c5460 !important;
+        background-color: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color)) !important;
+        border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent) !important;
+        border-left: 4px solid var(--primary-color) !important;
+        color: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary)) !important;
         font-weight: 500 !important;
         padding: 1rem !important;
         margin: 0.75rem 0 !important;
@@ -680,7 +680,7 @@
         max-height: 40vh !important;
         overflow-y: auto !important;
         padding: 0.75rem !important;
-        background: rgba(0,0,0,0.05) !important;
+        background: var(--hover-color) !important;
         border-radius: 0.375rem !important;
         margin-top: 0.5rem !important;
         word-break: break-word !important;

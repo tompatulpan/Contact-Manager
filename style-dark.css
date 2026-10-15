@@ -22,6 +22,19 @@ body.dark-mode {
     --surface-color: #1f2937;
     --hover-color: #374151;
     --border-color: #374151;
+
+    /* Extended theme tokens – dark defaults (overridden per theme in themes.css) */
+    --primary-contrast: #ffffff;
+    --owned-color: var(--primary-color);
+    --imported-color: var(--warning-color);
+    --shared-color: var(--success-color);
+    --text-muted: #6b7280;
+    --bg-app: var(--bg-secondary);
+    --surface-raised: #273449;
+    --selected-color: var(--primary-light);
+    --border-strong: #4b5563;
+    --input-bg: #111827;
+    --focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.3);
     
     /* Shadows (Darker shadows for depth) */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
@@ -33,7 +46,7 @@ body.dark-mode {
 
 /* Body and main background */
 body.dark-mode {
-    background-color: var(--bg-secondary);
+    background: var(--bg-app);
     color: var(--text-primary);
 }
 
@@ -53,7 +66,7 @@ body.dark-mode .app-title i {
 /* Buttons */
 body.dark-mode .btn-primary {
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
 }
 
 body.dark-mode .btn-primary:hover {
@@ -61,13 +74,14 @@ body.dark-mode .btn-primary:hover {
 }
 
 body.dark-mode .btn-secondary {
-    background: var(--surface-color);
+    background: var(--surface-raised);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
 }
 
 body.dark-mode .btn-secondary:hover {
     background: var(--hover-color);
+    border-color: var(--border-strong);
 }
 
 body.dark-mode .btn-ghost {
@@ -119,7 +133,7 @@ body.dark-mode .contact-item:hover {
 }
 
 body.dark-mode .contact-item.active {
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-color: var(--primary-color);
 }
 
@@ -144,7 +158,7 @@ body.dark-mode .contact-list.list-view .contact-list-item:hover {
 }
 
 body.dark-mode .contact-list.list-view .contact-list-item.selected {
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-left-color: var(--primary-color);
 }
 
@@ -163,7 +177,7 @@ body.dark-mode .contact-card:hover {
 }
 
 body.dark-mode .contact-card.selected {
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-color: var(--primary-color);
 }
 
@@ -202,7 +216,7 @@ body.dark-mode .tag-shared-out {
 
 body.dark-mode .tag-shared {
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
 }
 
 /* Contact Detail Panel */
@@ -258,7 +272,7 @@ body.dark-mode input[type="date"],
 body.dark-mode input[type="password"],
 body.dark-mode textarea,
 body.dark-mode select {
-    background: var(--bg-primary);
+    background: var(--input-bg);
     color: var(--text-primary);
     border-color: var(--border-color);
 }
@@ -287,7 +301,7 @@ body.dark-mode .modal {
 }
 
 body.dark-mode .modal-content {
-    background: var(--surface-color);
+    background: var(--surface-raised);
     border-color: var(--border-color);
 }
 
@@ -319,24 +333,24 @@ body.dark-mode .search-bar i {
 }
 
 /* Tags and Badges */
-body.dark-mode .badge {
+body.dark-mode .badge:not(.badge-primary):not(.badge-imported):not(.badge-shared):not(.badge-secondary) {
     background: var(--primary-light);
     color: var(--primary-color);
 }
 
 body.dark-mode .badge-owned {
-    background: rgba(59, 130, 246, 0.2);
-    color: var(--primary-color);
+    background: color-mix(in srgb, var(--owned-color) 20%, transparent);
+    color: var(--owned-color);
 }
 
 body.dark-mode .badge-shared {
-    background: rgba(16, 185, 129, 0.2);
-    color: var(--success-color);
+    background: color-mix(in srgb, var(--shared-color) 20%, transparent);
+    color: var(--shared-color);
 }
 
 body.dark-mode .badge-imported {
-    background: rgba(245, 158, 11, 0.2);
-    color: var(--warning-color);
+    background: color-mix(in srgb, var(--imported-color) 20%, transparent);
+    color: var(--imported-color);
 }
 
 /* Notifications */
@@ -355,7 +369,7 @@ body.dark-mode .notification.error {
 }
 
 body.dark-mode .notification.warning {
-    background-color: rgba(245, 158, 11, 0.1);
+    background-color: color-mix(in srgb, var(--warning-color) 12%, transparent);
     border-color: var(--warning-color);
     color: var(--text-primary);
 }
@@ -390,7 +404,15 @@ body.dark-mode .fab {
 
 /* Specific icon contexts where color should remain contextual */
 body.dark-mode .btn-primary i,
-body.dark-mode .btn-ghost:hover i {
+body.dark-mode .btn-ghost:hover i,
+body.dark-mode .view-controls .btn.active i,
+body.dark-mode .share-type-tab.active i,
+body.dark-mode .contact-detail-actions .btn-icon:hover i,
+body.dark-mode .contact-detail-actions .btn-icon.share-contact i,
+body.dark-mode .contact-detail-actions .btn-icon.delete-contact i,
+body.dark-mode .contact-detail-actions .btn-icon.archive-contact i,
+body.dark-mode .contact-detail-actions .btn-icon.restore-contact i,
+body.dark-mode .notification i {
     color: inherit;
 }
 
@@ -527,11 +549,13 @@ body.dark-mode .progress-fill {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.45rem;
     cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 0.5rem;
-    transition: background 0.2s;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    transition: background 0.2s, border-color 0.2s;
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -540,17 +564,23 @@ body.dark-mode .progress-fill {
 
 .theme-toggle:hover {
     background: var(--hover-color);
+    border-color: var(--border-strong);
 }
 
 .theme-toggle:active {
     background: var(--border-color);
 }
 
+.theme-toggle:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
 .theme-toggle-switch {
     position: relative;
     width: 44px;
     height: 24px;
-    background: var(--border-color);
+    background: var(--border-strong);
     border-radius: 12px;
     transition: background 0.3s;
 }

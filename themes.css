@@ -1,0 +1,634 @@
+/* ============================================================
+   CONTACT MANAGER – THEME PACKS
+   ------------------------------------------------------------
+   Six selectable looks, each with a light and a dark variant.
+   The active theme is set by ThemeManager as
+       <body data-theme="soft-slate" class="dark-mode">
+   Light blocks use  body[data-theme=X]:not(.dark-mode)
+   Dark  blocks use  body[data-theme=X].dark-mode
+   so they always override the base tokens in style.css (:root)
+   and style-dark.css (body.dark-mode) regardless of load order.
+
+   Token reference (consumed by style.css / mobile.css):
+     --primary-color / --primary-dark / --primary-light / --primary-contrast
+     --success-color / --error-color / --warning-color
+     --owned-color / --imported-color / --shared-color
+     --text-primary / --text-secondary / --text-muted
+     --bg-app / --bg-primary / --bg-secondary
+     --surface-color / --surface-raised / --hover-color / --selected-color
+     --border-color / --border-strong / --input-bg
+     --shadow-sm / --shadow-md / --shadow-lg / --focus-ring
+     --radius-sm / --radius-md / --radius-lg / --font-family
+   ============================================================ */
+
+
+/* ============================================================
+   1. CLASSIC REFINED  – the current blue, polished
+   ============================================================ */
+body[data-theme="classic-refined"]:not(.dark-mode) {
+    --primary-color: #2f6fed;
+    --primary-dark: #1f56c7;
+    --primary-light: #e6eeff;
+    --primary-contrast: #ffffff;
+    --success-color: #16a34a;
+    --error-color: #dc2626;
+    --warning-color: #ea8a0a;
+    --owned-color: #2f6fed;
+    --imported-color: #ea8a0a;
+    --shared-color: #16a34a;
+
+    --text-primary: #0f172a;
+    --text-secondary: #5b6474;
+    --text-muted: #94a3b8;
+
+    --bg-primary: #ffffff;
+    --bg-secondary: #f4f6fa;
+    --bg-app: #f4f6fa;
+    --surface-color: #ffffff;
+    --surface-raised: #ffffff;
+    --hover-color: #f1f4f9;
+    --selected-color: #e6eeff;
+    --border-color: #e3e8ef;
+    --border-strong: #cbd3df;
+    --input-bg: #ffffff;
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 16px 32px -8px rgba(15, 23, 42, 0.14);
+    --focus-ring: 0 0 0 3px rgba(47, 111, 237, 0.22);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+}
+
+body[data-theme="classic-refined"].dark-mode {
+    --primary-color: #5b8def;
+    --primary-dark: #7ea5f5;
+    --primary-light: #1b2a4a;
+    --primary-contrast: #0b1220;
+    --success-color: #34d399;
+    --error-color: #f87171;
+    --warning-color: #fbbf24;
+    --owned-color: #5b8def;
+    --imported-color: #fbbf24;
+    --shared-color: #34d399;
+
+    --text-primary: #e6eaf2;
+    --text-secondary: #9aa4b6;
+    --text-muted: #6b7587;
+
+    --bg-primary: #161b26;
+    --bg-secondary: #0e1119;
+    --bg-app: #0e1119;
+    --surface-color: #161b26;
+    --surface-raised: #1c2231;
+    --hover-color: #1f2634;
+    --selected-color: #1b2a4a;
+    --border-color: #252c3b;
+    --border-strong: #343d50;
+    --input-bg: #0e1119;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 16px 32px -8px rgba(0, 0, 0, 0.6);
+    --focus-ring: 0 0 0 3px rgba(91, 141, 239, 0.3);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+}
+
+
+/* ============================================================
+   2. SOFT SLATE  – indigo accent, rounded, layered elevation
+   ============================================================ */
+body[data-theme="soft-slate"]:not(.dark-mode) {
+    --primary-color: #5b5bd6;
+    --primary-dark: #4747b8;
+    --primary-light: #ececfd;
+    --primary-contrast: #ffffff;
+    --success-color: #2a9d6f;
+    --error-color: #d94f4f;
+    --warning-color: #e0881f;
+    --owned-color: #5b5bd6;
+    --imported-color: #e0881f;
+    --shared-color: #2a9d6f;
+
+    --text-primary: #1c1d2b;
+    --text-secondary: #62657a;
+    --text-muted: #9a9db0;
+
+    --bg-primary: #ffffff;
+    --bg-secondary: #f3f4f9;
+    --bg-app: #eef0f6;
+    --surface-color: #ffffff;
+    --surface-raised: #ffffff;
+    --hover-color: #f3f4fa;
+    --selected-color: #ececfd;
+    --border-color: #e6e8f0;
+    --border-strong: #cfd2e0;
+    --input-bg: #f7f8fc;
+
+    --shadow-sm: 0 1px 2px rgba(28, 29, 43, 0.04), 0 1px 1px rgba(28, 29, 43, 0.03);
+    --shadow-md: 0 6px 18px -6px rgba(28, 29, 43, 0.12);
+    --shadow-lg: 0 24px 48px -16px rgba(28, 29, 43, 0.22);
+    --focus-ring: 0 0 0 4px rgba(91, 91, 214, 0.18);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body[data-theme="soft-slate"].dark-mode {
+    --primary-color: #8b8bf0;
+    --primary-dark: #a7a7f6;
+    --primary-light: #2a2a52;
+    --primary-contrast: #14142a;
+    --success-color: #4ccf9a;
+    --error-color: #f07a7a;
+    --warning-color: #f2aa4c;
+    --owned-color: #8b8bf0;
+    --imported-color: #f2aa4c;
+    --shared-color: #4ccf9a;
+
+    --text-primary: #e7e8f2;
+    --text-secondary: #a0a3bb;
+    --text-muted: #6d718a;
+
+    --bg-primary: #232738;
+    --bg-secondary: #1a1d2b;
+    --bg-app: #151722;
+    --surface-color: #232738;
+    --surface-raised: #2a2f44;
+    --hover-color: #2a2f44;
+    --selected-color: #2a2a52;
+    --border-color: #30354b;
+    --border-strong: #434966;
+    --input-bg: #1a1d2b;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 6px 18px -6px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 24px 48px -16px rgba(0, 0, 0, 0.7);
+    --focus-ring: 0 0 0 4px rgba(139, 139, 240, 0.28);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+    --font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+
+/* ============================================================
+   3. WARM PAPER  – warm stone neutrals, teal accent
+   ============================================================ */
+body[data-theme="warm-paper"]:not(.dark-mode) {
+    --primary-color: #0f766e;
+    --primary-dark: #0b5e58;
+    --primary-light: #d9f0ec;
+    --primary-contrast: #ffffff;
+    --success-color: #3f8f3a;
+    --error-color: #c2410c;
+    --warning-color: #d97706;
+    --owned-color: #1d6fb8;
+    --imported-color: #d97706;
+    --shared-color: #3f8f3a;
+
+    --text-primary: #292524;
+    --text-secondary: #6b645e;
+    --text-muted: #a39c95;
+
+    --bg-primary: #fffdfa;
+    --bg-secondary: #f6f2ec;
+    --bg-app: #f3eee6;
+    --surface-color: #fffdfa;
+    --surface-raised: #ffffff;
+    --hover-color: #f5f0e8;
+    --selected-color: #e6f2ef;
+    --border-color: #e9e2d8;
+    --border-strong: #d4cbbe;
+    --input-bg: #faf7f2;
+
+    --shadow-sm: 0 1px 2px rgba(60, 45, 30, 0.06);
+    --shadow-md: 0 6px 16px -6px rgba(60, 45, 30, 0.14);
+    --shadow-lg: 0 20px 40px -14px rgba(60, 45, 30, 0.22);
+    --focus-ring: 0 0 0 3px rgba(15, 118, 110, 0.22);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-family: "Source Sans 3", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+body[data-theme="warm-paper"].dark-mode {
+    --primary-color: #2dd4bf;
+    --primary-dark: #5eead4;
+    --primary-light: #0f3b37;
+    --primary-contrast: #06201d;
+    --success-color: #6fcf6a;
+    --error-color: #fb923c;
+    --warning-color: #fbbf24;
+    --owned-color: #60a5fa;
+    --imported-color: #fbbf24;
+    --shared-color: #6fcf6a;
+
+    --text-primary: #ece7e0;
+    --text-secondary: #a8a099;
+    --text-muted: #736c66;
+
+    --bg-primary: #262220;
+    --bg-secondary: #1b1816;
+    --bg-app: #171412;
+    --surface-color: #262220;
+    --surface-raised: #2e2927;
+    --hover-color: #302b28;
+    --selected-color: #0f3b37;
+    --border-color: #38322e;
+    --border-strong: #4a423d;
+    --input-bg: #1b1816;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 16px -6px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 20px 40px -14px rgba(0, 0, 0, 0.7);
+    --focus-ring: 0 0 0 3px rgba(45, 212, 191, 0.3);
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-family: "Source Sans 3", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+
+/* ============================================================
+   4. NORDIC FROST  – Nord-inspired, calm desaturated palette
+   ============================================================ */
+body[data-theme="nordic-frost"]:not(.dark-mode) {
+    --primary-color: #5e81ac;
+    --primary-dark: #4c6a8f;
+    --primary-light: #e1e9f3;
+    --primary-contrast: #ffffff;
+    --success-color: #7a9a56;
+    --error-color: #bf616a;
+    --warning-color: #d08770;
+    --owned-color: #5e81ac;
+    --imported-color: #d08770;
+    --shared-color: #7a9a56;
+
+    --text-primary: #2e3440;
+    --text-secondary: #5c6677;
+    --text-muted: #8f98a8;
+
+    --bg-primary: #ffffff;
+    --bg-secondary: #eceff4;
+    --bg-app: #e5e9f0;
+    --surface-color: #ffffff;
+    --surface-raised: #ffffff;
+    --hover-color: #eef2f7;
+    --selected-color: #e1e9f3;
+    --border-color: #d8dee9;
+    --border-strong: #bfc8d8;
+    --input-bg: #f4f6fa;
+
+    --shadow-sm: 0 1px 2px rgba(46, 52, 64, 0.06);
+    --shadow-md: 0 4px 14px -4px rgba(46, 52, 64, 0.12);
+    --shadow-lg: 0 18px 36px -12px rgba(46, 52, 64, 0.2);
+    --focus-ring: 0 0 0 3px rgba(94, 129, 172, 0.25);
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body[data-theme="nordic-frost"].dark-mode {
+    --primary-color: #88c0d0;
+    --primary-dark: #a3d2df;
+    --primary-light: #2f4350;
+    --primary-contrast: #1c2431;
+    --success-color: #a3be8c;
+    --error-color: #bf616a;
+    --warning-color: #ebcb8b;
+    --owned-color: #81a1c1;
+    --imported-color: #d08770;
+    --shared-color: #a3be8c;
+
+    --text-primary: #eceff4;
+    --text-secondary: #aeb6c4;
+    --text-muted: #7a8494;
+
+    --bg-primary: #3b4252;
+    --bg-secondary: #2e3440;
+    --bg-app: #272c38;
+    --surface-color: #3b4252;
+    --surface-raised: #434c5e;
+    --hover-color: #434c5e;
+    --selected-color: #2f4350;
+    --border-color: #4c566a;
+    --border-strong: #5b6578;
+    --input-bg: #2e3440;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 14px -4px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 18px 36px -12px rgba(0, 0, 0, 0.6);
+    --focus-ring: 0 0 0 3px rgba(136, 192, 208, 0.3);
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+
+/* ============================================================
+   5. HIGH CONTRAST  – bold, accessible, single emerald accent
+   ============================================================ */
+body[data-theme="high-contrast"]:not(.dark-mode) {
+    --primary-color: #047857;
+    --primary-dark: #065f46;
+    --primary-light: #d1fae5;
+    --primary-contrast: #ffffff;
+    --success-color: #047857;
+    --error-color: #b91c1c;
+    --warning-color: #b45309;
+    --owned-color: #1d4ed8;
+    --imported-color: #b45309;
+    --shared-color: #047857;
+
+    --text-primary: #000000;
+    --text-secondary: #374151;
+    --text-muted: #6b7280;
+
+    --bg-primary: #ffffff;
+    --bg-secondary: #f3f4f6;
+    --bg-app: #ffffff;
+    --surface-color: #ffffff;
+    --surface-raised: #ffffff;
+    --hover-color: #f3f4f6;
+    --selected-color: #d1fae5;
+    --border-color: #111827;
+    --border-strong: #000000;
+    --input-bg: #ffffff;
+
+    --shadow-sm: none;
+    --shadow-md: 4px 4px 0 rgba(0, 0, 0, 0.9);
+    --shadow-lg: 6px 6px 0 rgba(0, 0, 0, 0.9);
+    --focus-ring: 0 0 0 3px #000000;
+
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --font-family: "IBM Plex Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+body[data-theme="high-contrast"].dark-mode {
+    --primary-color: #34d399;
+    --primary-dark: #6ee7b7;
+    --primary-light: #052e22;
+    --primary-contrast: #000000;
+    --success-color: #34d399;
+    --error-color: #fca5a5;
+    --warning-color: #fcd34d;
+    --owned-color: #60a5fa;
+    --imported-color: #fcd34d;
+    --shared-color: #34d399;
+
+    --text-primary: #ffffff;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
+
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #000000;
+    --bg-app: #000000;
+    --surface-color: #0a0a0a;
+    --surface-raised: #141414;
+    --hover-color: #1f1f1f;
+    --selected-color: #052e22;
+    --border-color: #e5e7eb;
+    --border-strong: #ffffff;
+    --input-bg: #000000;
+
+    --shadow-sm: none;
+    --shadow-md: 4px 4px 0 rgba(255, 255, 255, 0.85);
+    --shadow-lg: 6px 6px 0 rgba(255, 255, 255, 0.85);
+    --focus-ring: 0 0 0 3px #ffffff;
+
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --font-family: "IBM Plex Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+/* High contrast: thicker borders and no gradient avatars */
+body[data-theme="high-contrast"] .sidebar,
+body[data-theme="high-contrast"] .contact-list-panel,
+body[data-theme="high-contrast"] .contact-detail-panel,
+body[data-theme="high-contrast"] .modal-content,
+body[data-theme="high-contrast"] .btn-secondary,
+body[data-theme="high-contrast"] .toast,
+body[data-theme="high-contrast"] .form-group input,
+body[data-theme="high-contrast"] .form-group select,
+body[data-theme="high-contrast"] .form-group textarea {
+    border-width: 2px;
+}
+/* Flat (non-gradient) avatars */
+body[data-theme="high-contrast"] .contact-avatar,
+body[data-theme="high-contrast"] .contact-avatar.avatar-owned,
+body[data-theme="high-contrast"] .contact-avatar-large.avatar-owned { background: var(--owned-color); }
+body[data-theme="high-contrast"] .contact-avatar.avatar-imported,
+body[data-theme="high-contrast"] .contact-avatar-large.avatar-imported { background: var(--imported-color); }
+body[data-theme="high-contrast"] .contact-avatar.avatar-shared,
+body[data-theme="high-contrast"] .contact-avatar-large.avatar-shared { background: var(--shared-color); }
+body[data-theme="high-contrast"].dark-mode .contact-avatar .avatar-initial,
+body[data-theme="high-contrast"].dark-mode .contact-avatar-large .avatar-initial {
+    color: #000;
+}
+
+
+/* ============================================================
+   6. AURORA GLASS  – gradient backdrop with translucent panels
+   ============================================================ */
+body[data-theme="aurora-glass"]:not(.dark-mode) {
+    --primary-color: #7c3aed;
+    --primary-dark: #6d28d9;
+    --primary-light: #ede9fe;
+    --primary-contrast: #ffffff;
+    --success-color: #059669;
+    --error-color: #e11d48;
+    --warning-color: #f59e0b;
+    --owned-color: #3b82f6;
+    --imported-color: #f59e0b;
+    --shared-color: #059669;
+
+    --text-primary: #1e1b2e;
+    --text-secondary: #5f5a78;
+    --text-muted: #9b96b3;
+
+    --bg-primary: rgba(255, 255, 255, 0.72);
+    --bg-secondary: rgba(255, 255, 255, 0.45);
+    --bg-app: linear-gradient(135deg, #e0e7ff 0%, #fae8ff 45%, #dbeafe 100%);
+    --surface-color: rgba(255, 255, 255, 0.72);
+    --surface-raised: rgba(255, 255, 255, 0.92);
+    --hover-color: rgba(255, 255, 255, 0.6);
+    --selected-color: rgba(124, 58, 237, 0.12);
+    --border-color: rgba(255, 255, 255, 0.75);
+    --border-strong: rgba(124, 58, 237, 0.3);
+    --input-bg: rgba(255, 255, 255, 0.7);
+
+    --shadow-sm: 0 1px 2px rgba(30, 27, 46, 0.05);
+    --shadow-md: 0 8px 24px -8px rgba(30, 27, 46, 0.18);
+    --shadow-lg: 0 24px 48px -16px rgba(30, 27, 46, 0.25);
+    --focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.25);
+
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body[data-theme="aurora-glass"].dark-mode {
+    --primary-color: #a78bfa;
+    --primary-dark: #c4b5fd;
+    --primary-light: #2e1f5e;
+    --primary-contrast: #15102b;
+    --success-color: #34d399;
+    --error-color: #fb7185;
+    --warning-color: #fbbf24;
+    --owned-color: #60a5fa;
+    --imported-color: #fbbf24;
+    --shared-color: #34d399;
+
+    --text-primary: #ecebf5;
+    --text-secondary: #a9a5c4;
+    --text-muted: #6f6b8a;
+
+    --bg-primary: rgba(28, 24, 48, 0.72);
+    --bg-secondary: rgba(20, 17, 36, 0.5);
+    --bg-app: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    --surface-color: rgba(28, 24, 48, 0.72);
+    --surface-raised: rgba(40, 35, 68, 0.9);
+    --hover-color: rgba(255, 255, 255, 0.06);
+    --selected-color: rgba(167, 139, 250, 0.18);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(167, 139, 250, 0.4);
+    --input-bg: rgba(0, 0, 0, 0.25);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 24px 48px -16px rgba(0, 0, 0, 0.7);
+    --focus-ring: 0 0 0 3px rgba(167, 139, 250, 0.35);
+
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body[data-theme="aurora-glass"] {
+    background: var(--bg-app) fixed;
+}
+body[data-theme="aurora-glass"] .sidebar,
+body[data-theme="aurora-glass"] .contact-list-panel,
+body[data-theme="aurora-glass"] .contact-detail-panel,
+body[data-theme="aurora-glass"] .modal-content,
+body[data-theme="aurora-glass"] .toast,
+body[data-theme="aurora-glass"] .mobile-header,
+body[data-theme="aurora-glass"] .app-header {
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+body[data-theme="aurora-glass"] .app-header {
+    background: var(--surface-color);
+    border-radius: var(--radius-lg);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+    border: 1px solid var(--border-color);
+}
+
+
+/* ============================================================
+   THEME PICKER (sidebar "Appearance" section)
+   ============================================================ */
+.theme-picker {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+}
+.theme-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.theme-option:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+}
+.theme-option:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+.theme-option.active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 1px var(--primary-color);
+    color: var(--text-primary);
+}
+.theme-swatch {
+    width: 100%;
+    aspect-ratio: 5 / 3;
+    border-radius: calc(var(--radius-sm) - 1px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    position: relative;
+    overflow: hidden;
+    background: var(--swatch-bg);
+}
+.theme-swatch::before {
+    content: "";
+    position: absolute;
+    left: 14%;
+    right: 14%;
+    top: 28%;
+    bottom: 0;
+    border-radius: 6px 6px 0 0;
+    background: var(--swatch-surface);
+}
+.theme-swatch::after {
+    content: "";
+    position: absolute;
+    left: 14%;
+    top: 12%;
+    width: 28%;
+    height: 10%;
+    border-radius: 2px;
+    background: var(--swatch-accent);
+}
+.theme-option-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+.appearance-mode-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+.appearance-mode-row .theme-toggle {
+    margin: 0;
+}

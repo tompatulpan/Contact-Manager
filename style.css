@@ -22,6 +22,22 @@
     --surface-color: #ffffff;
     --hover-color: #f3f4f6;
     --border-color: #e5e7eb;
+
+    /* Extended theme tokens (overridden per theme in themes.css) */
+    --primary-contrast: #ffffff;
+    --owned-color: var(--primary-color);
+    --imported-color: var(--warning-color);
+    --shared-color: var(--success-color);
+    --text-muted: #9ca3af;
+    --bg-app: var(--bg-secondary);
+    --surface-raised: #ffffff;
+    --selected-color: var(--primary-light);
+    --border-strong: #d1d5db;
+    --input-bg: #ffffff;
+    --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -34,7 +50,9 @@
     /* Spacing */
     --space-1: 0.25rem;
     --space-2: 0.5rem;
+    --space-3: 0.75rem;
     --space-4: 1rem;
+    --space-5: 1.25rem;
     --space-6: 1.5rem;
     --space-8: 2rem;
 }
@@ -48,7 +66,7 @@
 
 body {
     font-family: var(--font-family);
-    background-color: var(--bg-secondary);
+    background: var(--bg-app);
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
@@ -100,7 +118,7 @@ body {
 .btn {
     padding: 0.75rem 1.5rem;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
@@ -111,25 +129,32 @@ body {
     white-space: nowrap;
 }
 
+.btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
 .btn-primary {
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
     background: var(--primary-dark);
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 8px color-mix(in srgb, var(--primary-color) 30%, transparent);
 }
 
 .btn-secondary {
-    background: var(--surface-color);
+    background: var(--surface-raised);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover {
     background: var(--hover-color);
+    border-color: var(--border-strong);
 }
 
 .btn-ghost {
@@ -154,8 +179,8 @@ body {
 .btn-icon {
     padding: 0.5rem;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--surface-color);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s ease;
@@ -166,6 +191,11 @@ body {
     height: 2.5rem;
     font-size: 1rem;
     box-shadow: var(--shadow-sm);
+}
+
+.btn-icon:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
 .btn-icon:hover {
@@ -193,10 +223,10 @@ body {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 1rem;
     transition: border-color 0.2s ease;
-    background: var(--surface-color);
+    background: var(--input-bg);
     color: var(--text-primary);
     min-height: 44px;
     box-sizing: border-box;
@@ -207,7 +237,7 @@ body {
 .form-group textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: var(--focus-ring);
 }
 
 .field-error {
@@ -223,32 +253,32 @@ body {
 
 /* Enhanced error type styling with visual indicators */
 .field-error.error-user-not-found {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-left: 4px solid #fdcb6e;
+    background-color: color-mix(in srgb, var(--warning-color) 14%, var(--surface-color));
+    border: 1px solid color-mix(in srgb, var(--warning-color) 35%, transparent);
+    border-left: 4px solid var(--warning-color);
     padding: 0.75rem;
-    border-radius: 0.375rem;
-    color: #856404;
+    border-radius: var(--radius-sm);
+    color: color-mix(in srgb, var(--warning-color) 70%, var(--text-primary));
     font-weight: 500;
 }
 
 .field-error.error-subscription {
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    border-left: 4px solid #dc3545;
+    background-color: color-mix(in srgb, var(--error-color) 14%, var(--surface-color));
+    border: 1px solid color-mix(in srgb, var(--error-color) 35%, transparent);
+    border-left: 4px solid var(--error-color);
     padding: 0.75rem;
-    border-radius: 0.375rem;
-    color: #721c24;
+    border-radius: var(--radius-sm);
+    color: color-mix(in srgb, var(--error-color) 70%, var(--text-primary));
     font-weight: 500;
 }
 
 .field-error.error-network {
-    background-color: #d1ecf1;
-    border: 1px solid #bee5eb;
-    border-left: 4px solid #17a2b8;
+    background-color: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
+    border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+    border-left: 4px solid var(--primary-color);
     padding: 0.75rem;
-    border-radius: 0.375rem;
-    color: #0c5460;
+    border-radius: var(--radius-sm);
+    color: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary));
     font-weight: 500;
 }
 
@@ -298,8 +328,9 @@ body {
 }
 
 .modal-content {
-    background: var(--bg-primary);
-    border-radius: 12px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
     width: 95%;
     max-width: min(800px, 95vw);
@@ -331,7 +362,7 @@ body {
     color: var(--text-secondary);
     cursor: pointer;
     padding: var(--space-2);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     transition: all 0.2s;
     font-size: 1.5rem;
 }
@@ -380,7 +411,7 @@ body {
 .usernames-list {
     max-height: 300px;
     overflow-y: auto;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: var(--space-2);
     background: var(--bg-primary);
 }
@@ -414,7 +445,7 @@ body {
 }
 
 .remove-username-btn:hover {
-    background: #c82333;
+    background: color-mix(in srgb, var(--error-color) 85%, black);
 }
 
 .empty-usernames {
@@ -441,7 +472,7 @@ body {
 .sidebar-section h3 {
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.025em;
     margin-bottom: var(--space-4);
@@ -458,9 +489,10 @@ body {
     padding: var(--space-2) var(--space-4);
     padding-right: 4.5rem;
     border: 2px solid var(--primary-color);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
-    background: var(--bg-secondary);
+    background: var(--input-bg);
+    color: var(--text-primary);
     transition: all 0.2s ease;
 }
 
@@ -468,7 +500,7 @@ body {
     outline: none;
     border-color: var(--primary-color);
     background: var(--bg-primary);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: var(--focus-ring);
 }
 
 .search-icon {
@@ -476,7 +508,7 @@ body {
     right: var(--space-2);
     top: 50%;
     transform: translateY(-50%);
-    color: var(--text-secondary);
+    color: var(--text-muted);
     pointer-events: none;
 }
 
@@ -527,7 +559,7 @@ body {
     gap: 0.5rem; /* Increased from 0.375rem for better spacing with radio buttons */
     padding: 0.5rem; /* Increased padding to match radio-item */
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     transition: background-color 0.2s ease;
 }
 
@@ -562,7 +594,7 @@ body {
     padding: 8px 4px;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     transition: all 0.2s ease;
 }
 
@@ -584,7 +616,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: var(--space-2) var(--space-4);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.2s ease;
     color: var(--text-primary);
@@ -598,7 +630,7 @@ body {
 }
 
 .distribution-list-item.active {
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-color: var(--primary-color);
     color: var(--primary-color);
 }
@@ -614,7 +646,7 @@ body {
     font-size: 0.75rem;
     font-weight: 600;
     padding: 0.125rem 0.375rem;
-    border-radius: 12px;
+    border-radius: 999px;
     min-width: 1.25rem;
     text-align: center;
 }
@@ -663,7 +695,7 @@ body {
 .contact-list-panel {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -698,8 +730,8 @@ body {
 }
 
 .view-controls .btn.active {
-    background: var(--primary-color);
-    color: white;
+    background: var(--selected-color);
+    color: var(--primary-color);
 }
 
 /* Bulk Actions Toolbar */
@@ -708,7 +740,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: var(--space-3) var(--space-4);
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-bottom: 1px solid var(--primary-color);
     animation: slideDown 0.2s ease-out;
 }
@@ -767,7 +799,7 @@ body {
 }
 
 .contact-card.selected {
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-color: var(--primary-color);
 }
 
@@ -812,7 +844,7 @@ body {
 .contact-card {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -831,13 +863,13 @@ body {
 
 .contact-card.selected {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-    background: var(--primary-light);
+    box-shadow: var(--focus-ring);
+    background: var(--selected-color);
 }
 
 .contact-card[data-archived="true"] {
     opacity: 0.7;
-    background: linear-gradient(135deg, var(--bg-primary) 0%, #f5f5f5 100%);
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--hover-color) 100%);
     border-left: 4px solid var(--warning-color);
 }
 
@@ -870,7 +902,7 @@ body {
 }
 
 .contact-list.list-view .contact-list-item.selected {
-    background: var(--primary-light);
+    background: var(--selected-color);
     border-left: 3px solid var(--primary-color);
     padding-left: calc(var(--space-4) - 3px);
 }
@@ -879,7 +911,7 @@ body {
     flex: 1;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #000000;
+    color: var(--text-primary);
     margin: 0;
     padding: calc(0.875rem * 0.2);
     white-space: nowrap;
@@ -910,7 +942,7 @@ body {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(135deg, var(--owned-color) 0%, color-mix(in srgb, var(--owned-color) 80%, black) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -928,7 +960,7 @@ body {
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: var(--primary-color);
+    background: var(--owned-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -944,29 +976,29 @@ body {
 /* Avatar Types */
 /* Owned contacts - Blue (default, keep current styling) */
 .contact-avatar.avatar-owned {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(135deg, var(--owned-color) 0%, color-mix(in srgb, var(--owned-color) 80%, black) 100%);
 }
 
 .contact-avatar-large.avatar-owned {
-    background: var(--primary-color);
+    background: var(--owned-color);
 }
 
 /* Shared contacts - Green */
 .contact-avatar.avatar-shared {
-    background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+    background: linear-gradient(135deg, var(--shared-color) 0%, color-mix(in srgb, var(--shared-color) 80%, black) 100%);
 }
 
 .contact-avatar-large.avatar-shared {
-    background: var(--success-color);
+    background: var(--shared-color);
 }
 
 /* Imported contacts - Orange/Yellow */
 .contact-avatar.avatar-imported {
-    background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%);
+    background: linear-gradient(135deg, var(--imported-color) 0%, color-mix(in srgb, var(--imported-color) 80%, black) 100%);
 }
 
 .contact-avatar-large.avatar-imported {
-    background: var(--warning-color);
+    background: var(--imported-color);
 }
 
 /* Contact Info */
@@ -1029,9 +1061,9 @@ body {
 /* Shared Indicators */
 .shared-indicator {
     background: transparent;
-    color: #007bff;
+    color: var(--primary-color);
     padding: 2px 6px;
-    border-radius: 12px;
+    border-radius: 999px;
     font-size: 0.75rem;
     font-weight: 500;
     white-space: nowrap;
@@ -1039,19 +1071,19 @@ body {
 
 .tag-shared-out {
     background: transparent;
-    color: #007bff;
+    color: var(--primary-color);
 }
 
 .tag-shared {
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
 }
 
 /* ========== CONTACT DETAIL PANEL ========== */
 .contact-detail-panel {
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -1135,7 +1167,7 @@ body {
 .contact-detail-actions .btn-icon {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 16px;
 }
 
@@ -1146,33 +1178,33 @@ body {
 
 .contact-detail-actions .btn-icon.edit-contact:hover {
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
 }
 
 .contact-detail-actions .btn-icon.share-contact {
-    color: #10b981;
+    color: var(--success-color);
 }
 
 .contact-detail-actions .btn-icon.share-contact:hover {
-    background: #10b981;
+    background: var(--success-color);
     color: white;
 }
 
 .contact-detail-actions .btn-icon.delete-contact {
-    color: #ef4444;
+    color: var(--error-color);
 }
 
 .contact-detail-actions .btn-icon.delete-contact:hover {
-    background: #ef4444;
+    background: var(--error-color);
     color: white;
 }
 
 .contact-detail-actions .btn-icon.export-contact {
-    color: #8b5cf6;
+    color: var(--primary-dark);
 }
 
 .contact-detail-actions .btn-icon.export-contact:hover {
-    background: #8b5cf6;
+    background: var(--primary-dark);
     color: white;
 }
 
@@ -1186,11 +1218,11 @@ body {
 }
 
 .contact-detail-actions .btn-icon.archive-contact {
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .contact-detail-actions .btn-icon.archive-contact:hover {
-    background: #6b7280;
+    background: var(--text-secondary);
     color: white;
 }
 
@@ -1235,7 +1267,7 @@ body {
     padding: var(--space-3);
     margin-bottom: var(--space-2);
     background: var(--bg-secondary);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     transition: background-color 0.2s ease;
 }
 
@@ -1300,7 +1332,7 @@ body {
 /* Address Fields */
 .address-display {
     background: var(--bg-secondary);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: var(--space-3);
     margin-bottom: var(--space-2);
     border-left: 3px solid var(--primary-color);
@@ -1336,7 +1368,7 @@ body {
     align-items: center;
     padding: var(--space-4);
     background: var(--bg-primary);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
 }
 
 .qr-code-wrapper {
@@ -1345,7 +1377,7 @@ body {
     align-items: center;
     padding: var(--space-4);
     background: white;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
     margin-bottom: var(--space-3);
     max-width: 280px;
@@ -1396,7 +1428,7 @@ body {
 .metadata-section h4 {
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.025em;
     margin-bottom: var(--space-3);
@@ -1452,7 +1484,7 @@ body {
 .shared-user-item {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     padding: var(--space-2);
     transition: background-color 0.2s ease;
     display: flex;
@@ -1481,7 +1513,7 @@ body {
 .shared-permission {
     font-size: 0.75rem;
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
     text-transform: uppercase;
@@ -1500,11 +1532,11 @@ body {
 
 /* Revoke Button Styles */
 .btn-revoke {
-    background: #dc3545;
+    background: var(--error-color);
     color: white;
     border: none;
     padding: 0.375rem 0.75rem;
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -1515,9 +1547,9 @@ body {
 }
 
 .btn-revoke:hover {
-    background: #c82333;
+    background: color-mix(in srgb, var(--error-color) 85%, black);
     transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--error-color) 30%, transparent);
 }
 
 .btn-revoke:active {
@@ -1615,7 +1647,7 @@ body {
     gap: 0.5rem;
     cursor: pointer;
     padding: 0.5rem;
-    border-radius: 0.375rem;
+    border-radius: var(--radius-sm);
     transition: background-color 0.2s ease;
 }
 
@@ -1658,7 +1690,7 @@ body {
     padding: 0.75rem;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     transition: border-color 0.2s ease;
 }
 
@@ -1668,7 +1700,7 @@ body {
 
 .multi-field-item:focus-within {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: var(--focus-ring);
 }
 
 .field-type-select {
@@ -1676,8 +1708,8 @@ body {
     max-width: 100px;
     padding: 0.5rem;
     border: 1px solid var(--border-color);
-    border-radius: 0.375rem;
-    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    background: var(--input-bg);
     font-size: 0.875rem;
     color: var(--text-primary);
 }
@@ -1693,9 +1725,10 @@ body {
     flex: 1;
     padding: 0.5rem;
     border: 1px solid var(--border-color);
-    border-radius: 0.375rem;
+    border-radius: var(--radius-sm);
     font-size: 0.875rem;
-    background: var(--bg-primary);
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .multi-field-item input:focus {
@@ -1733,7 +1766,7 @@ body {
 }
 
 .remove-field-btn:hover {
-    background-color: rgba(239, 68, 68, 0.1);
+    background-color: color-mix(in srgb, var(--error-color) 12%, transparent);
 }
 
 .add-field-btn {
@@ -1743,7 +1776,7 @@ body {
     padding: 0.5rem 1rem;
     background: none;
     border: 2px dashed var(--border-color);
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     color: var(--text-secondary);
     cursor: pointer;
     font-size: 0.875rem;
@@ -1753,7 +1786,7 @@ body {
 .add-field-btn:hover {
     border-color: var(--primary-color);
     color: var(--primary-color);
-    background-color: rgba(59, 130, 246, 0.05);
+    background-color: color-mix(in srgb, var(--primary-color) 6%, transparent);
 }
 
 /* Info Box */
@@ -1763,8 +1796,8 @@ body {
     gap: var(--space-2);
     padding: var(--space-4);
     background: var(--primary-light);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent);
+    border-radius: var(--radius-md);
     margin-bottom: var(--space-4);
 }
 
@@ -1785,7 +1818,7 @@ body {
 .export-preview {
     background: var(--bg-secondary);
     padding: 1rem;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
     margin-top: 1rem;
 }
@@ -1822,14 +1855,14 @@ body {
 .format-badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 12px;
+    border-radius: 999px;
     font-size: 12px;
     font-weight: 500;
     margin-left: 8px;
 }
 
 .format-badge.standard {
-    background-color: #10b981;
+    background-color: var(--success-color);
     color: white;
 }
 
@@ -1899,7 +1932,7 @@ body {
 }
 
 .verification-status code {
-    background: #f0f0f0;
+    background: var(--hover-color);
     padding: 4px 8px;
     border-radius: 4px;
     font-family: monospace;
@@ -1909,27 +1942,27 @@ body {
 }
 
 .verification-status.success {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+    background-color: color-mix(in srgb, var(--success-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--success-color) 70%, var(--text-primary));
+    border: 1px solid color-mix(in srgb, var(--success-color) 35%, transparent);
 }
 
 .verification-status.error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+    background-color: color-mix(in srgb, var(--error-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--error-color) 70%, var(--text-primary));
+    border: 1px solid color-mix(in srgb, var(--error-color) 35%, transparent);
 }
 
 .verification-status.loading {
-    background-color: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
+    background-color: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary));
+    border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
 }
 
 .contact-preview {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: var(--space-4);
     margin-bottom: var(--space-4);
 }
@@ -1952,9 +1985,9 @@ body {
 .share-type-tab {
     flex: 1;
     padding: 12px 16px;
-    border: 2px solid #dee2e6;
-    background: #f8f9fa;
-    border-radius: 8px;
+    border: 2px solid var(--border-color);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
@@ -1966,13 +1999,13 @@ body {
 
 .share-type-tab:hover {
     border-color: var(--primary-color);
-    background: #e3f2fd;
+    background: var(--primary-light);
 }
 
 .share-type-tab.active {
     border-color: var(--primary-color);
     background: var(--primary-color);
-    color: white;
+    color: var(--primary-contrast);
 }
 
 .share-section {
@@ -1981,6 +2014,78 @@ body {
 
 .share-section.active {
     display: block;
+}
+
+/* ========== TOASTS ========== */
+.toast {
+    position: fixed;
+    bottom: var(--space-4);
+    right: var(--space-4);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    max-width: min(380px, calc(100vw - 2rem));
+    animation: toastIn 0.25s ease-out;
+}
+
+.toast + .toast {
+    margin-top: 0.5rem;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.toast-success {
+    border-left: 4px solid var(--success-color);
+}
+
+.toast-success > i {
+    color: var(--success-color);
+}
+
+.toast-error {
+    border-left: 4px solid var(--error-color);
+}
+
+.toast-error > i {
+    color: var(--error-color);
+}
+
+.toast span {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 0.9rem;
+    border-radius: var(--radius-sm);
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.toast-close:hover {
+    color: var(--text-primary);
+    background: var(--hover-color);
 }
 
 /* ========== LOADING & UTILITY ========== */
@@ -2059,9 +2164,9 @@ body {
 }
 
 .share-details {
-    background: var(--background-secondary);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: var(--radius-sm);
     padding: var(--space-3);
     margin: var(--space-3) 0;
     font-family: monospace;
@@ -2125,7 +2230,7 @@ body {
 .auth-modal-content {
     background: var(--bg-primary);
     padding: var(--space-8);
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
     width: 100%;
     max-width: 400px;
@@ -2136,23 +2241,23 @@ body {
     text-align: center;
     margin-bottom: 1rem;
     padding: 0.75rem;
-    background-color: #f8fafc;
-    color: #374151;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
 }
 
 .auth-welcome h3 {
     font-size: 1.25rem;
     font-weight: 600;
     margin: 0 0 0.5rem 0;
-    color: #1f2937;
+    color: var(--text-primary);
 }
 
 .auth-welcome p {
     font-size: 0.875rem;
     margin: 0;
-    color: #6b7280;
+    color: var(--text-secondary);
     line-height: 1.4;
 }
 
@@ -2183,15 +2288,15 @@ body {
     padding: 8px 0;
     margin-top: 16px;
     font-size: 0.875rem;
-    color: #6b7280;
-    background: #f9fafb;
-    border-top: 1px solid #e5e7eb;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
     position: relative;
     z-index: 1;
 }
 
 .app-footer a {
-    color: #6b7280;
+    color: var(--text-secondary);
     text-decoration: underline;
     transition: color 0.2s ease;
 }
@@ -2267,7 +2372,7 @@ body {
     .contact-card {
         padding: 6px;
         gap: 6px;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
     }
     
     .contact-avatar {
@@ -2413,7 +2518,7 @@ body {
 .url-validation {
     margin-top: 8px;
     padding: 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.9em;
     line-height: 1.4;
     border: 1px solid;
@@ -2435,34 +2540,34 @@ body {
 }
 
 .url-validation.url-success {
-    background-color: #d4edda;
-    color: #155724;
-    border-color: #c3e6cb;
+    background-color: color-mix(in srgb, var(--success-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--success-color) 70%, var(--text-primary));
+    border-color: color-mix(in srgb, var(--success-color) 35%, transparent);
 }
 
 .url-validation.url-warning {
-    background-color: #fff3cd;
-    color: #856404;
-    border-color: #ffeaa7;
+    background-color: color-mix(in srgb, var(--warning-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--warning-color) 70%, var(--text-primary));
+    border-color: color-mix(in srgb, var(--warning-color) 35%, transparent);
 }
 
 .url-validation.url-info {
-    background-color: #d1ecf1;
-    color: #0c5460;
-    border-color: #bee5eb;
+    background-color: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary));
+    border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
 }
 
 .url-validation.url-error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border-color: #f5c6cb;
+    background-color: color-mix(in srgb, var(--error-color) 14%, var(--surface-color));
+    color: color-mix(in srgb, var(--error-color) 70%, var(--text-primary));
+    border-color: color-mix(in srgb, var(--error-color) 35%, transparent);
 }
 
 .url-guidance {
     margin-top: 6px;
     padding: 10px;
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 0.85em;
     line-height: 1.4;
@@ -2470,11 +2575,11 @@ body {
 
 /* iCloud Test Modal */
 .info-box {
-    background: #d1ecf1;
+    background: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
     padding: 15px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     margin-bottom: 20px;
-    border-left: 4px solid #0c5460;
+    border-left: 4px solid var(--primary-color);
 }
 
 .form-section {
@@ -2490,7 +2595,7 @@ body {
     background: #1e1e1e;
     color: #d4d4d4;
     padding: 15px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 12px;
     max-height: 400px;
@@ -2499,33 +2604,46 @@ body {
 }
 
 .url-guidance strong {
-    color: #495057;
+    color: var(--text-secondary);
     font-weight: 600;
 }
 /* Status badges in the contact detail view (Owned / Imported / Shared).
    Colors follow the avatar conventions: blue = owned, orange = imported,
    gray = shared. */
 .badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 0.75em;
-    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
     line-height: 1.6;
+    border: 1px solid transparent;
 }
 
 .badge-primary {
-    background: var(--primary-color);
-    color: #fff;
+    background: color-mix(in srgb, var(--owned-color) 14%, transparent);
+    color: var(--owned-color);
+    border: 1px solid color-mix(in srgb, var(--owned-color) 30%, transparent);
 }
 
 .badge-imported {
-    background: var(--warning-color);
-    color: #fff;
+    background: color-mix(in srgb, var(--imported-color) 14%, transparent);
+    color: var(--imported-color);
+    border: 1px solid color-mix(in srgb, var(--imported-color) 30%, transparent);
+}
+
+.badge-shared {
+    background: color-mix(in srgb, var(--shared-color) 14%, transparent);
+    color: var(--shared-color);
+    border: 1px solid color-mix(in srgb, var(--shared-color) 30%, transparent);
 }
 
 .badge-secondary {
-    background: var(--bg-secondary);
+    background: var(--hover-color);
     color: var(--text-secondary);
-    border: 1px solid var(--border-color, #d1d5db);
+    border-color: var(--border-color);
 }
