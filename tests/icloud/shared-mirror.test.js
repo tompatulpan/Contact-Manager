@@ -94,6 +94,89 @@ describe('shared contact mirror protection', () => {
         expect(activeCount(contactManager)).toBe(1);
     });
 
+    it('pull never imports iCloud edits into a shared (green) card', async () => {
+        const bob = buildSharedContact(BOB_UID, SHARED_VCARD, 'alice-user', {
+            cardName: 'Bob Shared',
+        });
+
+        // iCloud holds a version edited by mistake on the recipient's iCloud
+        const editedOnICloud = SHARED_VCARD.replace('FN:Bob Shared', 'FN:Bob WRONG');
+        const { service, contactManager } = await buildTestService(
+            {
+                fetchContacts: [{ ...FETCH_SHARED[0], etag: '"etag-bob-edited"', vcard: editedOnICloud }],
+            },
+            [bob],
+        );
+
+        const result = await service.pullFromICloud();
+
+        expect(result.updated).toBe(0);
+        expect(result.skipped).toBe(1);
+
+        const local = contactManager.contacts.get(bob.contactId);
+        expect(local.vcard).toBe(SHARED_VCARD);
+        expect(local.metadata.carddav).toBeUndefined();
+        expect(local.metadata.importSource).toBeUndefined();
+    });
+
+    it('pull restores the owner version when the mirror drifted from the last force-push', async () => {
+        const bob = buildSharedContact(BOB_UID, SHARED_VCARD, 'alice-user', {
+            cardName: 'Bob Shared',
+        });
+
+        const editedOnICloud = SHARED_VCARD.replace('FN:Bob Shared', 'FN:Bob WRONG');
+        const { service, mockClient } = await buildTestService(
+            {
+                fetchContacts: [{ ...FETCH_SHARED[0], etag: '"etag-bob-edited"', vcard: editedOnICloud }],
+                updateContact: UPDATE_SUCCESS,
+            },
+            [bob],
+        );
+
+        // We force-pushed before and left "etag-bob-v1" on iCloud
+        service.sharedContactSyncCache = new Map([
+            [bob.contactId, { etag: '"etag-bob-v1"', uid: BOB_UID, syncStatus: 'force-pushed' }]
+        ]);
+
+        await service.pullFromICloud();
+
+        expect(mockClient.updateContact).toHaveBeenCalledTimes(1);
+        expect(mockClient.updateContact).toHaveBeenCalledWith(BOB_UID, SHARED_VCARD, null);
+        expect(service.sharedContactSyncCache.get(bob.contactId).etag).toBe(UPDATE_SUCCESS.etag);
+    });
+
+    it('owner updates arriving after an iCloud edit are pushed, not reverted by the pull', async () => {
+        const bob = buildSharedContact(BOB_UID, SHARED_VCARD, 'alice-user', {
+            cardName: 'Bob Shared',
+        });
+
+        const editedOnICloud = SHARED_VCARD.replace('FN:Bob Shared', 'FN:Bob WRONG');
+        const { service, contactManager, mockClient } = await buildTestService(
+            {
+                fetchContacts: [{ ...FETCH_SHARED[0], etag: '"etag-bob-edited"', vcard: editedOnICloud }],
+                updateContact: UPDATE_SUCCESS,
+            },
+            [bob],
+        );
+
+        // Owner (alice) updates the shared card → changeHandler replaces the
+        // in-memory card with a fresh object that carries no CardDAV state
+        const ownerUpdate = SHARED_VCARD.replace('FN:Bob Shared', 'FN:Bob Updated By Owner');
+        const fresh = buildSharedContact(BOB_UID, ownerUpdate, 'alice-user', { cardName: 'Bob Updated By Owner' });
+        contactManager.contacts.set(bob.contactId, fresh);
+
+        await service.pullFromICloud();
+
+        // Local card keeps the owner's version
+        expect(contactManager.contacts.get(bob.contactId).vcard).toBe(ownerUpdate);
+
+        // The refresh cycle pushes the owner's version — not iCloud's — to iCloud
+        await service.refreshSharedContactsToICloud();
+        const lastCall = mockClient.updateContact.mock.calls.at(-1);
+        expect(lastCall[1]).toBe(ownerUpdate);
+        expect(lastCall[1]).not.toContain('Bob WRONG');
+    });
+
     it('force-push falls back to a forced update when create returns 403 (contact already exists)', async () => {
         const bob = buildSharedContact(BOB_UID, SHARED_VCARD, 'alice-user', {
             cardName: 'Bob Shared',

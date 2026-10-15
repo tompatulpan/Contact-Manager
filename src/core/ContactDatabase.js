@@ -1544,8 +1544,12 @@ export class ContactDatabase {
                 console.error(`❌ Item too large in ${context}: item exceeds 10KB limit`);
                 break;
             case 'ItemDoesNotExist':
-                // Only log as error if NOT from updateSharedContactMetadata (which auto-creates)
-                if (!context.includes('updateSharedContactMetadata')) {
+                // Only log as error if NOT from a context that handles this
+                // case deliberately: updateSharedContactMetadata auto-creates,
+                // and updateContactAcrossSharedDatabases treats it as a skip
+                // (e.g. the recipient copy was already removed by a revoke).
+                if (!context.includes('updateSharedContactMetadata') &&
+                    !context.includes('updateContactAcrossSharedDatabases')) {
                     console.error(`❌ Item does not exist in ${context}: Use insertItem to create new items`);
                 }
                 this.eventBus.emit('database:itemNotFound', { context });

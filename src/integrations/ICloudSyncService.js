@@ -398,7 +398,23 @@ export class ICloudSyncService {
                         
                     } else {
                         // Contact exists locally
-                        
+
+                        // SHARED (green) contacts are owner/Userbase-authoritative.
+                        // Never import iCloud edits into them: the owner's copy
+                        // arrives via the shared-database changeHandler, and the
+                        // refresh cycle force-pushes it back to iCloud. Mutating
+                        // the in-memory card here used to start a loop where the
+                        // iCloud version was pushed back and every later owner
+                        // update was reverted by the next pull.
+                        if (!localContact.metadata.isOwned) {
+                            const restored = await this.handleSharedContactMirror(localContact, iCloudContact);
+                            if (restored) {
+                                this.stats.contactsPushed++;
+                            }
+                            skipped++;
+                            continue;
+                        }
+
                         // ✅ NO DUPLICATION FILTERING during sync - pull ALL contacts
                         // Duplication detection only during manual import, not CardDAV sync
                         
@@ -447,25 +463,15 @@ export class ICloudSyncService {
                                     syncStatus: 'synced'
                                 };
                                 
-                                // Check if contact is stored in database (owned/imported) or memory-only (shared)
-                                const isSharedContact = !localContact.metadata.isOwned;
+                                // Owned/imported contacts - update in database
+                                const updateResult = await this.contactManager.database.updateContact(localContact);
                                 
-                                if (isSharedContact) {
-                                    // Shared contacts are memory-only - just update local ETag cache.
-                                    // ETag changes are caused by our own periodic force-push, not real
-                                    // external edits, so we don't count these as pulled updates in stats.
-                                    console.debug(`🔄 Refreshed shared contact ETag: ${localContact.cardName} (${localETag} → ${iCloudETag})`);
+                                if (updateResult.success) {
+                                    console.log(`✅ Updated local contact from iCloud: ${localContact.cardName}`);
+                                    updated++;
+                                    this.stats.contactsPulled++;
                                 } else {
-                                    // Owned/imported contacts - update in database
-                                    const updateResult = await this.contactManager.database.updateContact(localContact);
-                                    
-                                    if (updateResult.success) {
-                                        console.log(`✅ Updated local contact from iCloud: ${localContact.cardName}`);
-                                        updated++;
-                                        this.stats.contactsPulled++;
-                                    } else {
-                                        console.error(`❌ Failed to save updated contact: ${updateResult.error}`);
-                                    }
+                                    console.error(`❌ Failed to save updated contact: ${updateResult.error}`);
                                 }
                             } catch (error) {
                                 console.error(`❌ Failed to update contact from iCloud:`, error);
@@ -1328,6 +1334,55 @@ export class ICloudSyncService {
             console.error('❌ Push to iCloud failed:', error);
             throw error;
         }
+    }
+
+    /**
+     * Pull-phase handling for the iCloud mirror of a SHARED (green) contact.
+     *
+     * The local card is never touched: it is owned by another user and only
+     * changes through the Userbase shared-database changeHandler. If the
+     * mirror's ETag differs from the one left by our last force-push, the
+     * card was edited on iCloud (by mistake — the server has no ACL for it);
+     * restore the owner's version right away instead of waiting for the
+     * next refresh cycle. With no cached ETag (fresh page load) only the
+     * cache is primed so the next force-push takes the update path.
+     *
+     * @param {Object} localContact - Shared contact from ContactManager
+     * @param {Object} iCloudContact - Mirror fetched from iCloud
+     * @returns {Promise<boolean>} true if the owner's version was pushed back
+     */
+    async handleSharedContactMirror(localContact, iCloudContact) {
+        if (!this.sharedContactSyncCache) {
+            this.sharedContactSyncCache = new Map();
+        }
+
+        const cached = this.sharedContactSyncCache.get(localContact.contactId);
+
+        if (cached?.etag && cached.etag !== iCloudContact.etag) {
+            console.log(`🛡️ Shared contact edited on iCloud, restoring owner's version: ${localContact.cardName} (shared by: ${localContact.metadata.sharedBy || 'unknown'})`);
+            console.log(`   Last pushed ETag: ${cached.etag}`);
+            console.log(`   iCloud ETag:      ${iCloudContact.etag}`);
+
+            const result = await this.forcePushSharedContact(localContact);
+            if (result.success) {
+                return true;
+            }
+            // Keep the stale cached ETag so the next pull detects the drift again
+            console.warn(`⚠️ Could not restore shared contact on iCloud (will retry on next sync): ${result.error}`);
+            return false;
+        }
+
+        // No drift (or no cached ETag after a page load): prime the cache so
+        // the next force-push takes the update path.
+        this.sharedContactSyncCache.set(localContact.contactId, {
+            ...(cached || {}),
+            etag: iCloudContact.etag,
+            href: iCloudContact.href,
+            uid: iCloudContact.uid,
+            syncStatus: cached?.syncStatus || 'mirrored'
+        });
+
+        return false;
     }
 
     /**
