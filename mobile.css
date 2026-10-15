@@ -452,6 +452,30 @@
         flex: 1 !important;
         min-height: 0 !important;
     }
+
+    /* Touch-friendly modal inputs: 16px font avoids iOS focus zoom,
+       44px min height keeps the touch target after the compact desktop restyle */
+    .modal .form-group input,
+    .modal .form-group select,
+    .modal .form-group textarea {
+        font-size: 16px !important;
+        padding: 0.6rem 0.75rem !important;
+        min-height: 44px !important;
+        box-sizing: border-box !important;
+    }
+
+    .field-type-select {
+        font-size: 16px !important;
+        min-height: 44px !important;
+    }
+
+    .multi-field-item input[type="tel"],
+    .multi-field-item input[type="email"],
+    .multi-field-item input[type="url"],
+    .multi-field-item input[type="text"] {
+        font-size: 16px !important;
+        min-height: 44px !important;
+    }
     
     /* ===== AUTHENTICATION ===== */
     #auth-modal {
