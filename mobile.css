@@ -484,7 +484,7 @@
         padding-top: 20px !important;
     }
     
-    .auth-modal-content {
+    #auth-modal .modal-content {
         width: 100% !important;
         max-width: 100% !important;
         margin: 0 !important;
