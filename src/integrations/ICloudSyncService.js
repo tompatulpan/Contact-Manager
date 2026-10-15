@@ -722,9 +722,17 @@ export class ICloudSyncService {
                 deletedContacts.forEach(c => console.log(`   - ${c.cardName} (UID: ${this.extractUIDFromVCard(c.vcard)})`));
             }
             
+            // Separate contacts by type for different handling. Done early so
+            // the push summary below matches what this phase actually pushes:
+            // only owned/imported contacts are pushed here; SHARED contacts
+            // are force-pushed by the periodic shared-contact refresh cycle.
+            const sharedContacts = contactsToSync.filter(c => !c.metadata.isOwned);
+            const ownedImportedContacts = contactsToSync.filter(c => c.metadata.isOwned);
+
             // Quick summary: how many need a push
-            const needsPush = contactsToSync.filter(c => this.shouldPushContact(c).push);
-            console.log(`📊 ${needsPush.length}/${contactsToSync.length} contacts need push to iCloud`);
+            const needsPush = ownedImportedContacts.filter(c => this.shouldPushContact(c).push);
+            console.log(`📊 ${needsPush.length}/${ownedImportedContacts.length} owned contacts need push to iCloud` +
+                (sharedContacts.length > 0 ? ` (${sharedContacts.length} shared deferred to shared-contact refresh)` : ''));
 
             let pushed = 0;
             let skipped = 0;
@@ -819,9 +827,8 @@ export class ICloudSyncService {
             }
             
             // Separate contacts by type for different handling
-            const sharedContacts = contactsToSync.filter(c => !c.metadata.isOwned);
-            const ownedImportedContacts = contactsToSync.filter(c => c.metadata.isOwned);
-            
+            // (sharedContacts / ownedImportedContacts computed above)
+
             console.log(`📊 Contact types: ${ownedImportedContacts.length} owned/imported (2-way), ${sharedContacts.length} shared (force-push)`);
             
             // Handle OWNED/IMPORTED contacts (bidirectional sync)

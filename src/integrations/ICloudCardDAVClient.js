@@ -99,7 +99,9 @@ export class ICloudCardDAVClient {
         console.log('🔍 Discover Principal Request:');
         console.log('   Target URL:', targetUrl);
         console.log('   Proxy URL:', proxyUrl);
-        console.log('   Auth Header:', this.makeAuthHeader().substring(0, 20) + '...');
+        // Never log the Authorization header — it is base64(email:password)
+        // and even a truncated form leaks credential material into the console.
+        console.log('   Auth Header: Basic *** (redacted)');
 
         const response = await this.proxyFetch(proxyUrl, {
             method: 'PROPFIND',
