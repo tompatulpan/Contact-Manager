@@ -545,8 +545,11 @@ export class ContactManager {
                 return { success: false, error: 'No permission to delete this contact' };
             }
 
-            // For owned contacts, mark as deleted; for shared contacts, remove locally
-            if (contact.metadata.isOwned) {
+            // For owned contacts, mark as deleted. Shared (green) cards are
+            // delete-authoritative on the owner side only — a recipient asks
+            // the owner to revoke, or archives the card locally
+            // (SYNC_RULES.md section 4.1 / Decision 1).
+            if (contact.metadata.isOwned !== false) {
                 // Soft delete - mark as deleted but keep in database
                 const deletedContact = {
                     ...contact,
@@ -576,13 +579,16 @@ export class ContactManager {
                     }
                 }
             } else {
-                // Hard delete for shared contacts (removes from local view)
-                const deleteResult = await this.database.deleteContact(contactId);
-                if (!deleteResult.success) {
-                    return { success: false, error: 'Failed to delete contact' };
-                }
-                
-                this.contacts.delete(contactId);
+                // SYNC_RULES.md section 4.1 / Decision 1: a green (shared)
+                // card is removed by its owner (revoke), never by the
+                // recipient. The previous code attempted deleteItem on the
+                // user's own contacts database with the composite shared ID
+                // — an item that does not exist there, so it always failed
+                // with ItemDoesNotExist.
+                return {
+                    success: false,
+                    error: 'Shared contacts are removed by their owner. Archive it instead, or ask the owner to revoke the share.'
+                };
             }
 
             // Clear search cache
@@ -2022,7 +2028,11 @@ export class ContactManager {
      * @returns {boolean} Can delete
      */
     canDeleteContact(contact) {
-        return contact.metadata.isOwned || !contact.metadata.isOwned; // Users can always delete shared contacts from their view
+        // SYNC_RULES.md section 4.1 / Decision 1: green (shared) cards are
+        // delete-authoritative on the owner side only (revoke). The recipient
+        // archives a shared card instead of deleting it. Contacts without an
+        // isOwned flag (legacy) are treated as owned.
+        return contact.metadata?.isOwned !== false;
     }
 
     /**

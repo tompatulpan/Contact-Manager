@@ -248,18 +248,27 @@ export class ICloudSyncService {
             this.stats.successfulSyncs++;
             this.lastSyncTime = new Date().toISOString();
             
-            // Get current state for summary
-            const totalContacts = this.contactManager.contacts.size;
-            const activeContacts = Array.from(this.contactManager.contacts.values())
+            // Get current state for summary. The "database state" covers the
+            // user's own contacts database only: shared (green) contacts live
+            // in the sharer's databases, and owner-side delete tombstones
+            // propagated through them are not records in this user's
+            // database — they must not be reported as soft-deleted local
+            // records.
+            const allContacts = Array.from(this.contactManager.contacts.values());
+            const ownedContacts = allContacts.filter(c => c.metadata.isOwned !== false);
+            const totalContacts = ownedContacts.length;
+            const activeContacts = ownedContacts
                 .filter(c => !c.metadata.isDeleted && !c.metadata.isArchived).length;
-            const deletedRecords = Array.from(this.contactManager.contacts.values())
+            const deletedRecords = ownedContacts
                 .filter(c => c.metadata.isDeleted).length;
+            const sharedContactsCount = allContacts.length - ownedContacts.length;
             
             // Use SyncStatistics for consistent logging
             this.syncStats.logResults({
                 activeContacts,
                 deletedRecords,
-                totalContacts
+                totalContacts,
+                sharedContacts: sharedContactsCount
             });
             
             this.eventBus.emit('icloud:syncCompleted', {

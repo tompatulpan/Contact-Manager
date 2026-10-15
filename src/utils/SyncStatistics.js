@@ -99,6 +99,7 @@ export class SyncStatistics {
      * @param {number} options.activeContacts - Count of active contacts
      * @param {number} options.deletedRecords - Count of deleted records (orphans)
      * @param {number} options.totalContacts - Total contacts in database
+     * @param {number} options.sharedContacts - Count of shared contacts (not in this database)
      * @param {boolean} options.verbose - Show detailed breakdown
      */
     logResults(options = {}) {
@@ -107,6 +108,7 @@ export class SyncStatistics {
             activeContacts,
             deletedRecords,
             totalContacts,
+            sharedContacts,
             verbose = false
         } = options;
 
@@ -157,6 +159,10 @@ export class SyncStatistics {
             
             if (typeof totalContacts === 'number') {
                 console.log(`      - Total in database: ${totalContacts}`);
+            }
+
+            if (typeof sharedContacts === 'number' && sharedContacts > 0) {
+                console.log(`      - Shared contacts (in the sharer's database, not this one): ${sharedContacts}`);
             }
 
             // Warning for orphaned records
