@@ -269,11 +269,18 @@
     }
     
     body.dark-mode .filter-options label {
-        color: var(--text-primary) !important;
+        color: var(--text-secondary) !important;
     }
     
     body.dark-mode .filter-options label:hover {
         background: var(--hover-color) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    body.dark-mode .filter-options label:has(input:checked) {
+        background: var(--selected-color) !important;
+        color: var(--primary-color) !important;
+        font-weight: 600 !important;
     }
     
     body.dark-mode .checkbox-item {

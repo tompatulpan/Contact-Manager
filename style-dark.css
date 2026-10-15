@@ -90,7 +90,7 @@ body.dark-mode .btn-ghost {
 }
 
 body.dark-mode .btn-ghost:hover {
-    color: var(--primary-color);
+    color: var(--text-primary);
     background: var(--hover-color);
 }
 
@@ -115,6 +115,29 @@ body.dark-mode .checkbox-item {
 
 body.dark-mode .checkbox-item:hover {
     background: var(--hover-color);
+}
+
+/* Sidebar filter rows (icon rows, no visible tickboxes) */
+body.dark-mode .filter-options .checkbox-item {
+    color: var(--text-secondary);
+}
+
+body.dark-mode .filter-options .checkbox-item:hover {
+    color: var(--text-primary);
+}
+
+body.dark-mode .filter-options .checkbox-item:has(input:checked) {
+    background: var(--selected-color);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+body.dark-mode .filter-options .checkbox-item i {
+    color: var(--text-muted);
+}
+
+body.dark-mode .filter-options .checkbox-item:has(input:checked) i {
+    color: var(--primary-color);
 }
 
 /* Contact List */

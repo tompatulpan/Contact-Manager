@@ -45,8 +45,10 @@
     
     .sidebar {
         order: 2 !important;
-        border-right: none !important;
+        border: none !important;
         border-top: 1px solid var(--border-color) !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
         max-height: calc(100vh - 120px) !important;
         height: calc(100vh - 120px) !important;
     }

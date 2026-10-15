@@ -422,6 +422,7 @@ body[data-theme="high-contrast"].dark-mode {
 }
 
 /* High contrast: thicker borders and no gradient avatars */
+body[data-theme="high-contrast"] .app-header,
 body[data-theme="high-contrast"] .sidebar,
 body[data-theme="high-contrast"] .contact-list-panel,
 body[data-theme="high-contrast"] .contact-detail-panel,
