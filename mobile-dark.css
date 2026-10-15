@@ -226,6 +226,11 @@
         border-color: var(--primary-color) !important;
     }
     
+    body.dark-mode .contact-card.selected:hover,
+    body.dark-mode .contact-card.selected:active {
+        background: var(--selected-color) !important;
+    }
+    
     body.dark-mode .contact-list-item {
         background: var(--surface-color) !important;
         border-bottom-color: var(--border-color) !important;

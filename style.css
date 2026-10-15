@@ -915,11 +915,6 @@ body {
     padding-left: var(--space-8);
 }
 
-.contact-card.selected {
-    background: var(--selected-color);
-    border-color: var(--primary-color);
-}
-
 .contact-list {
     overflow-y: auto;
     flex: 1;
@@ -976,6 +971,13 @@ body {
 .contact-card:hover {
     box-shadow: var(--shadow-md);
     transform: translateY(-1px);
+    background: var(--hover-color);
+}
+
+.contact-card[data-archived="true"] {
+    opacity: 0.7;
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--hover-color) 100%);
+    border-left: 4px solid var(--warning-color);
 }
 
 .contact-card.selected {
@@ -984,10 +986,8 @@ body {
     background: var(--selected-color);
 }
 
-.contact-card[data-archived="true"] {
-    opacity: 0.7;
-    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--hover-color) 100%);
-    border-left: 4px solid var(--warning-color);
+.contact-card.selected:hover {
+    background: var(--selected-color);
 }
 
 /* List View */
