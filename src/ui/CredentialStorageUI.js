@@ -112,7 +112,7 @@ export class CredentialStorageUI {
     showMasterPasswordSetup() {
         const modal = document.createElement('div');
         modal.id = 'master-password-modal';
-        modal.className = 'modal-overlay active';
+        modal.className = 'modal-overlay credential-storage-modal active';
         modal.innerHTML = `
             <div class="modal-content credential-modal">
                 <div class="modal-header">
@@ -296,7 +296,7 @@ export class CredentialStorageUI {
             
             const modal = document.createElement('div');
             modal.id = 'storage-consent-modal';
-            modal.className = 'modal-overlay active';
+            modal.className = 'modal-overlay credential-storage-modal active';
             
             let storageOptionsHTML = '';
             
