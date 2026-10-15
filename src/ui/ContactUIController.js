@@ -6388,6 +6388,34 @@ export class ContactUIController {
     }
 
     /**
+     * Export a single contact as a vCard file (detail view export button)
+     */
+    async exportContact(contactId) {
+        const contact = this.contactManager.getContact(contactId);
+        if (!contact) {
+            this.showToast({ message: 'Contact not found', type: 'error' });
+            return;
+        }
+
+        // Derive a safe filename from the card name
+        const baseName = (contact.cardName || contactId)
+            .trim()
+            .replace(/[^\w.-]+/g, '_')
+            .replace(/^_+|_+$/g, '') || 'contact';
+
+        try {
+            await this.exportContacts([contact], baseName);
+            this.showToast({
+                message: `Exported "${contact.cardName}" as vCard 3.0`,
+                type: 'success'
+            });
+        } catch (error) {
+            console.error('Error exporting contact:', error);
+            this.showToast({ message: error.message || 'Failed to export contact', type: 'error' });
+        }
+    }
+
+    /**
      * Get contacts for export based on type
      */
     getContactsForExport(exportType) {
