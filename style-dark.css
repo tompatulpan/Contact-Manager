@@ -225,7 +225,7 @@ body.dark-mode .contact-info .contact-email {
 
 body.dark-mode .contact-info .contact-phone i,
 body.dark-mode .contact-info .contact-email i {
-    color: var(--primary-color);
+    color: var(--text-muted);
 }
 
 /* Shared indicators */

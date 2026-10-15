@@ -2277,10 +2277,10 @@ export class ContactUIController {
                     ` : `
                         ${contact.metadata.isOwned ? `
                             <button class="btn-icon edit-contact" data-contact-id="${contact.contactId}" title="Edit contact">
-                                <i class="fas fa-edit"></i>
+                                <i class="fas fa-pen"></i>
                             </button>
                             <button class="btn-icon share-contact" data-contact-id="${contact.contactId}" title="Share contact">
-                                <i class="fas fa-share"></i>
+                                <i class="fas fa-share-alt"></i>
                             </button>
                             <button class="btn-icon archive-contact" data-contact-id="${contact.contactId}" title="Archive contact">
                                 <i class="fas fa-archive"></i>

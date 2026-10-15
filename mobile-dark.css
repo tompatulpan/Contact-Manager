@@ -256,7 +256,7 @@
     
     body.dark-mode .contact-info .contact-phone i,
     body.dark-mode .contact-info .contact-email i {
-        color: var(--primary-color) !important;
+        color: var(--text-muted) !important;
     }
     
     /* Mobile Filter/Distribution Lists */
