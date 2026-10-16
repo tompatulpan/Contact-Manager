@@ -396,7 +396,8 @@
         right: 12px !important;
     }
     
-    .contact-card .shared-indicator {
+    .contact-card .shared-indicator,
+    .contact-card .owned-indicator {
         font-size: 10px !important;
         padding: 2px 8px !important;
         max-width: 140px !important;
@@ -435,7 +436,8 @@
         padding-left: 8px !important;
     }
     
-    .contact-list.list-view .contact-list-item .shared-indicator {
+    .contact-list.list-view .contact-list-item .shared-indicator,
+    .contact-list.list-view .contact-list-item .owned-indicator {
         font-size: 10px !important;
         padding: 1px 7px !important;
         max-width: 140px !important;

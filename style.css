@@ -1239,8 +1239,9 @@ body {
     margin-left: auto;
 }
 
-/* Shared Indicators */
-.shared-indicator {
+/* Ownership Indicators */
+.shared-indicator,
+.owned-indicator {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -1256,8 +1257,15 @@ body {
     white-space: nowrap;
 }
 
-.shared-indicator i {
+.shared-indicator i,
+.owned-indicator i {
     font-size: 0.6rem;
+}
+
+/* Owned badge: same pill, tinted with the theme accent */
+.owned-indicator {
+    background: var(--primary-light);
+    color: var(--primary-dark);
 }
 
 .tag-shared-out {

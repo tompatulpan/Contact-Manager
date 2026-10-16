@@ -2186,7 +2186,11 @@ export class ContactUIController {
                     <div class="contact-meta">
                         <span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
                     </div>
-                ` : ''}
+                ` : `
+                    <div class="contact-meta">
+                        <span class="owned-indicator"><i class="fas fa-user-check"></i> Owned by me</span>
+                    </div>
+                `}
             `;
             
             // Attach event listeners to the card buttons
@@ -2216,8 +2220,9 @@ export class ContactUIController {
         
         const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
         const contactType = ContactRenderer.getContactType(contact);
-        const sharedInfo = contact.metadata && !contact.metadata.isOwned ?
-            `<div class="contact-meta"><span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${ContactUIHelpers.escapeHtml(contact.metadata.sharedBy)}</span></div>` : '';
+        const ownershipInfo = contact.metadata && !contact.metadata.isOwned ?
+            `<div class="contact-meta"><span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${ContactUIHelpers.escapeHtml(contact.metadata.sharedBy)}</span></div>` :
+            `<div class="contact-meta"><span class="owned-indicator"><i class="fas fa-user-check"></i> Owned by me</span></div>`;
 
         card.innerHTML = `
             <div class="contact-avatar avatar-${contactType}">
@@ -2227,7 +2232,7 @@ export class ContactUIController {
                 <h3 class="contact-name">${ContactUIHelpers.escapeHtml(contactName)}</h3>
                 <p class="contact-error">Invalid contact data</p>
             </div>
-            ${sharedInfo}
+            ${ownershipInfo}
         `;
         
         // Attach click listener for selection
@@ -2272,14 +2277,18 @@ export class ContactUIController {
             listItem.classList.add('shared-contact');
         }
         
-        // Structure with name and shared indicator for non-owned contacts
+        // Structure with name and ownership indicator
         listItem.innerHTML = `
             <div class="contact-name">${this.escapeHtml(fullName)}</div>
             ${!contact.metadata.isOwned ? `
                 <div class="contact-meta">
                     <span class="shared-indicator">Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
                 </div>
-            ` : ''}
+            ` : `
+                <div class="contact-meta">
+                    <span class="owned-indicator">Owned by me</span>
+                </div>
+            `}
         `;
         
         this.attachContactListItemListeners(listItem, contact);
