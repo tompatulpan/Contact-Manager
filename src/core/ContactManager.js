@@ -278,6 +278,18 @@ export class ContactManager {
                     isDeleted: false,
                     isFavorite: false,
                     isPinned: false,
+                    // TODO(import-metadata, docs/SYNC_RULES.md section 1):
+                    // Imported cards (orange) get their metadata from
+                    // VCardStandard.importFromVCard (saved directly via
+                    // importContactFromVCard), which only sets isImported +
+                    // importSource — NOT importedAt (VCardImporter.js:506 is
+                    // dead code; nothing live ever writes importedAt), and not
+                    // isOwned (imported cards rely on the `isOwned !== false`
+                    // legacy default) or the other defaults this constructor
+                    // sets (isArchived, isFavorite, sharing, usage, ...).
+                    // Fix: make VCardStandard.importFromVCard emit the same
+                    // metadata shape as here, with importedAt and
+                    // importSource: 'vcard-file' | 'iCloud' | 'shared-copy'.
                     isImported: sanitizedData.isImported || false,
                     distributionLists: sanitizedData.distributionLists || [],
                     

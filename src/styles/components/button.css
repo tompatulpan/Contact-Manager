@@ -37,6 +37,24 @@
         box-shadow: 0 4px 8px color-mix(in srgb, var(--primary-color) 30%, transparent);
     }
 
+    /* Tonal: quiet tinted fill for prominent-but-calm CTAs (e.g. welcome state) */
+    .btn-tonal {
+        background: var(--primary-light);
+        color: var(--primary-dark);
+        border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent);
+    }
+
+    .btn-tonal:hover {
+        background: color-mix(in srgb, var(--primary-light) 65%, var(--primary-color) 35%);
+        transform: translateY(-1px);
+    }
+
+    /* Large size for hero/empty-state actions */
+    .btn-large {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.95rem;
+    }
+
     .btn-secondary {
         background: var(--surface-raised);
         color: var(--text-primary);

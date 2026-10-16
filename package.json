@@ -1,7 +1,7 @@
 {
   "_comment": "This package.json is used for basic development tools. The app is deployed as static files via production_zip.sh to Cloudflare Pages. Most dev dependencies are optional since this is a pure client-side app.",
   "name": "contact-management-system",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A secure, modular contact management system using Userbase for encrypted storage and real-time synchronization, fully compliant with RFC 9553.",
   "main": "src/app.js",
   "type": "module",

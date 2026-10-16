@@ -442,12 +442,17 @@
 
     .verification-status code {
         background: var(--hover-color);
+        border: 1px solid var(--border-color);
         padding: 4px 8px;
         border-radius: 4px;
         font-family: monospace;
         word-break: break-all;
         display: inline-block;
         margin: 4px 0;
+    }
+
+    .verification-status small {
+        opacity: 0.75;
     }
 
     .verification-status.success {

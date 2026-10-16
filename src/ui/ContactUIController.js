@@ -3259,10 +3259,9 @@ export class ContactUIController {
                 <div class="welcome-state">
                     <i class="fas fa-hand-wave"></i>
                     <h3>Welcome to Kontakt</h3>
-                    <p>Select a contact to view details, or create a new contact to get started.</p>
-                    <button id="welcome-new-contact" class="btn btn-primary">
-                        <i class="fas fa-plus"></i>
-                        Create New Contact
+                    <p>Select a contact to view details, or add your own to get started. </p>
+                    <button id="welcome-new-contact" class="btn btn-tonal btn-large">
+                        Create your New Contact
                     </button>
                 </div>
             `;
@@ -4175,10 +4174,12 @@ export class ContactUIController {
             const result = await this.contactManager.getVerificationMessage();
             
             if (result.success) {
-                // Show the verification message in a copyable format
+                // Show the verification message in a copyable format.
+                // safeMsg is escaped; the surrounding markup is static, so it
+                // is passed through as HTML (showVerificationStatus html option).
                 const safeMsg = this.escapeHtml(result.verificationMessage);
-                const message = `Your verification message: <code style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-family: monospace; word-break: break-all;">${safeMsg}</code><br><small>Share this with others so they can verify you before sharing contacts.</small>`;
-                this.showVerificationStatus('success', message);
+                const message = `Your verification message: <code>${safeMsg}</code><br><small>Share this with others so they can verify you before sharing contacts.</small>`;
+                this.showVerificationStatus('success', message, { html: true });
                 
                 // Also copy to clipboard if possible
                 if (navigator.clipboard) {
@@ -4200,11 +4201,14 @@ export class ContactUIController {
 
     /**
      * Show verification status message
+     * @param {string} type - 'success' | 'error' | 'loading'
+     * @param {string} message - Status text (escaped), unless options.html is set
+     * @param {Object} options - { html: message is trusted markup and must be pre-escaped }
      */
-    showVerificationStatus(type, message) {
+    showVerificationStatus(type, message, { html = false } = {}) {
         const verificationStatus = document.getElementById('verification-status');
         if (!verificationStatus) return;
-        
+
         verificationStatus.style.display = 'block';
         verificationStatus.className = `verification-status ${type}`;
         
@@ -4221,7 +4225,7 @@ export class ContactUIController {
                 break;
         }
         
-        verificationStatus.innerHTML = `${icon} <span>${this.escapeHtml(message)}</span>`;
+        verificationStatus.innerHTML = `${icon} <span>${html ? message : this.escapeHtml(message)}</span>`;
     }
 
     /**
