@@ -1,0 +1,34 @@
+/* ========================================
+   MAIN CSS - Single Entry Point
+   All styles are imported through this file
+   Order matters: reset -> tokens -> layout -> components
+   ======================================== */
+
+/* Define cascade layers */
+@layer reset, tokens, layout, components, utilities;
+
+/* Import reset styles (must come first) */
+@import url("reset.css") layer(reset);
+
+/* Import design tokens (variables) */
+@import url("tokens.css") layer(tokens);
+
+/* Import theme overrides - these override tokens based on data-theme attribute */
+@import url("../../themes.css") layer(tokens);
+
+/* Import layout styles (grid, panels, etc.) */
+@import url("layout.css") layer(layout);
+
+/* Import component styles - alphabetical order for maintainability */
+@import url("components/auth-footer.css") layer(components);
+@import url("components/button.css") layer(components);
+@import url("components/contact-card.css") layer(components);
+@import url("components/feedback.css") layer(components);
+@import url("components/form.css") layer(components);
+@import url("components/header.css") layer(components);
+@import url("components/modal.css") layer(components);
+@import url("components/sidebar.css") layer(components);
+@import url("components/theme-toggle.css") layer(components);
+
+/* Import utility classes (last layer - always wins) */
+@import url("utilities.css") layer(utilities);

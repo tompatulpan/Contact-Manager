@@ -1,0 +1,15 @@
+/* ========================================
+   UTILITIES - Helper classes
+   These live in the last layer so they always
+   win over component styles (no !important
+   needed for specificity fights)
+   ======================================== */
+
+@layer utilities {
+    /* THE critical visibility utility.
+       JS toggles this class to show/hide loading states,
+       empty states, panels, toolbars, etc. */
+    .hidden {
+        display: none !important;
+    }
+}

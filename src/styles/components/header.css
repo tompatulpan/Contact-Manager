@@ -1,0 +1,171 @@
+/* ========================================
+   HEADER COMPONENT
+   App header styles
+   ======================================== */
+
+@layer components {
+    /* Desktop App Header */
+    .app-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.85rem 1.1rem;
+        margin-bottom: var(--space-4);
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+    }
+
+    /* Header Left */
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+    }
+
+    .header-left .app-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--text-primary);
+    }
+
+    .header-left .app-title i {
+        margin-right: var(--space-2);
+        color: var(--primary-color);
+    }
+
+    /* Header Right */
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* ========== MOBILE HEADER STYLES (matches theme-previews) ========== */
+    @media screen and (max-width: 1024px) {
+        /* Hide desktop header on mobile */
+        .app-header {
+            display: none !important;
+        }
+
+        /* Mobile Header - compact bar, 56px */
+        .mobile-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            min-height: 56px !important;
+            padding: 6px 10px !important;
+            background: var(--surface-color) !important;
+            border-bottom: 1px solid var(--border-color) !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 10 !important;
+        }
+
+        .mobile-page-title {
+            flex: 1 !important;
+            text-align: center !important;
+            font-size: 1.05rem !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.01em !important;
+            color: var(--text-primary) !important;
+            margin: 0 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        /* Nav buttons: 44px rounded squares like .m-btn in the preview */
+        .mobile-back-btn,
+        .mobile-menu-btn {
+            width: 44px !important;
+            height: 44px !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 12px !important;
+            color: var(--primary-color) !important;
+            font-size: 1.15rem !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0;
+        }
+
+        .mobile-back-btn:hover,
+        .mobile-back-btn:active,
+        .mobile-menu-btn:hover,
+        .mobile-menu-btn:active {
+            background: var(--hover-color) !important;
+        }
+
+        .mobile-header-actions {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            gap: 2px !important;
+            min-width: 44px !important;
+        }
+
+        /* Action buttons: muted variant (m-btn.muted) */
+        .mobile-action-btn {
+            width: 44px !important;
+            height: 44px !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 12px !important;
+            color: var(--text-secondary) !important;
+            font-size: 1rem !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: background-color 0.15s ease !important;
+        }
+
+        .mobile-action-btn:hover,
+        .mobile-action-btn:active {
+            background: var(--hover-color) !important;
+        }
+
+        #mobile-share-profile {
+            color: var(--text-secondary) !important;
+        }
+
+        #mobile-share-profile:hover,
+        #mobile-share-profile:active {
+            background: var(--hover-color) !important;
+        }
+
+        #mobile-logout {
+            color: var(--text-secondary) !important;
+        }
+
+        #mobile-logout:hover,
+        #mobile-logout:active {
+            background: var(--hover-color) !important;
+        }
+
+        @supports (padding: max(0px)) {
+            .mobile-header {
+                padding-top: max(6px, env(safe-area-inset-top)) !important;
+            }
+        }
+    }
+
+    /* Small mobile adjustments */
+    @media screen and (max-width: 375px) {
+        .mobile-header {
+            padding: 4px 8px !important;
+        }
+
+        .mobile-page-title {
+            font-size: 1rem !important;
+        }
+    }
+}

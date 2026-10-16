@@ -1,0 +1,66 @@
+/* ========================================
+   RESET - Base styles and CSS reset
+   ======================================== */
+
+@layer reset {
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: var(--font-family);
+        background: var(--bg-app);
+        color: var(--text-primary);
+        line-height: 1.6;
+        min-height: 100vh;
+    }
+
+    /* Remove default list styles */
+    ol, ul {
+        list-style: none;
+    }
+
+    /* Remove default link styles */
+    a {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    /* Remove default button styles */
+    button {
+        background: none;
+        border: none;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    /* Remove default input styles */
+    input, textarea, select {
+        font: inherit;
+    }
+
+    /* Remove default table styles */
+    table {
+        border-collapse: collapse;
+        border-spacing: 0;
+    }
+
+    /* Remove default quote styles */
+    blockquote, q {
+        quotes: none;
+    }
+
+    /* Remove default form element margins */
+    fieldset {
+        margin: 0;
+        padding: 0;
+        border: none;
+    }
+
+    /* Focus styles for accessibility */
+    :focus-visible {
+        outline: none;
+    }
+}

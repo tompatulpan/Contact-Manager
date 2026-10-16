@@ -1,0 +1,180 @@
+/* ========================================
+   THEME TOGGLE COMPONENT
+   Theme switching UI
+   ======================================== */
+
+@layer components {
+    /* Theme Toggle Container */
+    .theme-toggle {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        cursor: pointer;
+        padding: 0.3rem 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 999px;
+        background: var(--surface-raised);
+        transition: background 0.2s, border-color 0.2s;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+
+    .theme-toggle:hover {
+        background: var(--hover-color);
+        border-color: var(--border-strong);
+    }
+
+    .theme-toggle:active {
+        background: var(--border-color);
+    }
+
+    .theme-toggle:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring);
+    }
+
+    /* Theme Toggle Switch */
+    .theme-toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: var(--border-strong);
+        border-radius: 12px;
+        transition: background 0.3s;
+    }
+
+    body.dark-mode .theme-toggle-switch,
+    body[data-theme]:not(.dark-mode) .theme-toggle-switch {
+        background: var(--primary-color);
+    }
+
+    .theme-toggle-slider {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.3s;
+    }
+
+    body.dark-mode .theme-toggle-slider,
+    body[data-theme].dark-mode .theme-toggle-slider {
+        transform: translateX(20px);
+    }
+
+    .theme-toggle-icon {
+        font-size: 1rem;
+        color: var(--text-secondary);
+    }
+
+    body.dark-mode .theme-toggle-icon,
+    body[data-theme].dark-mode .theme-toggle-icon {
+        color: var(--primary-color);
+    }
+
+    /* Theme Picker */
+    .theme-picker {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-2);
+    }
+
+    .theme-option {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 4px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--surface-color);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .theme-option:hover {
+        border-color: var(--border-strong);
+        transform: translateY(-1px);
+    }
+
+    .theme-option:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring);
+    }
+
+    .theme-option.active {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 1px var(--primary-color);
+        color: var(--text-primary);
+    }
+
+    .theme-swatch {
+        width: 100%;
+        aspect-ratio: 5 / 3;
+        border-radius: calc(var(--radius-sm) - 1px);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        position: relative;
+        overflow: hidden;
+        background: var(--swatch-bg);
+    }
+
+    .theme-swatch::before {
+        content: "";
+        position: absolute;
+        left: 14%;
+        right: 14%;
+        top: 28%;
+        bottom: 0;
+        border-radius: 6px 6px 0 0;
+        background: var(--swatch-surface);
+    }
+
+    .theme-swatch::after {
+        content: "";
+        position: absolute;
+        left: 14%;
+        top: 12%;
+        width: 28%;
+        height: 10%;
+        border-radius: 2px;
+        background: var(--swatch-accent);
+    }
+
+    .theme-option-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    /* Appearance Mode Row */
+    .appearance-mode-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        margin-bottom: var(--space-2);
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .appearance-mode-row .theme-toggle {
+        margin: 0;
+    }
+
+    /* Smooth transition for theme changes */
+    body.theme-transitioning * {
+        transition: background-color 0.3s ease,
+                    color 0.3s ease,
+                    border-color 0.3s ease !important;
+    }
+}

@@ -1,0 +1,210 @@
+/* ========================================
+   FEEDBACK COMPONENT
+   Toasts, loading states, empty states, status containers
+   ======================================== */
+
+@layer components {
+    /* ========== TOASTS ========== */
+    .toast {
+        position: fixed;
+        bottom: var(--space-4);
+        right: var(--space-4);
+        z-index: 1100;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.7rem 0.9rem;
+        border-radius: var(--radius-md);
+        background: var(--surface-raised);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-md);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        max-width: min(380px, calc(100vw - 2rem));
+        animation: toastIn 0.25s ease-out;
+    }
+
+    .toast + .toast {
+        margin-top: 0.5rem;
+    }
+
+    @keyframes toastIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .toast-success {
+        border-left: 4px solid var(--success-color);
+    }
+
+    .toast-success > i {
+        color: var(--success-color);
+    }
+
+    .toast-error {
+        border-left: 4px solid var(--error-color);
+    }
+
+    .toast-error > i {
+        color: var(--error-color);
+    }
+
+    .toast span {
+        flex: 1;
+        line-height: 1.4;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 2px 4px;
+        font-size: 0.9rem;
+        border-radius: var(--radius-sm);
+        transition: color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .toast-close:hover {
+        color: var(--text-primary);
+        background: var(--hover-color);
+    }
+
+    /* ========== LOADING ========== */
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border-color);
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .loading-container,
+    .success-container,
+    .error-container,
+    .warning-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-8);
+        text-align: center;
+    }
+
+    .success-icon {
+        width: 60px;
+        height: 60px;
+        background: var(--success-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-4);
+    }
+
+    .success-icon i {
+        color: white;
+        font-size: 24px;
+    }
+
+    .error-icon {
+        width: 60px;
+        height: 60px;
+        background: var(--error-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-4);
+    }
+
+    .error-icon i {
+        color: white;
+        font-size: 24px;
+    }
+
+    .warning-icon {
+        width: 60px;
+        height: 60px;
+        background: var(--warning-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-4);
+    }
+
+    .warning-icon i {
+        color: white;
+        font-size: 24px;
+    }
+
+    .share-details {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        padding: var(--space-3);
+        margin: var(--space-3) 0;
+        font-family: monospace;
+        font-size: 0.9em;
+        white-space: pre-line;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    /* ========== EMPTY STATE ========== */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 2rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 0.5rem 0;
+        color: var(--text-primary);
+    }
+
+    .empty-state p {
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    /* Profile info block (profile share modal) */
+    .profile-info {
+        flex: 1;
+    }
+
+    .profile-info h4 {
+        color: var(--text-primary);
+        font-size: 1.1rem;
+        margin-bottom: var(--space-2);
+    }
+
+    .profile-info p {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: var(--space-1);
+    }
+
+    .profile-info p:last-child {
+        margin-bottom: 0;
+    }
+}

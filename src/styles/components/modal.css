@@ -1,0 +1,243 @@
+/* ========================================
+   MODAL COMPONENT
+   All modal-related styles
+   ======================================== */
+
+@layer components {
+    /* Modal Overlay */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+        box-sizing: border-box;
+        overflow-y: auto;
+    }
+
+    .modal.active {
+        display: flex !important;
+    }
+
+    /* Modal Content */
+    .modal-content {
+        background: var(--surface-raised);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        width: 95%;
+        max-width: min(800px, 95vw);
+        max-height: min(85vh, 780px);
+        overflow: hidden;
+        position: relative;
+        margin: 2.5vh auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Large Modal */
+    .modal-content.modal-large {
+        max-width: min(960px, 95vw);
+    }
+
+    /* Modal Header */
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        color: var(--text-primary);
+    }
+
+    /* Modal Close Button */
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: var(--space-2);
+        border-radius: var(--radius-sm);
+        transition: all 0.2s;
+        font-size: 1.5rem;
+    }
+
+    .modal-close:hover {
+        color: var(--text-primary);
+        background-color: var(--hover-color);
+    }
+
+    /* Modal Body */
+    .modal-body {
+        padding: 1rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        min-height: 0;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Modal body scrollbars */
+    .modal-body::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .modal-body::-webkit-scrollbar-track {
+        background: var(--bg-secondary);
+        border-radius: 4px;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 4px;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary);
+    }
+
+    .modal-body {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color) var(--bg-secondary);
+    }
+
+    /* Modal Footer */
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--space-3);
+        padding: 1rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* Info Box Title */
+    .info-box-title {
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: var(--space-2);
+    }
+
+    /* Username Management Modal */
+    .username-management {
+        padding: var(--space-4) 0;
+    }
+
+    .current-usernames {
+        margin-top: var(--space-4);
+    }
+
+    .current-usernames h4 {
+        margin-bottom: var(--space-3);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .usernames-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border-radius: var(--radius-sm);
+        padding: var(--space-2);
+        background: var(--bg-primary);
+    }
+
+    .username-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--space-2) var(--space-3);
+        margin: var(--space-1) 0;
+        background: var(--bg-primary);
+        border-radius: 4px;
+    }
+
+    .username-item .username {
+        font-weight: 500;
+        color: var(--text-primary);
+        flex: 1;
+    }
+
+    .remove-username-btn {
+        background: var(--error-color);
+        color: white;
+        border: none;
+        padding: var(--space-1) var(--space-2);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .remove-username-btn:hover {
+        background: color-mix(in srgb, var(--error-color) 85%, black);
+    }
+
+    .empty-usernames {
+        text-align: center;
+        color: var(--text-secondary);
+        padding: var(--space-5);
+        font-style: italic;
+    }
+
+    /* ========== MOBILE ADJUSTMENTS ========== */
+    @media screen and (max-width: 1024px) {
+        /* Compact modal sheet */
+        .modal {
+            padding: 12px !important;
+        }
+
+        .modal-content,
+        .modal-content.modal-large {
+            width: 100% !important;
+            max-width: 560px !important;
+            margin: 4vh auto !important;
+            max-height: calc(100vh - 32px) !important;
+            border-radius: var(--radius-lg) !important;
+        }
+
+        .modal-header {
+            padding: 0.75rem 0.9rem !important;
+        }
+
+        .modal-header h2 {
+            font-size: 1.05rem !important;
+        }
+
+        .modal-body {
+            padding: 0.6rem !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+        }
+
+        .modal .info-box {
+            padding: 0.5rem 0.6rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+    }
+
+    /* Small mobile adjustments */
+    @media screen and (max-width: 375px) {
+        .modal-content,
+        .modal-content.modal-large {
+            max-height: calc(100vh - 20px) !important;
+            margin: 2vh auto !important;
+        }
+
+        .modal-body {
+            padding: 0.5rem !important;
+        }
+    }
+}

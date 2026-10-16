@@ -1,0 +1,81 @@
+/* ========================================
+   AUTH & FOOTER COMPONENT
+   Authentication modal and app footer
+   ======================================== */
+
+@layer components {
+    /* ========== AUTHENTICATION ========== */
+    /* The auth modal uses the standard .modal / .modal-content structure;
+       it only needs a narrower sheet. */
+    #auth-modal .modal-content {
+        max-width: 400px;
+    }
+
+    .auth-welcome {
+        text-align: center;
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+    }
+
+    .auth-welcome h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem 0;
+        color: var(--text-primary);
+    }
+
+    .auth-welcome p {
+        font-size: 0.875rem;
+        margin: 0;
+        color: var(--text-secondary);
+        line-height: 1.4;
+    }
+
+    #keep-signed-in-group .checkbox-item {
+        padding: 0.125rem 0;
+        background: transparent;
+        gap: 0.5rem;
+        align-items: baseline;
+    }
+
+    #keep-signed-in-group .checkbox-item input[type="checkbox"] {
+        width: 0.875rem !important;
+        height: 0.875rem !important;
+        min-height: auto !important;
+        padding: 0 !important;
+        position: relative;
+        top: 0.1rem;
+    }
+
+    #keep-signed-in-group .checkbox-item span {
+        font-size: 0.9rem;
+        color: var(--text-primary);
+    }
+
+    /* ========== FOOTER ========== */
+    .app-footer {
+        text-align: center;
+        padding: 8px 0;
+        margin-top: 16px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+        position: relative;
+        z-index: 1;
+    }
+
+    .app-footer a {
+        color: var(--text-secondary);
+        text-decoration: underline;
+        transition: color 0.2s ease;
+    }
+
+    .app-footer a:hover {
+        color: var(--primary-color);
+    }
+}
