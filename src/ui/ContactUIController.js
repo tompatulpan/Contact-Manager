@@ -2182,15 +2182,9 @@ export class ContactUIController {
                         ` : ''}
                     </div>
                 </div>
-                ${!contact.metadata.isOwned ? `
-                    <div class="contact-meta">
-                        <span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
-                    </div>
-                ` : `
-                    <div class="contact-meta">
-                        <span class="owned-indicator"><i class="fas fa-user-check"></i> Owned by me</span>
-                    </div>
-                `}
+                <div class="contact-meta">
+                    ${this.renderOwnershipBadge(contact)}
+                </div>
             `;
             
             // Attach event listeners to the card buttons
@@ -2211,6 +2205,27 @@ export class ContactUIController {
     }
 
     /**
+     * Ownership badge markup for cards and list rows.
+     * Imported contacts are isOwned too, so they get their own badge instead
+     * of "Owned by me" (same disjoint buckets as the sidebar filters).
+     * @param {Object} contact - Contact object
+     * @param {boolean} withIcon - Include the leading icon (card view)
+     * @returns {string} Badge markup
+     */
+    renderOwnershipBadge(contact, withIcon = true) {
+        const meta = contact.metadata || {};
+        const icon = cls => withIcon ? `<i class="fas ${cls}"></i> ` : '';
+
+        if (!meta.isOwned) {
+            return `<span class="shared-indicator">${icon('fa-user')}Shared by ${ContactUIHelpers.escapeHtml(meta.sharedBy)}</span>`;
+        }
+        if (meta.isImported) {
+            return `<span class="imported-indicator">${icon('fa-cloud')}Imported</span>`;
+        }
+        return `<span class="owned-indicator">${icon('fa-user-check')}Owned by me</span>`;
+    }
+
+    /**
      * Create fallback contact card for contacts with invalid data
      */
     createFallbackContactCard(contact) {
@@ -2220,9 +2235,7 @@ export class ContactUIController {
         
         const contactName = contact.cardName || contact.contactId || 'Unknown Contact';
         const contactType = ContactRenderer.getContactType(contact);
-        const ownershipInfo = contact.metadata && !contact.metadata.isOwned ?
-            `<div class="contact-meta"><span class="shared-indicator"><i class="fas fa-user"></i> Shared by ${ContactUIHelpers.escapeHtml(contact.metadata.sharedBy)}</span></div>` :
-            `<div class="contact-meta"><span class="owned-indicator"><i class="fas fa-user-check"></i> Owned by me</span></div>`;
+        const ownershipInfo = `<div class="contact-meta">${this.renderOwnershipBadge(contact)}</div>`;
 
         card.innerHTML = `
             <div class="contact-avatar avatar-${contactType}">
@@ -2280,15 +2293,9 @@ export class ContactUIController {
         // Structure with name and ownership indicator
         listItem.innerHTML = `
             <div class="contact-name">${this.escapeHtml(fullName)}</div>
-            ${!contact.metadata.isOwned ? `
-                <div class="contact-meta">
-                    <span class="shared-indicator">Shared by ${this.escapeHtml(contact.metadata.sharedBy)}</span>
-                </div>
-            ` : `
-                <div class="contact-meta">
-                    <span class="owned-indicator">Owned by me</span>
-                </div>
-            `}
+            <div class="contact-meta">
+                ${this.renderOwnershipBadge(contact, false)}
+            </div>
         `;
         
         this.attachContactListItemListeners(listItem, contact);
