@@ -1636,13 +1636,16 @@ export class ContactUIController {
             if (filterTypes.includes('imported')) {
                 filters.includeImported = true;
             }
-            
+
             // Handle ownership combinations
             const ownershipTypes = filterTypes.filter(t => t !== 'imported');
             if (ownershipTypes.length === 1) {
                 filters.ownership = ownershipTypes[0];
+            } else if (!filterTypes.includes('imported')) {
+                // Owned + Shared: show both groups, excluding imported contacts
+                // (each of the two filters excludes them on its own)
+                filters.excludeImported = true;
             }
-            // If both owned and shared are selected, don't set ownership filter (show all)
         }
     }
 

@@ -943,6 +943,12 @@ export class ContactManager {
             filtered = filtered.filter(contact => !contact.metadata.isOwned);
         }
 
+        // "My Contacts" + "Shared with Me": union of the two groups, which both
+        // exclude imported contacts (they have their own filter checkbox)
+        if (filters.excludeImported) {
+            filtered = filtered.filter(contact => contact.metadata.isImported !== true);
+        }
+
         // Include imported filter (combine imported with other filters)
         if (filters.includeImported) {
             const importedContacts = contacts.filter(contact => contact.metadata.isImported === true);
