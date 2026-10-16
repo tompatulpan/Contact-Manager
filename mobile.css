@@ -462,36 +462,119 @@
         font-size: 18px !important;
     }
     
-    /* ===== MODALS ===== */
-    .modal-content {
-        width: 98% !important;
-        max-width: 98vw !important;
-        margin: 1vh auto !important;
-        max-height: 98vh !important;
+    /* ===== MODALS =====
+    /* Unified compact modal sheet: every modal (incl. large + auth) shares
+       the same width, paddings and height so they align in size */
+    .modal {
+        padding: 12px !important;
+    }
+
+    .modal-content,
+    .modal-content.modal-large {
+        width: 100% !important;
+        max-width: 560px !important;
+        margin: 4vh auto !important;
+        max-height: calc(100vh - 32px) !important;
+        border-radius: var(--radius-lg) !important;
         display: flex !important;
         flex-direction: column !important;
     }
-    
+
+    .modal-header {
+        padding: 0.75rem 0.9rem !important;
+    }
+
+    .modal-header h2 {
+        font-size: 1.05rem !important;
+    }
+
     .modal-body {
-        padding: var(--space-4) !important;
+        padding: 0.6rem !important;
         flex: 1 !important;
         min-height: 0 !important;
     }
 
-    /* Touch-friendly modal inputs: 16px font avoids iOS focus zoom,
-       44px min height keeps the touch target after the compact desktop restyle */
+    .modal .form-group {
+        margin-bottom: 1.5rem !important;
+    }
+
+    /* Field labels: small-caps muted headers (preview style) so they read
+       as section markers instead of tall text rows */
+    .modal .form-group > label {
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        line-height: 1.25 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.04em !important;
+        color: var(--text-muted) !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .modal .multi-field-container {
+        margin-bottom: 0 !important;
+        gap: 0.25rem !important;
+    }
+
+    /* Phone/email/URL items: 2-row grid layout
+       Row 1: type select + value input + remove button
+       Row 2: primary checkbox spanning all columns */
+    .modal .multi-field-item:not(.address-field):not(.note-field) {
+        display: grid !important;
+        grid-template-columns: minmax(84px, 30%) 1fr auto !important;
+        gap: 0.3rem !important;
+        align-items: center !important;
+        padding: 0.3rem !important;
+    }
+    
+    /* Primary checkbox spans all columns on second row */
+    .modal .multi-field-item:not(.address-field):not(.note-field) .primary-checkbox {
+        grid-column: 1 / -1 !important;
+        justify-content: flex-start !important;
+        font-size: 0.8rem !important;
+    }
+
+    .modal .remove-field-btn {
+        justify-self: end !important;
+        padding: 0.15rem !important;
+        font-size: 0.8rem !important;
+    }
+
+    .modal .add-field-btn {
+        margin-top: 0.1rem !important;
+        padding: 0.3rem 0.6rem !important;
+        font-size: 0.75rem !important;
+    }
+
+    .modal .form-actions {
+        margin-top: 0.5rem !important;
+        padding-top: 0.5rem !important;
+    }
+
+    .modal .info-box {
+        padding: 0.5rem 0.6rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* Compact, touch-safe modal inputs: 16px font avoids iOS focus zoom;
+       tight line-height keeps the boxes short */
     .modal .form-group input,
     .modal .form-group select,
     .modal .form-group textarea {
         font-size: 16px !important;
-        padding: 0.6rem 0.75rem !important;
-        min-height: 44px !important;
+        line-height: 1.2 !important;
+        padding: 0.35rem 0.7rem !important;
+        min-height: 36px !important;
         box-sizing: border-box !important;
+    }
+
+    .modal .form-group label {
+        line-height: 1.3 !important;
     }
 
     .field-type-select {
         font-size: 16px !important;
-        min-height: 44px !important;
+        line-height: 1.2 !important;
+        min-height: 36px !important;
     }
 
     .multi-field-item input[type="tel"],
@@ -499,9 +582,23 @@
     .multi-field-item input[type="url"],
     .multi-field-item input[type="text"] {
         font-size: 16px !important;
-        min-height: 44px !important;
+        line-height: 1.2 !important;
+        min-height: 36px !important;
     }
     
+    .modal .primary-checkbox {
+        line-height: 1.2 !important;
+    }
+    
+    /* ===== AUTHENTICATION =====
+    /* The auth modal follows the unified sheet above */
+    #auth-form .form-actions {
+        flex-direction: column !important;
+        gap: 12px !important;
+        margin-top: 0.75rem !important;
+        padding-top: 0.75rem !important;
+    }
+
     /* ===== AUTHENTICATION ===== */
     #auth-modal {
         padding: 12px !important;
@@ -571,11 +668,25 @@
         margin-left: 2rem !important; /* Adjusted margin for larger radio buttons */
     }
     
-    /* ===== OTHER FORM ELEMENTS ===== */
-    .multi-field-item {
-        flex-direction: column !important;
-        align-items: stretch !important;
+    
+    /* ===== OTHER FORM ELEMENTS =====
+    /* Phone/email/URL items: 2-row grid layout
+       Row 1: type select + value input + remove button
+       Row 2: primary checkbox spanning all columns */
+    .multi-field-item:not(.address-field):not(.note-field) {
+        display: grid !important;
+        grid-template-columns: minmax(84px, 30%) 1fr auto !important;
+        gap: 0.3rem !important;
+        align-items: center !important;
+        padding: 0.3rem !important;
+    }
+    
+    /* Primary checkbox spans all columns on second row */
+    .multi-field-item:not(.address-field):not(.note-field) .primary-checkbox {
+        grid-column: 1 / -1 !important;
+        justify-content: flex-start !important;
         gap: 0.5rem !important;
+        align-items: center !important;
     }
     
     .field-type-select {
@@ -583,18 +694,13 @@
         max-width: none !important;
     }
     
-    .primary-checkbox {
-        justify-content: center !important;
-        gap: 0.5rem !important; /* Increased gap for consistency */
-        align-items: center !important; /* Changed from baseline to center */
-    }
-    
     .primary-checkbox input[type="checkbox"] {
-        width: 1rem !important; /* Increased size for consistency */
-        height: 1rem !important; /* Increased size for consistency */
+        width: 1rem !important;
+        height: 1rem !important;
     }
     
     .remove-field-btn {
+        justify-self: end !important;
         align-self: center !important;
     }
     
