@@ -1049,7 +1049,9 @@ export class ContactManager {
         const activeContacts = allContacts.filter(c => !c.metadata.isDeleted && !c.metadata.isArchived);
         
         // Separate owned and shared for clarity
-        const ownedContacts = activeContacts.filter(c => c.metadata.isOwned);
+        // "Owned" matches the My Contacts filter (applyFilters ownership: 'owned'):
+        // contacts created by the user, excluding imported ones (they have their own filter)
+        const ownedContacts = activeContacts.filter(c => c.metadata.isOwned && c.metadata.isImported !== true);
         const sharedContacts = activeContacts.filter(c => !c.metadata.isOwned);
         
         return {

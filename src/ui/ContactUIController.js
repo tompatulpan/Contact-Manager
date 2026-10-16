@@ -1599,9 +1599,9 @@ export class ContactUIController {
 
                 this.savedCheckboxStates = null; // Clear after restoration
             } else {
-                // Set default state: "My Contacts" and "Shared with Me" checked
-                if (filterOwned) filterOwned.checked = true;
-                if (filterShared) filterShared.checked = true;
+                // Default state: no filter checked ("All Contacts" view)
+                if (filterOwned) filterOwned.checked = false;
+                if (filterShared) filterShared.checked = false;
                 if (filterImported) filterImported.checked = false;
                 if (filterRecent) filterRecent.checked = false;
                 if (filterArchived) filterArchived.checked = false;

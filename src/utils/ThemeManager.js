@@ -129,6 +129,7 @@ class ThemeManager {
             document.body.classList.add('dark-mode');
             localStorage.setItem(this.modeKey, 'dark');
             this.updateToggleIcon('dark');
+            this.updateModeLabel('dark');
             this.updateMetaThemeColor();
             this.updatePickerSwatches();
         });
@@ -139,6 +140,7 @@ class ThemeManager {
             document.body.classList.remove('dark-mode');
             localStorage.setItem(this.modeKey, 'light');
             this.updateToggleIcon('light');
+            this.updateModeLabel('light');
             this.updateMetaThemeColor();
             this.updatePickerSwatches();
         });
@@ -157,6 +159,14 @@ class ThemeManager {
             icon.classList.toggle('fa-sun', mode === 'dark');
             icon.classList.toggle('fa-moon', mode !== 'dark');
         });
+    }
+
+    // Keep the Appearance section label in step with the active mode
+    updateModeLabel(mode) {
+        const label = document.getElementById('appearance-mode-label');
+        if (label) {
+            label.textContent = mode === 'dark' ? 'Dark mode' : 'Light mode';
+        }
     }
 
     getCurrentTheme() {
