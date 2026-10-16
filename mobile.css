@@ -802,13 +802,17 @@
     }
 
     /* Mobile-specific error message adjustments */
-    .field-error {
+    /* Empty error slots stay hidden (style.css display:none + :not(:empty)).
+       Only style them as touch targets when they contain a message. No
+       !important on display so the inline display='none' used to clear
+       errors keeps working. */
+    .field-error:not(:empty) {
         /* Ensure emojis render properly on mobile */
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', system-ui, sans-serif !important;
         
         /* Better touch target and readability */
         min-height: 44px !important;
-        display: flex !important;
+        display: flex;
         align-items: center !important;
         
         /* Prevent layout shifts */
