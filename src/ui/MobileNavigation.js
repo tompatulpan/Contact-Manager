@@ -27,7 +27,7 @@ export class MobileNavigation {
     }
 
     isMobile() {
-        return window.innerWidth <= 768;
+        return window.innerWidth <= 1024;
     }
 
     bindEvents() {

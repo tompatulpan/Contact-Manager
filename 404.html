@@ -38,6 +38,7 @@
     <link rel="stylesheet" href="style-dark.css">
     <link rel="stylesheet" href="mobile.css">
     <link rel="stylesheet" href="mobile-dark.css">
+    <link rel="stylesheet" href="themes.css">
     <link rel="stylesheet" href="src/ui/credential-storage.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
 </head>
@@ -118,58 +119,74 @@
                         <div class="filter-options">
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-owned">
+                                <i class="fas fa-user"></i>
                                 <span>My Contacts</span>
+                                <span class="count" id="filter-count-owned">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-shared">
+                                <i class="fas fa-share-alt"></i>
                                 <span>Shared with Me</span>
+                                <span class="count" id="filter-count-shared">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-imported">
+                                <i class="fas fa-cloud"></i>
                                 <span>Imported Contacts</span>
+                                <span class="count" id="filter-count-imported">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-recent">
+                                <i class="fas fa-history"></i>
                                 <span>Recent Activity</span>
+                                <span class="count" id="filter-count-recent">0</span>
                             </label>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-archived">
+                                <i class="fas fa-archive"></i>
                                 <span>Archived Contacts</span>
+                                <span class="count" id="filter-count-archived">0</span>
                             </label>
                         </div>
                     </div>
                     
                     <!-- Distribution Lists Container -->
                     <div id="distribution-lists" class="distribution-lists">
-                        <!-- Dynamic user groups will be inserted here -->
+                        <!-- Dynamic sharing lists will be inserted here -->
                     </div>
                     <button id="create-list-btn" class="btn btn-ghost btn-small">
                         <i class="fas fa-plus"></i>
-                        Create User Group
+                        Create Sharing List
                     </button>
                 </div>
 
-                <!-- Quick Stats -->
-                <div class="sidebar-section">
-                    <h3>Quick Stats</h3>
-                    <div class="stats-grid">
-                        <div class="stat-item" title="All contacts (owned + shared)">
-                            <span class="stat-label">Total</span>
-                            <span id="stat-total" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item" title="Contacts shared with you">
-                            <span class="stat-label">Shared</span>
-                            <span id="stat-shared" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item" title="All active contacts">
-                            <span class="stat-label">Recent</span>
-                            <span id="stat-recent" class="stat-value">0</span>
-                        </div>
-                        <div class="stat-item" title="Contacts imported from files/CardDAV">
-                            <span class="stat-label">Imported</span>
-                            <span id="stat-imported" class="stat-value">0</span>
+                <!-- Appearance (theme picker) -->
+                <div class="sidebar-section appearance-section">
+                    <h3>Appearance</h3>
+                    <div class="appearance-mode-row">
+                        <span><i class="fas fa-adjust"></i> Dark mode</span>
+                        <div class="theme-toggle" data-theme-toggle role="button" tabindex="0" aria-label="Toggle dark mode" title="Toggle dark mode">
+                            <i class="fas fa-moon theme-toggle-icon"></i>
+                            <div class="theme-toggle-switch">
+                                <div class="theme-toggle-slider"></div>
+                            </div>
                         </div>
                     </div>
+                    <div id="theme-picker" class="theme-picker" role="radiogroup" aria-label="Colour theme">
+                        <!-- Theme options rendered by ThemeManager -->
+                    </div>
+                </div>
+
+                <!-- Sync Status -->
+                <div class="sidebar-section sync-section">
+                    <h3>Sync</h3>
+                    <div class="sync-status-list">
+                        <div class="sync-status-item" id="sync-status-icloud" data-state="disconnected">
+                            <span class="sync-dot"></span>
+                            <span class="sync-label">iCloud · not connected</span>
+                        </div>
+                    </div>
+                </div>
                 </div>
             </aside>
 
@@ -596,7 +613,7 @@
                                 </button>
                                 <button type="button" class="share-type-tab" data-type="share-with-list">
                                     <i class="fas fa-users"></i>
-                                    Share with Group
+                                    Share with List
                                 </button>
                             </div>
                         </div>
@@ -648,7 +665,7 @@
                             </div>
                         </div>
 
-                        <!-- Share with User Group -->
+                        <!-- Share with Sharing List -->
                         <div id="share-with-list-section" class="share-section">
                             <div class="contact-preview">
                                 <h3>Sharing Contact:</h3>
@@ -660,14 +677,14 @@
                             <div class="share-info">
                                 <div class="info-box">
                                     <i class="fas fa-info-circle"></i>
-                                    <p><strong>Groups are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
+                                    <p><strong>Sharing lists are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
                                 </div>
                             </div>
                             
                             <div class="form-group">
-                                <label for="share-with-distribution-list">Select User Group *</label>
+                                <label for="share-with-distribution-list">Select Sharing List *</label>
                                 <select id="share-with-distribution-list" name="shareWithList">
-                                    <option value="">Choose a user group...</option>
+                                    <option value="">Choose a sharing list...</option>
                                 </select>
                                 <div class="field-error" id="share-with-distribution-list-error"></div>
                             </div>
@@ -750,22 +767,22 @@
         </div>
     </div>
 
-    <!-- Create User Group Modal -->
+    <!-- Create Sharing List Modal -->
     <div id="create-list-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Create User Group</h2>
-                <button class="modal-close" type="button">&times;</button>
+                <h2>Create Sharing List</h2>
+                <button class="modal-close" type="button" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="info-box">
                     <i class="fas fa-info-circle"></i>
-                    <p>Create a group of usernames to share your contact information with. For example, create a "Work" group with colleagues' usernames to quickly share your work contact details.</p>
+                    <p>Create a list of usernames to share your contact information with. For example, create a "Work" list with colleagues' usernames to quickly share your work contact details.</p>
                 </div>
                 
                 <form id="create-list-form" class="create-list-form">
                     <div class="form-group">
-                        <label for="list-name">User Group Name *</label>
+                        <label for="list-name">Sharing List Name *</label>
                         <input type="text" id="list-name" name="listName" required 
                                placeholder="e.g., Work Colleagues, Family, Clients" maxlength="50">
                         <div class="field-error" id="list-name-error"></div>
@@ -801,10 +818,9 @@
 
     <!-- Username Management Modal -->
     <div id="username-modal" class="modal">
-        <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2 id="username-modal-title">Manage Distribution List</h2>
+                    <h2 id="username-modal-title">Manage Sharing List</h2>
                     <button id="close-username-modal" class="modal-close" data-dismiss="modal">
                         <i class="fas fa-times"></i>
                     </button>
@@ -821,7 +837,7 @@
                                     <i class="fas fa-plus"></i> Add
                                 </button>
                             </div>
-                            <small class="help-text">Add multiple users with commas. Usernames are validated when you share a contact, not when you add them here. Group membership only affects future shares; adding a username does not grant access to contacts shared earlier, and removing one does not revoke existing shares.</small>
+                            <small class="help-text">Add multiple users with commas. Usernames are validated when you share a contact, not when you add them here. List membership only affects future shares; adding a username does not grant access to contacts shared earlier, and removing one does not revoke existing shares.</small>
                         </div>
                         
                         <div class="current-usernames">
@@ -833,7 +849,6 @@
                     </div>
                 </div>
             </div>
-        </div>
     </div>
 
     <!-- Import Contacts Modal -->
@@ -1126,7 +1141,7 @@
             &nbsp;|&nbsp;
             Contact: <a href="https://e2econtacts.org/#contact">hello&#64;e2econtacts.org</a>
             &nbsp;|&nbsp;
-            <span id="app-version" title="Application build">v1.0.0</span>
+            <span id="app-version" title="Application build">v0.3.0</span>
         </span>
     </footer>
 </body>

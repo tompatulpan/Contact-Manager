@@ -70,7 +70,7 @@ no build-time cache busting.
 
 The packaging script injects a build stamp (`<git-sha>-<yyyymmdd>`) into
 `src/version.js`, shown in the app footer so you can verify which deploy is
-live. In development the footer shows `v1.0.0 (dev)`.
+live. In development the footer shows `v0.3.0 (dev)`.
 
 ```bash
 # For production deployment

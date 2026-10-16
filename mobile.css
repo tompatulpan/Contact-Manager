@@ -3,7 +3,7 @@
    ======================================== */
 
 /* ========== DESKTOP - HIDE MOBILE ELEMENTS ========== */
-@media screen and (min-width: 769px) {
+@media screen and (min-width: 1025px) {
     .mobile-only,
     .mobile-header,
     .mobile-back-btn,
@@ -16,7 +16,7 @@
 }
 
 /* ========== MOBILE STYLES ========== */
-@media screen and (max-width: 768px) {
+@media screen and (max-width: 1024px) {
     
     /* Show mobile-only elements */
     .mobile-only {
@@ -49,8 +49,33 @@
         border-top: 1px solid var(--border-color) !important;
         border-radius: 0 !important;
         box-shadow: none !important;
+        background: var(--bg-app) !important;
+        padding: 0 !important;
         max-height: calc(100vh - 120px) !important;
         height: calc(100vh - 120px) !important;
+    }
+
+    /* Sticky page header: full-bleed bar like the preview */
+    .sidebar .mobile-header {
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Menu page content: inset with generous spacing like the preview */
+    .sidebar-content {
+        padding: 12px 14px 32px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 14px !important;
+    }
+
+    .sidebar-content .sidebar-section {
+        margin-bottom: 0 !important;
+    }
+
+    .sidebar-content .sidebar-section h3 {
+        margin: 0 0 6px 10px !important;
+        font-size: 0.7rem !important;
     }
 
     /* Sharing list rows: no hover on touch, keep actions visible inline */
@@ -202,7 +227,7 @@
         left: 0 !important;
         width: 100% !important;
         height: 100vh !important;
-        background: white !important;
+        background: var(--bg-app) !important;
         z-index: 100 !important;
         transform: translateX(100%) !important;
         transition: transform 0.3s ease-in-out !important;
@@ -615,10 +640,13 @@
     }
     
     /* ===== FILTER CONTROLS ===== */
+    /* Plain block wrapper so the group card fills the section width */
     .filter-controls {
-        display: flex !important;
-        gap: 8px !important;
-        flex-wrap: wrap !important;
+        display: block !important;
+    }
+
+    .filter-options {
+        width: 100% !important;
     }
     
     .filter-checkbox {
@@ -745,6 +773,195 @@
         .contact-actions {
             padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
         }
+    }
+    /* ===== MOBILE MENU (preview structure: account, groups, tools) ===== */
+
+    /* Account row at the top of the menu */
+    .m-account {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 12px !important;
+        margin: 0 !important;
+        background: var(--surface-color) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-sm) !important;
+    }
+
+    .m-account .contact-avatar {
+        width: 44px !important;
+        height: 44px !important;
+    }
+
+    .m-account .avatar-initial {
+        font-size: 1.05rem !important;
+    }
+
+    .m-account-info {
+        flex: 1 !important;
+        min-width: 0 !important;
+    }
+
+    .m-account-info .contact-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .m-account-info .contact-details span {
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+    }
+
+    /* Filter rows render as one grouped card */
+    .sidebar .filter-options {
+        background: var(--surface-color) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-sm) !important;
+        overflow: hidden;
+        gap: 0 !important;
+    }
+
+    .sidebar .filter-options .checkbox-item {
+        padding: 13px 14px !important;
+        min-height: 48px;
+        font-size: 0.95rem !important;
+        border-bottom: 1px solid var(--border-color) !important;
+        border-radius: 0 !important;
+    }
+
+    .sidebar .filter-options .checkbox-item:last-child {
+        border-bottom: none !important;
+    }
+
+    .sidebar .filter-options .checkbox-item i {
+        font-size: 0.9rem !important;
+    }
+
+    /* Sharing lists group */
+    .sharing-lists-wrap {
+        background: var(--surface-color) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-sm) !important;
+        overflow: hidden;
+    }
+
+    .sharing-lists-wrap .distribution-list-item,
+    .sharing-lists-wrap .no-lists-message {
+        padding: 13px 14px !important;
+        min-height: 48px;
+        font-size: 0.95rem !important;
+        border-bottom: 1px solid var(--border-color) !important;
+        border-radius: 0 !important;
+    }
+
+    .sharing-lists-wrap .distribution-list-actions {
+        position: static !important;
+        transform: none !important;
+        background: transparent !important;
+    }
+
+    /* Create Sharing List becomes an accent row inside the group */
+    #create-list-btn {
+        display: flex !important;
+        width: 100% !important;
+        justify-content: flex-start !important;
+        padding: 13px 14px !important;
+        min-height: 48px;
+        border: none !important;
+        border-radius: 0 !important;
+        margin-top: 0 !important;
+        color: var(--primary-color) !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        background: transparent !important;
+    }
+
+    #create-list-btn:hover {
+        background: var(--hover-color) !important;
+    }
+
+    /* Tools group */
+    .m-group {
+        background: var(--surface-color) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-sm) !important;
+        overflow: hidden;
+    }
+
+    .m-tool-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 13px 14px;
+        min-height: 48px;
+        background: none;
+        border: none;
+        border-bottom: 1px solid var(--border-color);
+        font: inherit;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .m-tool-row:last-child {
+        border-bottom: none;
+    }
+
+    .m-tool-row i {
+        width: 16px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        flex-shrink: 0;
+    }
+
+    .m-tool-row:active,
+    .m-tool-row:hover {
+        background: var(--hover-color);
+    }
+
+    .m-tool-row.m-danger,
+    .m-tool-row.m-danger i {
+        color: var(--error-color);
+    }
+
+    .m-tool-row .count {
+        margin-left: auto;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: var(--hover-color);
+        color: var(--text-secondary);
+    }
+
+    .m-tool-row .count.ok {
+        background: color-mix(in srgb, var(--success-color) 16%, transparent);
+        color: var(--success-color);
+    }
+
+    .m-tool-row .count.err {
+        background: color-mix(in srgb, var(--error-color) 16%, transparent);
+        color: var(--error-color);
+    }
+
+    /* Dark-mode toggle lives in the account row; sync status lives on the Tools row */
+    .appearance-mode-row {
+        display: none !important;
+    }
+
+    .sync-section {
+        display: none !important;
     }
 }
 

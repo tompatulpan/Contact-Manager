@@ -106,17 +106,35 @@
                     <h1 class="mobile-page-title">Menu</h1>
                     <div></div> <!-- Spacer -->
                 </div>
-                
+
                 <div class="sidebar-content">
+                <!-- Mobile account row -->
+                <div class="m-account mobile-only">
+                    <div class="contact-avatar avatar-owned" id="menu-account-avatar">
+                        <span class="avatar-initial" id="menu-account-initial">G</span>
+                    </div>
+                    <div class="m-account-info">
+                        <div class="contact-name" id="menu-account-username">Guest</div>
+                        <div class="contact-details"><span id="menu-account-subline">0 contacts</span></div>
+                    </div>
+                    <div class="theme-toggle" data-theme-toggle role="button" tabindex="0" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <i class="fas fa-moon theme-toggle-icon"></i>
+                        <div class="theme-toggle-switch">
+                            <div class="theme-toggle-slider"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="sidebar-section">
-                    <h3>Menu</h3>
+                    <h3>Contacts</h3>
                     
                     <div class="filter-controls">
-                        <h4 class="filter-title">
-                            <i class="fas fa-filter"></i>
-                            Filters
-                        </h4>
                         <div class="filter-options">
+                            <div class="checkbox-item filter-all" id="filter-all" role="button" tabindex="0">
+                                <i class="fas fa-users"></i>
+                                <span>All Contacts</span>
+                                <span class="count" id="filter-count-all">0</span>
+                            </div>
                             <label class="checkbox-item">
                                 <input type="checkbox" id="filter-owned">
                                 <i class="fas fa-user"></i>
@@ -149,15 +167,19 @@
                             </label>
                         </div>
                     </div>
-                    
-                    <!-- Distribution Lists Container -->
-                    <div id="distribution-lists" class="distribution-lists">
-                        <!-- Dynamic sharing lists will be inserted here -->
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Sharing Lists</h3>
+                    <div class="sharing-lists-wrap">
+                        <div id="distribution-lists" class="distribution-lists">
+                            <!-- Dynamic sharing lists will be inserted here -->
+                        </div>
+                        <button id="create-list-btn" class="btn btn-ghost btn-small">
+                            <i class="fas fa-plus"></i>
+                            Create Sharing List
+                        </button>
                     </div>
-                    <button id="create-list-btn" class="btn btn-ghost btn-small">
-                        <i class="fas fa-plus"></i>
-                        Create Sharing List
-                    </button>
                 </div>
 
                 <!-- Appearance (theme picker) -->
@@ -177,7 +199,7 @@
                     </div>
                 </div>
 
-                <!-- Sync Status -->
+                <!-- Sync Status (desktop) -->
                 <div class="sidebar-section sync-section">
                     <h3>Sync</h3>
                     <div class="sync-status-list">
@@ -185,6 +207,30 @@
                             <span class="sync-dot"></span>
                             <span class="sync-label">iCloud · not connected</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Tools (mobile only) -->
+                <div class="sidebar-section mobile-only">
+                    <h3>Tools</h3>
+                    <div class="m-group">
+                        <button type="button" class="m-tool-row" id="mobile-import-btn">
+                            <i class="fas fa-upload"></i>
+                            <span>Import contacts</span>
+                        </button>
+                        <button type="button" class="m-tool-row" id="mobile-export-btn">
+                            <i class="fas fa-download"></i>
+                            <span>Export contacts</span>
+                        </button>
+                        <button type="button" class="m-tool-row" id="mobile-icloud-btn">
+                            <i class="fab fa-apple"></i>
+                            <span>iCloud Sync</span>
+                            <span class="count" id="mobile-icloud-status">—</span>
+                        </button>
+                        <button type="button" class="m-tool-row m-danger" id="mobile-logout-menu">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Log out</span>
+                        </button>
                     </div>
                 </div>
                 </div>
@@ -1141,7 +1187,7 @@
             &nbsp;|&nbsp;
             Contact: <a href="https://e2econtacts.org/#contact">hello&#64;e2econtacts.org</a>
             &nbsp;|&nbsp;
-            <span id="app-version" title="Application build">v1.0.0</span>
+            <span id="app-version" title="Application build">v0.3.0</span>
         </span>
     </footer>
 </body>

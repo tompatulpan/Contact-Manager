@@ -586,11 +586,18 @@ export class ContactUIController {
             
             // Stats elements
             contactCount: document.getElementById('contact-count'),
+            filterCountAll: document.getElementById('filter-count-all'),
             filterCountOwned: document.getElementById('filter-count-owned'),
             filterCountShared: document.getElementById('filter-count-shared'),
             filterCountImported: document.getElementById('filter-count-imported'),
             filterCountRecent: document.getElementById('filter-count-recent'),
             filterCountArchived: document.getElementById('filter-count-archived'),
+
+            // Mobile menu elements
+            menuAccountUsername: document.getElementById('menu-account-username'),
+            menuAccountInitial: document.getElementById('menu-account-initial'),
+            menuAccountSubline: document.getElementById('menu-account-subline'),
+            mobileIcloudStatus: document.getElementById('mobile-icloud-status'),
             
             // Mobile action buttons
             mobileShareProfile: document.getElementById('mobile-share-profile'),
@@ -712,6 +719,39 @@ export class ContactUIController {
         }
         if (filterArchived) {
             filterArchived.addEventListener('change', this.handleFilterChange.bind(this));
+        }
+
+        // "All Contacts" row (mobile menu / sidebar): clears every filter
+        const filterAll = document.getElementById('filter-all');
+        if (filterAll) {
+            filterAll.addEventListener('click', () => this.showAllContacts());
+            filterAll.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.showAllContacts();
+                }
+            });
+        }
+
+        // Mobile menu tools rows
+        const mobileImportBtn = document.getElementById('mobile-import-btn');
+        if (mobileImportBtn) {
+            mobileImportBtn.addEventListener('click', this.showImportModal.bind(this));
+        }
+        const mobileExportBtn = document.getElementById('mobile-export-btn');
+        if (mobileExportBtn) {
+            mobileExportBtn.addEventListener('click', this.showExportModal.bind(this));
+        }
+        const mobileIcloudBtn = document.getElementById('mobile-icloud-btn');
+        if (mobileIcloudBtn) {
+            // Reuse the desktop header button's handler (bound by ICloudTestController)
+            mobileIcloudBtn.addEventListener('click', () => {
+                document.getElementById('icloud-test-btn')?.click();
+            });
+        }
+        const mobileLogoutMenu = document.getElementById('mobile-logout-menu');
+        if (mobileLogoutMenu) {
+            mobileLogoutMenu.addEventListener('click', this.handleSignOut.bind(this));
         }
         
         // Restore saved filter checkbox states
@@ -1279,9 +1319,10 @@ export class ContactUIController {
     handleSignedOut(data) {
         // ⭐ Stop periodic shared contacts refresh
         this.stopPeriodicSharedContactsRefresh();
-        
+
         // Clear user state
         this.currentUser = null;
+        this.updateUserInterface();
         
         // Clear contact-related UI state
         this.selectedContactId = null;
@@ -1450,14 +1491,47 @@ export class ContactUIController {
         }
         
         // Update mobile title if mobile navigation is active
-        if (this.mobileNavigation && window.innerWidth <= 768) {
+        if (this.mobileNavigation && window.innerWidth <= 1024) {
             this.mobileNavigation.updateMobileTitle();
         }
-        
+
+        this.updateAllContactsRow();
+
         // Save filter state for persistence across page reloads
         this.saveFilterState();
-        
+
         this.performSearch();
+    }
+
+    /**
+     * Show all contacts: clear every filter checkbox and the search query
+     */
+    showAllContacts() {
+        ['filter-owned', 'filter-shared', 'filter-imported', 'filter-recent', 'filter-archived']
+            .forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox) checkbox.checked = false;
+            });
+
+        if (this.elements.searchInput) {
+            this.elements.searchInput.value = '';
+            this.searchQuery = '';
+        }
+
+        this.handleFilterChange();
+    }
+
+    /**
+     * Highlight the "All Contacts" row when no filter is active
+     */
+    updateAllContactsRow() {
+        const allRow = document.getElementById('filter-all');
+        if (!allRow) return;
+
+        const anyFilterChecked = ['filter-owned', 'filter-shared', 'filter-imported', 'filter-recent', 'filter-archived']
+            .some(id => document.getElementById(id)?.checked);
+
+        allRow.classList.toggle('active', !anyFilterChecked);
     }
 
     /**
@@ -1522,7 +1596,7 @@ export class ContactUIController {
                 if (filterImported) filterImported.checked = this.savedCheckboxStates.imported;
                 if (filterRecent) filterRecent.checked = this.savedCheckboxStates.recent;
                 if (filterArchived) filterArchived.checked = this.savedCheckboxStates.archived;
-                
+
                 this.savedCheckboxStates = null; // Clear after restoration
             } else {
                 // Set default state: "My Contacts" and "Shared with Me" checked
@@ -1532,6 +1606,8 @@ export class ContactUIController {
                 if (filterRecent) filterRecent.checked = false;
                 if (filterArchived) filterArchived.checked = false;
             }
+
+            this.updateAllContactsRow();
         } catch (error) {
             console.error('Failed to restore filter checkboxes:', error);
         }
@@ -1785,13 +1861,6 @@ export class ContactUIController {
                 return;
             }
 
-            // Add sharing lists section header
-            const sharingListsHeader = `
-                <div class="sharing-lists-header">
-                    <h4>Sharing Lists</h4>
-                </div>
-            `;
-            
             const listItems = distributionLists.map(list => {
                 const userCount = list.usernames ? list.usernames.length : 0;
                 const countLabel = `${userCount} user${userCount === 1 ? '' : 's'}`;
@@ -1813,7 +1882,7 @@ export class ContactUIController {
             }).join('');
 
             // Combine sharing lists header + sharing lists
-            this.elements.distributionListsContainer.innerHTML = sharingListsHeader + listItems;
+            this.elements.distributionListsContainer.innerHTML = listItems;
 
             // Add click listeners for manage buttons
             const manageButtons = this.elements.distributionListsContainer.querySelectorAll('.manage-list-btn');
@@ -1968,7 +2037,7 @@ export class ContactUIController {
      * Desktop: card view (more visual)
      */
     getDefaultViewMode() {
-        const isMobile = window.innerWidth <= 768;
+        const isMobile = window.innerWidth <= 1024;
         return isMobile ? 'list' : 'card';
     }
 
@@ -2042,7 +2111,7 @@ export class ContactUIController {
         container.classList.remove('card-view', 'list-view');
         
         // Force list view on mobile, otherwise use current view mode
-        const isMobile = window.innerWidth <= 768;
+        const isMobile = window.innerWidth <= 1024;
         const actualViewMode = isMobile ? 'list' : this.viewMode;
         container.classList.add(actualViewMode + '-view');
         
@@ -2840,7 +2909,7 @@ export class ContactUIController {
      */
     async maybeShowInstallInfo() {
         if (this.installInfoShown) return;
-        if (window.innerWidth > 768) return; // Info is only relevant in iPhone/mobile mode
+        if (window.innerWidth > 1024) return; // Info is only relevant in iPhone/mobile mode
 
         this.installInfoShown = true;
 
@@ -2895,6 +2964,15 @@ export class ContactUIController {
             this.elements.currentUserDisplay.textContent = this.currentUser.username;
         } else if (this.currentUser && !this.elements.currentUserDisplay) {
             console.warn('⚠️ Current user display element not found');
+        }
+
+        // Mobile menu account row
+        if (this.elements.menuAccountUsername) {
+            this.elements.menuAccountUsername.textContent = this.currentUser?.username || 'Guest';
+        }
+        if (this.elements.menuAccountInitial) {
+            this.elements.menuAccountInitial.textContent =
+                (this.currentUser?.username || 'G').charAt(0).toUpperCase();
         }
     }
 
@@ -3076,6 +3154,23 @@ export class ContactUIController {
         item.dataset.state = state;
         item.title = error || text;
         label.textContent = text;
+
+        // Mirror the state on the mobile Tools row badge
+        if (this.elements.mobileIcloudStatus) {
+            const badge = this.elements.mobileIcloudStatus;
+            badge.classList.remove('ok', 'err');
+            if (state === 'synced' || state === 'connected') {
+                badge.textContent = 'OK';
+                badge.classList.add('ok');
+            } else if (state === 'error') {
+                badge.textContent = 'Error';
+                badge.classList.add('err');
+            } else if (state === 'syncing') {
+                badge.textContent = '…';
+            } else {
+                badge.textContent = '—';
+            }
+        }
     }
 
     /**
@@ -3102,6 +3197,12 @@ export class ContactUIController {
         const stats = this.contactManager.getContactStatistics();
 
         // Update the inline count pill on each sidebar filter row
+        if (this.elements.filterCountAll) {
+            this.elements.filterCountAll.textContent = stats.total;
+        }
+        if (this.elements.menuAccountSubline) {
+            this.elements.menuAccountSubline.textContent = `${stats.total} contacts`;
+        }
         if (this.elements.filterCountOwned) {
             this.elements.filterCountOwned.textContent = stats.owned;
         }
@@ -5313,9 +5414,10 @@ export class ContactUIController {
 
     updateResponsiveLayout() {
         // Update layout based on screen size
-        const isMobile = window.innerWidth < 768;
-        const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024;
-        
+        // Tablets (768-1024px) use the mobile page layout too
+        const isMobile = window.innerWidth < 1024;
+        const isTablet = window.innerWidth >= 1024 && window.innerWidth < 1200;
+
         document.body.classList.toggle('mobile', isMobile);
         document.body.classList.toggle('tablet', isTablet);
         

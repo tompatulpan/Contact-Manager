@@ -250,8 +250,9 @@ export const DEV_CONFIG = {
 };
 
 // Responsive Design Breakpoints
+// The mobile page layout applies up to and including the tablet width.
 export const BREAKPOINTS = {
-    mobile: 768,
+    mobile: 1024,
     tablet: 1024,
     desktop: 1200,
     widescreen: 1400
