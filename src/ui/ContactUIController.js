@@ -941,6 +941,16 @@ export class ContactUIController {
             });
         }
 
+        // Help onepager (desktop header button + mobile top bar button)
+        const helpBtn = document.getElementById('help-btn');
+        if (helpBtn) {
+            helpBtn.addEventListener('click', () => this.showModal({ modalId: 'help-modal' }));
+        }
+        const mobileHelpBtn = document.getElementById('mobile-help');
+        if (mobileHelpBtn) {
+            mobileHelpBtn.addEventListener('click', () => this.showModal({ modalId: 'help-modal' }));
+        }
+
         // Retry share buttons (Share More / Try Again)
         const retryShareButtons = document.querySelectorAll('[data-action="retry-share"]');
         retryShareButtons.forEach(button => {
@@ -3259,7 +3269,8 @@ export class ContactUIController {
                 <div class="welcome-state">
                     <i class="fas fa-hand-wave"></i>
                     <h3>Welcome to Kontakt</h3>
-                    <p>Select a contact to view details, or add your own to get started. </p>
+                    <p>Your contact information, your control: create your own card, share it once &ndash; and everyone you share with always has your current details.</p>
+                    <p>Select a contact to view details, or create your own card to get started.</p>
                     <button id="welcome-new-contact" class="btn btn-tonal btn-large">
                         Create your New Contact
                     </button>

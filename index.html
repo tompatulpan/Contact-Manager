@@ -71,17 +71,11 @@
                     <i class="fab fa-apple"></i>
                     iCloud Sync
                 </button>
-                <!-- Theme Toggle -->
-                <div class="theme-toggle" id="theme-toggle" 
-                     role="button" 
-                     tabindex="0" 
-                     aria-label="Toggle dark mode"
-                     title="Toggle dark mode">
-                    <i class="fas fa-moon theme-toggle-icon"></i>
-                    <div class="theme-toggle-switch">
-                        <div class="theme-toggle-slider"></div>
-                    </div>
-                </div>
+                <!-- Help (opens the onepager guide) -->
+                <button id="help-btn" class="btn btn-secondary" title="What is Kontakt? How to use it">
+                    <i class="fas fa-circle-question"></i>
+                    Help
+                </button>
                 <button id="logout-btn" class="btn btn-ghost">
                     <i class="fas fa-sign-out-alt"></i>
                     Log Out (<span id="current-user">Guest</span>)
@@ -241,6 +235,9 @@
                     </button>
                     <h1 class="mobile-page-title">All Contacts</h1>
                     <div class="mobile-header-actions">
+                        <button class="mobile-action-btn" id="mobile-help" title="Help">
+                            <i class="fas fa-circle-question"></i>
+                        </button>
                         <button class="mobile-action-btn" id="mobile-share-profile" title="Share Profile">
                             <i class="fas fa-user-plus"></i>
                         </button>
@@ -335,7 +332,8 @@
                     <div class="welcome-state">
                         <i class="fas fa-hand-wave"></i>
                         <h3>Welcome to Kontakt</h3>
-                        <p>Select a contact to view details, or create a new contact to get started.</p>
+                        <p>Your contact information, your control: create your own card, share it once &ndash; and everyone you share with always has your current details.</p>
+                        <p>Select a contact to view details, or create your own card to get started.</p>
                         <button id="welcome-new-contact" class="btn btn-tonal btn-large">
                             Create First Contact
                         </button>
@@ -392,6 +390,88 @@
                 <div class="form-actions">
                     <button type="button" id="install-info-close" class="btn btn-primary">Close</button>
                     <button type="button" id="install-info-dismiss" class="btn btn-ghost">Close and Never Show Again</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help One Pager Modal -->
+    <div id="help-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Kontakt – Help</h2>
+                <button id="close-help-modal" class="modal-close" data-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="help-content">
+
+                    <div class="info-box">
+                        <i class="fas fa-address-book"></i>
+                        <div>
+                            <p class="info-box-title">What is this all about?</p>
+                            <p>Your contact information is <strong>yours</strong> &ndash; yet today it lives scattered in other people&rsquo;s phones, going stale the moment you change a number. Kontakt flips that: your card lives in your own address book, <strong>you decide who gets it</strong>, and a shared card stays current &ndash; update it once, and everyone you shared with automatically has your latest details. Never text the wrong number again.</p>
+                            <p>Sharing works both ways: cards that others share with you also keep themselves up to date. And your whole address book is end-to-end encrypted &ndash; contacts are encrypted inside your browser before anything is stored, and the server only ever sees ciphertext. There is no readable copy of your data anywhere, not even for the service operator.</p>
+                        </div>
+                    </div>
+
+                    <div class="info-box help-tip">
+                        <i class="fas fa-lightbulb"></i>
+                        <div>
+                            <p><strong>Quick start:</strong> sign up, create your own card with <strong>New Contact</strong>, then use <strong>Share Profile</strong> (top bar) to get your personal connect link &ndash; or open your card and use <strong>Share</strong> to send it to other Kontakt users. Fill in your details once; everyone you share with always has your latest number and email.</p>
+                        </div>
+                    </div>
+
+                    <h3 class="help-section-title"><i class="fas fa-gears"></i> How the app works</h3>
+                    <p class="help-paragraph">Kontakt stores your contacts on Userbase, an end-to-end encrypted database. Encryption and decryption happen in your browser; the key is derived from your password. Sign in on another device and your contacts sync automatically and in real time &ndash; still encrypted, with no readable copy anywhere in between.</p>
+
+                    <h3 class="help-section-title"><i class="fas fa-play"></i> Get started</h3>
+                    <ul class="help-list">
+                        <li><i class="fas fa-user-plus"></i><span><strong>Sign up</strong> &ndash; pick a username and a password. The password is your encryption key: it never leaves your device and cannot be reset or recovered. If you lose it, your contacts are lost &ndash; keep it safe.</span></li>
+                        <li><i class="fas fa-id-card"></i><span><strong>Create your card</strong> &ndash; <strong>New Contact</strong> (top bar). Add phones, emails, addresses and notes, and mark one number and one email as <strong>Primary</strong>.</span></li>
+                        <li><i class="fas fa-key"></i><span><strong>Keep me signed in</strong> &ndash; check it on your own devices to stay signed in; leave it unchecked on shared or public computers.</span></li>
+                        <li><i class="fas fa-rotate"></i><span><strong>Everything syncs</strong> &ndash; every change syncs live to all devices where you are signed in.</span></li>
+                    </ul>
+
+                    <h3 class="help-section-title"><i class="fas fa-share-alt"></i> Ways to share a card</h3>
+                    <ul class="help-list">
+                        <li><i class="fas fa-user-plus"></i><span><strong>Share Profile</strong> &ndash; a personal link that contains your <em>username</em>, not your contact details. People open it to sign up and connect with you.</span></li>
+                        <li><i class="fas fa-user-check"></i><span><strong>Share a contact</strong> &ndash; open a contact and share it with other Kontakt users by username. For safety, verify first: ask the person for their verification message (they generate it with <strong>Get My Code</strong> in their app), paste it and press <strong>Verify</strong>. This proves the username really belongs to them &ndash; a typo can&rsquo;t leak your contact to a stranger.</span></li>
+                        <li><i class="fas fa-users"></i><span><strong>Sharing Lists</strong> &ndash; bundle usernames into a list (sidebar) and share a contact with the whole group in one step.</span></li>
+                        <li><i class="fas fa-qrcode"></i><span><strong>QR code</strong> &ndash; every contact shows a QR code in its detail view; scanning it with a phone camera adds the card straight to that phone&rsquo;s contacts.</span></li>
+                        <li><i class="fas fa-ban"></i><span><strong>Revoke</strong> &ndash; every share can be revoked at any time; the contact then disappears from the other person&rsquo;s app.</span></li>
+                        <li><i class="fas fa-rotate"></i><span><strong>Shared cards are live</strong> &ndash; when the owner edits a shared contact, everyone who has it sees the new details automatically.</span></li>
+                    </ul>
+
+                    <h3 class="help-section-title"><i class="fas fa-mobile-screen-button"></i> Use as an app on your phone</h3>
+                    <ul class="help-list">
+                        <li><i class="fab fa-apple"></i><span><strong>iPhone / iPad (Safari):</strong> tap the Share button and choose <strong>Add to Home Screen</strong>. The icon opens Kontakt full-screen, without browser controls.</span></li>
+                        <li><i class="fab fa-android"></i><span><strong>Android (Chrome):</strong> open the menu and choose <strong>Add to Home screen</strong> / <strong>Install app</strong>. Kontakt installs as a standalone app.</span></li>
+                    </ul>
+
+                    <h3 class="help-section-title"><i class="fas fa-shield-halved"></i> Privacy notes</h3>
+                    <ul class="help-list">
+                        <li><i class="fas fa-key"></i><span><strong>The password is the key.</strong> Whoever has your username and password can read your contacts. There is no password reset &ndash; by design.</span></li>
+                        <li><i class="fas fa-desktop"></i><span><strong>On a public computer:</strong> leave &ldquo;Keep me signed in&rdquo; unchecked and sign out when you are done.</span></li>
+                        <li><i class="fas fa-share-nodes"></i><span><strong>Nothing is shared by default.</strong> A contact only leaves your account when you explicitly share it, and the verification step keeps you from sharing with the wrong person.</span></li>
+                        <li><i class="fab fa-apple"></i><span><strong>iCloud Sync</strong> mirrors contacts with your iCloud address book (CardDAV). It runs through a small proxy server that Kontakt needs because iCloud does not allow direct browser access; your iCloud app-specific password is stored on this device, optionally protected by a master password.</span></li>
+                    </ul>
+
+                    <h3 class="help-section-title"><i class="fas fa-microchip"></i> The technology &ndash; Userbase</h3>
+                    <p class="help-paragraph">Userbase is an end-to-end encrypted database service. Your contacts are encrypted in your browser with a key derived from your password; the server stores only ciphertext and can read nothing. Real-time sync between your devices goes through Userbase, still encrypted end to end.</p>
+
+                    <h3 class="help-section-title"><i class="fas fa-sliders"></i> Control your data</h3>
+                    <ul class="help-list">
+                        <li><i class="fas fa-download"></i><span><strong>Export</strong> &ndash; download all (or selected) contacts as a standard vCard 3.0 file at any time. Your data is never locked in.</span></li>
+                        <li><i class="fas fa-upload"></i><span><strong>Import</strong> &ndash; bring contacts from Apple, Google or Outlook as a .vcf file (vCard 3.0 or 4.0); duplicates are detected.</span></li>
+                        <li><i class="fas fa-box-archive"></i><span><strong>Archive</strong> &ndash; hide a contact without deleting it; restore it any time.</span></li>
+                        <li><i class="fas fa-trash"></i><span><strong>Delete</strong> &ndash; remove contacts for good, one at a time or several at once with <strong>Select</strong>.</span></li>
+                    </ul>
+
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="help-close" class="btn btn-primary" data-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
