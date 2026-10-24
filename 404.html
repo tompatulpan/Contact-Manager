@@ -490,6 +490,13 @@
                     <p>Your contacts are protected with secure, end-to-end encryption.</p>
                 </div>
                 
+                <div class="auth-help-row">
+                    <button type="button" id="auth-help-btn" class="auth-help-link">
+                        <i class="fas fa-circle-question"></i>
+                        What is Kontakt? Read the help
+                    </button>
+                </div>
+                
                 <form id="auth-form" data-mode="signin" method="post" autocomplete="off">
                     <div id="auth-error" class="field-error" style="display: none;"></div>
                     <div class="form-group">
@@ -500,6 +507,14 @@
                         <label for="auth-password">Password</label>
                         <input type="password" id="auth-password" name="password" required autocomplete="current-password" data-form-type="signin">
                     </div>
+                    <div class="form-group" id="confirm-password-group" style="display: none;">
+                        <label for="auth-password-confirm">Confirm Password</label>
+                        <input type="password" id="auth-password-confirm" name="passwordConfirm" required disabled autocomplete="new-password" data-form-type="signup">
+                    </div>
+                    <p id="auth-signup-note" class="auth-signup-note" style="display: none;">
+                        <i class="fas fa-triangle-exclamation"></i>
+                        Your password is the encryption key for your contacts. It cannot be reset or recovered &ndash; if you lose it, your contacts are lost. At least 12 characters, with letters and numbers.
+                    </p>
                     <div class="form-group" id="keep-signed-in-group">
                         <label class="checkbox-item">
                             <input type="checkbox" id="keep-signed-in" name="keepSignedIn">

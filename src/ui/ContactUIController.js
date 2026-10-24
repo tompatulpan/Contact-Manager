@@ -1117,10 +1117,23 @@ export class ContactUIController {
             return;
         }
 
-        // SECURITY: Enforce minimum password length on sign-up
-        if (isSignUp && password.length < 8) {
-            this.showAuthError('Password must be at least 8 characters');
-            return;
+        // SECURITY: Enforce the sign-up password policy:
+        // at least 12 characters containing both letters and numbers,
+        // and entered identically twice.
+        if (isSignUp) {
+            if (password.length < 12) {
+                this.showAuthError('Password must be at least 12 characters');
+                return;
+            }
+            if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+                this.showAuthError('Password must contain both letters and numbers');
+                return;
+            }
+            const confirmPassword = formData.get('passwordConfirm');
+            if (password !== confirmPassword) {
+                this.showAuthError('Passwords do not match');
+                return;
+            }
         }
         
         // Show loading state
@@ -5239,13 +5252,19 @@ export class ContactUIController {
             const authSubmitText = document.getElementById('auth-submit-text');
             const authToggleText = document.getElementById('auth-toggle-text');
             const keepSignedInContainer = document.getElementById('keep-signed-in-group');
-            
+            const confirmPasswordContainer = document.getElementById('confirm-password-group');
+            const confirmPasswordField = document.getElementById('auth-password-confirm');
+            const signupNote = document.getElementById('auth-signup-note');
+
             if (authTitle) authTitle.textContent = 'Sign In';
             if (authSubmitText) authSubmitText.textContent = 'Sign In';
             // Update the span inside the toggle button — writing to the
             // button itself would destroy the span and break the toggle
             if (authToggleText) authToggleText.textContent = 'Need an account? Sign Up';
             if (keepSignedInContainer) keepSignedInContainer.style.display = 'block';
+            if (confirmPasswordContainer) confirmPasswordContainer.style.display = 'none';
+            if (confirmPasswordField) confirmPasswordField.disabled = true;
+            if (signupNote) signupNote.style.display = 'none';
             
             // Reset form mode
             if (this.elements.authForm) {
@@ -5292,32 +5311,49 @@ export class ContactUIController {
         const submitText = document.getElementById('auth-submit-text');
         const toggleText = document.getElementById('auth-toggle-text');
         const keepSignedInContainer = document.getElementById('keep-signed-in-group');
-        
+        const confirmPasswordContainer = document.getElementById('confirm-password-group');
+        const confirmPasswordField = document.getElementById('auth-password-confirm');
+        const signupNote = document.getElementById('auth-signup-note');
+        const passwordField = document.getElementById('auth-password');
+
         if (form && submitText && toggleText) {
             const isSignUp = form.dataset.mode === 'signup';
-            
+
             if (isSignUp) {
                 // Switch to sign in
                 form.dataset.mode = 'signin';
                 if (authTitle) authTitle.textContent = 'Sign In';
                 submitText.textContent = 'Sign In';
                 toggleText.textContent = 'Need an account? Sign Up';
-                
+
                 // Show "Keep me signed in" checkbox for sign-in
                 if (keepSignedInContainer) {
                     keepSignedInContainer.style.display = 'block';
                 }
+
+                // Hide sign-up-only fields; disable the confirm input so
+                // native form validation skips the invisible required field
+                if (confirmPasswordContainer) confirmPasswordContainer.style.display = 'none';
+                if (confirmPasswordField) confirmPasswordField.disabled = true;
+                if (signupNote) signupNote.style.display = 'none';
+                if (passwordField) passwordField.setAttribute('autocomplete', 'current-password');
             } else {
                 // Switch to sign up
                 form.dataset.mode = 'signup';
                 if (authTitle) authTitle.textContent = 'Sign Up';
                 submitText.textContent = 'Sign Up';
                 toggleText.textContent = 'Already have an account? Sign In';
-                
+
                 // Hide "Keep me signed in" checkbox for sign-up
                 if (keepSignedInContainer) {
                     keepSignedInContainer.style.display = 'none';
                 }
+
+                // Show sign-up-only fields
+                if (confirmPasswordContainer) confirmPasswordContainer.style.display = 'block';
+                if (confirmPasswordField) confirmPasswordField.disabled = false;
+                if (signupNote) signupNote.style.display = 'block';
+                if (passwordField) passwordField.setAttribute('autocomplete', 'new-password');
             }
         }
     }
