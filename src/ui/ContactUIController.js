@@ -950,6 +950,10 @@ export class ContactUIController {
         if (mobileHelpBtn) {
             mobileHelpBtn.addEventListener('click', () => this.showModal({ modalId: 'help-modal' }));
         }
+        const authHelpBtn = document.getElementById('auth-help-btn');
+        if (authHelpBtn) {
+            authHelpBtn.addEventListener('click', () => this.showModal({ modalId: 'help-modal' }));
+        }
 
         // Retry share buttons (Share More / Try Again)
         const retryShareButtons = document.querySelectorAll('[data-action="retry-share"]');

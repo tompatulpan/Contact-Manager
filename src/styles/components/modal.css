@@ -130,6 +130,11 @@
     }
 
     /* Help One Pager */
+    /* Above the auth gate so it can be opened from the sign-in modal */
+    #help-modal {
+        z-index: 1100;
+    }
+
     .help-content {
         display: flex;
         flex-direction: column;
