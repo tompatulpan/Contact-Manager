@@ -26,6 +26,20 @@ const ALLOWED_METHODS = ['GET', 'HEAD', 'PUT', 'DELETE', 'PROPFIND', 'REPORT', '
 // vCards and REPORT/PROPFIND bodies are small; cap request bodies to bound relay abuse
 const MAX_BODY_BYTES = 1024 * 1024
 
+// Constant-time string comparison to avoid timing attacks on WORKER_TOKEN
+function constantTimeEqual(a, b) {
+  if (a === b) return true
+  const aLen = a.length
+  const bLen = b.length
+  let result = 0
+  for (let i = 0; i < Math.max(aLen, bLen); i++) {
+    const aChar = i < aLen ? a.charCodeAt(i) : 0
+    const bChar = i < bLen ? b.charCodeAt(i) : 0
+    result |= aChar ^ bChar
+  }
+  return result === 0
+}
+
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
@@ -78,12 +92,12 @@ async function handleRequest(request) {
   // Token is REQUIRED — if not configured, all proxied requests are rejected
   const workerToken = request.headers.get('X-Worker-Token')
   if (typeof WORKER_TOKEN === 'undefined' || !WORKER_TOKEN) {
-    return new Response('Server misconfigured: WORKER_TOKEN not set', {
+    return new Response('Server misconfigured', {
       status: 500,
       headers: getCORSHeaders(origin)
     })
   }
-  if (workerToken !== WORKER_TOKEN) {
+  if (!constantTimeEqual(workerToken || '', WORKER_TOKEN)) {
     return new Response('Forbidden', {
       status: 403,
       headers: getCORSHeaders(origin)
@@ -153,13 +167,22 @@ async function handleRequest(request) {
     }
 
     // Forward request to target
-    const targetRequest = new Request(targetUrl, {
+    const targetRequest = new Request(parsedTarget, {
       method: request.method,
       headers,
-      body
+      body,
+      redirect: 'manual'
     })
 
     const response = await fetch(targetRequest)
+
+    // Reject all redirects to prevent escaping the hostname allowlist
+    if (response.status >= 300 && response.status < 400) {
+      return new Response('Redirects not allowed', {
+        status: 403,
+        headers: getCORSHeaders(origin)
+      })
+    }
 
     // Return response with CORS headers
     const responseHeaders = new Headers(response.headers)
