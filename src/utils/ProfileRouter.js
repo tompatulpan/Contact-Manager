@@ -136,7 +136,7 @@ class ProfileRouter {
     generateShareText(username) {
         const profileURL = this.generateProfileURL(username);
         
-        return `Hi! I'd like to connect with you on Contact Manager. ` +
+        return `Hi! I'd like to connect with you on Kontakt. ` +
                `You can view my profile and sign up using this link: ${profileURL}`;
     }
 
@@ -167,8 +167,8 @@ class ProfileRouter {
             shareURL: this.generateProfileURL(username),
             shareText: this.generateShareText(username),
             qrCodeData: this.generateProfileURL(username),
-            title: `Connect with ${username} on Contact Manager`,
-            description: `Visit this link to connect with ${username} and access the secure contact management system.`
+            title: `Connect with ${username} on Kontakt`,
+            description: `Visit this link to connect with ${username} and access the secure Kontakt.`
         };
     }
 }

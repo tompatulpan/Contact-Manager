@@ -2897,7 +2897,7 @@ export class ContactUIController {
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <h3>Connect with ${safeUsername}</h3>
-                    <p>You've been invited to connect with <strong>${safeUsername}</strong> on Contact Manager.</p>
+                    <p>You've been invited to connect with <strong>${safeUsername}</strong> on Kontakt.</p>
                     
                     <div class="profile-instructions">
                         <div class="info-box">
@@ -4416,7 +4416,7 @@ export class ContactUIController {
                 // 🔄 REFRESH UI: Wait for cache to propagate, then update contact detail view
                 await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
                 
-                // Force fresh fetch from contact manager
+                // Force fresh fetch from Kontakt
                 const updatedContact = this.contactManager.contacts.get(this.currentShareContact.contactId);
                 if (updatedContact) {
                     console.log('🔄 Refreshing contact detail after batch sharing - sharedWith:', updatedContact.metadata?.sharing?.sharedWithUsers);
@@ -4445,7 +4445,7 @@ export class ContactUIController {
                 // 🔄 REFRESH UI: Wait for cache to propagate, then update contact detail view
                 await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
                 
-                // Force fresh fetch from contact manager
+                // Force fresh fetch from Kontakt
                 const updatedContact = this.contactManager.contacts.get(this.currentShareContact.contactId);
                 if (updatedContact) {
                     this.displayContactDetail(updatedContact);
@@ -6700,7 +6700,7 @@ export class ContactUIController {
         if (!this.currentUser) return;
         
         const profileMetadata = this.profileRouter.getProfileMetadata(this.currentUser.username);
-        const subject = encodeURIComponent(`Connect with ${this.currentUser.username} on Contact Manager`);
+        const subject = encodeURIComponent(`Connect with ${this.currentUser.username} on Kontakt`);
         const body = encodeURIComponent(profileMetadata.shareText);
         
         window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');

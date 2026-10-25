@@ -605,7 +605,7 @@ export class VCardImporter {
      * Check for duplicate contacts
      */
     async checkForDuplicate(contactData) {
-        // This would integrate with your contact manager's duplicate detection
+        // This would integrate with your Kontakt's duplicate detection
         // For now, returning a simple check based on name and email
         
         const result = {

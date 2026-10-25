@@ -1,5 +1,5 @@
 /**
- * Contact Management System - Main Application Entry Point
+ * Kontakt - Main Application Entry Point
  * Initializes the application with all modules and coordinates the system startup
  */
 
@@ -60,7 +60,7 @@ class ContactManagementApp {
             this.exposeForTesting();
 
         } catch (error) {
-            console.error('❌ Failed to initialize Contact Management System:', error);
+            console.error('❌ Failed to initialize Kontakt:', error);
             this.showErrorState(error);
             throw error;
         }
@@ -108,7 +108,7 @@ class ContactManagementApp {
         // Initialize database (but don't call initialize yet)
         this.modules.database = new ContactDatabase(this.eventBus);
         
-        // Initialize contact manager BEFORE database.initialize()
+        // Initialize Kontakt BEFORE database.initialize()
         // This ensures ContactManager's event listeners are ready for database events
         this.modules.contactManager = new ContactManager(
             this.eventBus,
@@ -200,9 +200,9 @@ class ContactManagementApp {
             this.showToast('Contact deleted successfully', 'success');
         });
 
-        // Handle contact manager initialization
+        // Handle Kontakt initialization
         this.eventBus.on('contactManager:initialized', (data) => {
-            // Contact manager ready with ${data.contactCount} contacts
+            // Kontakt ready with ${data.contactCount} contacts
         });
 
         this.eventBus.on('notification:show', (data) => {

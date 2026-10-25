@@ -1,8 +1,8 @@
 /**
- * ICloudSyncService - Two-Way Sync Between Contact Manager and iCloud
+ * ICloudSyncService - Two-Way Sync Between Kontakt and iCloud
  * 
  * Sync Strategy:
- * - OWNED/IMPORTED contacts: Two-way sync (CM ↔ iCloud)
+ * - OWNED/IMPORTED contacts: Two-way sync (Kontakt ↔ iCloud)
  * - SHARED contacts: One-way sync (CM → iCloud only, server has read-only ACL)
  * 
  * ETag-Based Conflict Detection:
@@ -708,7 +708,7 @@ export class ICloudSyncService {
         console.log('📤 Phase 2: Pushing changes to iCloud...');
         
         try {
-            // Get all contacts from Contact Manager
+            // Get all contacts from Kontakt
             const allContacts = Array.from(this.contactManager.contacts.values());
             
             // Separate deleted contacts from active contacts
@@ -1758,7 +1758,7 @@ export class ICloudSyncService {
             console.log('📊 SYNC STATE DIAGNOSTIC');
             console.log('═══════════════════════════════════════════════════════════════');
             console.log('');
-            console.log('📱 Contact Manager:');
+            console.log('📱 Kontakt:');
             console.log(`   ✅ Active contacts: ${activeContacts.length}`);
             console.log(`   🗑️ Deleted records: ${deletedRecords.length}`);
             console.log(`   ⚠️ Orphaned deletions: ${orphanedDeletions.length}`);
@@ -1769,12 +1769,12 @@ export class ICloudSyncService {
             console.log('');
             console.log('🔄 Sync Status:');
             console.log(`   ✅ In sync: ${activeContacts.length - onlyInCM.length} contacts`);
-            console.log(`   📤 Only in CM (will push): ${onlyInCM.length} contacts`);
+            console.log(`   📤 Only in Kontakt (will push): ${onlyInCM.length} contacts`);
             console.log(`   📥 Only in iCloud (will pull): ${onlyInICloud.length} contacts`);
             console.log('');
             
             if (onlyInCM.length > 0) {
-                console.log('📤 Contacts only in Contact Manager:');
+                console.log('📤 Contacts only in Kontakt:');
                 onlyInCM.slice(0, 10).forEach(c => {
                     console.log(`   - ${c.cardName} (UID: ${this.extractUIDFromVCard(c.vcard)})`);
                 });

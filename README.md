@@ -1,4 +1,4 @@
-# Contact Management System
+# Kontakt
 
 **Status:** 🚧 In development!  
 This project is not production-ready. Features, structure, and documentation are subject to rapid change.
@@ -199,19 +199,19 @@ fish scripts/production_zip.sh && \
 ```                
 ### iCloud sync flow
 
-**Push (Contact Manager → iCloud)**
+**Push (Kontakt → iCloud)**
 - You create or edit a contact in the web app
 - `ICloudSyncService` PUTs the vCard 3.0 through the proxy Worker with `If-Match`/`If-None-Match`
 - iCloud serves it to your iPhone/iPad/Mac
 
-**Pull (iCloud → Contact Manager)**
+**Pull (iCloud → Kontakt)**
 - You edit a contact on an Apple device
 - The periodic cycle REPORTs the addressbook, matches by vCard UID and ETag
 - Owned/imported cards are updated locally; shared cards are never overwritten (owner authority) and are force-pushed back
 
 ```
 ┌─────────────────────┐   HTTPS    ┌─────────────────────┐  CardDAV  ┌──────────────────┐
-│  Contact Manager    │ ─────────► │  Cloudflare Worker  │ ────────► │  iCloud CardDAV  │
+│  Kontakt            │ ─────────► │  Cloudflare Worker  │ ────────► │  iCloud CardDAV  │
 │  (browser, E2E      │ ◄───────── │  carddav-proxy      │ ◄──────── │  contacts.icloud │
 │   encrypted store)  │            │  CORS + allowlist   │           │  .com            │
 └─────────────────────┘            └─────────────────────┘           └──────────────────┘

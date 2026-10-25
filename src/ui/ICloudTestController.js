@@ -246,9 +246,9 @@ FN:CM Test Contact ${timestamp}\r
 N:Contact;CM Test;;;${timestamp}\r
 TEL;TYPE=CELL:+1-555-CM-TEST\r
 EMAIL;TYPE=INTERNET:cm.test@example.com\r
-ORG:Contact Manager\r
+ORG:Kontakt\r
 TITLE:Test Contact\r
-NOTE:Created via Contact Manager iCloud integration on ${new Date().toLocaleString()}\r
+NOTE:Created via Kontakt iCloud integration on ${new Date().toLocaleString()}\r
 UID:${uid}\r
 END:VCARD\r
 `;
@@ -280,7 +280,7 @@ END:VCARD\r
         }
 
         this.clearLog();
-        this.log(`🔄 Test 4: Importing ${this.fetchedContacts.length} contacts to Contact Manager...`, 'info');
+        this.log(`🔄 Test 4: Importing ${this.fetchedContacts.length} contacts to Kontakt...`, 'info');
 
         try {
             let importedCount = 0;

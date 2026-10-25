@@ -1,7 +1,7 @@
 {
-  "name": "Kontakt — Contact Management System",
+  "name": "Kontakt",
   "short_name": "Kontakt",
-  "description": "Secure, end-to-end encrypted contact management.",
+  "description": "Secure, end-to-end encrypted contacts.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

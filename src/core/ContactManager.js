@@ -121,7 +121,7 @@ export class ContactManager {
     }
 
     /**
-     * Initialize the contact manager
+     * Initialize Kontakt
      * @returns {Promise<Object>} Initialization result
      */
     async initialize() {

@@ -5,10 +5,10 @@
 
 // Application Version and Metadata
 export const APP_CONFIG = {
-    name: 'Contact Management System',
+    name: 'Kontakt',
     version: '1.0.0',
     description: 'RFC 9553 compliant contact management with end-to-end encryption',
-    author: 'Contact Management Team',
+    author: 'Kontakt Team',
     
     // Build information (would be injected during build)
     build: {
@@ -85,7 +85,7 @@ export const AUTH_CONFIG = {
     }
 };
 
-// Contact Management Settings
+// Kontakt Settings
 export const CONTACT_CONFIG = {
     // Maximum limits
     maxContactsPerUser: 10000,
