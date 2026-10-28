@@ -136,8 +136,8 @@ export class IndividualSharingStrategy {
                 databaseName: sharedDbName,
                 username: username.trim(),
                 readOnly: true,
-                resharingAllowed: false,
-                requireVerified: false  // Allow sharing with unverified users
+                resharingAllowed: false
+                // requireVerified defaults to true for security ✅
             }, 'shareContactIndividually');
 
             const duration = Date.now() - startTime;

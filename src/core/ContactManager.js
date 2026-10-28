@@ -2872,8 +2872,8 @@ export class ContactManager {
                                 databaseName: sharedDbName,
                                 username: username.trim(),
                                 readOnly: true,
-                                resharingAllowed: false,
-                                requireVerified: false
+                                resharingAllowed: false
+                                // requireVerified defaults to true for security ✅
                             });
                             console.log('✅ User access verified/granted');
                         } catch (shareError) {
@@ -2934,8 +2934,9 @@ export class ContactManager {
                                 databaseName: sharedDbName,
                                 username: username.trim(),
                                 readOnly: true,
-                                resharingAllowed: false,
-                                requireVerified: false  // Allow sharing with unverified users
+                                resharingAllowed: false
+                                // requireVerified defaults to true for security ✅
+                                // Removed: requireVerified: false - was allowing unverified user access
                             });
                             console.log('✅ Database access granted to user:', username);
                         } catch (shareError) {
