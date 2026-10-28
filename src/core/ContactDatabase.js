@@ -121,13 +121,7 @@ export class ContactDatabase {
             // For session-only auth, sessions should NOT persist across page refreshes
             // Userbase SDK will try to restore it, so we explicitly clear and reject
             if (hasSessionOnly) {
-                // Clear Userbase session data
-                this.clearSessionData();
-                try {
-                    await userbase.signOut();
-                } catch (e) {
-                    // signOut might fail if not signed in, that's ok
-                }
+                await this.rejectSessionOnlyLogin();
                 return {
                     success: false,
                     error: 'Session-only auth expired on page refresh'
@@ -1710,6 +1704,13 @@ export class ContactDatabase {
             case 'UserNotSignedIn':
                 this.eventBus.emit('auth:required', { context });
                 break;
+            case 'UserNotVerified':
+                // requireVerified defaults to true — the recipient must have
+                // verified their account before anything can be shared with
+                // them. IndividualSharingStrategy rewrites the user-facing
+                // message with the recipient's name before we get here.
+                console.error(`❌ Recipient not verified (${context})`);
+                break;
             case 'UserNotFound':
                 break;
             case 'SubscriptionPlanNotSet':
@@ -2914,6 +2915,41 @@ export class ContactDatabase {
     }
 
     /**
+     * Reject a session-only login on a fresh page load.
+     *
+     * "Keep me signed in" was unchecked, so the login must not survive a
+     * page refresh. The flag alone cannot distinguish "just logged in"
+     * from "page refreshed" (it stays 'true' in sessionStorage for the
+     * whole tab lifetime), so this acts only when no session is live in
+     * memory (`this.currentUser` is null) — i.e. exactly once, at app
+     * startup, before the SDK can restore the session from storage.
+     *
+     * Clears the preference flag, the Userbase SDK session record from
+     * both storages (the SDK would otherwise resume it) and the in-memory
+     * state. Callers can then treat the user as signed out.
+     *
+     * @returns {Promise<boolean>} true when a session-only login was rejected
+     */
+    async rejectSessionOnlyLogin() {
+        if (sessionStorage.getItem('userbase-session-only') !== 'true' || this.currentUser) {
+            return false;
+        }
+
+        this.clearSessionData();
+        try { localStorage.removeItem('userbaseCurrentSession'); } catch (e) {}
+        try { sessionStorage.removeItem('userbaseCurrentSession'); } catch (e) {}
+        try {
+            if (typeof userbase !== 'undefined' && userbase) {
+                await userbase.signOut();
+            }
+        } catch (e) {
+            // signOut before userbase.init() throws — storage is already
+            // cleared, so the session cannot be restored anyway
+        }
+        return true;
+    }
+
+    /**
      * Generate unique item ID using UUID v4
      * @returns {string} UUID v4 with item prefix
      */
@@ -3297,50 +3333,20 @@ export class ContactDatabase {
     }
 
     /**
-     * Get database connection status with session awareness
+     * Get database connection status.
+     *
+     * Pure status getter — no side effects, no sign-out, no storage writes.
+     * The "reject session-only on page refresh" cleanup happens once at
+     * app startup via rejectSessionOnlyLogin(); this method must stay
+     * side-effect free because it is called during a live session
+     * (app.getStatus(), handleAuthenticated recovery) where a destructive
+     * branch would sign the user out.
+     *
      * @returns {Object} Connection status
      */
-    async getConnectionStatus() {
-        // Check if we have an active session
-        const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+    getConnectionStatus() {
         const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-        
-        // If we had session-only auth, it should NOT persist across page refreshes
-        // Clear it immediately regardless of currentUser state
-        if (hasSessionOnly) {
-            this.clearSessionData();
-            
-            // Manually clear Userbase SDK session storage to prevent restoration
-            try {
-                if (typeof userbase !== 'undefined' && userbase) {
-                    // Clear Userbase session from both storages
-                    localStorage.removeItem('userbaseCurrentSession');
-                    sessionStorage.removeItem('userbaseCurrentSession');
-                    
-                    // Also clear any Userbase internal state
-                    if (userbase.user) {
-                        userbase.user = null;
-                    }
-                    
-                    // Try to sign out properly
-                    try {
-                        await userbase.signOut();
-                    } catch (e) {
-                        // signOut might fail, that's ok - we already cleared storage
-                    }
-                }
-            } catch (e) {
-                // Ignore any errors during cleanup
-            }
-            
-            return {
-                isAuthenticated: false,
-                currentUser: null,
-                sessionExpired: true,
-                sessionType: 'session'
-            };
-        }
-        
+
         return {
             isInitialized: this.isInitialized,
             isAuthenticated: !!this.currentUser,

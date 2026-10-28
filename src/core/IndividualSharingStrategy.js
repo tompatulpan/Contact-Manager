@@ -161,7 +161,14 @@ export class IndividualSharingStrategy {
         } catch (error) {
             const duration = Date.now() - startTime;
             console.error(`❌ Individual sharing failed for ${username}:`, error);
-            
+
+            // requireVerified defaults to true: sharing fails until the
+            // recipient has verified their account. Surface that as a clear
+            // instruction instead of the SDK's raw message.
+            if (error.name === 'UserNotVerified') {
+                error.message = `${username.trim()} has not verified their account yet. Ask them to sign in and verify their account, then share again.`;
+            }
+
             // 🔧 CRITICAL FIX: Clean up database if sharing failed
             // Only attempt cleanup if we successfully opened the database AND have the database name
             if (databaseOpened && sharedDbName) {

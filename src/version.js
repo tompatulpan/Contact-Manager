@@ -7,7 +7,7 @@
  *              when the production package is built. "dev" means the file is
  *              running straight from the working tree.
  */
-export const APP_VERSION = '0.4.1';
+export const APP_VERSION = '0.4.2';
 export const APP_BUILD = 'dev';
 
 /**

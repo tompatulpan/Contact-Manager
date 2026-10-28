@@ -207,6 +207,13 @@ export class ContactUIController {
                 return;
             }
 
+            // Step 0.5: Reject session-only logins once, up front.
+            // "Keep me signed in" was unchecked, so a stored session must not
+            // survive a page refresh. The helper is a no-op while a session
+            // is live in memory, so it can never sign out a just-logged-in
+            // user; all later paths can then treat status as pure.
+            await this.contactManager.database.rejectSessionOnlyLogin();
+
             // Step 1: Try to detect existing userbase session WITHOUT initializing database
             // This is the fastest possible check - directly call userbase
             const existingSessionResult = await this.tryExistingSession();
@@ -271,13 +278,6 @@ export class ContactUIController {
             const status = await this.contactManager.database.getConnectionStatus();
             
             if (status.isAuthenticated && status.currentUser) {
-                // Reject session-only sessions that should have expired on refresh
-                if (status.sessionType === 'session') {
-                    this.log('❌ Rejecting session-only authentication on page refresh');
-                    this.contactManager.database.clearSessionData();
-                    return { success: false, error: 'session-expired' };
-                }
-                
                 this.log(`✅ Fast Path: User already authenticated: ${status.currentUser}`);
                 this.currentUser = this.contactManager.database.currentUser;
                 
@@ -316,34 +316,14 @@ export class ContactUIController {
     async tryDatabaseInit() {
         try {
             this.log('📊 Trying database initialization...');
-            
-            // Check for session-only flag BEFORE initializing
-            // This prevents Userbase SDK from restoring session-only sessions
-            const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-            if (hasSessionOnly) {
-                this.log('❌ Rejecting session-only authentication before database init');
-                this.contactManager.database.clearSessionData();
-                try {
-                    if (typeof userbase !== 'undefined') {
-                        await userbase.signOut();
-                    }
-                } catch (e) {
-                    // signOut might fail if not signed in, that's ok
-                }
-                return { success: false, error: 'session-expired' };
-            }
-            
+
+            // Session-only logins are rejected once in
+            // optimizedAuthenticationCheck() before this runs, so the SDK
+            // session record is already gone and cannot be restored here.
             await this.contactManager.database.initialize(USERBASE_CONFIG.appId);
-            
+
             const connectionStatus = await this.contactManager.database.getConnectionStatus();
-            
-            // Reject session-only sessions that should have expired on refresh
-            if (connectionStatus.isAuthenticated && connectionStatus.sessionType === 'session') {
-                this.log('❌ Rejecting session-only authentication during database init');
-                this.contactManager.database.clearSessionData();
-                return { success: false, error: 'session-expired' };
-            }
-            
+
             if (connectionStatus.isAuthenticated) {
                 this.log('⚡ User authenticated during database init:', connectionStatus.currentUser);
                 this.currentUser = { username: connectionStatus.currentUser };

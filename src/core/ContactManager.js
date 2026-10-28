@@ -2936,7 +2936,6 @@ export class ContactManager {
                                 readOnly: true,
                                 resharingAllowed: false
                                 // requireVerified defaults to true for security ✅
-                                // Removed: requireVerified: false - was allowing unverified user access
                             });
                             console.log('✅ Database access granted to user:', username);
                         } catch (shareError) {
