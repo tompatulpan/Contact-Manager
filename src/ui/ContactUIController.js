@@ -199,6 +199,9 @@ export class ContactUIController {
             // Step 0: FIRST check if userbase is even available
             if (typeof window.userbase === 'undefined') {
                 this.log(`⚠️ ${AUTH_CONFIG.ERRORS.SDK_NOT_LOADED}, showing auth modal`);
+                this.hideMainApplication();
+                this.clearContactList();
+                this.clearContactDetail();
                 this.showAuthenticationModal();
                 authPerformanceTracker.end(false, { error: 'sdk-not-loaded' });
                 return;
@@ -237,6 +240,9 @@ export class ContactUIController {
             
             // Step 4: No valid session found - show auth modal
             this.log('🔐 No valid session found, showing authentication modal');
+            this.hideMainApplication();
+            this.clearContactList();
+            this.clearContactDetail();
             this.showAuthenticationModal();
             authPerformanceTracker.end(false, { 
                 method: AUTH_CONFIG.METHODS.MANUAL_LOGIN,
@@ -245,6 +251,9 @@ export class ContactUIController {
             
         } catch (error) {
             this.logError('Error during authentication check:', error);
+            this.hideMainApplication();
+            this.clearContactList();
+            this.clearContactDetail();
             this.showAuthenticationModal();
             authPerformanceTracker.end(false, { error: error.message });
         }
@@ -259,9 +268,16 @@ export class ContactUIController {
             this.log('⚡ Checking current authentication status...');
             
             // Check if user is already authenticated
-            const status = this.contactManager.database.getConnectionStatus();
+            const status = await this.contactManager.database.getConnectionStatus();
             
             if (status.isAuthenticated && status.currentUser) {
+                // Reject session-only sessions that should have expired on refresh
+                if (status.sessionType === 'session') {
+                    this.log('❌ Rejecting session-only authentication on page refresh');
+                    this.contactManager.database.clearSessionData();
+                    return { success: false, error: 'session-expired' };
+                }
+                
                 this.log(`✅ Fast Path: User already authenticated: ${status.currentUser}`);
                 this.currentUser = this.contactManager.database.currentUser;
                 
@@ -300,9 +316,34 @@ export class ContactUIController {
     async tryDatabaseInit() {
         try {
             this.log('📊 Trying database initialization...');
+            
+            // Check for session-only flag BEFORE initializing
+            // This prevents Userbase SDK from restoring session-only sessions
+            const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+            if (hasSessionOnly) {
+                this.log('❌ Rejecting session-only authentication before database init');
+                this.contactManager.database.clearSessionData();
+                try {
+                    if (typeof userbase !== 'undefined') {
+                        await userbase.signOut();
+                    }
+                } catch (e) {
+                    // signOut might fail if not signed in, that's ok
+                }
+                return { success: false, error: 'session-expired' };
+            }
+            
             await this.contactManager.database.initialize(USERBASE_CONFIG.appId);
             
-            const connectionStatus = this.contactManager.database.getConnectionStatus();
+            const connectionStatus = await this.contactManager.database.getConnectionStatus();
+            
+            // Reject session-only sessions that should have expired on refresh
+            if (connectionStatus.isAuthenticated && connectionStatus.sessionType === 'session') {
+                this.log('❌ Rejecting session-only authentication during database init');
+                this.contactManager.database.clearSessionData();
+                return { success: false, error: 'session-expired' };
+            }
+            
             if (connectionStatus.isAuthenticated) {
                 this.log('⚡ User authenticated during database init:', connectionStatus.currentUser);
                 this.currentUser = { username: connectionStatus.currentUser };
@@ -1208,7 +1249,7 @@ export class ContactUIController {
     /**
      * Handle authentication success
      */
-    handleAuthenticated(data) {
+    async handleAuthenticated(data) {
         
         // More robust user data validation
         const user = data?.user;
@@ -1227,7 +1268,7 @@ export class ContactUIController {
             console.error('Expected user object with username or userId, got:', user);
             
             // Try to recover by checking database connection status
-            const status = this.contactManager?.database?.getConnectionStatus();
+            const status = await this.contactManager?.database?.getConnectionStatus();
             if (status?.isAuthenticated && status?.currentUser) {
                 this.currentUser = { username: status.currentUser };
                 this.updateUserInterface();
@@ -3301,6 +3342,19 @@ export class ContactUIController {
                     this.showNewContactModal();
                 });
             }
+        }
+        this.selectedContactId = null;
+    }
+
+    /**
+     * Clear the contact list
+     */
+    clearContactList() {
+        if (this.elements.contactList) {
+            this.elements.contactList.innerHTML = '';
+        }
+        if (this.elements.contactCards) {
+            this.elements.contactCards.innerHTML = '';
         }
         this.selectedContactId = null;
     }

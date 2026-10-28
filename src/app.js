@@ -418,12 +418,12 @@ class ContactManagementApp {
      * Get application status
      * @returns {Object} Application status
      */
-    getStatus() {
+    async getStatus() {
         return {
             isInitialized: this.isInitialized,
             modules: Object.keys(this.modules),
             version: '1.0.0',
-            database: this.modules.database?.getConnectionStatus() || null,
+            database: await this.modules.database?.getConnectionStatus() || null,
             contactCount: this.modules.contactManager?.contacts?.size || 0
         };
     }

@@ -87,7 +87,10 @@ export class ContactDatabase {
                     key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')
                 );
                 
-                const result = hasRememberMe && hasUserbaseSession;
+                // Also check sessionStorage for session-only auth
+                const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+                
+                const result = (hasRememberMe && hasUserbaseSession) || hasSessionOnly;
                 return result;
             }
             return false;
@@ -115,15 +118,20 @@ export class ContactDatabase {
                 };
             }
             
-            // For session-only auth, check if this is a page refresh
+            // For session-only auth, sessions should NOT persist across page refreshes
+            // Userbase SDK will try to restore it, so we explicitly clear and reject
             if (hasSessionOnly) {
-                const pageLoadFlag = sessionStorage.getItem('userbase-page-loaded');
-                if (!pageLoadFlag) {
-                    return {
-                        success: false,
-                        error: 'Session expired on page refresh'
-                    };
+                // Clear Userbase session data
+                this.clearSessionData();
+                try {
+                    await userbase.signOut();
+                } catch (e) {
+                    // signOut might fail if not signed in, that's ok
                 }
+                return {
+                    success: false,
+                    error: 'Session-only auth expired on page refresh'
+                };
             }
             
             // Ensure appId is set (required by userbase.init) — initialize() may not have run yet
@@ -143,11 +151,6 @@ export class ContactDatabase {
             if (session.user) {
                 this.currentUser = session.user;
                 this.isInitialized = true;
-                
-                // Update page load flag for session-only auth
-                if (hasSessionOnly) {
-                    sessionStorage.setItem('userbase-page-loaded', 'true');
-                }
                 
                 // 🚀 CRITICAL: Initialize databases immediately during restoration
                 try {
@@ -2894,41 +2897,15 @@ export class ContactDatabase {
      * @param {string} sharedDbName - Name of the shared database
      * @returns {Promise<Object>} Update result
      */
-    async updateSharedContactDatabase(contact, sharedDbName) {
-        try {
-            
-            // Update the contact in the shared database to ensure recipients get updates
-            await this.safeUpdateItem({
-                databaseName: sharedDbName,
-                item: {
-                    ...contact,
-                    metadata: {
-                        ...contact.metadata,
-                        lastSharedUpdate: new Date().toISOString(),
-                        sharedBy: this.currentUser?.username
-                    }
-                },
-                itemId: contact.contactId
-            }, 'updateSharedContactDatabase');
-            
-            return { success: true };
-            
-        } catch (error) {
-            console.error('❌ Failed to update contact in shared database:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-
     /**
-     * Update an existing shared contact database with latest contact data
-     * @param {Object} contact - The contact data to update
-     * @param {string} sharedDbName - The shared database name
+     * Update contact in shared database with proper metadata
+     * Opens the database first, then updates the contact item
+     * @param {Object} contact - Contact to update
+     * @param {string} sharedDbName - Name of the shared database
      * @returns {Promise<Object>} Update result
      */
     async updateSharedContactDatabase(contact, sharedDbName) {
         try {
-            
             // Open the shared database
             await userbase.openDatabase({
                 databaseName: sharedDbName,
@@ -2941,7 +2918,14 @@ export class ContactDatabase {
             await this.safeUpdateItem({
                 databaseName: sharedDbName,
                 itemId: contact.contactId,
-                item: contact
+                item: {
+                    ...contact,
+                    metadata: {
+                        ...contact.metadata,
+                        lastSharedUpdate: new Date().toISOString(),
+                        sharedBy: this.currentUser?.username
+                    }
+                }
             }, 'updateSharedContactDatabase');
 
             return { success: true };
@@ -3294,29 +3278,7 @@ export class ContactDatabase {
      * Get database connection status with session awareness
      * @returns {Object} Connection status
      */
-    getConnectionStatus() {
-        // Check if we have an active session
-        const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-        const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-        
-        // If page was refreshed and we had session-only auth, consider it expired
-        if (hasSessionOnly && !this.currentUser) {
-            this.clearSessionData();
-            return {
-                isAuthenticated: false,
-                currentUser: null,
-                sessionExpired: true
-            };
-        }
-        
-        return {
-            isInitialized: this.isInitialized,
-            isAuthenticated: !!this.currentUser,
-            currentUser: this.currentUser?.username,
-            sessionType: hasRememberMe ? 'persistent' : 'session',
-            activeDatabases: Array.from(this.changeHandlers.keys())
-        };
-    }
+
 
     /**
      * Clear session-specific data
@@ -3912,11 +3874,56 @@ export class ContactDatabase {
      * Get connection status - SDK compliant
      * @returns {Object} Connection status
      */
-    getConnectionStatus() {
+    /**
+     * Get database connection status with session awareness
+     * @returns {Object} Connection status
+     */
+    async getConnectionStatus() {
+        // Check if we have an active session
+        const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
+        const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
+        
+        // If we had session-only auth, it should NOT persist across page refreshes
+        // Clear it immediately regardless of currentUser state
+        if (hasSessionOnly) {
+            this.clearSessionData();
+            
+            // Manually clear Userbase SDK session storage to prevent restoration
+            try {
+                if (typeof userbase !== 'undefined' && userbase) {
+                    // Clear Userbase session from both storages
+                    localStorage.removeItem('userbaseCurrentSession');
+                    sessionStorage.removeItem('userbaseCurrentSession');
+                    
+                    // Also clear any Userbase internal state
+                    if (userbase.user) {
+                        userbase.user = null;
+                    }
+                    
+                    // Try to sign out properly
+                    try {
+                        await userbase.signOut();
+                    } catch (e) {
+                        // signOut might fail, that's ok - we already cleared storage
+                    }
+                }
+            } catch (e) {
+                // Ignore any errors during cleanup
+            }
+            
+            return {
+                isAuthenticated: false,
+                currentUser: null,
+                sessionExpired: true,
+                sessionType: 'session'
+            };
+        }
+        
         return {
             isInitialized: this.isInitialized,
             isAuthenticated: !!this.currentUser,
             currentUser: this.currentUser?.username,
+            sessionType: hasRememberMe ? 'persistent' : 'session',
             activeDatabases: Array.from(this.changeHandlers.keys())
         };
     }
