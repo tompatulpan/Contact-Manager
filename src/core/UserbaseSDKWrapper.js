@@ -1,13 +1,16 @@
 /**
  * UserbaseSDKWrapper - SDK-compliant wrapper layer for the Userbase SDK
  *
- * Every userbase.* call goes through this layer, which provides:
+ * Wraps the item, sharing and permission SDK calls with:
  * - parameter validation before each SDK call
  * - SDK-specified error handling (surfaces events on the event bus)
  * - transient-error retries with exponential backoff
  *
- * Extracted from ContactDatabase (Phase D). ContactDatabase keeps thin
- * delegating methods so callers and tests keep their existing API.
+ * Not every userbase.* call goes through this layer yet: session/auth calls
+ * (init, signIn, signUp, signOut), openDatabase and getDatabases are still
+ * called directly from ContactDatabase. ContactDatabase keeps thin
+ * delegating methods for everything here so callers and tests keep their
+ * existing API.
  */
 
 export class UserbaseSDKWrapper {
@@ -48,7 +51,36 @@ export class UserbaseSDKWrapper {
     }
 
     /**
-     * Retry an SDK operation on transient errors with exponential backoff.
+     * Retry an SDK operation on retryable errors with exponential backoff.
+     * @param {Function} operation - Async operation to attempt
+     * @param {string} context - Context for error reporting
+     * @param {Function} classifyRetry - Returns a retry kind string (e.g.
+     *        'transient', 'conflict') for retryable errors, falsy otherwise
+     * @param {number} maxRetries - Maximum retry attempts
+     * @param {Function|number} baseDelayMs - Base delay (ms), or a function
+     *        of the retry kind (different kinds can back off at different rates)
+     * @returns {Promise<Object>} Operation result
+     */
+    async retryOn(operation, context, classifyRetry, maxRetries = 3, baseDelayMs = 1000) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                const kind = classifyRetry(error);
+                if (!kind || attempt >= maxRetries) {
+                    throw error;
+                }
+                const base = typeof baseDelayMs === 'function' ? baseDelayMs(kind) : baseDelayMs;
+                const delay = Math.pow(2, attempt) * base; // 1x, 2x, 4x
+                console.warn(`🚫 ${error.name || 'retryable error'} (${kind}) in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                await this.sleep(delay);
+            }
+        }
+    }
+
+    /**
+     * Retry an SDK operation on transient errors (connection lost, service
+     * briefly unavailable, rate limiting) with exponential backoff.
      * @param {Function} operation - Async operation to attempt
      * @param {string} context - Context for error reporting
      * @param {number} maxRetries - Maximum retry attempts (default: 3)
@@ -56,18 +88,13 @@ export class UserbaseSDKWrapper {
      * @returns {Promise<Object>} Operation result
      */
     async retryTransientError(operation, context, maxRetries = 3, baseDelayMs = 1000) {
-        for (let attempt = 0; ; attempt++) {
-            try {
-                return await operation();
-            } catch (error) {
-                if (!this.isTransientError(error) || attempt >= maxRetries) {
-                    throw error;
-                }
-                const delay = Math.pow(2, attempt) * baseDelayMs; // 1s, 2s, 4s
-                console.warn(`🚫 Transient ${error.name || 'error'} in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-                await this.sleep(delay);
-            }
-        }
+        return await this.retryOn(
+            operation,
+            context,
+            (error) => this.isTransientError(error) ? 'transient' : false,
+            maxRetries,
+            () => baseDelayMs
+        );
     }
 
     /**
@@ -967,45 +994,34 @@ export class UserbaseSDKWrapper {
      * @returns {Promise<Object>} Delete result
      */
     async safeDeleteItem(params, context, maxRetries = 3) {
-        let lastError = null;
-        
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                // Pre-validate parameters
-                const validation = this.validateDeleteItemParams(params);
-                if (!validation.isValid) {
-                    const error = new Error(validation.errors[0]);
-                    error.name = validation.errors[0].split(':')[0];
-                    throw error;
-                }
-                
-                // Call SDK deleteItem
-                return await userbase.deleteItem(params);
-                
-            } catch (error) {
-                lastError = error;
-
-                // Retry on conflicts and transient connection errors
-                const isTransient = this.isTransientError(error);
-                if ((error.name === 'ItemUpdateConflict' || isTransient) && attempt < maxRetries) {
-                    // Exponential backoff: 100ms, 200ms, 400ms for conflicts;
-                    // longer for connection-level errors to survive reconnects
-                    const delay = isTransient
-                        ? Math.pow(2, attempt) * 1000
-                        : Math.pow(2, attempt) * 100;
-                    console.warn(`⚠️ ${isTransient ? 'Transient connection error' : 'ItemUpdateConflict'} in ${context}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    continue;
-                }
-                
-                // For other errors or max retries reached, handle and throw
-                this.handleDeleteItemError(error, context);
-                throw error;
-            }
+        // Pre-validate parameters once — params do not change between attempts
+        const validation = this.validateDeleteItemParams(params);
+        if (!validation.isValid) {
+            const error = new Error(validation.errors[0]);
+            error.name = validation.errors[0].split(':')[0];
+            this.handleDeleteItemError(error, context);
+            throw error;
         }
-        
-        // Should never reach here, but just in case
-        throw lastError;
+
+        try {
+            // Retry conflicts with a fast backoff (100ms base) and
+            // connection-level transient errors with a slower one (1000ms
+            // base, long enough to survive a reconnect)
+            return await this.retryOn(
+                () => userbase.deleteItem(params),
+                context,
+                (error) => {
+                    if (this.isTransientError(error)) return 'transient';
+                    if (error.name === 'ItemUpdateConflict') return 'conflict';
+                    return false;
+                },
+                maxRetries,
+                (kind) => kind === 'transient' ? 1000 : 100
+            );
+        } catch (error) {
+            this.handleDeleteItemError(error, context);
+            throw error;
+        }
     }
 
     /**

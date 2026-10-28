@@ -356,6 +356,7 @@ describe('UserbaseSDKWrapper — transient error retry helpers', () => {
 
     it('retryTransientError retries transient failures and then succeeds', async () => {
         const self = {
+            retryOn: UserbaseSDKWrapper.prototype.retryOn,
             isTransientError: UserbaseSDKWrapper.prototype.isTransientError,
             sleep: () => Promise.resolve()
         };
@@ -376,6 +377,7 @@ describe('UserbaseSDKWrapper — transient error retry helpers', () => {
 
     it('retryTransientError does not retry non-transient failures', async () => {
         const self = {
+            retryOn: UserbaseSDKWrapper.prototype.retryOn,
             isTransientError: UserbaseSDKWrapper.prototype.isTransientError,
             sleep: () => Promise.resolve()
         };

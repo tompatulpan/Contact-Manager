@@ -9,7 +9,8 @@ import { PERFORMANCE_CONFIG, USERBASE_CONFIG } from '../config/app.config.js';
 export class ContactDatabase {
     constructor(eventBus) {
         this.eventBus = eventBus;
-        // SDK wrapper layer (Phase D): all userbase.* calls go through it
+        // SDK wrapper layer: item/sharing/permission calls with validation,
+        // error handling and retries (see UserbaseSDKWrapper)
         this.sdk = new UserbaseSDKWrapper(eventBus, () => this.currentUser);
         this.isInitialized = false;
         this.currentUser = null;
@@ -271,7 +272,7 @@ export class ContactDatabase {
 
     isTransientError(error) { return this.sdk.isTransientError(error); }
 
-    async retryTransientError(operation, context, maxRetries = 3, baseDelayMs = 1000) { return this.sdk.retryTransientError(operation, context, maxRetries = 3, baseDelayMs = 1000); }
+    async retryTransientError(operation, context, maxRetries = 3, baseDelayMs = 1000) { return this.sdk.retryTransientError(operation, context, maxRetries, baseDelayMs); }
 
     /**
      * Sign up new user - follows Userbase SDK specification exactly
@@ -993,7 +994,7 @@ export class ContactDatabase {
 
     async safeUpdateItem(params, context) { return this.sdk.safeUpdateItem(params, context); }
 
-    async safeDeleteItem(params, context, maxRetries = 3) { return this.sdk.safeDeleteItem(params, context, maxRetries = 3); }
+    async safeDeleteItem(params, context, maxRetries = 3) { return this.sdk.safeDeleteItem(params, context, maxRetries); }
 
     /**
      * Permanently remove a contact item from the 'contacts' database.
@@ -1013,9 +1014,6 @@ export class ContactDatabase {
 
     async safeModifyDatabasePermissions(params, context) { return this.sdk.safeModifyDatabasePermissions(params, context); }
 
-    /**
-
-    
     handleSDKError(error, context) { return this.sdk.handleSDKError(error, context); }
 
     handleGetDatabasesError(error, context) { return this.sdk.handleGetDatabasesError(error, context); }

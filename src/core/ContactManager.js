@@ -2868,13 +2868,13 @@ export class ContactManager {
                         
                         // Even if contact data exists, verify user has access
                         try {
-                            await window.userbase.shareDatabase({
+                            await this.database.safeShareDatabase({
                                 databaseName: sharedDbName,
                                 username: username.trim(),
                                 readOnly: true,
                                 resharingAllowed: false
                                 // requireVerified defaults to true for security ✅
-                            });
+                            }, 'shareContact:verify-access');
                             console.log('✅ User access verified/granted');
                         } catch (shareError) {
                             // User doesn't have access - account was recreated
@@ -2919,24 +2919,24 @@ export class ContactManager {
                 if (needsContactData) {
                     console.log('🔄 Re-populating empty shared database with contact data');
                     try {
-                        // Use Userbase SDK directly to insert contact
-                        await window.userbase.insertItem({
+                        // Use the validated SDK wrapper to insert contact
+                        await this.database.safeInsertItem({
                             databaseName: sharedDbName,
                             itemId: contactId,
                             item: contact
-                        });
+                        }, 'shareContact:repopulate');
                         console.log('✅ Contact data inserted into previously empty shared database');
                         
                         // CRITICAL: Grant access to the user
                         console.log('🔐 Granting database access to user:', username);
                         try {
-                            await window.userbase.shareDatabase({
+                            await this.database.safeShareDatabase({
                                 databaseName: sharedDbName,
                                 username: username.trim(),
                                 readOnly: true,
                                 resharingAllowed: false
                                 // requireVerified defaults to true for security ✅
-                            });
+                            }, 'shareContact:grant-access');
                             console.log('✅ Database access granted to user:', username);
                         } catch (shareError) {
                             // User account was recreated - old database is tied to old user ID
