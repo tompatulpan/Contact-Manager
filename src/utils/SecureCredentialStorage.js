@@ -1,14 +1,20 @@
 /**
  * Secure Credential Storage for CardDAV Servers
  * 
- * Provides multiple storage strategies for saving CardDAV credentials:
+ * Storage strategies for CardDAV credentials, in order of preference:
  * 1. Browser's Credential Management API (most secure, doesn't work in private mode)
- * 2. Encrypted localStorage (works in private mode, encrypted with user password)
- * 3. SessionStorage fallback (temporary, cleared on tab close)
+ * 2. Encrypted localStorage (AES-GCM, key derived from the user's master password)
+ * 3. Encrypted memory storage (private browsing; cleared when the tab closes)
+ * 
+ * There is no plaintext or sessionStorage write path (SEC-01/SEC-03).
+ * sessionStorage keys with this prefix are only *removed* as cleanup for
+ * data written by older app versions.
  * 
  * Private Browsing Support:
  * - Detects private browsing mode automatically
  * - Uses memory-based encrypted storage when localStorage unavailable
+ * - Keeps the PBKDF2 salt in memory only (SEC-02), matching the lifetime
+ *   of the memory-stored credentials it protects
  * - Provides user consent UI for credential storage
  */
 
@@ -17,6 +23,7 @@ export class SecureCredentialStorage {
         this.storagePrefix = 'carddav_creds_';
         this.saltKey = 'carddav_pbkdf2_salt';
         this.memoryStorage = new Map(); // Fallback for private browsing
+        this.memorySalt = null; // PBKDF2 salt when localStorage is unavailable (SEC-02)
         this.encryptionKey = null;
         this.isPrivateBrowsing = false;
         
@@ -25,9 +32,11 @@ export class SecureCredentialStorage {
     }
 
     /**
-     * Detect if browser is in private/incognito mode
+     * Detect if browser is in private/incognito mode.
+     * Synchronous: localStorage either throws or it doesn't, so callers can
+     * rely on isPrivateBrowsing immediately after construction.
      */
-    async detectPrivateBrowsing() {
+    detectPrivateBrowsing() {
         try {
             // Test localStorage availability
             const testKey = '__storage_test__';
@@ -43,6 +52,9 @@ export class SecureCredentialStorage {
      * Generate encryption key from user's master password using PBKDF2.
      * A random 16-byte salt is generated on first use and persisted in
      * localStorage so the same key can be re-derived on subsequent logins.
+     * When localStorage is unavailable (private browsing), the salt lives in
+     * memory only (SEC-02) — the encrypted credentials it protects live in
+     * memory storage too, so their lifetimes match.
      * OWASP 2024 recommends PBKDF2-SHA256 with ≥310,000 iterations.
      */
     async setMasterPassword(masterPassword) {
@@ -52,12 +64,20 @@ export class SecureCredentialStorage {
 
             // Load or generate a per-installation salt
             let salt;
-            const storedSalt = localStorage.getItem(this.saltKey);
-            if (storedSalt) {
-                salt = Uint8Array.from(atob(storedSalt), c => c.charCodeAt(0));
-            } else {
-                salt = crypto.getRandomValues(new Uint8Array(16));
-                localStorage.setItem(this.saltKey, btoa(String.fromCharCode(...salt)));
+            try {
+                const storedSalt = localStorage.getItem(this.saltKey);
+                if (storedSalt) {
+                    salt = Uint8Array.from(atob(storedSalt), c => c.charCodeAt(0));
+                } else {
+                    salt = crypto.getRandomValues(new Uint8Array(16));
+                    localStorage.setItem(this.saltKey, btoa(String.fromCharCode(...salt)));
+                }
+            } catch (storageError) {
+                // localStorage unavailable (private browsing): memory-only salt
+                if (!this.memorySalt) {
+                    this.memorySalt = crypto.getRandomValues(new Uint8Array(16));
+                }
+                salt = this.memorySalt;
             }
 
             // Import raw password as key material for PBKDF2
@@ -324,6 +344,8 @@ export class SecureCredentialStorage {
                 removed = true;
             }
 
+            // Legacy cleanup: nothing writes to sessionStorage anymore, but
+            // older app versions did (SEC-01) — remove any leftover keys.
             sessionStorage.removeItem(`${this.storagePrefix}${profileName}`);
             
             if (this.memoryStorage.has(profileName)) {
@@ -420,7 +442,6 @@ export class SecureCredentialStorage {
             hasEncryptionKey: this.encryptionKey !== null,
             supportsCredentialAPI: typeof window.PasswordCredential !== 'undefined',
             localStorageAvailable: !this.isPrivateBrowsing,
-            sessionStorageAvailable: typeof sessionStorage !== 'undefined',
             memoryStorageSize: this.memoryStorage.size
         };
     }
