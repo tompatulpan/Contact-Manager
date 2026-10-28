@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { IndividualSharingStrategy } from '../../src/core/IndividualSharingStrategy.js';
-import { ContactDatabase } from '../../src/core/ContactDatabase.js';
+import { UserbaseSDKWrapper } from '../../src/core/UserbaseSDKWrapper.js';
 
 class FakeDatabase {
     constructor() {
@@ -274,7 +274,7 @@ describe('IndividualSharingStrategy — revocation (SH-01)', () => {
     });
 
     it('validates revocation without readOnly and still requires it for permission changes', () => {
-        const validate = ContactDatabase.prototype.validateModifyDatabasePermissionsParams;
+        const validate = UserbaseSDKWrapper.prototype.validateModifyDatabasePermissionsParams;
 
         expect(validate({
             databaseName: 'shared-contact-abc123-to-bob',
@@ -337,7 +337,7 @@ describe('IndividualSharingStrategy — revocation (SH-01)', () => {
     });
 });
 
-describe('ContactDatabase — transient error retry helpers', () => {
+describe('UserbaseSDKWrapper — transient error retry helpers', () => {
     const transientError = () => {
         const err = new Error('Service unavailable');
         err.name = 'ServiceUnavailable';
@@ -345,7 +345,7 @@ describe('ContactDatabase — transient error retry helpers', () => {
     };
 
     it('isTransientError recognizes SDK and reconnect-style errors', () => {
-        const check = ContactDatabase.prototype.isTransientError;
+        const check = UserbaseSDKWrapper.prototype.isTransientError;
 
         expect(check.call({}, transientError())).toBe(true);
         expect(check.call({}, { name: 'TooManyRequests', message: 'Too many requests' })).toBe(true);
@@ -356,7 +356,7 @@ describe('ContactDatabase — transient error retry helpers', () => {
 
     it('retryTransientError retries transient failures and then succeeds', async () => {
         const self = {
-            isTransientError: ContactDatabase.prototype.isTransientError,
+            isTransientError: UserbaseSDKWrapper.prototype.isTransientError,
             sleep: () => Promise.resolve()
         };
         let attempts = 0;
@@ -368,7 +368,7 @@ describe('ContactDatabase — transient error retry helpers', () => {
             return { ok: true };
         };
 
-        const result = await ContactDatabase.prototype.retryTransientError.call(self, operation, 'test', 3, 0);
+        const result = await UserbaseSDKWrapper.prototype.retryTransientError.call(self, operation, 'test', 3, 0);
 
         expect(result).toEqual({ ok: true });
         expect(attempts).toBe(3);
@@ -376,7 +376,7 @@ describe('ContactDatabase — transient error retry helpers', () => {
 
     it('retryTransientError does not retry non-transient failures', async () => {
         const self = {
-            isTransientError: ContactDatabase.prototype.isTransientError,
+            isTransientError: UserbaseSDKWrapper.prototype.isTransientError,
             sleep: () => Promise.resolve()
         };
         const permanent = new Error('Database not found');
@@ -384,7 +384,7 @@ describe('ContactDatabase — transient error retry helpers', () => {
         const operation = async () => { throw permanent; };
 
         await expect(
-            ContactDatabase.prototype.retryTransientError.call(self, operation, 'test', 3, 0)
+            UserbaseSDKWrapper.prototype.retryTransientError.call(self, operation, 'test', 3, 0)
         ).rejects.toMatchObject({ name: 'DatabaseNotFound' });
     });
 });
