@@ -572,16 +572,17 @@ export class IndividualSharingStrategy {
      */
     async getContactSharedDatabases(contactId) {
         try {
-            const result = await userbase.getDatabases();
-            const allDatabases = result.databases;
+            // CR-02: route through the injected database wrapper instead of
+            // the global userbase SDK so errors get SDK-compliant handling
+            const result = await this.database.getAllSharedContactDatabases();
+            const ownedDatabases = result.ownedSharedDatabases || [];
             
             // Remove 'contact_' prefix to avoid double naming
             const cleanContactId = this.sanitizeContactId(contactId);
             
-            return allDatabases
+            return ownedDatabases
                 .filter(db => 
-                    db.databaseName.startsWith(`shared-contact-${cleanContactId}-to-`) &&
-                    db.isOwner
+                    db.databaseName.startsWith(`shared-contact-${cleanContactId}-to-`)
                 )
                 .map(db => db.databaseName);
                 
@@ -598,17 +599,18 @@ export class IndividualSharingStrategy {
      */
     async getIndividualShares(contactId) {
         try {
-            const result = await userbase.getDatabases();
-            const allDatabases = result.databases;
+            // CR-02: route through the injected database wrapper (owned DBs
+            // only — owner state is already filtered server-side)
+            const result = await this.database.getAllSharedContactDatabases();
+            const ownedDatabases = result.ownedSharedDatabases || [];
             
             // Remove 'contact_' prefix to avoid double naming
             const cleanContactId = this.sanitizeContactId(contactId);
             
             // Find all individual shared databases for this contact
-            const individualShares = allDatabases
+            const individualShares = ownedDatabases
                 .filter(db => 
-                    db.databaseName.startsWith(`shared-contact-${cleanContactId}-to-`) &&
-                    db.isOwner
+                    db.databaseName.startsWith(`shared-contact-${cleanContactId}-to-`)
                 )
                 .map(db => ({
                     databaseName: db.databaseName,
@@ -643,8 +645,9 @@ export class IndividualSharingStrategy {
      */
     async getSharingStats(contactId = null) {
         try {
-            const result = await userbase.getDatabases();
-            const allDatabases = result.databases;
+            // CR-02: route through the injected database wrapper (owned DBs)
+            const result = await this.database.getAllSharedContactDatabases();
+            const ownedDatabases = result.ownedSharedDatabases || [];
             
             let pattern;
             if (contactId) {
@@ -655,8 +658,8 @@ export class IndividualSharingStrategy {
                 pattern = 'shared-contact-';
             }
                 
-            const sharedDatabases = allDatabases.filter(db => 
-                db.databaseName.includes(pattern) && db.isOwner
+            const sharedDatabases = ownedDatabases.filter(db => 
+                db.databaseName.includes(pattern)
             );
             
             const stats = {
