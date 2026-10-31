@@ -22,7 +22,12 @@ describe('ContactDatabase — SDK wrapper forwarding', () => {
             'handleShareDatabaseError', 'handleModifyDatabasePermissionsError',
             'safeInsertItem', 'safeUpdateItem', 'safeDeleteItem',
             'safeShareDatabase', 'safeModifyDatabasePermissions',
-            'handleSDKError', 'handleGetDatabasesError'
+            'handleSDKError', 'handleGetDatabasesError',
+            // auth layer delegators
+            'initialize', 'hasStoredSession', 'restoreSession',
+            'signUp', 'signIn', 'signOut',
+            'verifyUser', 'getVerificationMessage',
+            'rejectSessionOnlyLogin', 'getConnectionStatus'
         ];
         const missing = delegated.filter(name => typeof ContactDatabase.prototype[name] !== 'function');
         expect(missing).toEqual([]);

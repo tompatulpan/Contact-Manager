@@ -1,5 +1,6 @@
 import { IndividualSharingStrategy } from './IndividualSharingStrategy.js';
 import { UserbaseSDKWrapper } from './UserbaseSDKWrapper.js';
+import { UserbaseAuth } from './UserbaseAuth.js';
 import { PERFORMANCE_CONFIG, USERBASE_CONFIG } from '../config/app.config.js';
 
 /**
@@ -57,6 +58,25 @@ export class ContactDatabase {
         
         // 🆕 INDIVIDUAL DATABASE STRATEGY: Initialize individual sharing strategy
         this.individualSharing = new IndividualSharingStrategy(this);
+
+        // Auth layer (see UserbaseAuth): owns the auth-flow SDK calls and
+        // the session-preference storage keys. Auth state (currentUser,
+        // isInitialized, appId) stays on this instance — the module reads
+        // and writes it through the injected accessors.
+        this.auth = new UserbaseAuth({
+            eventBus,
+            getUser: () => this.currentUser,
+            setUser: (user) => { this.currentUser = user; },
+            getInitialized: () => this.isInitialized,
+            setInitialized: (v) => { this.isInitialized = v; },
+            getAppId: () => this.appId,
+            setAppId: (id) => { this.appId = id; },
+            setupDatabases: () => this.setupDatabases(),
+            clearSessionData: () => this.clearSessionData(),
+            clearChangeHandlers: () => this.changeHandlers.clear(),
+            startSharedDatabaseMonitoring: () => this.startSharedDatabaseMonitoring(),
+            getActiveDatabases: () => Array.from(this.changeHandlers.keys())
+        });
     }
 
     /**
@@ -71,202 +91,20 @@ export class ContactDatabase {
      * Check if there's a stored session that can be restored
      * @returns {Promise<boolean>} True if stored session exists
      */
-    async hasStoredSession() {
-        try {
-            
-            // Check if Userbase has session data in localStorage
-            if (typeof localStorage !== 'undefined') {
-                // Look for Userbase session indicators
-                const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-                
-                // Check for Userbase-specific storage keys that indicate an active session
-                const keys = Object.keys(localStorage);
-                const hasUserbaseSession = keys.some(key => 
-                    (key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')) &&
-                    localStorage.getItem(key) !== null
-                );
-                
-                // List all userbase-related keys for debugging
-                const userbaseKeys = keys.filter(key => 
-                    key.includes('userbase') || key.includes('Userbase') || key.startsWith('ub_')
-                );
-                
-                // Also check sessionStorage for session-only auth
-                const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-                
-                const result = (hasRememberMe && hasUserbaseSession) || hasSessionOnly;
-                return result;
-            }
-            return false;
-        } catch (error) {
-            console.error('Error checking stored session:', error);
-            return false;
-        }
-    }
+    async hasStoredSession() { return await this.auth.hasStoredSession(); }
 
     /**
      * Attempt to restore a stored session silently and initialize database
      * @returns {Promise<Object>} Restoration result
      */
-    async restoreSession() {
-        try {
-            
-            // Check session preferences first
-            const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-            const hasSessionOnly = sessionStorage.getItem('userbase-session-only') === 'true';
-            
-            if (!hasRememberMe && !hasSessionOnly) {
-                return {
-                    success: false,
-                    error: 'No session preference found'
-                };
-            }
-            
-            // For session-only auth, sessions should NOT persist across page refreshes
-            // Userbase SDK will try to restore it, so we explicitly clear and reject
-            if (hasSessionOnly) {
-                await this.rejectSessionOnlyLogin();
-                return {
-                    success: false,
-                    error: 'Session-only auth expired on page refresh'
-                };
-            }
-            
-            // Ensure appId is set (required by userbase.init) — initialize() may not have run yet
-            if (!this.appId) {
-                this.appId = USERBASE_CONFIG.appId;
-            }
-            
-            // ✅ SDK COMPLIANT: Use proper async/await instead of Promise constructor
-            const session = await userbase.init({
-                appId: this.appId,
-                updateUserHandler: (user) => {
-                    this.currentUser = user;
-                    this.eventBus.emit('database:userUpdated', { user });
-                }
-            });
-            
-            if (session.user) {
-                this.currentUser = session.user;
-                this.isInitialized = true;
-                
-                // 🚀 CRITICAL: Initialize databases immediately during restoration
-                try {
-                    await this.setupDatabases();
-                    
-                    // Emit authentication event
-                    this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                    
-                    return {
-                        success: true,
-                        user: { username: session.user.username },
-                        sessionType: hasRememberMe ? 'persistent' : 'session',
-                        databasesReady: true
-                    };
-                } catch (dbError) {
-                    console.error('❌ Database setup failed during restoration:', dbError);
-                    return {
-                        success: true, // Session restored but database setup failed
-                        user: { username: session.user.username },
-                        sessionType: hasRememberMe ? 'persistent' : 'session',
-                        databasesReady: false,
-                        dbError: dbError.message
-                    };
-                }
-            } else {
-                return {
-                    success: false,
-                    error: 'No valid session found'
-                };
-            }
-        } catch (error) {
-            console.error('Session restoration failed:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    }
+    async restoreSession() { return await this.auth.restoreSession(); }
 
-    /**
-     * Initialize Userbase connection with retry logic
-     * @param {string} appId - Userbase application ID
-     */
     /**
      * Initialize the database connection - follows Userbase SDK specification exactly
      * @param {string} appId - Userbase app ID
      * @returns {Promise<void>}
      */
-    async initialize(appId) {
-        if (this.isInitialized) {
-            return;
-        }
-
-        try {
-            
-            // Check if Userbase SDK is available
-            if (typeof window.userbase === 'undefined') {
-                console.error('❌ Userbase SDK not loaded!');
-                throw new Error('Userbase SDK not loaded. Make sure userbase.js is loaded before app.js');
-            }
-
-            this.appId = appId;
-            
-            // Follow SDK specification exactly - let Userbase handle session resumption
-            let session;
-            try {
-                session = await window.userbase.init({
-                    appId,
-                    sessionLength: 24,  // Hours - extend session if resuming
-                    updateUserHandler: (user) => {
-                        this.currentUser = user;
-                        this.eventBus.emit('database:userUpdated', { user });
-                    }
-                });
-            } catch (initError) {
-                if (initError.message.includes('AppIdAlreadySet') || 
-                    initError.message.includes('Application ID already set')) {
-                    
-                    // Use existing session if available
-                    if (window.userbase.user) {
-                        session = { user: window.userbase.user };
-                    } else {
-                        session = { user: null };
-                    }
-                } else {
-                    throw initError;
-                }
-            }
-            
-            // Simple session check - trust Userbase's session management completely
-            if (session.user) {
-                this.currentUser = session.user;
-                await this.setupDatabases();
-                this.eventBus.emit('database:authenticated', { user: this.currentUser });
-            } else {
-                this.currentUser = null;
-            }
-            
-            this.isInitialized = true;
-            
-            this.eventBus.emit('database:initialized', { 
-                appId,
-                hasSession: !!session.user,
-                timestamp: new Date().toISOString() 
-            });
-
-            // Start periodic check for new shared databases
-            this.startSharedDatabaseMonitoring();
-            
-        } catch (error) {
-            console.error('❌ Database initialization failed:', error);
-            this.eventBus.emit('database:error', { 
-                error: error.message,
-                phase: 'initialization'
-            });
-            throw error;
-        }
-    }
+    async initialize(appId) { return await this.auth.initialize(appId); }
 
     sleep(ms) { return this.sdk.sleep(ms); }
 
@@ -283,57 +121,7 @@ export class ContactDatabase {
      * @param {boolean} [rememberMe=false] - Session persistence preference
      * @returns {Promise<Object>} Signup result
      */
-    async signUp(username, password, email = null, profile = null, rememberMe = false) {
-        try {
-            // The auth modal can be reached before userbase.init() ran on this
-            // page load (SDK loaded late, or an earlier init attempt failed);
-            // the SDK would reject signUp with AppIdNotSet. Initialize first.
-            if (!this.isInitialized) {
-                await this.initialize(USERBASE_CONFIG.appId);
-            }
-
-            const signUpParams = {
-                username,
-                password,
-                rememberMe: rememberMe ? 'local' : 'session',
-                sessionLength: rememberMe ? 720 : 24 // Hours - 720h (30 days) for persistent, 24h for session
-            };
-            
-            // Add optional parameters if provided
-            if (email) signUpParams.email = email;
-            if (profile) signUpParams.profile = profile;
-            
-            const result = await userbase.signUp(signUpParams);
-
-            // The SDK writes the new session only to the storage matching rememberMe;
-            // remove any stale record from the other storage so it cannot be resumed
-            if (rememberMe) {
-                sessionStorage.removeItem('userbaseCurrentSession');
-            } else {
-                localStorage.removeItem('userbaseCurrentSession');
-            }
-
-            this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
-
-            // Persist session preference so hasStoredSession() / restoreSession() can read it
-            if (rememberMe) {
-                localStorage.setItem('userbase-remember-me', 'true');
-                sessionStorage.removeItem('userbase-session-only');
-            } else {
-                localStorage.removeItem('userbase-remember-me');
-                sessionStorage.setItem('userbase-session-only', 'true');
-            }
-
-            await this.setupDatabases();
-            
-            this.eventBus.emit('database:authenticated', { user: this.currentUser });
-            return { success: true, user: this.currentUser };
-        } catch (error) {
-            console.error('Sign up failed:', error);
-            this.eventBus.emit('database:error', { error: error.message });
-            return { success: false, error: error.message };
-        }
-    }
+    async signUp(username, password, email = null, profile = null, rememberMe = false) { return await this.auth.signUp(username, password, email, profile, rememberMe); }
 
     /**
      * Sign in existing user - follows Userbase SDK specification exactly
@@ -342,104 +130,13 @@ export class ContactDatabase {
      * @param {boolean} [rememberMe=false] - Session persistence preference
      * @returns {Promise<Object>} Signin result
      */
-    async signIn(username, password, rememberMe = false) {
-        try {
-            // Same AppIdNotSet protection as signUp: ensure the SDK has an
-            // app ID before calling into it
-            if (!this.isInitialized) {
-                await this.initialize(USERBASE_CONFIG.appId);
-            }
-            
-            // Follow SDK specification exactly - no custom session tracking
-            const result = await userbase.signIn({
-                username,
-                password,
-                rememberMe: rememberMe ? 'local' : 'session',
-                sessionLength: rememberMe ? 720 : 24 // Hours - 720h (30 days) for persistent, 24h for session
-            });
-
-            // The SDK writes the new session only to the storage matching rememberMe;
-            // remove any stale record from the other storage so it cannot be resumed
-            if (rememberMe) {
-                sessionStorage.removeItem('userbaseCurrentSession');
-            } else {
-                localStorage.removeItem('userbaseCurrentSession');
-            }
-
-            this.currentUser = result.user || result; // Handle both wrapped and unwrapped user objects
-
-            // Persist session preference so hasStoredSession() / restoreSession() can read it
-            if (rememberMe) {
-                localStorage.setItem('userbase-remember-me', 'true');
-                sessionStorage.removeItem('userbase-session-only');
-            } else {
-                localStorage.removeItem('userbase-remember-me');
-                sessionStorage.setItem('userbase-session-only', 'true');
-            }
-
-            await this.setupDatabases();
-            
-            this.eventBus.emit('database:authenticated', { user: this.currentUser });
-            
-            return { 
-                success: true, 
-                user: this.currentUser,
-                sessionType: rememberMe ? 'persistent' : 'session'
-            };
-        } catch (error) {
-            console.error('Sign in failed:', error);
-            
-            // Handle UserAlreadySignedIn gracefully
-            if (error.name === 'UserAlreadySignedIn') {
-                
-                if (this.currentUser) {
-                    await this.setupDatabases();
-                    this.eventBus.emit('database:authenticated', { user: this.currentUser });
-                    return { success: true, user: this.currentUser };
-                }
-            }
-            
-            this.eventBus.emit('database:error', { error: error.message });
-            return { success: false, error: error.message };
-        }
-    }
+    async signIn(username, password, rememberMe = false) { return await this.auth.signIn(username, password, rememberMe); }
 
     /**
      * Sign out current user - follows Userbase SDK specification exactly
      * @returns {Promise<Object>} Signout result
      */
-    async signOut() {
-        try {
-            
-            // Let Userbase handle the logout completely - no manual storage clearing
-            await userbase.signOut();
-
-            // The SDK only invalidates the session matching the current rememberMe setting;
-            // remove both session records so no stale one can be resumed in a new tab
-            sessionStorage.removeItem('userbaseCurrentSession');
-            localStorage.removeItem('userbaseCurrentSession');
-
-            // Only clear application-specific state
-            this.currentUser = null;
-            this.clearSessionData();
-            this.changeHandlers.clear();
-            
-            this.eventBus.emit('database:signedOut', {});
-            return { success: true };
-        } catch (error) {
-            // Handle "Not signed in" gracefully per SDK docs
-            if (error.message && error.message.includes('Not signed in')) {
-                this.currentUser = null;
-                this.clearSessionData();
-                this.eventBus.emit('database:signedOut', {});
-                return { success: true };
-            }
-            
-            console.error('❌ Sign out failed:', error);
-            this.eventBus.emit('database:error', { error: error.message });
-            return { success: false, error: error.message };
-        }
-    }
+    async signOut() { return await this.auth.signOut(); }
 
     /**
      * Setup user databases with change handlers
@@ -1444,37 +1141,13 @@ export class ContactDatabase {
      * @param {string} verificationMessage - The verification message from the user being verified
      * @returns {Promise<Object>} Verification result
      */
-    async verifyUser(verificationMessage) {
-        try {
-            
-            await userbase.verifyUser({
-                verificationMessage: verificationMessage.trim()
-            });
-            
-            return { success: true };
-            
-        } catch (error) {
-            console.error(`❌ User verification failed:`, error);
-            return { success: false, error: error.message };
-        }
-    }
+    async verifyUser(verificationMessage) { return await this.auth.verifyUser(verificationMessage); }
 
     /**
      * Get current user's verification message for sharing with others
      * @returns {Promise<Object>} Verification message result
      */
-    async getVerificationMessage() {
-        try {
-            
-            const result = await userbase.getVerificationMessage();
-            
-            return { success: true, verificationMessage: result.verificationMessage };
-            
-        } catch (error) {
-            console.error(`❌ Failed to get verification message:`, error);
-            return { success: false, error: error.message };
-        }
-    }
+    async getVerificationMessage() { return await this.auth.getVerificationMessage(); }
 
 
     /**
@@ -1856,24 +1529,7 @@ export class ContactDatabase {
      *
      * @returns {Promise<boolean>} true when a session-only login was rejected
      */
-    async rejectSessionOnlyLogin() {
-        if (sessionStorage.getItem('userbase-session-only') !== 'true' || this.currentUser) {
-            return false;
-        }
-
-        this.clearSessionData();
-        try { localStorage.removeItem('userbaseCurrentSession'); } catch (e) {}
-        try { sessionStorage.removeItem('userbaseCurrentSession'); } catch (e) {}
-        try {
-            if (typeof userbase !== 'undefined' && userbase) {
-                await userbase.signOut();
-            }
-        } catch (e) {
-            // signOut before userbase.init() throws — storage is already
-            // cleared, so the session cannot be restored anyway
-        }
-        return true;
-    }
+    async rejectSessionOnlyLogin() { return await this.auth.rejectSessionOnlyLogin(); }
 
     /**
      * Generate unique item ID using UUID v4
@@ -2270,15 +1926,5 @@ export class ContactDatabase {
      *
      * @returns {Object} Connection status
      */
-    getConnectionStatus() {
-        const hasRememberMe = localStorage.getItem('userbase-remember-me') === 'true';
-
-        return {
-            isInitialized: this.isInitialized,
-            isAuthenticated: !!this.currentUser,
-            currentUser: this.currentUser?.username,
-            sessionType: hasRememberMe ? 'persistent' : 'session',
-            activeDatabases: Array.from(this.changeHandlers.keys())
-        };
-    }
+    getConnectionStatus() { return this.auth.getConnectionStatus(); }
 }
