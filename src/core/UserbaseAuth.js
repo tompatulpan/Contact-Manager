@@ -17,6 +17,13 @@
  * - The SDK writes its session record only to the storage matching
  *   rememberMe; the stale record in the other storage is removed so it can
  *   never be resumed.
+ * - sessionLength passed to userbase.init must be 720 (30 days, the SDK
+ *   max): the SDK's session-resume POSTs it to the server on EVERY page
+ *   refresh and re-stamps the session's expirationDate with the result. With
+ *   the old value of 24, a "keep me signed in" login silently expired after
+ *   24h since the last refresh. Session-only logins never reach init-resume
+ *   (rejectSessionOnlyLogin runs first), so this only ever extends
+ *   persistent sessions — exactly the intent.
  * - getConnectionStatus() is a pure query; the destructive cleanup lives in
  *   rejectSessionOnlyLogin() / signOut().
  */
@@ -67,7 +74,11 @@ export class UserbaseAuth {
             try {
                 session = await window.userbase.init({
                     appId,
-                    sessionLength: 24,  // Hours - extend session if resuming
+                    // 720h (30 days, SDK max): the SDK re-extends a resumed
+                    // session to this length on every app start. Must match
+                    // the remember-me sign-in length, or persistent logins
+                    // silently expire 24h after the last refresh.
+                    sessionLength: 720,
                     updateUserHandler: (user) => {
                         this.deps.setUser(user);
                         this.eventBus.emit('database:userUpdated', { user });
@@ -184,6 +195,9 @@ export class UserbaseAuth {
             // ✅ SDK COMPLIANT: Use proper async/await instead of Promise constructor
             const session = await userbase.init({
                 appId: this.deps.getAppId(),
+                // Must be 720 (see class doc): init-resume re-stamps the
+                // session's expirationDate with this length
+                sessionLength: 720,
                 updateUserHandler: (user) => {
                     this.deps.setUser(user);
                     this.eventBus.emit('database:userUpdated', { user });

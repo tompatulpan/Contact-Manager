@@ -27,7 +27,11 @@ describe('ContactDatabase — SDK wrapper forwarding', () => {
             'initialize', 'hasStoredSession', 'restoreSession',
             'signUp', 'signIn', 'signOut',
             'verifyUser', 'getVerificationMessage',
-            'rejectSessionOnlyLogin', 'getConnectionStatus'
+            'rejectSessionOnlyLogin', 'getConnectionStatus',
+            // discovery layer delegators
+            'getAllSharedContactDatabases', 'getAllSharedContactDatabasesCached',
+            'invalidateSharedDatabaseCache', 'checkForNewSharedDatabases',
+            'startSharedDatabaseMonitoring'
         ];
         const missing = delegated.filter(name => typeof ContactDatabase.prototype[name] !== 'function');
         expect(missing).toEqual([]);

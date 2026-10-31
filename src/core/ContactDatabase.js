@@ -1,6 +1,7 @@
 import { IndividualSharingStrategy } from './IndividualSharingStrategy.js';
 import { UserbaseSDKWrapper } from './UserbaseSDKWrapper.js';
 import { UserbaseAuth } from './UserbaseAuth.js';
+import { SharedDatabaseDiscovery } from './SharedDatabaseDiscovery.js';
 import { PERFORMANCE_CONFIG, USERBASE_CONFIG } from '../config/app.config.js';
 
 /**
@@ -76,6 +77,23 @@ export class ContactDatabase {
             clearChangeHandlers: () => this.changeHandlers.clear(),
             startSharedDatabaseMonitoring: () => this.startSharedDatabaseMonitoring(),
             getActiveDatabases: () => Array.from(this.changeHandlers.keys())
+        });
+
+        // Discovery layer (see SharedDatabaseDiscovery): listing, TTL cache
+        // and periodic monitoring of shared contact databases. Its state
+        // (sharedDatabaseCache, lastKnownSharedCount, openedSharedDatabases,
+        // timer ids) stays on this instance via the injected accessors.
+        this.discovery = new SharedDatabaseDiscovery({
+            safeGetDatabases: (options, context) => this.sdk.safeGetDatabases(options, context),
+            getCache: () => this.sharedDatabaseCache,
+            setCache: (cache) => { this.sharedDatabaseCache = cache; },
+            getLastKnownCount: () => this.lastKnownSharedCount,
+            setLastKnownCount: (count) => { this.lastKnownSharedCount = count; },
+            getOpenedSharedDatabases: () => this.openedSharedDatabases,
+            setMonitorTimer: (id) => { this.sharedDatabaseMonitor = id; },
+            setFallbackTimer: (id) => { this.sharedContactFallbackSync = id; },
+            onNewDatabases: async (owned, received) => { await this.setupSpecificSharedDatabases(owned, received); },
+            performFallbackSharedContactSync: async () => { await this.performFallbackSharedContactSync(); }
         });
     }
 
@@ -1311,40 +1329,13 @@ export class ContactDatabase {
      * @param {boolean} [forceRefresh=false] - Force refresh cache
      * @returns {Promise<Object>} Object with ownedSharedDatabases and receivedSharedDatabases arrays
      */
-    async getAllSharedContactDatabasesCached(forceRefresh = false) {
-        const now = Date.now();
-        
-        // Check if cache is valid and not forcing refresh
-        if (!forceRefresh && 
-            this.sharedDatabaseCache.isValid && 
-            this.sharedDatabaseCache.lastFetch && 
-            (now - this.sharedDatabaseCache.lastFetch) < this.sharedDatabaseCache.ttl) {
-            
-            return this.sharedDatabaseCache.data;
-        }
-        
-        // Fetch fresh data
-        const result = await this.getAllSharedContactDatabases();
-        
-        // Update cache
-        this.sharedDatabaseCache = {
-            lastFetch: now,
-            data: result,
-            isValid: result.success,
-            ttl: this.sharedDatabaseCache.ttl
-        };
-        
-        return result;
-    }
+    async getAllSharedContactDatabasesCached(forceRefresh = false) { return await this.discovery.getAllSharedContactDatabasesCached(forceRefresh); }
 
     /**
      * 🚀 PERFORMANCE: Invalidate shared database cache
      * Call this when you know the shared database list has changed
      */
-    invalidateSharedDatabaseCache() {
-        this.sharedDatabaseCache.isValid = false;
-        this.sharedDatabaseCache.data = null;
-    }
+    invalidateSharedDatabaseCache() { return this.discovery.invalidateSharedDatabaseCache(); }
 
     /**
      * Get all shared contact databases (both owned and received) - CRITICAL for cross-device sharing
@@ -1353,49 +1344,7 @@ export class ContactDatabase {
      * @param {string} [options.databaseId] - Specific database ID to retrieve
      * @returns {Promise<Object>} Object with ownedSharedDatabases and receivedSharedDatabases arrays
      */
-    async getAllSharedContactDatabases(options = null) {
-        try {
-            // ✅ SDK COMPLIANT: Pass optional parameters to getDatabases only when specified
-            const result = options ? await userbase.getDatabases(options) : await userbase.getDatabases();
-            
-            // SDK guarantees this format: { databases: [...] }
-            if (!result || !Array.isArray(result.databases)) {
-                console.warn('⚠️ Unexpected databases format from SDK:', result);
-                return { success: true, ownedSharedDatabases: [], receivedSharedDatabases: [] };
-            }
-            
-            const databasesArray = result.databases;
-            
-            // Filter for shared contact databases
-            const sharedContactDatabases = databasesArray.filter(db => 
-                db.databaseName.startsWith('shared-contact-')
-            );
-            
-            // ✅ SDK COMPLIANT: Log all SDK properties for debugging compliance
-            if (sharedContactDatabases.length > 0) {
-            }
-            
-            // Separate owned vs received shared databases
-            const ownedSharedDatabases = sharedContactDatabases.filter(db => db.isOwner);
-            const receivedSharedDatabases = sharedContactDatabases.filter(db => !db.isOwner);
-            
-            return { 
-                success: true, 
-                ownedSharedDatabases,
-                receivedSharedDatabases
-            };
-        } catch (error) {
-            // ✅ SDK COMPLIANT: Handle specific getDatabases() errors per spec
-            this.handleGetDatabasesError(error, 'getAllSharedContactDatabases');
-            
-            return { 
-                success: false, 
-                error: error.message,
-                ownedSharedDatabases: [],
-                receivedSharedDatabases: []
-            };
-        }
-    }
+    async getAllSharedContactDatabases(options = null) { return await this.discovery.getAllSharedContactDatabases(options); }
 
     /**
      * Update user settings
@@ -1578,83 +1527,12 @@ export class ContactDatabase {
     /**
      * Start monitoring for new shared databases
      */
-    startSharedDatabaseMonitoring() {
-        // 🚀 PERFORMANCE: Add initial delay to avoid immediate redundant call after setup
-        setTimeout(() => {
-            // Check periodically for new shared databases
-            this.sharedDatabaseMonitor = setInterval(async () => {
-                try {
-                    await this.checkForNewSharedDatabases();
-                } catch (error) {
-                    console.error('🔄 Error checking for new shared databases:', error);
-                }
-            }, PERFORMANCE_CONFIG.sharedDatabaseCheckInterval); // 10 seconds
-        }, PERFORMANCE_CONFIG.sharedDatabaseCheckDelay); // Start monitoring after 15 seconds to allow initial setup to complete
-        
-        // 🛡️ SAFETY NET: Hourly fallback sync for shared contacts
-        // This catches any WebSocket updates that may have been dropped due to:
-        // - syncInProgress blocking (now fixed, but extra safety)
-        // - Network issues
-        // - Browser background tab throttling
-        // - Unknown edge cases
-        setTimeout(() => {
-            this.sharedContactFallbackSync = setInterval(async () => {
-                try {
-                    await this.performFallbackSharedContactSync();
-                } catch (error) {
-                    console.error('🔄 Error in fallback shared contact sync:', error);
-                }
-            }, PERFORMANCE_CONFIG.sharedContactFallbackInterval); // 1 hour (60 * 60 * 1000)
-        }, PERFORMANCE_CONFIG.sharedContactFallbackDelay); // Start after 5 minutes (don't run immediately on startup)
-    }
+    startSharedDatabaseMonitoring() { return this.discovery.startSharedDatabaseMonitoring(); }
 
     /**
      * 🚀 PERFORMANCE: Check for new shared databases with smart caching and differential updates
      */
-    async checkForNewSharedDatabases() {
-        try {
-            // Use cached data with forced refresh for monitoring
-            const allDatabases = await this.getAllSharedContactDatabasesCached(true);
-            if (!allDatabases.success) {
-                // Don't log "Not signed in" as an error since it's expected before authentication
-                if (allDatabases.error !== 'Not signed in.') {
-                }
-                return;
-            }
-            
-            const { ownedSharedDatabases, receivedSharedDatabases } = allDatabases;
-            const totalSharedCount = ownedSharedDatabases.length + receivedSharedDatabases.length;
-            
-            // Check if we have new shared databases
-            const currentSharedCount = this.lastKnownSharedCount || 0;
-            
-            if (totalSharedCount > currentSharedCount) {
-                
-                // 🚀 PERFORMANCE: Only setup NEW databases, not all databases
-                const newOwnedDatabases = ownedSharedDatabases.filter(db => 
-                    !this.openedSharedDatabases.has(db.databaseName));
-                const newReceivedDatabases = receivedSharedDatabases.filter(db => 
-                    !this.openedSharedDatabases.has(db.databaseId));
-                
-                if (newOwnedDatabases.length > 0 || newReceivedDatabases.length > 0) {
-                    
-                    // Setup only new databases instead of all databases
-                    await this.setupSpecificSharedDatabases(newOwnedDatabases, newReceivedDatabases);
-                }
-                
-                this.lastKnownSharedCount = totalSharedCount;
-                
-            } else if (totalSharedCount < currentSharedCount) {
-                // Handle case where shared databases were removed
-                this.lastKnownSharedCount = totalSharedCount;
-                
-                // TODO: Clean up opened database tracking for removed databases
-            }
-            
-        } catch (error) {
-            console.error('🔄 Error checking for new shared databases:', error);
-        }
-    }
+    async checkForNewSharedDatabases() { return await this.discovery.checkForNewSharedDatabases(); }
 
     /**
      * 🛡️ SAFETY NET: Fallback sync for shared contacts (hourly)

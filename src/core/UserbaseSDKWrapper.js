@@ -7,7 +7,7 @@
  * - transient-error retries with exponential backoff
  *
  * Not every userbase.* call goes through this layer yet: session/auth calls
- * (init, signIn, signUp, signOut), openDatabase and getDatabases are still
+ * live in UserbaseAuth, and openDatabase (change-handler wiring) is still
  * called directly from ContactDatabase. ContactDatabase keeps thin
  * delegating methods for everything here so callers and tests keep their
  * existing API.
@@ -1088,6 +1088,23 @@ export class UserbaseSDKWrapper {
             
         } catch (error) {
             this.handleModifyDatabasePermissionsError(error, context);
+            throw error;
+        }
+    }
+
+    /**
+     * ✅ SDK COMPLIANT: Safe getDatabases wrapper
+     * Per SDK docs, getDatabases() can throw: UserNotSignedIn, TooManyRequests, ServiceUnavailable
+     * @param {Object|null} [options] - Optional parameters passed to getDatabases
+     * @param {string} context - Context for error reporting
+     * @returns {Promise<Object>} SDK result ({ databases: [...] })
+     */
+    async safeGetDatabases(options = null, context) {
+        try {
+            // ✅ SDK COMPLIANT: Pass optional parameters only when specified
+            return options ? await userbase.getDatabases(options) : await userbase.getDatabases();
+        } catch (error) {
+            this.handleGetDatabasesError(error, context);
             throw error;
         }
     }

@@ -151,4 +151,34 @@ describe('UserbaseAuth — session preferences', () => {
         expect(calls.clearSessionData).toBe(1);
         expect(calls.clearChangeHandlers).toBe(1);
     });
+
+    it('initialize passes sessionLength 720 to userbase.init (regression: 24h silently expired persistent logins)', async () => {
+        const initCalls = [];
+        globalThis.userbase.init = async (params) => {
+            initCalls.push(params);
+            return { user: null };
+        };
+        globalThis.window.userbase = globalThis.userbase;
+
+        await auth.initialize('my-app-id');
+
+        expect(initCalls).toHaveLength(1);
+        expect(initCalls[0].sessionLength).toBe(720);
+        expect(initCalls[0].appId).toBe('my-app-id');
+    });
+
+    it('restoreSession passes sessionLength 720 to userbase.init', async () => {
+        localStorage.setItem('userbase-remember-me', 'true');
+        const initCalls = [];
+        globalThis.userbase.init = async (params) => {
+            initCalls.push(params);
+            return { user: { username: 'alice' } };
+        };
+
+        const result = await auth.restoreSession();
+
+        expect(result.success).toBe(true);
+        expect(initCalls).toHaveLength(1);
+        expect(initCalls[0].sessionLength).toBe(720);
+    });
 });
