@@ -3924,6 +3924,12 @@ export class ContactUIController {
         if (this.elements.shareUsernameInput) {
             this.elements.shareUsernameInput.value = '';
         }
+
+        // Collapse the optional verify-recipient step
+        const verifyDetails = document.getElementById('share-verify-details');
+        if (verifyDetails) {
+            verifyDetails.removeAttribute('open');
+        }
     }
 
     /**
@@ -4288,6 +4294,10 @@ export class ContactUIController {
         }
         
         verificationStatus.innerHTML = `${icon} <span>${html ? message : this.escapeHtml(message)}</span>`;
+
+        // On small screens the status can appear off-screen (e.g. after
+        // tapping Verify inside the collapsible step) — bring it into view
+        verificationStatus.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     /**

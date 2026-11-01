@@ -523,6 +523,59 @@
         color: var(--primary-contrast);
     }
 
+    /* Collapsible "Verify recipient" step */
+    .share-verify-details {
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--bg-secondary);
+    }
+
+    .share-verify-details summary {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: 0.75rem 0.9rem;
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--text-primary);
+        list-style: none;
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+
+    .share-verify-details summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .share-verify-details summary > i:first-child {
+        color: var(--primary-color);
+    }
+
+    .share-verify-details summary small {
+        color: var(--text-secondary);
+        font-weight: 400;
+    }
+
+    .share-verify-details .details-chevron {
+        margin-left: auto;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        transition: transform 0.2s;
+    }
+
+    .share-verify-details[open] .details-chevron {
+        transform: rotate(180deg);
+    }
+
+    .share-verify-details[open] summary {
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .share-verify-details .form-group {
+        padding: 0.75rem 0.9rem;
+        margin-bottom: 0;
+    }
+
     /* Form Section */
     .form-section {
         margin-bottom: 20px;
@@ -593,70 +646,6 @@
         font-size: 0.75rem;
         color: var(--text-secondary);
         text-align: center;
-    }
-
-    /* ========== URL GUIDANCE & VALIDATION ========== */
-    .url-guidance {
-        margin-top: 6px;
-        padding: 10px;
-        background-color: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        font-size: 0.85em;
-        line-height: 1.4;
-    }
-
-    .url-guidance strong {
-        color: var(--text-secondary);
-        font-weight: 600;
-    }
-
-    .url-validation {
-        margin-top: 8px;
-        padding: 12px;
-        border-radius: var(--radius-sm);
-        font-size: 0.9em;
-        line-height: 1.4;
-        border: 1px solid;
-        animation: fadeIn 0.3s ease-in;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-5px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .url-validation strong {
-        font-weight: 600;
-    }
-
-    .url-validation small {
-        font-size: 0.85em;
-        opacity: 0.9;
-    }
-
-    .url-validation.url-success {
-        background-color: color-mix(in srgb, var(--success-color) 14%, var(--surface-color));
-        color: color-mix(in srgb, var(--success-color) 70%, var(--text-primary));
-        border-color: color-mix(in srgb, var(--success-color) 35%, transparent);
-    }
-
-    .url-validation.url-warning {
-        background-color: color-mix(in srgb, var(--warning-color) 14%, var(--surface-color));
-        color: color-mix(in srgb, var(--warning-color) 70%, var(--text-primary));
-        border-color: color-mix(in srgb, var(--warning-color) 35%, transparent);
-    }
-
-    .url-validation.url-info {
-        background-color: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
-        color: color-mix(in srgb, var(--primary-color) 70%, var(--text-primary));
-        border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
-    }
-
-    .url-validation.url-error {
-        background-color: color-mix(in srgb, var(--error-color) 14%, var(--surface-color));
-        color: color-mix(in srgb, var(--error-color) 70%, var(--text-primary));
-        border-color: color-mix(in srgb, var(--error-color) 35%, transparent);
     }
 
     /* Share sections are toggled by JS via .active class */
@@ -914,6 +903,74 @@
             margin-bottom: 1rem !important;
             width: 100% !important;
             word-break: break-word !important;
+        }
+
+        /* Share modal: stack input + action button so the input keeps full width */
+        .modal .share-form .input-group {
+            flex-wrap: wrap !important;
+            gap: 0.5rem !important;
+        }
+
+        .modal .share-form .input-group input,
+        .modal .share-form .input-group select {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            border-radius: var(--radius-sm) !important;
+        }
+
+        .modal .share-form .input-group .btn {
+            flex: 1 1 100% !important;
+            border-radius: var(--radius-sm) !important;
+            min-height: 44px !important;
+            justify-content: center !important;
+        }
+
+        /* Share modal: tighter rhythm than the generic 1.5rem form-group spacing */
+        .modal .share-form .form-group {
+            margin-bottom: 1rem !important;
+        }
+
+        .modal .share-form .share-verify-details {
+            margin-bottom: 1rem !important;
+        }
+
+        /* Compact contact preview inside the share modal */
+        .modal .contact-preview {
+            padding: 0.6rem 0.75rem !important;
+            margin-bottom: 1rem !important;
+        }
+
+        .modal .contact-preview .contact-name {
+            font-size: 1.05rem !important;
+        }
+
+        .modal .contact-preview .contact-detail {
+            font-size: 0.85rem !important;
+            margin-top: 0.1rem !important;
+        }
+
+        /* Share type tabs: single row, comfortable tap targets */
+        .modal .share-type-tabs {
+            gap: 0.5rem !important;
+            margin-bottom: 1rem !important;
+        }
+
+        .modal .share-type-tab {
+            padding: 0.6rem 0.5rem !important;
+            font-size: 0.9rem !important;
+            min-height: 44px !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Share actions: two equal, touch-friendly buttons */
+        .modal .share-form .form-actions {
+            gap: 0.5rem !important;
+        }
+
+        .modal .share-form .form-actions .btn {
+            flex: 1 !important;
+            min-height: 44px !important;
+            justify-content: center !important;
         }
 
         /* Distribution list error details formatting for mobile */
