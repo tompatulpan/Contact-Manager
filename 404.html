@@ -760,20 +760,13 @@
                                     <!-- Contact preview will be populated here -->
                                 </div>
                             </div>
-                            
-                            <div class="share-info">
-                                <div class="info-box">
-                                    <i class="fas fa-info-circle"></i>
-                                    <p>Enter one or more usernames (comma-separated) to share this contact. Each user gets individual access that can be revoked separately.</p>
-                                </div>
-                            </div>
-                            
+
                             <div class="form-group">
                                 <label for="share-username">Share with Username(s) *</label>
                                 <div class="input-group">
                                     <input type="text" id="share-username" name="recipientUsernames"
                                            autocomplete="off" autocapitalize="none" spellcheck="false"
-                                           placeholder="Enter username(s), comma-separated..." required>
+                                           placeholder="username (separate several with commas)" required>
                                     <button type="button" id="get-verification-btn" class="btn btn-secondary">
                                         <i class="fas fa-key"></i> Get My Code
                                     </button>
@@ -782,21 +775,29 @@
                                     <!-- Verification status will be shown here -->
                                 </div>
                                 <div class="field-error" id="share-username-error"></div>
-                                
-                                <div class="form-group" style="margin-top: 16px;">
-                                    <label for="verification-message">Verification Message (Optional)</label>
+                            </div>
+
+                            <details id="share-verify-details" class="share-verify-details">
+                                <summary>
+                                    <i class="fas fa-shield-check"></i>
+                                    <span>Verify recipient first <small>(optional, recommended)</small></span>
+                                    <i class="fas fa-chevron-down details-chevron"></i>
+                                </summary>
+                                <div class="form-group">
+                                    <label for="verification-message">Recipient's Verification Message</label>
                                     <div class="input-group">
-                                        <input type="text" id="verification-message" name="verificationMessage" 
-                                               placeholder="Enter verification message from the user...">
+                                        <input type="text" id="verification-message" name="verificationMessage"
+                                               autocomplete="off" autocapitalize="none" spellcheck="false"
+                                               placeholder="Paste the code from the recipient">
                                         <button type="button" id="verify-user-btn" class="btn btn-secondary">
                                             <i class="fas fa-shield-check"></i> Verify
                                         </button>
                                     </div>
                                     <small class="field-help">
-                                        For secure sharing, ask the recipient for their verification message and enter it here.
+                                        Ask the recipient for their code (Get My Code in their app) and paste it here. This proves the username really belongs to them before you share.
                                     </small>
                                 </div>
-                            </div>
+                            </details>
                         </div>
 
                         <!-- Share with Sharing List -->
@@ -807,14 +808,7 @@
                                     <!-- Contact preview will be populated here -->
                                 </div>
                             </div>
-                            
-                            <div class="share-info">
-                                <div class="info-box">
-                                    <i class="fas fa-info-circle"></i>
-                                    <p><strong>Sharing lists are convenience only</strong> - The contact will be shared individually with each user. All users will appear separately in the contact's sharing list.</p>
-                                </div>
-                            </div>
-                            
+
                             <div class="form-group">
                                 <label for="share-with-distribution-list">Select Sharing List *</label>
                                 <select id="share-with-distribution-list" name="shareWithList">
@@ -822,26 +816,25 @@
                                 </select>
                                 <div class="field-error" id="share-with-distribution-list-error"></div>
                             </div>
-                            
+
                             <div id="share-list-preview" class="distribution-list-preview" style="display: none;">
                                 <h4><i class="fas fa-users"></i> Each user will receive the contact individually:</h4>
                                 <div id="share-list-users" class="distribution-list-contacts">
                                     <!-- Users will be populated here -->
                                 </div>
-                                <p class="form-help-text" style="margin-top: 8px; font-size: 0.9em; color: #666;">
-                                    💡 You can revoke access from each user separately after sharing.
+                                <p class="field-help">
+                                    You can revoke access from each user separately after sharing.
                                 </p>
                             </div>
                         </div>
 
-                        <p class="form-help-text">Shared contacts are read-only and cannot be reshared.</p>
-                        
-                            <div class="share-info">
-                                <div class="info-box">
-                                    <i class="fas fa-info-circle"></i>
-                                    <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. Shared contacts are read-only and cannot be reshared. Use comma-separated usernames or groups for convenience.</p>
-                                </div>
-                            </div>                        <div class="form-actions">
+                        <div class="share-info">
+                            <div class="info-box">
+                                <i class="fas fa-info-circle"></i>
+                                <p id="share-info-text">Each recipient will see this contact in their "Shared with Me" section. Shared contacts are read-only and cannot be reshared.</p>
+                            </div>
+                        </div>
+                        <div class="form-actions">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary" id="share-submit-btn">
                                 <i class="fas fa-share"></i>

@@ -14,7 +14,7 @@ I started this project because I was frustrated with how messy and inaccurate my
 - What if YOUR contact card updated itself in everyone's phone?
 - That's what we built ✨
 - Never text the wrong number again.
-- Try  → [it here](https://e2econtacts.org)
+- Try it → [here](https://e2econtacts.org)
 
 A secure, modular contact management system with:
 - End-to-end encrypted storage on [Userbase](https://github.com/smallbets/userbase)
@@ -26,29 +26,56 @@ A secure, modular contact management system with:
 ## Key Features
 
 - Create, edit, and organize contacts
-- Share contacts with users or groups (distribution lists)
+- Share contacts with users or groups (distribution lists); shared databases are auto-discovered on sign-in (`SharedDatabaseDiscovery`)
 - Archive, delete, and manage received/shared contacts
+- Ownership badges and smart filters (Owned / Shared / Imported / Recent / Archived)
 - Import contacts (vCard 3.0/4.0), export as vCard 3.0
-- QR code generation - Scan to easely import contacts
+- QR code generation - Scan to easily import contacts
 - Real-time updates and cross-device sync
 - **iCloud Sync** - Bidirectional CardDAV sync with Apple iCloud via a Cloudflare proxy Worker
+- Password policy enforced at sign-up (min. 12 characters, letters + numbers, confirmed twice)
+- Session management: "Keep me signed in" (30 days) or session-only login
 
-## Project Structure
-
-```
-src/                # Core business logic and UI components
-lib/                # Third-party SDKs (e.g., userbase.js)
-tests/              # Jest test suite (tests/icloud/, tests/worker/, tests/sharing/), manual debug pages (tests/manual/)
-scripts/            # Development and deployment shell scripts
-docs/               # Historical design notes and fix documentation (docs/archive/)
-cloudflare-worker/  # CardDAV CORS proxy Worker (iCloud sync)
-index.html          # Main entry point
-404.html            # Landing page for unknown routes
-style.css           # Styles
-mobile.css
-manifest.webmanifest # PWA manifest (home screen install)
-```
 ---
+
+## 🔗 iCloud Sync
+
+The only external sync target is Apple iCloud. Because iCloud's CardDAV endpoint does not send CORS headers, requests go through a small Cloudflare Worker (`cloudflare-worker/`) that only forwards to `contacts.icloud.com` / `caldav.icloud.com`, checks the request origin, and forwards conditional (ETag) headers so edits are never silently overwritten.
+
+```
+┌─────────────────────┐   HTTPS    ┌─────────────────────┐  CardDAV  ┌──────────────────┐
+│  Kontakt            │ ─────────► │  Cloudflare Worker  │ ────────► │  iCloud CardDAV  │
+│  (browser, E2E      │ ◄───────── │  carddav-proxy      │ ◄──────── │  contacts.icloud │
+│   encrypted store)  │            │  CORS + allowlist   │           │  .com            │
+└─────────────────────┘            └─────────────────────┘           └──────────────────┘
+```
+
+### Push (Kontakt → iCloud)
+- You create or edit a contact in the web app
+- `ICloudSyncService` PUTs the vCard 3.0 through the proxy Worker with `If-Match`/`If-None-Match`
+- iCloud serves it to your iPhone/iPad/Mac
+
+### Pull (iCloud → Kontakt)
+- You edit a contact on an Apple device
+- The periodic cycle REPORTs the addressbook, matches by vCard UID and ETag
+- Owned/imported cards are updated locally; shared cards are never overwritten (owner authority) and are force-pushed back
+
+### Quick Start
+```bash
+npm run serve   # http://localhost:8080
+```
+
+Open http://localhost:8080, sign in, and use the **iCloud Sync** button with your Apple ID email and an app-specific password (appleid.apple.com → Sign-In and Security → App-Specific Passwords). Credentials can be stored encrypted in the browser so auto-sync resumes after a reload.
+
+The proxy Worker is deployed separately:
+```bash
+cd cloudflare-worker && node_modules/.bin/wrangler deploy
+```
+
+See [ICLOUD_SYNC_REVIEW.md](docs/ICLOUD_SYNC_REVIEW.md) for the sync rules and [FEATURE_CLEANUP_AND_REVIEW.md](docs/FEATURE_CLEANUP_AND_REVIEW.md) for the cleanup plan.
+
+---
+
 ## Development
 
 - Contributions and feedback are welcome!
@@ -62,6 +89,14 @@ npm install
 # (requires Python 3; serves static files only, no live reload)
 npm run serve
 ```
+
+### Testing
+```bash
+# Run the Jest test suites (auth, sharing, iCloud sync, worker proxy, dedup, filters)
+# Note: uses --experimental-vm-modules for ESM support; `npx jest` alone will fail
+npm test
+```
+
 ### Caching & Versioning
 Browser caching is handled entirely by the `Cache-Control: no-cache` rule in
 `_headers`: Cloudflare Pages serves assets with ETags, so browsers revalidate
@@ -99,6 +134,36 @@ fish scripts/production_zip.sh && \
 >   ```
 
 ---
+
+## Project Structure
+
+```
+src/                # Application code
+  core/             # Business logic (ContactDatabase, ContactManager, UserbaseAuth,
+                    #   UserbaseSDKWrapper, SharedDatabaseDiscovery, vCard processors)
+  integrations/     # iCloud sync (ICloudSyncService, ICloudCardDAVClient)
+  ui/               # Controllers and components (incl. QR code generator)
+  utils/            # Secure credential storage, theme manager, event bus
+  styles/           # CSS (reset, tokens, layout, components, utilities)
+themes.css          # Colour theme definitions (imported by src/styles/main.css)
+lib/                # Third-party SDKs (e.g., userbase.js)
+tests/              # Jest test suites (auth, sdk-wrapper, discovery, dedup, filters,
+                    #   plus tests/icloud/, tests/worker/, tests/sharing/);
+                    #   manual debug pages in tests/manual/
+scripts/            # Development and deployment shell scripts
+docs/               # Design notes and reviews (SYNC_RULES, SECURITY_REVIEW,
+                    #   ICLOUD_SYNC_REVIEW, FEATURE_CLEANUP_AND_REVIEW, MIGRATION_PROGRESS);
+                    #   historical fix documentation in docs/archive/
+cloudflare-worker/  # CardDAV CORS proxy Worker (iCloud sync)
+tools/              # Maintenance and inspection helpers
+assets/             # Icons and screenshots
+index.html          # Main entry point
+404.html            # Landing page for unknown routes
+manifest.webmanifest # PWA manifest (home screen install)
+```
+
+---
+
 ## Roadmap
 
 - [x] QR code generation (for easy contact sharing with iOS/Android compatibility)
@@ -111,25 +176,30 @@ fish scripts/production_zip.sh && \
 - [x] **iCloud Sync** (bidirectional CardDAV, via proxy Worker)
 - [ ] Generic CardDAV servers (Baikal, Nextcloud, Radicale) — removed 2026-10-14; the old path was broken in production and untested. Re-adding it needs a generic proxy allowlist and tests.
 - [ ] Group list features (Rename, edit, copy, etc)
-- [ ] Create e-mail distrubution list
+- [ ] Create e-mail distribution list
 - [x] Bulk operations (Delete)
 - [ ] Multi-language support (i18n)
 - [ ] Advanced sharing permissions (cross edit contacts)
-- [x] Stay logged in feature
+- [x] Stay logged in feature (30-day "Keep me signed in" or session-only login)
 - [ ] Change password
-- [ ] Set passwords rules
+- [x] Set passwords rules (sign-up policy: min. 12 chars, letters + numbers, confirmed twice)
 - [x] Dark mode
 - [x] Colour themes (6 selectable looks, each with light + dark; see `themes.css` and the sidebar "Appearance" section)
 - [ ] Pictures as avatars
 - [x] Complete disaster recovery system via vCards
 
 ### Ideas
+
 - [x] A Progressive Web App (PWA)
 - [ ] An Electron or Tauri App
 - [x] Better integration on phones, iCloud/CardDAV support
 - [ ] Improve decentralization using userbase
 
-```  
+### Future architecture sketches
+
+Ideas for decentralization across Userbase instances (none of this is implemented yet):
+
+```
 ┌────────────────────────────────────────────────────┐
 │          Shared Userbase Application               │
 │              AppID: "contact-manager"              │
@@ -176,7 +246,7 @@ fish scripts/production_zip.sh && \
 │                     │ Channel │                     │
 └─────────────────────┘         └─────────────────────┘
            │                               │
-           └───────────┐     ┐─────────────┘
+           └───────────┐     ┌─────────────┘
                        ▼     ▼
                 ┌──────────────────┐
                 │  Signaling       │
@@ -194,47 +264,10 @@ fish scripts/production_zip.sh && \
 │                     │ Signed  │                     │
 │                     │ vCards  │                     │
 └─────────────────────┘         └─────────────────────┘
-
-
-```                
-### iCloud sync flow
-
-**Push (Kontakt → iCloud)**
-- You create or edit a contact in the web app
-- `ICloudSyncService` PUTs the vCard 3.0 through the proxy Worker with `If-Match`/`If-None-Match`
-- iCloud serves it to your iPhone/iPad/Mac
-
-**Pull (iCloud → Kontakt)**
-- You edit a contact on an Apple device
-- The periodic cycle REPORTs the addressbook, matches by vCard UID and ETag
-- Owned/imported cards are updated locally; shared cards are never overwritten (owner authority) and are force-pushed back
-
 ```
-┌─────────────────────┐   HTTPS    ┌─────────────────────┐  CardDAV  ┌──────────────────┐
-│  Kontakt            │ ─────────► │  Cloudflare Worker  │ ────────► │  iCloud CardDAV  │
-│  (browser, E2E      │ ◄───────── │  carddav-proxy      │ ◄──────── │  contacts.icloud │
-│   encrypted store)  │            │  CORS + allowlist   │           │  .com            │
-└─────────────────────┘            └─────────────────────┘           └──────────────────┘
-```
+
 ---
-## 🔗 iCloud Sync
-
-The only external sync target is Apple iCloud. Because iCloud's CardDAV endpoint does not send CORS headers, requests go through a small Cloudflare Worker (`cloudflare-worker/`) that only forwards to `contacts.icloud.com` / `caldav.icloud.com`, checks the request origin, and forwards conditional (ETag) headers so edits are never silently overwritten.
-
-### Quick Start
-```bash
-npm run serve   # http://localhost:8080
-```
-
-Open http://localhost:8080, sign in, and use the **iCloud Sync** button with your Apple ID email and an app-specific password (appleid.apple.com → Sign-In and Security → App-Specific Passwords). Credentials can be stored encrypted in the browser so auto-sync resumes after a reload.
-
-The proxy Worker is deployed separately:
-```bash
-cd cloudflare-worker && node_modules/.bin/wrangler deploy
-```
-
-See [ICLOUD_SYNC_REVIEW.md](ICLOUD_SYNC_REVIEW.md) for the sync rules and [FEATURE_CLEANUP_AND_REVIEW.md](FEATURE_CLEANUP_AND_REVIEW.md) for the cleanup plan.
 
 ## Acknowledgements
 
-This project has been developed with assistance from [GitHub Copilot](https://github.com/features/copilot).
+This project has been developed with assistance from Copilot and Mistral Vibe.
